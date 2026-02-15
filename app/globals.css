@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Main backgrounds */
+    --background: 211 100% 96%;          /* Light blue bg - rgb(235, 244, 255) */
+    --foreground: 214 30% 15%;           /* Dark blue-gray text for better contrast */
+    
+    /* Cards - SAME as background (blends in) */
+    --card: 211 100% 96%;                /* Same light blue as background */
+    --card-foreground: 214 30% 15%;      /* Dark blue-gray text */
+    
+    /* Popovers - slightly elevated (white) */
+    --popover: 0 0% 100%;                /* White */
+    --popover-foreground: 214 30% 15%;   /* Dark blue-gray text */
+    
+    /* Primary - Your amber/yellow buttons */
+    --primary: 38 92% 50%;               /* Amber/yellow */
+    --primary-foreground: 0 0% 0%;       /* Pure black text on amber */
+    
+    /* Secondary - Subtle blue-tinted actions */
+    --secondary: 211 60% 90%;            /* Light blue (matches bg theme) */
+    --secondary-foreground: 214 30% 15%; /* Dark blue-gray text */
+    
+    /* Muted - For disabled/subtle elements */
+    --muted: 211 50% 92%;                /* Very light blue */
+    --muted-foreground: 214 15% 50%;     /* Medium gray-blue */
+    
+    /* Accent - Hover states, highlights */
+    --accent: 211 80% 88%;               /* Slightly saturated blue */
+    --accent-foreground: 214 30% 15%;    /* Dark blue-gray text */
+    
+    /* Destructive - Errors, delete actions */
+    --destructive: 0 62% 50%;            /* Red */
+    --destructive-foreground: 0 0% 100%; /* White text */
+    
+    /* Borders and inputs */
+    --border: 214 30% 85%;               /* Light blue-gray border */
+    --input: 0 0% 100%;                  /* White input backgrounds */
+    --ring: 38 92% 50%;                  /* Amber focus ring (matches primary) */
+    
+    /* Chart colors (for shadcn charts) */
+    --chart-1: 214 70% 45%;
+    --chart-2: 38 92% 50%;
+    --chart-3: 160 55% 40%;
+    --chart-4: 280 60% 50%;
+    --chart-5: 15 75% 50%;
+    
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Main backgrounds */
+    --background: 214 32% 17%;           /* Dark blue bg - rgb(30, 41, 58) */
+    --foreground: 210 20% 98%;           /* Almost white with slight blue tint */
+    
+    /* Cards - SAME as background (blends in) */
+    --card: 214 32% 17%;                 /* Same dark blue as background */
+    --card-foreground: 210 20% 98%;      /* Almost white */
+    
+    /* Popovers - slightly elevated */
+    --popover: 214 28% 25%;              /* Lighter dark blue */
+    --popover-foreground: 210 20% 98%;   /* Almost white */
+    
+    /* Primary - Your amber/yellow buttons */
+    --primary: 38 92% 50%;               /* Amber/yellow (same as light) */
+    --primary-foreground: 0 0% 0%;       /* Pure black text */
+    
+    /* Secondary - Subtle lighter blue */
+    --secondary: 214 25% 30%;            /* Medium dark blue */
+    --secondary-foreground: 210 20% 98%; /* Almost white */
+    
+    /* Muted - For disabled/subtle elements */
+    --muted: 214 20% 25%;                /* Darker blue-gray */
+    --muted-foreground: 214 10% 60%;     /* Medium gray */
+    
+    /* Accent - Hover states, highlights */
+    --accent: 214 30% 35%;               /* Brighter blue for hovers */
+    --accent-foreground: 210 20% 98%;    /* Almost white */
+    
+    /* Destructive - Errors, delete actions */
+    --destructive: 0 62% 50%;            /* Darker red for dark mode */
+    --destructive-foreground: 0 0% 100%; /* White text */
+    
+    /* Borders and inputs */
+    --border: 214 25% 35%;               /* Lighter border for visibility */
+    --input: 214 28% 22%;                /* Slightly lighter for inputs */
+    --ring: 38 92% 50%;                  /* Amber focus ring */
+    
+    /* Chart colors (dark) */
+    --chart-1: 214 70% 55%;
+    --chart-2: 38 92% 55%;
+    --chart-3: 160 55% 50%;
+    --chart-4: 280 60% 60%;
+    --chart-5: 15 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Clock page tab list – values from design spec */
+@layer components {
+  :root {
+    --clock-tab-list-bg: #171717;
+    --clock-tab-active-bg: #3fafd7;
+    --clock-tab-inactive-bg: #212a35;
+    --clock-tab-inactive-text: #3fafd7;
+    --clock-out-color: rgb(235, 92, 89);
+    --clock-out-hover: rgb(215, 72, 69);
+  }
+
+  .clock-tab-list {
+    background-color: var(--clock-tab-list-bg) !important;
+    border: none !important;
+    border-radius: 25px !important;
+    padding: 5px 5px 7px !important;
+
+  }
+
+  .clock-tab-trigger {
+    flex: 1 !important;
+    display: block !important;
+    text-align: center !important;
+    font-size: 20px !important;
+    line-height: 30px !important;
+    padding: 0.5rem 1rem !important;
+    transition: background-color 0.2s, color 0.2s;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+  .clock-tab-trigger::after {
+    display: none !important;
+  }
+  .clock-tab-trigger[data-state="active"] {
+    background-color: transparent !important;
+    border: none !important;
+    color: #fff !important;
+    border-radius: 24px !important;
+  }
+  .clock-tab-trigger[data-state="inactive"] {
+    background-color: var(--clock-tab-inactive-bg) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 0 3px var(--clock-tab-inactive-bg) !important;
+    color: var(--clock-tab-inactive-text) !important;
+  }
+  .clock-tab-trigger:disabled {
+    opacity: 0.5 !important;
+    pointer-events: none !important;
+  }
+
+  .pin-filled {
+    background-color: var(--clock-tab-active-bg) !important;
+  }
+
+  /* Sliding indicator – same look as active tab trigger */
+  .clock-tab-indicator {
+    background-color: var(--clock-tab-active-bg) !important;
+    border-radius: 24px !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .clock-out-btn {
+    background-color: var(--clock-out-color) !important;
+  }
+  .clock-out-btn:hover:not(:disabled) {
+    background-color: var(--clock-out-hover) !important;
+  }
+}
