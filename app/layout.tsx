@@ -19,6 +19,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Timesheet",
   description: "Timesheet clock in / out",
+  manifest: "/manifest.json",
 };
 
 export default async function RootLayout({
@@ -32,6 +33,11 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${theme} ${inter.variable}`} style={{ colorScheme: theme }}>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/web-app-manifest-192x192.png" />
+        <meta name="theme-color" content="#2563eb" />
+      </head>
       <body className="antialiased min-h-screen font-sans">
         <ThemeProvider initialTheme={theme}>
           <TooltipProvider>
