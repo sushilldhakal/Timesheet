@@ -501,7 +501,7 @@ export default function EmployeeDetailPage() {
           <CardDescription>
             Daily clock in, break, and clock out. Break/total hours are calculated automatically.{" "}
             <span className="text-destructive font-medium">Red</span> = time added manually (no punch);{" "}
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Green</span> = from device punch or edited by admin.
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Green</span> = edited by admin.
           </CardDescription>
         </CardHeader>
         <CardContent>

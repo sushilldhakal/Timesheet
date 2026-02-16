@@ -8,7 +8,7 @@ import {
   endOfWeek,
   getDay,
 } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, Timesheet } from "@/lib/db"
 
 const DATE_FMT = "dd-MM-yyyy"
@@ -80,8 +80,8 @@ function normalizeRole(role: string): string {
 }
 
 export async function GET(request: Request) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -97,8 +97,19 @@ export async function GET(request: Request) {
       if (isValid(d)) timelineDateStr = format(d, DATE_FMT)
     }
 
+    // ─── Employees (filtered by user location) + pin filter for timesheet queries ─
+    const empFilter: Record<string, unknown> = {}
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const employees = await Employee.find(empFilter).lean()
+    const allowedPins = ctx.userLocations && ctx.userLocations.length > 0
+      ? (employees as { pin?: string }[]).map((e) => e.pin ?? "").filter(Boolean)
+      : null
+    const timesheetFilter = (base: Record<string, unknown>): Record<string, unknown> =>
+      allowedPins && allowedPins.length > 0 ? { ...base, pin: { $in: allowedPins } } : base
+
     // ─── 1. Daily Timeline: punches by hour and type (clock in, break in, break out, clock out) ─
-    const todayPunches = await Timesheet.find({ date: timelineDateStr }).lean()
+    const todayPunches = await Timesheet.find(timesheetFilter({ date: timelineDateStr })).lean()
     type HourCounts = { clockIn: number; breakIn: number; breakOut: number; clockOut: number }
     const byHour: Record<string, HourCounts> = {}
     for (let h = 6; h <= 20; h++) {
@@ -122,7 +133,6 @@ export async function GET(request: Request) {
       .sort((a, b) => a.hour.localeCompare(b.hour))
 
     // ─── 2. Location Distribution: from employees ───────────────────────────
-    const employees = await Employee.find({}).lean()
     const locationCounts: Record<string, number> = {}
     for (const e of employees) {
       const locs = Array.isArray(e.location) ? e.location : e.site ? [e.site] : []
@@ -142,10 +152,10 @@ export async function GET(request: Request) {
     // ─── 3. Attendance by day of week (last 4 weeks) ───────────────────────
     const fourWeeksAgo = subDays(now, 28)
     const dateStrings = dateRangeToDDMM(fourWeeksAgo, now)
-    const punchesByDay = await Timesheet.find({
+    const punchesByDay = await Timesheet.find(timesheetFilter({
       date: { $in: dateStrings },
       type: { $in: ["in", "In"] },
-    }).lean()
+    })).lean()
     const dayCounts: Record<string, Set<string>> = {}
     DAY_NAMES.forEach((d) => (dayCounts[d] = new Set()))
     for (const row of punchesByDay) {
@@ -173,7 +183,7 @@ export async function GET(request: Request) {
       const start = weekStarts[w]
       const end = endOfWeek(start, { weekStartsOn: 1 })
       const rangeStr = dateRangeToDDMM(start, end)
-      const weekPunches = await Timesheet.find({ date: { $in: rangeStr } }).sort({ date: 1, time: 1 }).lean()
+      const weekPunches = await Timesheet.find(timesheetFilter({ date: { $in: rangeStr } })).sort({ date: 1, time: 1 }).lean()
       const byPinDate = new Map<string, { in?: string; out?: string }>()
       for (const r of weekPunches) {
         const key = `${r.pin}|${r.date}`
@@ -212,10 +222,10 @@ export async function GET(request: Request) {
 
     // ─── 5. Role-based staffing: count by role (last 7 days, no morning/evening) ─
     const sevenDaysStr = dateRangeToDDMM(subDays(now, 7), now)
-    const recentPunches = await Timesheet.find({
+    const recentPunches = await Timesheet.find(timesheetFilter({
       date: { $in: sevenDaysStr },
       type: { $in: ["in", "In"] },
-    }).lean()
+    })).lean()
     const pinToEmployee = new Map<string, { role: string[]; employer: string[] }>()
     for (const e of employees) {
       const emp = e as { pin: string; role?: string[]; employer?: string[] }
@@ -258,7 +268,7 @@ export async function GET(request: Request) {
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
       const monthStr = format(monthStart, "MMM yyyy")
       const rangeStr = dateRangeToDDMM(monthStart, monthEnd)
-      const pinsActiveInMonth = await Timesheet.distinct("pin", { date: { $in: rangeStr } })
+      const pinsActiveInMonth = await Timesheet.distinct("pin", timesheetFilter({ date: { $in: rangeStr } }))
       const counts = { employees: 0, subcontractors: 0, dmx: 0, vicLogistics: 0, mandm: 0 }
       for (const pin of pinsActiveInMonth) {
         const meta = pinToEmployee.get(pin)

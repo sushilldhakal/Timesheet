@@ -4,6 +4,7 @@ import { getAuthFromCookie } from "@/lib/auth"
 import { connectDB, User } from "@/lib/db"
 import { userIdParamSchema } from "@/lib/validation/user"
 import { userAdminUpdateSchema, userSelfUpdateSchema } from "@/lib/validation/user"
+import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -20,8 +21,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
   }
 
-  // User can only get their own profile unless admin
-  if (auth.role !== "admin" && auth.sub !== id) {
+  // User can only get their own profile unless admin/super_admin
+  if (!isAdminOrSuperAdmin(auth.role) && auth.sub !== id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -30,6 +31,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const user = await User.findById(id).select("-password").lean()
 
     if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    // Hide super_admin from admin (not from super_admin)
+    if (user.role === "super_admin" && !isSuperAdmin(auth.role)) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
@@ -66,9 +72,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const isSelf = auth.sub === id
-  const isAdmin = auth.role === "admin"
+  const isAdminOrSuper = isAdminOrSuperAdmin(auth.role)
 
-  if (!isAdmin && !isSelf) {
+  if (!isAdminOrSuper && !isSelf) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -81,7 +87,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    if (isAdmin) {
+    // Admin/super_admin cannot modify super_admin users
+    if (existing.role === "super_admin" && !isSuperAdmin(auth.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    if (isAdminOrSuper) {
       // Admin: full update
       const parsedUpdate = userAdminUpdateSchema.safeParse(body)
       if (!parsedUpdate.success) {
@@ -176,7 +187,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  if (auth.role !== "admin") {
+  if (!isAdminOrSuperAdmin(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -193,6 +204,13 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   try {
     await connectDB()
+    const target = await User.findById(id).select("role").lean()
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+    if (target.role === "super_admin" && !isSuperAdmin(auth.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
     const deleted = await User.findByIdAndDelete(id)
     if (!deleted) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })

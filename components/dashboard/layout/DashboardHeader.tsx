@@ -27,7 +27,7 @@ import {
     CommandItem,
 } from '@/components/ui/command';
 import { useEffect, useMemo, useState } from 'react';
-import { isAdmin } from '@/lib/utils/roles';
+import { isAdminOrSuperAdmin } from '@/lib/utils/roles';
 import { baseNavigationItems, getFlatNavigationForSearch } from './dashboardNavigation';
 import type { DashboardHeaderProps } from '@/types/dashboard';
 
@@ -40,7 +40,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     const { isFullWidth, toggleLayout } = useLayout();
     const [searchOpen, setSearchOpen] = useState(false);
     const [showLayoutToggle, setShowLayoutToggle] = useState(false);
-    const isUserAdmin = isAdmin(userRole ?? displayRole);
+    const isUserAdmin = isAdminOrSuperAdmin(userRole ?? displayRole);
 
     // Only show layout toggle when screen is wider than 1600px
     useEffect(() => {

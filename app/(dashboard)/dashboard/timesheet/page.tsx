@@ -11,13 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/MultiSelect"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { ServerDataTable } from "@/components/ui/data-table"
 import { FileDown, Printer } from "lucide-react"
@@ -69,9 +63,9 @@ function getDefaultWeek() {
 function buildTimesheetUrl(params: {
   startDate: string
   endDate: string
-  employeeId?: string
-  employer?: string
-  location?: string
+  employeeIds?: string[]
+  employers?: string[]
+  locations?: string[]
   limit: number
   offset: number
   sortBy?: string
@@ -82,9 +76,9 @@ function buildTimesheetUrl(params: {
   sp.set("endDate", params.endDate)
   sp.set("limit", String(params.limit))
   sp.set("offset", String(params.offset))
-  if (params.employeeId) sp.set("employeeId", params.employeeId)
-  if (params.employer) sp.set("employer", params.employer)
-  if (params.location) sp.set("location", params.location)
+  params.employeeIds?.forEach((id) => sp.append("employeeId", id))
+  params.employers?.forEach((e) => sp.append("employer", e))
+  params.locations?.forEach((l) => sp.append("location", l))
   if (params.sortBy) sp.set("sortBy", params.sortBy)
   if (params.order) sp.set("order", params.order)
   return `/api/timesheets?${sp.toString()}`
@@ -231,9 +225,9 @@ export default function TimesheetPage() {
   const { startDate: defaultStart, endDate: defaultEnd } = getDefaultWeek()
   const [startDate, setStartDate] = useState(defaultStart)
   const [endDate, setEndDate] = useState(defaultEnd)
-  const [employer, setEmployer] = useState<string>("")
-  const [location, setLocation] = useState<string>("")
-  const [employeeId, setEmployeeId] = useState<string>("")
+  const [selectedEmployers, setSelectedEmployers] = useState<string[]>([])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [employers, setEmployers] = useState<Category[]>([])
   const [locations, setLocations] = useState<Category[]>([])
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
@@ -302,13 +296,13 @@ export default function TimesheetPage() {
   }, [])
 
   const filteredEmployees = useMemo(() => {
-    if (!employer && !location) return employees
+    if (selectedEmployers.length === 0 && selectedLocations.length === 0) return employees
     return employees.filter((e) => {
-      const matchEmployer = !employer || e.employer.some((x) => x === employer)
-      const matchLocation = !location || e.location.some((x) => x === location)
+      const matchEmployer = selectedEmployers.length === 0 || e.employer.some((x) => selectedEmployers.includes(x))
+      const matchLocation = selectedLocations.length === 0 || e.location.some((x) => selectedLocations.includes(x))
       return matchEmployer && matchLocation
     })
-  }, [employees, employer, location])
+  }, [employees, selectedEmployers, selectedLocations])
 
   const fetchTimesheets = useCallback(async () => {
     setLoading(true)
@@ -318,9 +312,9 @@ export default function TimesheetPage() {
       const url = buildTimesheetUrl({
         startDate,
         endDate,
-        employeeId: employeeId || undefined,
-        employer: employer || undefined,
-        location: location || undefined,
+        employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+        employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
+        locations: selectedLocations.length > 0 ? selectedLocations : undefined,
         limit: pageSize,
         offset,
         sortBy: sortBy ?? undefined,
@@ -345,21 +339,26 @@ export default function TimesheetPage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate, employeeId, employer, location, pageIndex, pageSize, sortBy, sortOrder])
+  }, [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocations, pageIndex, pageSize, sortBy, sortOrder])
 
   useEffect(() => {
     fetchFilters()
   }, [fetchFilters])
 
   useEffect(() => {
+    setPageIndex(0)
+  }, [selectedEmployers, selectedLocations, selectedEmployeeIds])
+
+  useEffect(() => {
     fetchTimesheets()
   }, [fetchTimesheets])
 
   useEffect(() => {
-    if (employeeId && filteredEmployees.length > 0 && !filteredEmployees.some((e) => e.id === employeeId)) {
-      setEmployeeId("")
+    if (selectedEmployeeIds.length > 0 && filteredEmployees.length > 0) {
+      const valid = selectedEmployeeIds.filter((id) => filteredEmployees.some((e) => e.id === id))
+      if (valid.length !== selectedEmployeeIds.length) setSelectedEmployeeIds(valid)
     }
-  }, [employeeId, filteredEmployees])
+  }, [selectedEmployeeIds, filteredEmployees])
 
   const exportCsv = useCallback(() => {
     const visibleIds = TIMESHEET_COLUMN_IDS.filter((id) => columnVisibility[id] !== false)
@@ -436,51 +435,39 @@ export default function TimesheetPage() {
           </div>
           <div className="space-y-1.5">
             <label className="text-muted-foreground block text-xs font-medium">Employer</label>
-            <Select value={employer || "all"} onValueChange={(v) => setEmployer(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All employers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All employers</SelectItem>
-                {employers.map((c) => (
-                  <SelectItem key={c.id} value={c.name}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={employers.map((c) => ({ label: c.name, value: c.name }))}
+              defaultValue={selectedEmployers}
+              onValueChange={setSelectedEmployers}
+              placeholder="All employers"
+              searchable
+              className="min-w-[180px] max-w-[220px]"
+            />
           </div>
           <div className="space-y-1.5">
             <label className="text-muted-foreground block text-xs font-medium">Location</label>
-            <Select value={location || "all"} onValueChange={(v) => setLocation(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All locations" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All locations</SelectItem>
-                {locations.map((c) => (
-                  <SelectItem key={c.id} value={c.name}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={locations.map((c) => ({ label: c.name, value: c.name }))}
+              defaultValue={selectedLocations}
+              onValueChange={setSelectedLocations}
+              placeholder="All locations"
+              searchable
+              className="min-w-[180px] max-w-[220px]"
+            />
           </div>
           <div className="space-y-1.5">
             <label className="text-muted-foreground block text-xs font-medium">Employee</label>
-            <Select value={employeeId || "all"} onValueChange={(v) => setEmployeeId(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All employees" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All employees</SelectItem>
-                {filteredEmployees.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name} ({e.pin})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={filteredEmployees.map((e) => ({
+                label: `${e.name} (${e.pin})`,
+                value: e.id,
+              }))}
+              defaultValue={selectedEmployeeIds}
+              onValueChange={setSelectedEmployeeIds}
+              placeholder="All employees"
+              searchable
+              className="min-w-[200px] max-w-[240px]"
+            />
           </div>
           <Button size="sm" onClick={() => setPageIndex(0)} disabled={loading}>
             {loading ? "Loading…" : "Apply"}

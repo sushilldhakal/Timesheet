@@ -2,20 +2,21 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth"
 import { connectDB, User } from "@/lib/db"
 import { userCreateSchema } from "@/lib/validation/user"
+import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 
-/** GET /api/users - List all users (admin only) */
+/** GET /api/users - List all users (admin only). Excludes super_admin (hidden). */
 export async function GET() {
   const auth = await getAuthFromCookie()
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  if (auth.role !== "admin") {
+  if (!isAdminOrSuperAdmin(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   try {
     await connectDB()
-    const users = await User.find()
+    const users = await User.find({ role: { $ne: "super_admin" } })
       .select("-password")
       .sort({ createdAt: -1 })
       .lean()
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  if (auth.role !== "admin") {
+  if (!isAdminOrSuperAdmin(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

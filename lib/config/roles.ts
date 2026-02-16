@@ -9,6 +9,7 @@
 export enum UserRole {
     ADMIN = 'admin',
     USER = 'user',
+    SUPER_ADMIN = 'super_admin',
     EMPLOYEE = 'employee',
 }
 
@@ -23,8 +24,11 @@ export const RoleGroups = {
         UserRole.EMPLOYEE,
     ],
 
-    // Admin only
+    // Admin only (excludes super_admin - super_admin is hidden)
     ADMIN_ONLY: [UserRole.ADMIN],
+
+    // Admin + Super admin (full access, super_admin hidden from UI)
+    ADMIN_AND_SUPER_ADMIN: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
 
     USER_ONLY: [UserRole.USER],
 
@@ -57,6 +61,16 @@ export const canAccessDashboard = (role: string | null): boolean => {
  */
 export const isAdmin = (role: string | null): boolean => {
     return role === UserRole.ADMIN;
+};
+
+/** Super admin has full access but is hidden from user list/dashboard */
+export const isSuperAdmin = (role: string | null): boolean => {
+    return role === UserRole.SUPER_ADMIN;
+};
+
+/** Admin or super admin - full access */
+export const isAdminOrSuperAdmin = (role: string | null): boolean => {
+    return role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
 };
 
 /**
@@ -110,6 +124,7 @@ export const getRoleName = (role: string | null): string => {
     const roleMap: Record<string, string> = {
         [UserRole.ADMIN]: 'Administrator',
         [UserRole.USER]: 'User',
+        [UserRole.SUPER_ADMIN]: 'Administrator', // Display as admin; hidden from list
         [UserRole.EMPLOYEE]: 'Employee',
     };
 

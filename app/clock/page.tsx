@@ -56,6 +56,8 @@ export default function ClockPage() {
   const [todayPunches, setTodayPunches] = useState<TodayPunches | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [permissionsReady, setPermissionsReady] = useState(false)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
   const webcamRef = useRef<Webcam>(null)
   const [activeTab, setActiveTab] = useState<"start" | "break" | "end">("start")
   const idleLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -157,12 +159,37 @@ export default function ClockPage() {
     setActiveTab(nextTab)
   }, [todayPunches, timeEntries])
 
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}
-    )
+  /** iOS/Safari/PWA require camera and geolocation to be requested in direct response to a user tap.
+   * We gate the main clock UI behind a one-tap "Enable" step so both prompts appear when user taps. */
+  const handleEnableCameraAndLocation = useCallback(() => {
+    setPermissionError(null)
+    if (!navigator.geolocation || !navigator.mediaDevices?.getUserMedia) {
+      setPermissionError("Camera or location is not supported on this device.")
+      return
+    }
+    const geoPromise = new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err)
+      )
+    })
+    const camPromise = navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+      stream.getTracks().forEach((t) => t.stop())
+    })
+    Promise.all([geoPromise, camPromise])
+      .then(([coords]) => {
+        setLocation(coords)
+        setPermissionsReady(true)
+      })
+      .catch((err) => {
+        const msg =
+          err?.code === 1
+            ? "Location was denied. Enable Location for this site in Settings."
+            : err?.name === "NotAllowedError"
+              ? "Camera was denied. Enable Camera for this site in Settings."
+              : "Could not enable camera or location. Please check site permissions."
+        setPermissionError(msg)
+      })
   }, [])
 
   /** Kiosk-optimized: very small image (240×180, 0.35) for fastest upload. */
@@ -329,6 +356,26 @@ export default function ClockPage() {
     return (
       <div className={cn("min-h-dvh flex items-center justify-center", homeBg)}>
         <Loader2 className="h-10 w-10 animate-spin text-slate-500" />
+      </div>
+    )
+  }
+
+  // iOS/Safari/PWA: request camera & location in response to user tap (required for prompts)
+  if (!permissionsReady) {
+    return (
+      <div className={cn("min-h-dvh flex flex-col justify-center items-center gap-6 p-6", homeBg)}>
+        <p className="text-white text-center text-lg max-w-sm">
+          To clock in with photo and location, allow access when prompted.
+        </p>
+        <Button
+          onClick={handleEnableCameraAndLocation}
+          className="h-16 px-12 text-xl font-bold rounded-full bg-[#4CAF50] hover:bg-[#45a049] text-white shadow-lg"
+        >
+          Enable Camera & Location
+        </Button>
+        {permissionError && (
+          <p className="text-amber-300 text-center text-sm max-w-sm">{permissionError}</p>
+        )}
       </div>
     )
   }

@@ -13,7 +13,7 @@ export type AuthUser = {
   id: string
   name?: string
   username: string
-  role: "admin" | "user"
+  role: "admin" | "user" | "super_admin"
   location?: string[]
   rights?: string[]
 }

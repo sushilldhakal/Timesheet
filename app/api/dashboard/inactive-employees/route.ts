@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { format } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, Timesheet } from "@/lib/db"
 
 const INACTIVE_DAYS = 100
@@ -45,8 +45,8 @@ export interface InactiveEmployeeRow {
 
 /** GET /api/dashboard/inactive-employees - Employees with no punch in the last 100 days */
 export async function GET() {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -75,7 +75,10 @@ export async function GET() {
       if (maxDate && maxStr) lastPunchMap.set(pin, { date: maxDate, dateStr: maxStr })
     }
 
-    const allEmployees = await Employee.find({}).lean()
+    const empFilter: Record<string, unknown> = {}
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const allEmployees = await Employee.find(empFilter).lean()
     const inactive: InactiveEmployeeRow[] = []
     const now = new Date()
 

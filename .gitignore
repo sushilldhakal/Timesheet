@@ -27,6 +27,7 @@ yarn-error.log*
 # local env files (never commit real secrets)
 .env
 .env*.local
+env.txt
 .env.development
 .env.production
 
@@ -36,3 +37,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+*.mjs
+

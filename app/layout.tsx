@@ -6,6 +6,8 @@ import { SetupGuard } from "@/components/Setup";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 
 // display: "swap" avoids invisible text while font loads (no FOIT)
 const inter = Inter({
@@ -34,6 +36,8 @@ export default async function RootLayout({
         <ThemeProvider initialTheme={theme}>
           <TooltipProvider>
             <SetupGuard>{children}</SetupGuard>
+            <ServiceWorkerRegistration />
+            <InstallPrompt />
           </TooltipProvider>
         </ThemeProvider>
       </body>

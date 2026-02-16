@@ -8,7 +8,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production"
 export type AuthPayload = {
   sub: string // userId
   username: string
-  role: "admin" | "user"
+  role: "admin" | "user" | "super_admin"
   location?: string
 }
 
@@ -41,10 +41,12 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
     const { payload } = await jwtVerify(token, getSecret())
     const sub = payload.sub
     if (!sub || typeof sub !== "string") return null
+    const role = payload.role as string
+    const validRole = ["admin", "user", "super_admin"].includes(role) ? role : "user"
     return {
       sub,
       username: payload.username as string,
-      role: payload.role as "admin" | "user",
+      role: validRole as "admin" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
     }
   } catch {
@@ -52,7 +54,7 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
   }
 }
 
-export function getAuthCookieOptions() {
+function getAuthCookieOptions() {
   return {
     httpOnly: true,
     secure: IS_PRODUCTION,

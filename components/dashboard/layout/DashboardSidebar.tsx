@@ -20,7 +20,7 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { isAdmin } from '@/lib/utils/roles';
+import { isAdminOrSuperAdmin } from '@/lib/utils/roles';
 import { baseNavigationItems, type NavigationItem } from './dashboardNavigation';
 import type { DashboardSidebarProps } from '@/types/dashboard';
 
@@ -34,7 +34,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
     const [collapsedPopoverOpen, setCollapsedPopoverOpen] = useState<string | null>(null);
     const { userRole, isHydrated } = useAuth();
-    const isUserAdmin = isAdmin(userRole);
+    const isUserAdmin = isAdminOrSuperAdmin(userRole);
 
     // Filter navigation items based on user role (do not mutate shared baseNavigationItems)
     const navigationItems = useMemo(() => {

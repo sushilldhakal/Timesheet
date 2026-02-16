@@ -6,7 +6,7 @@ export interface IUser {
   name: string
   username: string
   password: string
-  role: "admin" | "user"
+  role: "admin" | "user" | "super_admin"
   location: string[]
   rights: Right[]
   createdAt?: Date
@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     },
     role: {
       type: String,
-      enum: ["admin", "user"],
+      enum: ["admin", "user", "super_admin"],
       default: "user",
     },
     location: {

@@ -50,7 +50,7 @@ export default function DashboardPage() {
           <h2 className="font-medium">Flagged punches</h2>
           <p className="mt-1 text-sm text-muted-foreground">No image or location (last 30 days)</p>
         </Link>
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "super_admin") && (
           <Link
             href="/dashboard/users"
             className="rounded-lg border p-4 transition-colors hover:bg-muted/50"

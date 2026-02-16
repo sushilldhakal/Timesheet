@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
 
 /** GET /api/employees?search=...&limit=10&offset=0 - List employees with search and pagination */
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -20,19 +20,26 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB()
 
+    const andConditions: Record<string, unknown>[] = []
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) andConditions.push(locFilter)
+
     const filter: Record<string, unknown> = {}
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { pin: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-        { role: { $regex: search, $options: "i" } },
-        { employer: { $regex: search, $options: "i" } },
-        { site: { $regex: search, $options: "i" } },
-        { location: { $regex: search, $options: "i" } },
-      ]
+      andConditions.push({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { pin: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+          { phone: { $regex: search, $options: "i" } },
+          { role: { $regex: search, $options: "i" } },
+          { employer: { $regex: search, $options: "i" } },
+          { site: { $regex: search, $options: "i" } },
+          { location: { $regex: search, $options: "i" } },
+        ],
+      })
     }
+    if (andConditions.length > 0) filter.$and = andConditions
 
     const [employees, total] = await Promise.all([
       Employee.find(filter)
@@ -79,8 +86,8 @@ export async function GET(request: NextRequest) {
 
 /** POST /api/employees - Create employee */
 export async function POST(request: NextRequest) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

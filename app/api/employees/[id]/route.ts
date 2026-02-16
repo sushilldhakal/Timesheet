@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { employeeIdParamSchema } from "@/lib/validation/employee"
 import { employeeUpdateSchema } from "@/lib/validation/employee"
@@ -30,8 +30,8 @@ function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: st
 
 /** GET /api/employees/[id] - Get single employee */
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -43,7 +43,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   try {
     await connectDB()
-    const employee = await Employee.findById(id).lean()
+    const empFilter: Record<string, unknown> = { _id: id }
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) {
+      empFilter.$and = [locFilter]
+    }
+    const employee = await Employee.findOne(empFilter).lean()
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }
@@ -56,8 +61,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
 /** PATCH /api/employees/[id] - Update employee */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -81,7 +86,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     await connectDB()
-    const existing = await Employee.findById(id)
+    const empFilter: Record<string, unknown> = { _id: id }
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const existing = await Employee.findOne(empFilter)
     if (!existing) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }
@@ -128,8 +136,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 /** DELETE /api/employees/[id] - Delete employee */
 export async function DELETE(_request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -141,7 +149,10 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   try {
     await connectDB()
-    const deleted = await Employee.findByIdAndDelete(id)
+    const empFilter: Record<string, unknown> = { _id: id }
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const deleted = await Employee.findOneAndDelete(empFilter)
     if (!deleted) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { parse, isValid } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, Timesheet } from "@/lib/db"
 import { employeeIdParamSchema } from "@/lib/validation/employee"
 
@@ -77,8 +77,8 @@ export interface DailyTimesheetRow {
 
 /** GET /api/employees/[id]/timesheet - Get employee's daily timesheet (aggregated) */
 export async function GET(request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -106,7 +106,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     await connectDB()
-    const employee = await Employee.findById(id).lean()
+    const empFilter: Record<string, unknown> = { _id: id }
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const employee = await Employee.findOne(empFilter).lean()
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }
@@ -292,8 +295,8 @@ const timesheetUpdateSchema = {
 
 /** PATCH /api/employees/[id]/timesheet - Edit individual punch records. Update existing doc (working: "update") or create new (working: "insert"). */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -311,7 +314,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     await connectDB()
-    const employee = await Employee.findById(id).lean()
+    const empFilter: Record<string, unknown> = { _id: id }
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const employee = await Employee.findOne(empFilter).lean()
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }

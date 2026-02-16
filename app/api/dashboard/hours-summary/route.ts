@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, startOfWeek, endOfWeek } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, Timesheet } from "@/lib/db"
 
 const DATE_FMT = "dd-MM-yyyy"
@@ -27,8 +27,8 @@ function dateRangeToDDMM(start: Date, end: Date): string[] {
 /** GET /api/dashboard/hours-summary?startDate=yyyy-MM-dd&endDate=yyyy-MM-dd
  *  Returns most hours (top staff, overtime) and least hours (< 38h, min first). */
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -56,7 +56,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Date range too large" }, { status: 400 })
     }
 
-    const raw = await Timesheet.find({ date: { $in: dateStrings } })
+    const empFilter: Record<string, unknown> = {}
+    const locFilter = employeeLocationFilter(ctx.userLocations)
+    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+    const employees = await Employee.find(empFilter).lean()
+
+    const timesheetQuery: Record<string, unknown> = { date: { $in: dateStrings } }
+    if (Object.keys(locFilter).length > 0) {
+      const allowedPins = (employees as { pin?: string }[]).map((e) => e.pin ?? "").filter(Boolean)
+      timesheetQuery.pin = allowedPins.length > 0 ? { $in: allowedPins } : { $in: [""] }
+    }
+    const raw = await Timesheet.find(timesheetQuery)
       .sort({ date: 1, time: 1 })
       .lean()
 
@@ -80,7 +90,6 @@ export async function GET(request: NextRequest) {
       minutesByPin.set(pin, (minutesByPin.get(pin) ?? 0) + mins)
     }
 
-    const employees = await Employee.find({}).lean()
     const pinToName = new Map<string, string>()
     for (const e of employees) {
       const emp = e as { pin: string; name?: string }

@@ -25,12 +25,16 @@ export async function GET() {
         ? [String(user.location)]
         : []
 
+    // Ensure role is always returned (legacy users may lack role; infer admin from username)
+    const role =
+      user.role ?? auth.role ?? (user.username === "admin" ? "admin" : "user")
+
     return NextResponse.json({
       user: {
         id: user._id,
         name: user.name ?? "",
         username: user.username,
-        role: user.role,
+        role,
         location,
         rights: user.rights ?? [],
       },

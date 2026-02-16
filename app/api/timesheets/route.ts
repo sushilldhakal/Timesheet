@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, startOfWeek, endOfWeek } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, Timesheet } from "@/lib/db"
 
 function parseTimeToMinutes(t?: string): number {
@@ -59,17 +59,17 @@ export interface DashboardTimesheetRow {
 
 /** GET /api/timesheets - Aggregated timesheets with filters */
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { searchParams } = new URL(request.url)
   const startParam = searchParams.get("startDate")?.trim()
   const endParam = searchParams.get("endDate")?.trim()
-  const employeeId = searchParams.get("employeeId")?.trim() || undefined
-  const employer = searchParams.get("employer")?.trim() || undefined
-  const location = searchParams.get("location")?.trim() || undefined
+  const employeeIds = searchParams.getAll("employeeId").map((s) => s.trim()).filter(Boolean)
+  const employers = searchParams.getAll("employer").map((s) => s.trim()).filter(Boolean)
+  const locations = searchParams.getAll("location").map((s) => s.trim()).filter(Boolean)
   const limitParam = searchParams.get("limit")
   const offsetParam = searchParams.get("offset")
   const sortByParam = searchParams.get("sortBy")?.trim() ?? "date"
@@ -123,43 +123,49 @@ export async function GET(request: NextRequest) {
       { id: string; name: string; employer: string; role: string; location: string; comment: string }
     >()
 
-    if (employeeId) {
-      const emp = await Employee.findById(employeeId).lean()
-      if (!emp) {
-        return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+    if (employeeIds.length > 0) {
+      const emps = await Employee.find({ _id: { $in: employeeIds } }).lean()
+      for (const emp of emps) {
+        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; hire?: string; role?: string[]; location?: string[]; site?: string; comment?: string }
+        const locFilter = employeeLocationFilter(ctx.userLocations)
+        if (Object.keys(locFilter).length > 0) {
+          const empLocs = Array.isArray(e.location) ? e.location : e.site ? [e.site] : []
+          const userLocs = ctx.userLocations ?? []
+          const inLocation = empLocs.some((loc) => userLocs.includes(String(loc).trim()))
+          if (!inLocation) continue
+        }
+        pins.push(e.pin)
+        employeeMap.set(e.pin, {
+          id: String(e._id),
+          name: e.name ?? "",
+          employer: Array.isArray(e.employer) ? e.employer.join(", ") : e.hire ?? "",
+          role: Array.isArray(e.role) ? e.role.join(", ") : "",
+          location: Array.isArray(e.location) ? e.location.join(", ") : e.site ?? "",
+          comment: e.comment ?? "",
+        })
       }
-      const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; hire?: string; role?: string[]; location?: string[]; site?: string; comment?: string }
-      pins = [e.pin]
-      employeeMap.set(e.pin, {
-        id: String(e._id),
-        name: e.name ?? "",
-        employer: Array.isArray(e.employer) ? e.employer.join(", ") : e.hire ?? "",
-        role: Array.isArray(e.role) ? e.role.join(", ") : "",
-        location: Array.isArray(e.location) ? e.location.join(", ") : e.site ?? "",
-        comment: e.comment ?? "",
-      })
     } else {
       const filter: Record<string, unknown> = {}
       const andConditions: Record<string, unknown>[] = []
-      if (employer) {
+      const locFilter = employeeLocationFilter(ctx.userLocations)
+      if (Object.keys(locFilter).length > 0) andConditions.push(locFilter)
+      if (employers.length > 0) {
         andConditions.push({
           $or: [
-            { employer: { $in: [employer] } },
-            { hire: employer },
+            { employer: { $in: employers } },
+            { hire: { $in: employers } },
           ],
         })
       }
-      if (location) {
+      if (locations.length > 0) {
         andConditions.push({
           $or: [
-            { location: { $in: [location] } },
-            { site: location },
+            { location: { $in: locations } },
+            { site: { $in: locations } },
           ],
         })
       }
-      if (andConditions.length > 0) {
-        filter.$and = andConditions
-      }
+      if (andConditions.length > 0) filter.$and = andConditions
       const employees = await Employee.find(filter).lean()
       pins = employees.map((e) => (e as { pin: string }).pin)
       for (const emp of employees) {

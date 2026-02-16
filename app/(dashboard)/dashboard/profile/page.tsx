@@ -11,7 +11,6 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-
 export default function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
   const [username, setUsername] = useState("")
@@ -120,6 +119,16 @@ export default function ProfilePage() {
             </Button>
           </form>
         </CardContent>
+      </Card>
+
+      <Card className="max-w-md">
+        <CardHeader>
+          <CardTitle>PWA</CardTitle>
+          <CardDescription>
+            Install the app on your home screen for quick access. Use Share → Add to Home Screen on
+            iOS, or the install prompt in Chrome.
+          </CardDescription>
+        </CardHeader>
       </Card>
     </div>
   )

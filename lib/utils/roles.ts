@@ -7,6 +7,8 @@ export {
   RoleGroups,
   canAccessDashboard,
   isAdmin,
+  isSuperAdmin,
+  isAdminOrSuperAdmin,
   isUser,
   isAdminOrUser,
   hasRole,
