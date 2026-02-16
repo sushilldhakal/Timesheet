@@ -56,12 +56,11 @@ export default function ClockPage() {
   const [todayPunches, setTodayPunches] = useState<TodayPunches | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [permissionsReady, setPermissionsReady] = useState(false)
+  const [permissionsReady, setPermissionsReady] = useState(true)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const webcamRef = useRef<Webcam>(null)
   const [activeTab, setActiveTab] = useState<"start" | "break" | "end">("start")
   const idleLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const postPunchLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const updateTime = () => {
@@ -192,7 +191,7 @@ export default function ClockPage() {
       })
   }, [])
 
-  /** Kiosk-optimized: very small image (240×180, 0.35) for fastest upload. */
+  /** Kiosk-optimized: 360×270 @ 0.5 quality (50% larger than 240×180 for clearer photos). */
   const captureImageAsBlob = useCallback((): Promise<Blob | null> =>
     new Promise((resolve) => {
       const webcam = webcamRef.current
@@ -200,12 +199,12 @@ export default function ClockPage() {
         resolve(null)
         return
       }
-      const canvas = webcam.getCanvas({ width: 240, height: 180 })
+      const canvas = webcam.getCanvas({ width: 360, height: 270 })
       if (!canvas) {
         resolve(null)
         return
       }
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.35)
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.5)
     }), [])
 
   const handleClockAction = async (type: "in" | "break" | "endBreak" | "out") => {
@@ -267,11 +266,8 @@ export default function ClockPage() {
         clearTimeout(idleLogoutTimeoutRef.current)
         idleLogoutTimeoutRef.current = null
       }
-      // Log out immediately after any punch so next person can use the iPad (1s = brief success then out)
-      postPunchLogoutTimeoutRef.current = setTimeout(() => {
-        postPunchLogoutTimeoutRef.current = null
-        handleLogout()
-      }, 1000)
+      // Log out immediately after any punch so next person can use the kiosk
+      handleLogout()
       fetch("/api/employee/timesheet")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => { if (d?.punches) setTodayPunches(d.punches) })
@@ -283,20 +279,16 @@ export default function ClockPage() {
     }
   }
 
-  const handleLogout = useCallback(async () => {
+  const handleLogout = useCallback(() => {
     if (idleLogoutTimeoutRef.current) {
       clearTimeout(idleLogoutTimeoutRef.current)
       idleLogoutTimeoutRef.current = null
     }
-    if (postPunchLogoutTimeoutRef.current) {
-      clearTimeout(postPunchLogoutTimeoutRef.current)
-      postPunchLogoutTimeoutRef.current = null
-    }
     try {
       sessionStorage.removeItem("clock_employee")
     } catch {}
-    await fetch("/api/employee/logout", { method: "POST" })
     router.replace("/")
+    fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
   }, [router])
 
   // 10s idle: if no punch, auto logout so next employee can use the kiosk
@@ -310,10 +302,6 @@ export default function ClockPage() {
       if (idleLogoutTimeoutRef.current) {
         clearTimeout(idleLogoutTimeoutRef.current)
         idleLogoutTimeoutRef.current = null
-      }
-      if (postPunchLogoutTimeoutRef.current) {
-        clearTimeout(postPunchLogoutTimeoutRef.current)
-        postPunchLogoutTimeoutRef.current = null
       }
     }
   }, [employee, handleLogout])
@@ -391,10 +379,10 @@ export default function ClockPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:p-4 md:p-0 xs:p-0 max-w-7xl mx-auto w-full">
         {/* Left - Video Feed */}
         <div className="lg:w-[40%] flex-shrink-0">
-          <Card className="overflow-hidden relative group py-0 w-[485px] h-[500px] mx-auto">
+          <Card className="overflow-hidden relative group py-0 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto ">
             <Webcam
               ref={webcamRef}
               audio={false}
@@ -404,14 +392,14 @@ export default function ClockPage() {
               screenshotQuality={0.55}
               videoConstraints={{ width: 485, height: 500, facingMode: "user" }}
               mirrored
-              className="w-[485px] h-[500px] object-cover"
+              className="lg:w-[485px] xs:w-[420px] h-[500px] object-cover mx-auto"
               style={{
                 filter: "brightness(1.15) contrast(1.1) saturate(1.1) sepia(0.05)",
               }}
             />
 
             {/* Overlay Info */}
-            <div className="absolute inset-0 flex flex-col justify-between p-6">
+            <div className="absolute inset-0 flex flex-col justify-between p-6 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto">
               <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]">
                 <p className="font-bold text-lg">{employee.name}</p>
                 <p className="text-sm text-white/90">{employee.role || "—"}</p>
@@ -429,7 +417,7 @@ export default function ClockPage() {
           </Card>
 
           {/* 4-column punch times below webcam */}
-          <div className="grid grid-cols-4 gap-2 mt-3 mx-auto w-[485px]">
+          <div className="grid grid-cols-4 gap-2 mt-3 mx-auto lg:w-[485px] md:w-[420px] xs:w-[420px] mx-auto">
             <div className="rounded-lg p-2 bg-emerald-500/20 border border-emerald-500/50 text-center">
               <p className="text-xs text-emerald-300 font-medium">Clock In</p>
               <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatTimeDisplay(mergedPunches.clockIn)}</p>
@@ -451,7 +439,7 @@ export default function ClockPage() {
 
         {/* Right - Controls */}
         <div className="lg:w-[60%] flex flex-col">
-          <Card className="p-8 md:p-12 bg-transparent border-none ring-0">
+          <Card className="lg:p-8 md:p-12 xs:p-0 bg-transparent border-none ring-0">
           <div className="flex-1 w-full">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "start" | "break" | "end")} className="w-full flex flex-col ">
               {/* Tab Navigation */}
