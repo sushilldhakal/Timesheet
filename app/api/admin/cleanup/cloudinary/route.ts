@@ -27,7 +27,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ deleted, errors })
   } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
     console.error("[api/admin/cleanup/cloudinary]", err)
+    }
     return NextResponse.json(
       { error: "Failed to delete images" },
       { status: 500 }

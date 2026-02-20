@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
     console.error("[auth/login]", err)
+    }
     return NextResponse.json(
       { error: "Login failed" },
       { status: 500 }

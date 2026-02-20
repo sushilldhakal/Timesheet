@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useFaceDetection } from "@/lib/hooks/UserFaceDetection"
+import { logger } from "@/lib/utils/logger"
 import dynamic from "next/dynamic"
 
 // Dynamically import Confetti to avoid SSR issues
@@ -150,34 +151,23 @@ export default function ClockPage() {
 
   // ── Load employee from session or API ──────────────────────────────────────
   useEffect(() => {
-    console.log("[ClockPage] useEffect triggered - checking session")
     const cached = typeof window !== "undefined" ? sessionStorage.getItem("clock_employee") : null
-    console.log("[ClockPage] sessionStorage data:", cached ? "EXISTS" : "NULL")
     
     if (cached) {
       try {
         const data = JSON.parse(cached)
-        console.log("[ClockPage] Parsed session data:", {
-          hasEmployee: !!data.employee,
-          hasPunches: !!data.punches,
-          hasLocation: !!data.location,
-          location: data.location
-        })
-        
+       
         const emp = data.employee ?? data
         const punches = data.punches ?? null
         const storedLocation = data.location ?? null
         
         // Redirect to PIN page if location is missing (e.g., after refresh)
         if (!storedLocation || !storedLocation.lat || !storedLocation.lng) {
-          console.warn("[ClockPage] ❌ Location data missing from session - redirecting to PIN page")
-          console.log("[ClockPage] storedLocation:", storedLocation)
           try { sessionStorage.removeItem("clock_employee") } catch {}
           router.replace("/")
           return
         }
         
-        console.log("[ClockPage] ✅ Location data found:", storedLocation)
         setEmployee({ 
           id: emp.id, 
           name: emp.name, 
@@ -199,33 +189,30 @@ export default function ClockPage() {
         // Use stored location from login
         setLocation(storedLocation)
         setPermissionsReady(true)
-        console.log("[ClockPage] ✅ Session loaded successfully")
         return
       } catch (err) {
-        console.error("[ClockPage] ❌ Error parsing session data:", err)
+        logger.error("[ClockPage] ❌ Error parsing session data:", err)
         try { sessionStorage.removeItem("clock_employee") } catch {}
         router.replace("/")
         return
       }
     }
 
-    console.log("[ClockPage] No cached session - checking API")
     // No cached session - check if user has valid cookie
     fetch("/api/employee/me")
       .then((res) => {
-        console.log("[ClockPage] API response status:", res.status)
         if (!res.ok) throw new Error("Unauthorized")
         return res.json()
       })
       .then((data) => {
         // User has valid cookie but no session storage
         // This means they refreshed or lost session - redirect to PIN page for fresh location
-        console.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
+        logger.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
         router.replace("/")
       })
       .catch((err) => {
         // No valid cookie - redirect to PIN page
-        console.error("[ClockPage] ❌ API error:", err)
+        logger.error("[ClockPage] ❌ API error:", err)
         try { sessionStorage.removeItem("clock_employee") } catch {}
         router.replace("/")
       })
@@ -275,7 +262,6 @@ export default function ClockPage() {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   const handleLogout = useCallback(() => {
-    console.log("[ClockPage] Logging out - clearing session")
     if (idleLogoutTimeoutRef.current) {
       clearTimeout(idleLogoutTimeoutRef.current)
       idleLogoutTimeoutRef.current = null
@@ -285,9 +271,8 @@ export default function ClockPage() {
     // Clear all session data
     try { 
       sessionStorage.removeItem("clock_employee")
-      console.log("[ClockPage] ✅ Session cleared")
     } catch (err) {
-      console.error("[ClockPage] Error clearing session:", err)
+      logger.error("[ClockPage] Error clearing session:", err)
     }
     
     fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
@@ -327,13 +312,10 @@ export default function ClockPage() {
 
     try {
       const blob = await getLatestBlob()
-      console.log("[ClockPage] blob from getLatestBlob:", blob ? `${blob.size} bytes` : "NULL")
       resetFace()
       let imageUrl = ""
 
       if (blob) {
-         console.log("[ClockPage] Starting image upload...")
-  
         const formData = new FormData()
         formData.append("file", blob, "clock.jpg")
         const controller = new AbortController()
@@ -345,31 +327,29 @@ export default function ClockPage() {
             signal: controller.signal,
           })
           clearTimeout(timeout)
-           console.log("[ClockPage] Upload response:", uploadRes.status, uploadRes.ok)
     
            if (uploadRes.ok) {
       const uploadData = await uploadRes.json()
-      console.log("[ClockPage] Upload response data:", uploadData)
       imageUrl = uploadData.url ?? ""
       
       if (!imageUrl) {
-        console.warn("[ClockPage] ⚠️ Upload succeeded but no URL returned")
+        logger.warn("[ClockPage] ⚠️ Upload succeeded but no URL returned")
       } else {
-        console.log("[ClockPage] ✅ Image uploaded:", imageUrl)
+        logger.log("[ClockPage] ✅ Image uploaded:", imageUrl)
       }
     } else {
       const errorText = await uploadRes.text()
-      console.error("[ClockPage] ❌ Upload failed:", uploadRes.status, errorText)
+      logger.error("[ClockPage] ❌ Upload failed:", uploadRes.status, errorText)
     }
-  } catch (err) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
-    console.error("[ClockPage] ❌ Upload exception:", err)
-    if (err.name === 'AbortError') {
-      console.error("[ClockPage] Upload timed out after 8s")
+    logger.error("[ClockPage] ❌ Upload exception:", err)
+    if (err instanceof Error && err.name === 'AbortError') {
+      logger.error("[ClockPage] Upload timed out after 8s")
     }
   }
 } else {
-  console.warn("[ClockPage] No blob available to upload")
+  logger.warn("[ClockPage] No blob available to upload")
 }
 
       const res = await fetch("/api/employee/clock", {
@@ -398,7 +378,6 @@ export default function ClockPage() {
       setTimeEntries((prev) => [...prev, { type, time: localTime, label: labels[type] }])
       setMessage({ type: "success", text: `${labels[type]} at ${format(now, "h:mm:ss a", { locale: enUS })}` })
 
-      console.log("[ClockPage] Clock action successful - logging out for next employee")
       // Log out immediately so next staff member can use kiosk
       handleLogout()
     } catch (err) {

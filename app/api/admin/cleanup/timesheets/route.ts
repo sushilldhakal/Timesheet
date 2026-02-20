@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ deleted: result.deletedCount ?? 0 })
   } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
     console.error("[api/admin/cleanup/timesheets]", err)
+    }
     return NextResponse.json(
       { error: "Failed to delete timesheets" },
       { status: 500 }

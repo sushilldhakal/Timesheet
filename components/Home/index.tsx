@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "@/lib/utils/toast"
+import { logger } from "@/lib/utils/logger"
 
 function formatTime12hr(date: Date) {
   return date.toLocaleTimeString("en-US", {
@@ -46,7 +47,7 @@ export function Home() {
           })
         },
         (error) => {
-          console.warn("Location access denied or unavailable:", error)
+          logger.warn("Location access denied or unavailable:", error)
           // Continue without location - backend will handle accordingly
         },
         {

@@ -5,6 +5,7 @@ import { connectDB, Employee, Timesheet, Category } from "@/lib/db"
 import { createEmployeeToken, setEmployeeCookie } from "@/lib/employee-auth"
 import { pinLoginSchema } from "@/lib/validation/timesheet"
 import { isWithinGeofence } from "@/lib/utils/geofence"
+import { logger } from "@/lib/utils/logger"
 
 export const dynamic = "force-dynamic"
 
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
       detectedLocation, // Include which location they're at
     })
   } catch (err) {
-    console.error("[api/employee/login]", err)
+    logger.error("[api/employee/login]", err)
     return NextResponse.json(
       { error: "Login failed" },
       { status: 500 }

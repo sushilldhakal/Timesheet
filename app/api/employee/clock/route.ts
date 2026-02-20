@@ -4,6 +4,7 @@ import { enUS } from "date-fns/locale"
 import { getEmployeeFromCookie } from "@/lib/employee-auth"
 import { connectDB, Employee, Timesheet, Category } from "@/lib/db"
 import { isWithinGeofence } from "@/lib/utils/geofence"
+import { logger } from "@/lib/utils/logger"
 import { z } from "zod"
 
 const clockBodySchema = z.object({
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
       flag,
     })
   } catch (err) {
-    console.error("[api/employee/clock]", err)
+    logger.error("[api/employee/clock]", err)
     return NextResponse.json(
       { error: "Clock in/out failed" },
       { status: 500 }
