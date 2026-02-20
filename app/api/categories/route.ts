@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
       id: c._id,
       name: c.name,
       type: c.type,
+      lat: c.lat,
+      lng: c.lng,
+      radius: c.radius,
+      geofenceMode: c.geofenceMode,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     }))
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, type } = parsed.data
+    const { name, type, lat, lng, radius, geofenceMode } = parsed.data
 
     await connectDB()
 
@@ -74,16 +78,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const category = await Category.create({
-      name: name.trim(),
-      type,
-    })
+    const createData: Record<string, unknown> = { name: name.trim(), type }
+    if (type === "location") {
+      if (lat != null) createData.lat = lat
+      if (lng != null) createData.lng = lng
+      if (radius != null) createData.radius = radius
+      if (geofenceMode != null) createData.geofenceMode = geofenceMode
+    }
+    const category = await Category.create(createData)
 
     return NextResponse.json({
       category: {
         id: category._id,
         name: category.name,
         type: category.type,
+        lat: category.lat,
+        lng: category.lng,
+        radius: category.radius,
+        geofenceMode: category.geofenceMode,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt,
       },

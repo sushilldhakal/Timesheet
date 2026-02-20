@@ -2,99 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────
+   BRAND COLOURS — single source of truth
+   Define here; tailwind.config.ts references these for bg-success, etc.
+   Usage: bg-brand/50  text-success  border-warning  bg-danger
+   #3fafd7  → brand   (blue)
+   #ff9503  → warning (amber)
+   #eb5c59  → danger  (red / clock-out)
+   #1a8754  → success (green / clock-in)
+   #212a35  → dark    (dark bg)
+───────────────────────────────────────────── */
+
 @layer base {
   :root {
-    /* Main backgrounds */
-    --background: 211 100% 96%;          /* Light blue bg - rgb(235, 244, 255) */
-    --foreground: 214 30% 15%;           /* Dark blue-gray text for better contrast */
-    
-    /* Cards - SAME as background (blends in) */
-    --card: 211 100% 96%;                /* Same light blue as background */
-    --card-foreground: 214 30% 15%;      /* Dark blue-gray text */
-    
-    /* Popovers - slightly elevated (white) */
-    --popover: 0 0% 100%;                /* White */
-    --popover-foreground: 214 30% 15%;   /* Dark blue-gray text */
-    
-    /* Primary - Your amber/yellow buttons */
-    --primary: 38 92% 50%;               /* Amber/yellow */
-    --primary-foreground: 0 0% 0%;       /* Pure black text on amber */
-    
-    /* Secondary - Subtle blue-tinted actions */
-    --secondary: 211 60% 90%;            /* Light blue (matches bg theme) */
-    --secondary-foreground: 214 30% 15%; /* Dark blue-gray text */
-    
-    /* Muted - For disabled/subtle elements */
-    --muted: 211 50% 92%;                /* Very light blue */
-    --muted-foreground: 214 15% 50%;     /* Medium gray-blue */
-    
-    /* Accent - Hover states, highlights */
-    --accent: 211 80% 88%;               /* Slightly saturated blue */
-    --accent-foreground: 214 30% 15%;    /* Dark blue-gray text */
-    
-    /* Destructive - Errors, delete actions */
-    --destructive: 0 62% 50%;            /* Red */
-    --destructive-foreground: 0 0% 100%; /* White text */
-    
-    /* Borders and inputs */
-    --border: 214 30% 85%;               /* Light blue-gray border */
-    --input: 0 0% 100%;                  /* White input backgrounds */
-    --ring: 38 92% 50%;                  /* Amber focus ring (matches primary) */
-    
-    /* Chart colors (for shadcn charts) */
-    --chart-1: 214 70% 45%;
-    --chart-2: 38 92% 50%;
-    --chart-3: 160 55% 40%;
-    --chart-4: 280 60% 50%;
-    --chart-5: 15 75% 50%;
-    
+    /* Brand colours — single source; tailwind uses these for bg-success, etc. */
+    --success: 26 135 84;   /* #1a8754 green */
+    --warning: 255 149 3;   /* #ff9503 amber */
+    --danger: 235 92 89;    /* #eb5c59 red */
+    --brand: 63 175 215;    /* #3fafd7 blue */
+    --dark: 33 42 53;       /* #212a35 */
+
+    /* Button/arrow hover — single variable for consistency */
+    --button-hover-brightness: 0.9;
+
+    /* Backgrounds */
+    --background: 0 0% 97%;               /* near-white */
+    --foreground: 210 25% 12%;            /* near-black */
+
+    /* Cards / surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 210 25% 12%;
+
+    /* Popovers */
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 25% 12%;
+
+    /* Primary → blue #3fafd7 */
+    --primary: 196 55% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary → muted blue tint */
+    --secondary: 196 30% 92%;
+    --secondary-foreground: 196 55% 30%;
+
+    /* Muted */
+    --muted: 0 0% 93%;
+    --muted-foreground: 210 10% 45%;
+
+    /* Accent → same blue, lighter */
+    --accent: 196 40% 88%;
+    --accent-foreground: 196 55% 25%;
+
+    /* Destructive → red #eb5c59 */
+    --destructive: 1 77% 63%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders / inputs */
+    --border: 210 15% 85%;
+    --input: 0 0% 100%;
+    --ring: 196 55% 54%;                  /* blue focus ring */
+
+    /* Charts */
+    --chart-1: 196 55% 54%;               /* blue */
+    --chart-2: 35 100% 50%;               /* amber */
+    --chart-3: 1 77% 63%;                 /* red */
+    --chart-4: 150 68% 32%;               /* green */
+    --chart-5: 196 30% 70%;               /* light blue */
+
     --radius: 0.5rem;
   }
 
   .dark {
-    /* Main backgrounds */
-    --background: 214 32% 17%;           /* Dark blue bg - rgb(30, 41, 58) */
-    --foreground: 210 20% 98%;           /* Almost white with slight blue tint */
-    
-    /* Cards - SAME as background (blends in) */
-    --card: 214 32% 17%;                 /* Same dark blue as background */
-    --card-foreground: 210 20% 98%;      /* Almost white */
-    
-    /* Popovers - slightly elevated */
-    --popover: 214 28% 25%;              /* Lighter dark blue */
-    --popover-foreground: 210 20% 98%;   /* Almost white */
-    
-    /* Primary - Your amber/yellow buttons */
-    --primary: 38 92% 50%;               /* Amber/yellow (same as light) */
-    --primary-foreground: 0 0% 0%;       /* Pure black text */
-    
-    /* Secondary - Subtle lighter blue */
-    --secondary: 214 25% 30%;            /* Medium dark blue */
-    --secondary-foreground: 210 20% 98%; /* Almost white */
-    
-    /* Muted - For disabled/subtle elements */
-    --muted: 214 20% 25%;                /* Darker blue-gray */
-    --muted-foreground: 214 10% 60%;     /* Medium gray */
-    
-    /* Accent - Hover states, highlights */
-    --accent: 214 30% 35%;               /* Brighter blue for hovers */
-    --accent-foreground: 210 20% 98%;    /* Almost white */
-    
-    /* Destructive - Errors, delete actions */
-    --destructive: 0 62% 50%;            /* Darker red for dark mode */
-    --destructive-foreground: 0 0% 100%; /* White text */
-    
-    /* Borders and inputs */
-    --border: 214 25% 35%;               /* Lighter border for visibility */
-    --input: 214 28% 22%;                /* Slightly lighter for inputs */
-    --ring: 38 92% 50%;                  /* Amber focus ring */
-    
-    /* Chart colors (dark) */
-    --chart-1: 214 70% 55%;
-    --chart-2: 38 92% 55%;
-    --chart-3: 160 55% 50%;
-    --chart-4: 280 60% 60%;
-    --chart-5: 15 75% 55%;
+    /* Backgrounds — your specified dark bg */
+    --background: 210 25% 17%;            /* #212a35 */
+    --foreground: 0 0% 95%;
+
+    /* Cards — slightly elevated */
+    --card: 210 22% 22%;
+    --card-foreground: 0 0% 95%;
+
+    /* Popovers */
+    --popover: 210 22% 25%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Primary → blue #3fafd7 (same in both modes) */
+    --primary: 196 55% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary */
+    --secondary: 210 20% 28%;
+    --secondary-foreground: 0 0% 85%;
+
+    /* Muted */
+    --muted: 210 18% 24%;
+    --muted-foreground: 210 10% 55%;
+
+    /* Accent */
+    --accent: 210 20% 30%;
+    --accent-foreground: 0 0% 90%;
+
+    /* Destructive → red #eb5c59 */
+    --destructive: 1 77% 63%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders / inputs */
+    --border: 210 18% 30%;
+    --input: 210 22% 20%;
+    --ring: 196 55% 54%;
+
+    /* Charts */
+    --chart-1: 196 55% 60%;
+    --chart-2: 35 100% 55%;
+    --chart-3: 1 77% 68%;
+    --chart-4: 150 68% 42%;
+    --chart-5: 196 30% 75%;
   }
 }
 
@@ -107,23 +128,18 @@
   }
 }
 
-/* Clock page tab list – values from design spec */
+/* ─────────────────────────────────────────────
+   SEMANTIC COLOUR UTILITIES
+   Use Tailwind classes: bg-success  text-warning  border-danger  etc.
+───────────────────────────────────────────── */
 @layer components {
-  :root {
-    --clock-tab-list-bg: #171717;
-    --clock-tab-active-bg: #3fafd7;
-    --clock-tab-inactive-bg: #212a35;
-    --clock-tab-inactive-text: #3fafd7;
-    --clock-out-color: rgb(235, 92, 89);
-    --clock-out-hover: rgb(215, 72, 69);
-  }
 
+  /* ── Clock / Timesheet tab strip ─────────── */
   .clock-tab-list {
-    background-color: var(--clock-tab-list-bg) !important;
+    background-color: #171717 !important;
     border: none !important;
     border-radius: 25px !important;
-    padding: 5px 5px 7px !important;
-
+    padding: 7px 5px 7px !important;
   }
 
   .clock-tab-trigger {
@@ -147,32 +163,91 @@
     border-radius: 24px !important;
   }
   .clock-tab-trigger[data-state="inactive"] {
-    background-color: var(--clock-tab-inactive-bg) !important;
+    background-color: rgb(var(--dark) / 0.8) !important;
     border-radius: 24px !important;
-    box-shadow: 0 0 3px var(--clock-tab-inactive-bg) !important;
-    color: var(--clock-tab-inactive-text) !important;
+    color: rgb(var(--brand)) !important;
   }
   .clock-tab-trigger:disabled {
-    opacity: 0.5 !important;
+    opacity: 0.4 !important;
     pointer-events: none !important;
   }
 
-  .pin-filled {
-    background-color: var(--clock-tab-active-bg) !important;
-  }
-
-  /* Sliding indicator – same look as active tab trigger */
+  /* Sliding active indicator */
   .clock-tab-indicator {
-    background-color: var(--clock-tab-active-bg) !important;
+    background-color: rgb(var(--brand)) !important;
     border-radius: 24px !important;
     border: none !important;
     box-shadow: none !important;
   }
 
+  /* Tab arrow indicator — matches button colour per tab */
+  .clock-tab-arrow[data-tab="start"] { border-bottom-color: rgb(var(--success)) !important; }
+  .clock-tab-arrow[data-tab="break"] { border-bottom-color: rgb(var(--warning)) !important; }
+  .clock-tab-arrow[data-tab="end"]   { border-bottom-color: rgb(var(--danger)) !important; }
+
+  /* Arrow matches button hover via :has() — pure CSS, no JS */
+  .clock-tabs-wrapper:has(.clock-in-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="start"],
+  .clock-tabs-wrapper:has(.break-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="break"],
+  .clock-tabs-wrapper:has(.clock-out-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="end"] {
+    filter: brightness(var(--button-hover-brightness));
+  }
+
+  /* ── PIN error shake ──────────────────────── */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
+  .animate-shake {
+    animation: shake 0.4s ease-in-out;
+  }
+
+  /* ── PIN dots ─────────────────────────────── */
+  .pin-filled {
+    background-color: rgb(var(--brand)) !important;
+  }
+
+  /* ── Action buttons (use Tailwind or these classes) ──────────────── */
+
+  /* Clock IN → success */
+  .clock-in-btn {
+    background-color: rgb(var(--success)) !important;
+    color: #fff !important;
+  }
+  .clock-in-btn:hover:not(:disabled) {
+    filter: brightness(var(--button-hover-brightness));
+  }
+
+  /* Break → warning */
+  .break-btn {
+    background-color: rgb(var(--warning)) !important;
+    color: #fff !important;
+  }
+  .break-btn:hover:not(:disabled) {
+    filter: brightness(var(--button-hover-brightness));
+  }
+
+  /* Clock OUT → danger */
   .clock-out-btn {
-    background-color: var(--clock-out-color) !important;
+    background-color: rgb(var(--danger)) !important;
+    color: #fff !important;
   }
   .clock-out-btn:hover:not(:disabled) {
-    background-color: var(--clock-out-hover) !important;
+    filter: brightness(var(--button-hover-brightness));
   }
+
+  /* Generic primary (brand) */
+  .primary-btn {
+    background-color: rgb(var(--brand)) !important;
+    color: #fff !important;
+  }
+  .primary-btn:hover:not(:disabled) {
+    filter: brightness(var(--button-hover-brightness));
+  }
+
+  /* ── Status badges ────────────────────────── */
+  .badge-clocked-in  { background-color: rgb(var(--success)); color: #fff; }
+  .badge-on-break    { background-color: rgb(var(--warning)); color: #fff; }
+  .badge-clocked-out { background-color: rgb(var(--danger));  color: #fff; }
+  .badge-info        { background-color: rgb(var(--brand));   color: #fff; }
 }

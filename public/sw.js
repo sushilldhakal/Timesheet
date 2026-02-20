@@ -8,7 +8,6 @@ self.addEventListener("activate", function (event) {
   event.waitUntil(self.clients.claim())
 })
 
-/* Fetch handler required for Chrome Android install prompt */
-self.addEventListener("fetch", function (event) {
-  event.respondWith(fetch(event.request))
-})
+/* No fetch handler needed - we don't cache API requests.
+ * The install prompt works without intercepting fetches.
+ */

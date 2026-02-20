@@ -5,17 +5,25 @@ import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { useRouter } from "next/navigation"
 import Webcam from "react-webcam"
-import { LogOut, Loader2 } from "lucide-react"
+import { LogOut, Loader2, ScanFace, UserX, ZoomIn } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useFaceDetection } from "@/lib/hooks/UserFaceDetection"
+import dynamic from "next/dynamic"
+
+// Dynamically import Confetti to avoid SSR issues
+const Confetti = dynamic(() => import("react-confetti"), { ssr: false })
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Employee = {
   id: string
   name: string
   pin: string
   role?: string
+  detectedLocation?: string
 }
 
 type TimeEntry = {
@@ -30,6 +38,8 @@ type TodayPunches = {
   breakOut: string
   clockOut: string
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTimeDisplay(t?: string): string {
   if (!t || typeof t !== "string" || !t.trim()) return "—"
@@ -47,8 +57,54 @@ function formatTimeDisplay(t?: string): string {
   return format(d, "h:mm a", { locale: enUS })
 }
 
+const HOME_BG = "min-h-dvh bg-dark"
+
+// ─── Face status indicator ────────────────────────────────────────────────────
+
+function FaceStatusBadge({ status }: { status: string }) {
+  if (status === "loading") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-white/50">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Loading face detection…
+      </div>
+    )
+  }
+  if (status === "ready") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-brand">
+        <ScanFace className="h-3 w-3" />
+        Face detected — ready
+      </div>
+    )
+  }
+  if (status === "too_far") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-warning">
+        <ZoomIn className="h-3 w-3" />
+        Move closer to camera
+      </div>
+    )
+  }
+  if (status === "no_face") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-white/40">
+        <UserX className="h-3 w-3" />
+        No face detected
+      </div>
+    )
+  }
+  return null
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function ClockPage() {
   const router = useRouter()
+  const webcamRef = useRef<Webcam>(null)
+  const idleLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [idleCountdown, setIdleCountdown] = useState<number | null>(null)
+
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [currentTime, setCurrentTime] = useState("")
   const [clockLoading, setClockLoading] = useState(false)
@@ -58,108 +114,139 @@ export default function ClockPage() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [permissionsReady, setPermissionsReady] = useState(true)
   const [permissionError, setPermissionError] = useState<string | null>(null)
-  const webcamRef = useRef<Webcam>(null)
   const [activeTab, setActiveTab] = useState<"start" | "break" | "end">("start")
-  const idleLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isBirthday, setIsBirthday] = useState(false)
 
+  // ── Face detection ─────────────────────────────────────────────────────────
+  const { status: faceStatus, modelsLoaded, canvasRef, getLatestBlob, reset: resetFace } = useFaceDetection(
+    webcamRef as React.RefObject<Webcam>,
+    {
+      minScore: 0.65,
+      minFaceRatio: 0.18,
+      stableFrameCount: 3,
+      intervalMs: 150,
+      captureQuality: 0.85,
+      captureWidth: 640,
+      captureHeight: 480,
+    }
+  )
+
+  // ── Face detection is advisory — buttons are ALWAYS enabled ─────────────
+  // Face detection only captures the photo — it never blocks punching.
+  // noPhoto flag is sent to API when no face was detected.
+  const faceDetected = faceStatus === "ready"
+  const noPhoto = modelsLoaded && !faceDetected
+
+  // ── Clock tick (every 60s — display is HH:MM only) ─────────────────────────
   useEffect(() => {
     const updateTime = () => {
       const now = new Date()
       setCurrentTime(now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }))
     }
     updateTime()
-    const interval = setInterval(updateTime, 1000)
+    const interval = setInterval(updateTime, 60_000)
     return () => clearInterval(interval)
   }, [])
 
+  // ── Load employee from session or API ──────────────────────────────────────
   useEffect(() => {
+    console.log("[ClockPage] useEffect triggered - checking session")
     const cached = typeof window !== "undefined" ? sessionStorage.getItem("clock_employee") : null
+    console.log("[ClockPage] sessionStorage data:", cached ? "EXISTS" : "NULL")
+    
     if (cached) {
       try {
         const data = JSON.parse(cached)
-        setEmployee({ id: data.id, name: data.name, pin: data.pin, role: data.role })
-      } catch {}
+        console.log("[ClockPage] Parsed session data:", {
+          hasEmployee: !!data.employee,
+          hasPunches: !!data.punches,
+          hasLocation: !!data.location,
+          location: data.location
+        })
+        
+        const emp = data.employee ?? data
+        const punches = data.punches ?? null
+        const storedLocation = data.location ?? null
+        
+        // Redirect to PIN page if location is missing (e.g., after refresh)
+        if (!storedLocation || !storedLocation.lat || !storedLocation.lng) {
+          console.warn("[ClockPage] ❌ Location data missing from session - redirecting to PIN page")
+          console.log("[ClockPage] storedLocation:", storedLocation)
+          try { sessionStorage.removeItem("clock_employee") } catch {}
+          router.replace("/")
+          return
+        }
+        
+        console.log("[ClockPage] ✅ Location data found:", storedLocation)
+        setEmployee({ 
+          id: emp.id, 
+          name: emp.name, 
+          pin: emp.pin, 
+          role: emp.role ?? "",
+          detectedLocation: data.detectedLocation
+        })
+        setIsBirthday(data.isBirthday ?? false)
+        
+        if (punches && typeof punches === "object") {
+          setTodayPunches({
+            clockIn: punches.clockIn ?? "",
+            breakIn: punches.breakIn ?? "",
+            breakOut: punches.breakOut ?? "",
+            clockOut: punches.clockOut ?? "",
+          })
+        }
+        
+        // Use stored location from login
+        setLocation(storedLocation)
+        setPermissionsReady(true)
+        console.log("[ClockPage] ✅ Session loaded successfully")
+        return
+      } catch (err) {
+        console.error("[ClockPage] ❌ Error parsing session data:", err)
+        try { sessionStorage.removeItem("clock_employee") } catch {}
+        router.replace("/")
+        return
+      }
     }
 
+    console.log("[ClockPage] No cached session - checking API")
+    // No cached session - check if user has valid cookie
     fetch("/api/employee/me")
       .then((res) => {
+        console.log("[ClockPage] API response status:", res.status)
         if (!res.ok) throw new Error("Unauthorized")
         return res.json()
       })
       .then((data) => {
-        const firstOf = (v: string | string[] | undefined) =>
-          Array.isArray(v) ? v[0] : typeof v === "string" ? v : undefined
-        const role = firstOf(data.employee.location) || firstOf(data.employee.employer) || firstOf(data.employee.role)
-        setEmployee({
-          id: data.employee.id,
-          name: data.employee.name,
-          pin: data.employee.pin,
-          role: role ?? "",
-        })
-        try {
-          sessionStorage.setItem("clock_employee", JSON.stringify({
-            id: data.employee.id,
-            name: data.employee.name,
-            pin: data.employee.pin,
-            role: role ?? "",
-          }))
-        } catch {}
+        // User has valid cookie but no session storage
+        // This means they refreshed or lost session - redirect to PIN page for fresh location
+        console.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
+        router.replace("/")
       })
-      .catch(() => {
-        try {
-          sessionStorage.removeItem("clock_employee")
-        } catch {}
+      .catch((err) => {
+        // No valid cookie - redirect to PIN page
+        console.error("[ClockPage] ❌ API error:", err)
+        try { sessionStorage.removeItem("clock_employee") } catch {}
         router.replace("/")
       })
   }, [router])
 
-  const employeeId = employee?.id
-
+  // ── Derive active tab from punch state ─────────────────────────────────────
   useEffect(() => {
-    if (!employeeId) return
-    fetch("/api/employee/timesheet")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.punches) setTodayPunches(data.punches)
-      })
-      .catch(() => {})
-  }, [employeeId])
-
-  // Set active tab from punch state: only one “next” action is valid.
-  useEffect(() => {
-    const hasClockIn = !!(
-      timeEntries.filter((e) => e.type === "in").slice(-1)[0]?.time || todayPunches?.clockIn
-    )
-    const hasBreakIn = !!(
-      timeEntries.filter((e) => e.type === "break").slice(-1)[0]?.time || todayPunches?.breakIn
-    )
-    const hasBreakOut = !!(
-      timeEntries.filter((e) => e.type === "endBreak").slice(-1)[0]?.time || todayPunches?.breakOut
-    )
-    const hasClockOut = !!(
-      timeEntries.filter((e) => e.type === "out").slice(-1)[0]?.time || todayPunches?.clockOut
-    )
+    const hasClockIn = !!(timeEntries.find((e) => e.type === "in")?.time || todayPunches?.clockIn)
+    const hasBreakIn = !!(timeEntries.find((e) => e.type === "break")?.time || todayPunches?.breakIn)
+    const hasBreakOut = !!(timeEntries.find((e) => e.type === "endBreak")?.time || todayPunches?.breakOut)
+    const hasClockOut = !!(timeEntries.find((e) => e.type === "out")?.time || todayPunches?.clockOut)
     const isOnBreak = hasBreakIn && !hasBreakOut
 
-    let nextTab: "start" | "break" | "end" = "start"
-    if (hasClockOut) {
-      nextTab = "end"
-    } else if (isOnBreak) {
-      nextTab = "break"
-    } else if (hasBreakIn && hasBreakOut) {
-      nextTab = "end"
-    } else if (hasClockIn && !hasBreakIn) {
-      nextTab = "break"
-    } else if (!hasClockIn && hasBreakIn) {
-      nextTab = "start"
-    } else {
-      nextTab = "start"
-    }
-    setActiveTab(nextTab)
+    if (hasClockOut) setActiveTab("end")
+    else if (isOnBreak) setActiveTab("break")
+    else if (hasBreakIn && hasBreakOut) setActiveTab("end")
+    else if (hasClockIn) setActiveTab("break")
+    else setActiveTab("start")
   }, [todayPunches, timeEntries])
 
-  /** iOS/Safari/PWA require camera and geolocation to be requested in direct response to a user tap.
-   * We gate the main clock UI behind a one-tap "Enable" step so both prompts appear when user taps. */
+  // ── Permissions (iOS/Safari PWA) ───────────────────────────────────────────
   const handleEnableCameraAndLocation = useCallback(() => {
     setPermissionError(null)
     if (!navigator.geolocation || !navigator.mediaDevices?.getUserMedia) {
@@ -176,67 +263,115 @@ export default function ClockPage() {
       stream.getTracks().forEach((t) => t.stop())
     })
     Promise.all([geoPromise, camPromise])
-      .then(([coords]) => {
-        setLocation(coords)
-        setPermissionsReady(true)
-      })
+      .then(([coords]) => { setLocation(coords); setPermissionsReady(true) })
       .catch((err) => {
         const msg =
-          err?.code === 1
-            ? "Location was denied. Enable Location for this site in Settings."
-            : err?.name === "NotAllowedError"
-              ? "Camera was denied. Enable Camera for this site in Settings."
-              : "Could not enable camera or location. Please check site permissions."
+          err?.code === 1 ? "Location was denied. Enable Location for this site in Settings."
+          : err?.name === "NotAllowedError" ? "Camera was denied. Enable Camera for this site in Settings."
+          : "Could not enable camera or location. Please check site permissions."
         setPermissionError(msg)
       })
   }, [])
 
-  /** Kiosk-optimized: 360×270 @ 0.5 quality (50% larger than 240×180 for clearer photos). */
-  const captureImageAsBlob = useCallback((): Promise<Blob | null> =>
-    new Promise((resolve) => {
-      const webcam = webcamRef.current
-      if (!webcam) {
-        resolve(null)
-        return
-      }
-      const canvas = webcam.getCanvas({ width: 360, height: 270 })
-      if (!canvas) {
-        resolve(null)
-        return
-      }
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.5)
-    }), [])
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  const handleLogout = useCallback(() => {
+    console.log("[ClockPage] Logging out - clearing session")
+    if (idleLogoutTimeoutRef.current) {
+      clearTimeout(idleLogoutTimeoutRef.current)
+      idleLogoutTimeoutRef.current = null
+    }
+    setIdleCountdown(null)
+    
+    // Clear all session data
+    try { 
+      sessionStorage.removeItem("clock_employee")
+      console.log("[ClockPage] ✅ Session cleared")
+    } catch (err) {
+      console.error("[ClockPage] Error clearing session:", err)
+    }
+    
+    fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
+    router.replace("/")
+  }, [router])
 
+  // ── Idle logout — 30s with countdown warning ───────────────────────────────
+  useEffect(() => {
+    if (!employee) return
+    const IDLE_SECONDS = 30
+    let secondsLeft = IDLE_SECONDS
+    setIdleCountdown(null)
+
+    // Start countdown display at 10s remaining
+    const countdownInterval = setInterval(() => {
+      secondsLeft -= 1
+      if (secondsLeft <= 10) setIdleCountdown(secondsLeft)
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval)
+        handleLogout()
+      }
+    }, 1000)
+
+    return () => clearInterval(countdownInterval)
+  }, [employee, handleLogout])
+
+  // ── Clock action ───────────────────────────────────────────────────────────
   const handleClockAction = async (type: "in" | "break" | "endBreak" | "out") => {
     setClockLoading(true)
     setMessage(null)
+    
+
     const now = new Date()
     const localDate = format(now, "dd-MM-yyyy", { locale: enUS })
     const localTime = format(now, "EEEE, MMMM d, yyyy h:mm:ss a", { locale: enUS })
     const latLng = location ? { lat: String(location.lat), lng: String(location.lng) } : null
+
     try {
-      const blob = await captureImageAsBlob()
+      const blob = await getLatestBlob()
+      console.log("[ClockPage] blob from getLatestBlob:", blob ? `${blob.size} bytes` : "NULL")
+      resetFace()
       let imageUrl = ""
+
       if (blob) {
+         console.log("[ClockPage] Starting image upload...")
+  
         const formData = new FormData()
         formData.append("file", blob, "clock.jpg")
-        const uploadController = new AbortController()
-        const uploadTimeout = setTimeout(() => uploadController.abort(), 4000)
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 8000)
         try {
           const uploadRes = await fetch("/api/employee/upload/image", {
             method: "POST",
             body: formData,
-            signal: uploadController.signal,
+            signal: controller.signal,
           })
-          clearTimeout(uploadTimeout)
-          if (uploadRes.ok) {
-            const { url } = await uploadRes.json()
-            imageUrl = url ?? ""
-          }
-        } catch {
-          clearTimeout(uploadTimeout)
-        }
+          clearTimeout(timeout)
+           console.log("[ClockPage] Upload response:", uploadRes.status, uploadRes.ok)
+    
+           if (uploadRes.ok) {
+      const uploadData = await uploadRes.json()
+      console.log("[ClockPage] Upload response data:", uploadData)
+      imageUrl = uploadData.url ?? ""
+      
+      if (!imageUrl) {
+        console.warn("[ClockPage] ⚠️ Upload succeeded but no URL returned")
+      } else {
+        console.log("[ClockPage] ✅ Image uploaded:", imageUrl)
       }
+    } else {
+      const errorText = await uploadRes.text()
+      console.error("[ClockPage] ❌ Upload failed:", uploadRes.status, errorText)
+    }
+  } catch (err) {
+    clearTimeout(timeout)
+    console.error("[ClockPage] ❌ Upload exception:", err)
+    if (err.name === 'AbortError') {
+      console.error("[ClockPage] Upload timed out after 8s")
+    }
+  }
+} else {
+  console.warn("[ClockPage] No blob available to upload")
+}
+
       const res = await fetch("/api/employee/clock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -247,31 +382,25 @@ export default function ClockPage() {
           time: localTime,
           lat: latLng?.lat,
           lng: latLng?.lng,
+          // Flag entry if punched without a detected face — manager can follow up
+          noPhoto: noPhoto,   // true when face not detected
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Failed")
+
       const labels: Record<string, string> = {
         in: "Clocked In",
         break: "On Break",
         endBreak: "Break End",
         out: "Clocked Out",
       }
-      const timeDisplay = format(now, "h:mm:ss a", { locale: enUS })
       setTimeEntries((prev) => [...prev, { type, time: localTime, label: labels[type] }])
-      setMessage({ type: "success", text: `${labels[type]} at ${timeDisplay}` })
-      if (type === "in") setActiveTab("break")
-      if (type === "endBreak" || type === "out") setActiveTab("end")
-      if (idleLogoutTimeoutRef.current) {
-        clearTimeout(idleLogoutTimeoutRef.current)
-        idleLogoutTimeoutRef.current = null
-      }
-      // Log out immediately after any punch so next person can use the kiosk
+      setMessage({ type: "success", text: `${labels[type]} at ${format(now, "h:mm:ss a", { locale: enUS })}` })
+
+      console.log("[ClockPage] Clock action successful - logging out for next employee")
+      // Log out immediately so next staff member can use kiosk
       handleLogout()
-      fetch("/api/employee/timesheet")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { if (d?.punches) setTodayPunches(d.punches) })
-        .catch(() => {})
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" })
     } finally {
@@ -279,136 +408,141 @@ export default function ClockPage() {
     }
   }
 
-  const handleLogout = useCallback(() => {
-    if (idleLogoutTimeoutRef.current) {
-      clearTimeout(idleLogoutTimeoutRef.current)
-      idleLogoutTimeoutRef.current = null
-    }
-    try {
-      sessionStorage.removeItem("clock_employee")
-    } catch {}
-    router.replace("/")
-    fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
-  }, [router])
-
-  // 10s idle: if no punch, auto logout so next employee can use the kiosk
-  useEffect(() => {
-    if (!employee) return
-    idleLogoutTimeoutRef.current = setTimeout(() => {
-      idleLogoutTimeoutRef.current = null
-      handleLogout()
-    }, 10_000)
-    return () => {
-      if (idleLogoutTimeoutRef.current) {
-        clearTimeout(idleLogoutTimeoutRef.current)
-        idleLogoutTimeoutRef.current = null
-      }
-    }
-  }, [employee, handleLogout])
-
-  // Merge today's DB punches with session actions
+  // ── Derive punch state ─────────────────────────────────────────────────────
   const mergedPunches: TodayPunches = {
-    clockIn:
-      timeEntries.filter((e) => e.type === "in").slice(-1)[0]?.time ||
-      todayPunches?.clockIn ||
-      "",
-    breakIn:
-      timeEntries.filter((e) => e.type === "break").slice(-1)[0]?.time ||
-      todayPunches?.breakIn ||
-      "",
-    breakOut:
-      timeEntries.filter((e) => e.type === "endBreak").slice(-1)[0]?.time ||
-      todayPunches?.breakOut ||
-      "",
-    clockOut:
-      timeEntries.filter((e) => e.type === "out").slice(-1)[0]?.time ||
-      todayPunches?.clockOut ||
-      "",
+    clockIn:  timeEntries.find((e) => e.type === "in")?.time      || todayPunches?.clockIn  || "",
+    breakIn:  timeEntries.find((e) => e.type === "break")?.time   || todayPunches?.breakIn  || "",
+    breakOut: timeEntries.find((e) => e.type === "endBreak")?.time || todayPunches?.breakOut || "",
+    clockOut: timeEntries.find((e) => e.type === "out")?.time     || todayPunches?.clockOut || "",
   }
 
-  const hasClockIn = !!mergedPunches.clockIn
-  const hasBreakIn = !!mergedPunches.breakIn
+  const hasClockIn  = !!mergedPunches.clockIn
+  const hasBreakIn  = !!mergedPunches.breakIn
   const hasBreakOut = !!mergedPunches.breakOut
-  const isOnBreak = hasBreakIn && !hasBreakOut
-
   const hasClockOut = !!mergedPunches.clockOut
-  // Clock In tab: disabled if already clocked in, OR did break in without clock in (forgot to clock in)
-  const isClockInTabDisabled = hasClockIn || (hasBreakIn && !hasClockIn)
-  // Break tab: disabled when day complete OR break already done (both in and out)
-  const isBreakTabDisabled = hasClockOut || (hasBreakIn && hasBreakOut)
-  // Finish tab: disabled when on break (must end break first) OR already clocked out
-  const isClockOutDisabled = isOnBreak || hasClockOut
+  const isOnBreak   = hasBreakIn && !hasBreakOut
 
-  const homeBg = "min-h-dvh bg-[rgb(33,42,53)]"
+  const isClockInTabDisabled = hasClockIn || (hasBreakIn && !hasClockIn)
+  const isBreakTabDisabled   = hasClockOut || (hasBreakIn && hasBreakOut)
+  const isClockOutDisabled   = isOnBreak || hasClockOut
+
+  const isArrowDimmed =
+    clockLoading ||
+    (activeTab === "start" && isClockInTabDisabled) ||
+    (activeTab === "break" && isBreakTabDisabled) ||
+    (activeTab === "end"   && isClockOutDisabled)
+
+  // ── Loading state ──────────────────────────────────────────────────────────
   if (!employee) {
     return (
-      <div className={cn("min-h-dvh flex items-center justify-center", homeBg)}>
-        <Loader2 className="h-10 w-10 animate-spin text-slate-500" />
+      <div className={cn("flex items-center justify-center", HOME_BG)}>
+        <Loader2 className="h-10 w-10 animate-spin text-white/30" />
       </div>
     )
   }
 
-  // iOS/Safari/PWA: request camera & location in response to user tap (required for prompts)
+  // ── Permissions gate (iOS/Safari) ──────────────────────────────────────────
   if (!permissionsReady) {
     return (
-      <div className={cn("min-h-dvh flex flex-col justify-center items-center gap-6 p-6", homeBg)}>
+      <div className={cn("flex flex-col justify-center items-center gap-6 p-6", HOME_BG)}>
         <p className="text-white text-center text-lg max-w-sm">
           To clock in with photo and location, allow access when prompted.
         </p>
         <Button
           onClick={handleEnableCameraAndLocation}
-          className="h-16 px-12 text-xl font-bold rounded-full bg-[#4CAF50] hover:bg-[#45a049] text-white shadow-lg"
+          className="h-16 px-12 text-xl font-bold rounded-full bg-success hover:bg-success/90 text-white shadow-lg"
         >
           Enable Camera & Location
         </Button>
         {permissionError && (
-          <p className="text-amber-300 text-center text-sm max-w-sm">{permissionError}</p>
+          <p className="text-warning text-center text-sm max-w-sm">{permissionError}</p>
         )}
       </div>
     )
   }
 
+  // ── Main UI ────────────────────────────────────────────────────────────────
+  // Get first name for birthday message
+  const firstName = employee?.name?.split(" ")[0] || "there"
+  
   return (
-    <div className={cn("min-h-dvh flex flex-col", homeBg)}>
+    <div className={cn("min-h-dvh flex flex-col", HOME_BG)}>
+      {/* Birthday Confetti - only renders on their birthday */}
+      {isBirthday && (
+        <Confetti
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.3}
+          tweenDuration={3000}
+        />
+      )}
+
+      {/* Birthday Badge - only shows on their birthday */}
+      {isBirthday && (
+        <div className="absolute top-4 right-4 z-50 animate-bounce bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 text-white px-4 py-2 rounded-full shadow-lg">
+          🎂 Happy Birthday {firstName}!
+        </div>
+      )}
+
       {/* Time Header */}
       <div className="py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          <p className="text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-center">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
+          <p className="text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-center text-white w-full">
             {currentTime}
           </p>
         </div>
       </div>
 
+     
+
       <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:p-4 md:p-0 xs:p-0 max-w-7xl mx-auto w-full">
-        {/* Left - Video Feed */}
+
+        {/* ── Left — Video Feed ──────────────────────────────────────────────── */}
         <div className="lg:w-[40%] flex-shrink-0">
-          <Card className="overflow-hidden relative group py-0 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto ">
+          <Card className="overflow-hidden relative group py-0 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto">
+
+            {/* Webcam */}
             <Webcam
               ref={webcamRef}
               audio={false}
-              width={485}
-              height={500}
               screenshotFormat="image/jpeg"
-              screenshotQuality={0.55}
-              videoConstraints={{ width: 485, height: 500, facingMode: "user" }}
+              screenshotQuality={0.85}
+              videoConstraints={{
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: "user",
+                frameRate: { ideal: 30 },
+              }}
               mirrored
               className="lg:w-[485px] xs:w-[420px] h-[500px] object-cover mx-auto"
-              style={{
-                filter: "brightness(1.15) contrast(1.1) saturate(1.1) sepia(0.05)",
-              }}
+              style={{ filter: "brightness(1.1) contrast(1.05) saturate(1.05)" }}
             />
 
-            {/* Overlay Info */}
-            <div className="absolute inset-0 flex flex-col justify-between p-6 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto">
-              <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]">
+            {/* Face detection overlay canvas — sits exactly on top of video */}
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ transform: "scaleX(-1)" }} // mirror to match webcam
+            />
+
+            {/* Info overlay */}
+            <div className="absolute inset-0 flex flex-col justify-between p-6 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto pointer-events-none">
+              <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">
                 <p className="font-bold text-lg">{employee.name}</p>
-                <p className="text-sm text-white/90">{employee.role || "—"}</p>
+                <p className="text-sm text-white/80">{employee.role || "—"}</p>
+                {employee.detectedLocation && (
+                  <p className="text-xs text-white/70 mt-1">📍 {employee.detectedLocation}</p>
+                )}
+                {/* Face status */}
+                <div className="mt-2 pointer-events-none">
+                  <FaceStatusBadge status={faceStatus} />
+                </div>
               </div>
               <Button
                 onClick={handleLogout}
                 variant="outline"
                 size="sm"
-                className="w-fit bg-black/20 border-white/30 text-white hover:bg-black/40 hover:text-white"
+                className="w-fit bg-black/20 border-white/30 text-white hover:bg-black/40 hover:text-white pointer-events-auto"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
@@ -416,92 +550,138 @@ export default function ClockPage() {
             </div>
           </Card>
 
-          {/* 4-column punch times below webcam */}
-          <div className="grid grid-cols-4 gap-2 mt-3 mx-auto lg:w-[485px] md:w-[420px] xs:w-[420px] mx-auto">
-            <div className="rounded-lg p-2 bg-emerald-500/20 border border-emerald-500/50 text-center">
-              <p className="text-xs text-emerald-300 font-medium">Clock In</p>
-              <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatTimeDisplay(mergedPunches.clockIn)}</p>
-            </div>
-            <div className="rounded-lg p-2 bg-amber-500/20 border border-amber-500/50 text-center">
-              <p className="text-xs text-amber-300 font-medium">Break In</p>
-              <p className="text-sm font-bold text-amber-400 tabular-nums">{formatTimeDisplay(mergedPunches.breakIn)}</p>
-            </div>
-            <div className="rounded-lg p-2 bg-amber-500/20 border border-amber-500/50 text-center">
-              <p className="text-xs text-amber-300 font-medium">Break Out</p>
-              <p className="text-sm font-bold text-amber-400 tabular-nums">{formatTimeDisplay(mergedPunches.breakOut)}</p>
-            </div>
-            <div className="rounded-lg p-2 bg-red-500/20 border border-red-500/50 text-center">
-              <p className="text-xs text-red-300 font-medium">Clock Out</p>
-              <p className="text-sm font-bold text-red-400 tabular-nums">{formatTimeDisplay(mergedPunches.clockOut)}</p>
-            </div>
+          {/* Punch times */}
+          <div className="grid grid-cols-4 gap-2 mt-3 mx-auto lg:w-[485px] md:w-[420px] xs:w-[420px]">
+            {[
+              { label: "Clock In",  time: mergedPunches.clockIn,  cls: "bg-success/25 border-success text-success" },
+              { label: "Break In",  time: mergedPunches.breakIn,  cls: "bg-warning/20 border-warning text-warning" },
+              { label: "Break Out", time: mergedPunches.breakOut, cls: "bg-warning/20 border-warning text-warning" },
+              { label: "Clock Out", time: mergedPunches.clockOut, cls: "bg-danger/20  border-danger  text-danger"  },
+            ].map(({ label, time, cls }) => (
+              <div key={label} className={cn("rounded-lg p-2 border text-center", cls)}>
+                <p className="text-xs font-medium opacity-90">{label}</p>
+                <p className="text-sm font-bold tabular-nums">{formatTimeDisplay(time)}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Right - Controls */}
+        {/* ── Right — Controls ───────────────────────────────────────────────── */}
         <div className="lg:w-[60%] flex flex-col">
           <Card className="lg:p-8 md:p-12 xs:p-0 bg-transparent border-none ring-0">
-          <div className="flex-1 w-full">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "start" | "break" | "end")} className="w-full flex flex-col ">
-              {/* Tab Navigation */}
-              <TabsList variant="line" className="clock-tab-list flex w-full gap-1 mb-2" indicatorClassName="clock-tab-indicator">
-                <TabsTrigger value="start" disabled={isClockInTabDisabled} className="clock-tab-trigger text-2xl">
-                  START
-                </TabsTrigger>
-                <TabsTrigger value="break" disabled={isBreakTabDisabled} className="clock-tab-trigger text-2xl">
-                  BREAK
-                </TabsTrigger>
-                <TabsTrigger value="end" disabled={isClockOutDisabled} className="clock-tab-trigger text-2xl">
-                  FINISH
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="relative h-2 w-full mt-[-5px]">
-                <div className="absolute bottom-0 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[10px] transition-all duration-200 ease-out" style={{ left: activeTab === "start" ? "16.67%" : activeTab === "break" ? "50%" : "83.33%", transform: "translate(-50%, 0)", opacity: clockLoading || (activeTab === "start" && isClockInTabDisabled) || (activeTab === "break" && isBreakTabDisabled) || (activeTab === "end" && isClockOutDisabled) ? 0.5 : 1, borderBottomColor: activeTab === "start" ? "#4CAF50" : activeTab === "break" ? "rgb(245, 158, 11)" : "var(--clock-out-color)" }} aria-hidden ></div>
-              </div>
-
-              {/* START Tab */}
-              <TabsContent value="start" className="mt-[-10px]">
-                <Button
-                  onClick={() => handleClockAction("in")}
-                  disabled={clockLoading || isClockInTabDisabled}
-                  className="w-full h-16 text-2xl font-bold rounded-full bg-[#4CAF50] hover:bg-[#45a049] text-white shadow-lg disabled:opacity-50"
+            <div className="flex-1 w-full">
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as "start" | "break" | "end")}
+                className="clock-tabs-wrapper w-full flex flex-col"
+              >
+                <TabsList
+                  variant="line"
+                  className="clock-tab-list flex w-full gap-1 mb-2"
+                  indicatorClassName="clock-tab-indicator"
                 >
-                  {clockLoading ? "PROCESSING..." : "CLOCK IN"}
-                </Button>
-              </TabsContent>
+                  <TabsTrigger value="start" disabled={isClockInTabDisabled} className="clock-tab-trigger text-2xl">
+                    START
+                  </TabsTrigger>
+                  <TabsTrigger value="break" disabled={isBreakTabDisabled} className="clock-tab-trigger text-2xl">
+                    BREAK
+                  </TabsTrigger>
+                  <TabsTrigger value="end" disabled={isClockOutDisabled} className="clock-tab-trigger text-2xl">
+                    FINISH
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* BREAK Tab – show only START BREAK or END BREAK based on current state */}
-              <TabsContent value="break" className="mt-[-10px]">
-                {isOnBreak ? (
+                {/* Arrow indicator */}
+                <div className="relative h-2 w-full mt-[-5px]">
+                  <div
+                    className="clock-tab-arrow absolute bottom-0 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[10px] transition-all duration-200 ease-out"
+                    data-tab={activeTab}
+                    style={{
+                      left: activeTab === "start" ? "16.67%" : activeTab === "break" ? "50%" : "83.33%",
+                      transform: "translate(-50%, 0)",
+                      opacity: isArrowDimmed ? 0.5 : 1,
+                    }}
+                    aria-hidden
+                  />
+                </div>
+
+               
+
+                {/* START tab */}
+                <TabsContent value="start" className="mt-[-8.5px]">
                   <Button
-                    onClick={() => handleClockAction("endBreak")}
-                    disabled={clockLoading}
-                    className="w-full h-16 text-2xl font-bold rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg disabled:opacity-50"
+                    onClick={() => handleClockAction("in")}
+                    disabled={clockLoading || isClockInTabDisabled}
+                    className="clock-in-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40 transition-opacity"
                   >
-                    {clockLoading ? "PROCESSING..." : "END BREAK"}
+                    {clockLoading
+                      ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</>
+                      : faceDetected ? "CLOCK IN" : "CLOCK IN (no photo)"}
                   </Button>
-                ) : (
+                </TabsContent>
+
+                {/* BREAK tab */}
+                <TabsContent value="break" className="mt-[-8.5px]">
+                  {isOnBreak ? (
+                    <Button
+                      onClick={() => handleClockAction("endBreak")}
+                      disabled={clockLoading}
+                      className="break-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
+                    >
+                      {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "END BREAK"}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleClockAction("break")}
+                      disabled={clockLoading}
+                      className="break-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
+                    >
+                      {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "START BREAK"}
+                    </Button>
+                  )}
+                </TabsContent>
+
+                {/* END tab */}
+                <TabsContent value="end" className="mt-[-8.5px]">
                   <Button
-                    onClick={() => handleClockAction("break")}
-                    disabled={clockLoading}
-                    className="w-full h-16 text-2xl font-bold rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg disabled:opacity-50"
+                    onClick={() => handleClockAction("out")}
+                    disabled={clockLoading || isClockOutDisabled}
+                    className="clock-out-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
                   >
-                    {clockLoading ? "PROCESSING..." : "START BREAK"}
+                    {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "CLOCK OUT"}
                   </Button>
+                </TabsContent>
+
+                 {/* Idle countdown warning */}
+      {idleCountdown !== null && (
+        <div className="text-center pb-2">
+          <p className="text-sm text-warning animate-pulse">
+            Logging out in {idleCountdown}s…
+          </p>
+        </div>
+      )}
+
+                 {/* Message banner */}
+                 {message && (
+                  <div className={cn(
+                    "mt-2 mb-3 rounded-lg px-4 py-2 text-sm font-medium text-center",
+                    message.type === "success" ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
+                  )}>
+                    {message.text}
+                  </div>
                 )}
-              </TabsContent>
 
-              {/* END Tab */}
-              <TabsContent value="end" className="mt-[-10px]">
-                <Button
-                  onClick={() => handleClockAction("out")}
-                  disabled={clockLoading || isClockOutDisabled}
-                  className="clock-out-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-50"
-                >
-                  {clockLoading ? "PROCESSING..." : "CLOCK OUT"}
-                </Button>
-              </TabsContent>
-            </Tabs>
+                {/* Face status hint — informational only, never blocks */}
+                {modelsLoaded && faceStatus !== "ready" && (
+                  <p className="text-center text-xs mb-2 transition-colors duration-300">
+                    {faceStatus === "too_far" ? (
+                      <span className="text-warning">Move closer to the camera for a photo</span>
+                    ) : (
+                      <span className="text-white/40">No face detected — you can still Punch in </span>
+                    )}
+                  </p>
+                )}
+              </Tabs>
             </div>
           </Card>
         </div>

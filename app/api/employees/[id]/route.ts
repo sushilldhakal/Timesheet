@@ -95,33 +95,31 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const data = parsedUpdate.data
-    if (data.name !== undefined) existing.name = data.name.trim()
+    const updates: Record<string, unknown> = {}
+    if (data.name !== undefined) updates.name = data.name.trim()
     if (data.pin !== undefined) {
       const dup = await Employee.findOne({ pin: data.pin.trim(), _id: { $ne: id } })
       if (dup) {
         return NextResponse.json({ error: "PIN already in use" }, { status: 409 })
       }
-      existing.pin = data.pin.trim()
+      updates.pin = data.pin.trim()
     }
-    if (data.role !== undefined) {
-      existing.role = arr(data.role)
-      existing.markModified("role")
-    }
-    if (data.employer !== undefined) {
-      existing.employer = arr(data.employer)
-      existing.markModified("employer")
-    }
-    if (data.location !== undefined) {
-      existing.location = arr(data.location)
-      existing.markModified("location")
-    }
-    if (data.email !== undefined) existing.email = (data.email ?? "").toString().trim()
-    if (data.phone !== undefined) existing.phone = (data.phone ?? "").toString().trim()
-    if (data.dob !== undefined) existing.dob = (data.dob ?? "").toString().trim()
-    if (data.comment !== undefined) existing.comment = (data.comment ?? "").toString().trim()
-    if (data.img !== undefined) existing.img = (data.img ?? "").toString().trim()
+    if (data.role !== undefined) updates.role = arr(data.role)
+    if (data.employer !== undefined) updates.employer = arr(data.employer)
+    if (data.location !== undefined) updates.location = arr(data.location)
+    if (data.email !== undefined) updates.email = (data.email ?? "").toString().trim()
+    if (data.phone !== undefined) updates.phone = (data.phone ?? "").toString().trim()
+    if (data.dob !== undefined) updates.dob = (data.dob ?? "").toString().trim()
+    if (data.comment !== undefined) updates.comment = (data.comment ?? "").toString().trim()
+    if (data.img !== undefined) updates.img = (data.img ?? "").toString().trim()
 
-    await existing.save()
+    if (Object.keys(updates).length === 0) {
+      const updated = await Employee.findById(id).lean()
+      return NextResponse.json({ employee: toEmployeeRow(updated!) })
+    }
+
+    updates.updatedAt = new Date()
+    await Employee.updateOne(empFilter, { $set: updates })
     const updated = await Employee.findById(id).lean()
     return NextResponse.json({ employee: toEmployeeRow(updated!) })
   } catch (err) {

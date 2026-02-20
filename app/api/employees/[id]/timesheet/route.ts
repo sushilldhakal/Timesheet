@@ -62,12 +62,16 @@ export interface DailyTimesheetRow {
   totalHours: string
   clockInImage?: string
   clockInWhere?: string
+  clockInLocation?: string
   breakInImage?: string
   breakInWhere?: string
+  breakInLocation?: string
   breakOutImage?: string
   breakOutWhere?: string
+  breakOutLocation?: string
   clockOutImage?: string
   clockOutWhere?: string
+  clockOutLocation?: string
   /** Red when manually added (no punch); green when from punch or edited. */
   clockInSource?: TimesheetTimeSource
   breakInSource?: TimesheetTimeSource
@@ -119,7 +123,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .sort({ date: -1, time: 1 })
       .lean()
 
-    // Aggregate by date; keep image, where, and source (insert/update from admin edit) per punch type
+    // Aggregate by date; keep image, where, working (location name), and source (insert/update from admin edit) per punch type
     const byDate = new Map<
       string,
       {
@@ -129,23 +133,38 @@ export async function GET(request: NextRequest, context: RouteContext) {
         out?: string
         inImage?: string
         inWhere?: string
+        inWorking?: string
         inSource?: TimesheetTimeSource
         breakImage?: string
         breakWhere?: string
+        breakWorking?: string
         breakSource?: TimesheetTimeSource
         endBreakImage?: string
         endBreakWhere?: string
+        endBreakWorking?: string
         endBreakSource?: TimesheetTimeSource
         outImage?: string
         outWhere?: string
+        outWorking?: string
         outSource?: TimesheetTimeSource
       }
     >()
     const getImage = (r: { image?: string }) => (r.image ? String(r.image).trim() : undefined)
     const getWhere = (r: { where?: string }) => (r.where ? String(r.where).trim() : undefined)
-    const getWorking = (r: { working?: string }): TimesheetTimeSource | undefined => {
-      const s = String(r.working ?? "").trim().toLowerCase()
-      if (s === "insert" || s === "update") return s
+    const getWorkingLocation = (r: { working?: string }): string | undefined => {
+      const s = String(r.working ?? "").trim()
+      // If working field contains "insert" or "update", it's a source marker (old data)
+      if (s.toLowerCase() === "insert" || s.toLowerCase() === "update") return undefined
+      // Otherwise it's a location name
+      return s || undefined
+    }
+    const getSource = (r: { source?: string; working?: string }): TimesheetTimeSource | undefined => {
+      // First check the source field (new way)
+      const src = String(r.source ?? "").trim().toLowerCase()
+      if (src === "insert" || src === "update") return src
+      // Fallback to working field (old way for backward compatibility)
+      const wrk = String(r.working ?? "").trim().toLowerCase()
+      if (wrk === "insert" || wrk === "update") return wrk
       return undefined
     }
     for (const r of raw) {
@@ -154,39 +173,47 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const entry = byDate.get(d) ?? {}
       const t = String(r.time ?? "").trim()
       const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-      const rec = r as { image?: string; where?: string; working?: string }
+      const rec = r as { image?: string; where?: string; working?: string; source?: string }
       if (type === "in") {
         entry.in = t
         const img = getImage(rec)
         const where = getWhere(rec)
+        const working = getWorkingLocation(rec)
         if (img) entry.inImage = img
         if (where) entry.inWhere = where
-        const w = getWorking(rec)
-        if (w) entry.inSource = w
+        if (working) entry.inWorking = working
+        const src = getSource(rec)
+        if (src) entry.inSource = src
       } else if (type === "break") {
         entry.break = t
         const img = getImage(rec)
         const where = getWhere(rec)
+        const working = getWorkingLocation(rec)
         if (img) entry.breakImage = img
         if (where) entry.breakWhere = where
-        const w = getWorking(rec)
-        if (w) entry.breakSource = w
+        if (working) entry.breakWorking = working
+        const src = getSource(rec)
+        if (src) entry.breakSource = src
       } else if (type === "endbreak") {
         entry.endBreak = t
         const img = getImage(rec)
         const where = getWhere(rec)
+        const working = getWorkingLocation(rec)
         if (img) entry.endBreakImage = img
         if (where) entry.endBreakWhere = where
-        const w = getWorking(rec)
-        if (w) entry.endBreakSource = w
+        if (working) entry.endBreakWorking = working
+        const src = getSource(rec)
+        if (src) entry.endBreakSource = src
       } else if (type === "out") {
         entry.out = t
         const img = getImage(rec)
         const where = getWhere(rec)
+        const working = getWorkingLocation(rec)
         if (img) entry.outImage = img
         if (where) entry.outWhere = where
-        const w = getWorking(rec)
-        if (w) entry.outSource = w
+        if (working) entry.outWorking = working
+        const src = getSource(rec)
+        if (src) entry.outSource = src
       }
       byDate.set(d, entry)
     }
@@ -229,12 +256,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
         totalHours: minutesToHours(totalMin),
         clockInImage: entry.inImage,
         clockInWhere: entry.inWhere,
+        clockInLocation: entry.inWorking,
         breakInImage: entry.breakImage,
         breakInWhere: entry.breakWhere,
+        breakInLocation: entry.breakWorking,
         breakOutImage: entry.endBreakImage,
         breakOutWhere: entry.endBreakWhere,
+        breakOutLocation: entry.endBreakWorking,
         clockOutImage: entry.outImage,
         clockOutWhere: entry.outWhere,
+        clockOutLocation: entry.outWorking,
         clockInSource: entry.inSource,
         breakInSource: entry.breakSource,
         breakOutSource: entry.endBreakSource,
@@ -353,7 +384,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         if (existing) {
           await Timesheet.updateOne(
             { _id: existing._id },
-            { $set: { time: newTime, working: "update" } }
+            { $set: { time: newTime, source: "update" } }
           )
         } else {
           await Timesheet.create({
@@ -361,7 +392,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             date: d,
             type,
             time: newTime,
-            working: "insert",
+            source: "insert",
           })
         }
       } else {

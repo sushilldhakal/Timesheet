@@ -3,6 +3,15 @@
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 
+/** Cloudinary URLs are proxied through /api/image for auth-protected access. */
+function getImageSrc(src: string): string {
+  if (src.startsWith("data:")) return src
+  if (src.includes("res.cloudinary.com")) {
+    return `/api/image?url=${encodeURIComponent(src)}`
+  }
+  return src
+}
+
 /** Use Next/Image for http(s) URLs (optimized, lazy), and native img for data URLs (e.g. file preview). */
 export function OptimizedImage({
   src,
@@ -24,6 +33,8 @@ export function OptimizedImage({
   priority?: boolean
 }) {
   const isDataUrl = src.startsWith("data:")
+  const imageSrc = getImageSrc(src)
+  const isProxied = src.includes("res.cloudinary.com")
 
   if (isDataUrl) {
     return (
@@ -42,20 +53,21 @@ export function OptimizedImage({
   if (fill) {
     return (
       <Image
-        src={src}
+        src={imageSrc}
         alt={alt}
         className={cn(className)}
         fill
         sizes={sizes ?? "64px"}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
+        unoptimized={isProxied}
       />
     )
   }
 
   return (
     <Image
-      src={src}
+      src={imageSrc}
       alt={alt}
       className={cn(className)}
       width={width ?? 64}
@@ -63,6 +75,7 @@ export function OptimizedImage({
       sizes={sizes ?? "64px"}
       loading={priority ? "eager" : "lazy"}
       decoding="async"
+      unoptimized={isProxied}
     />
   )
 }

@@ -27,12 +27,16 @@ interface DailyTimesheetRow {
   totalHours: string
   clockInImage?: string
   clockInWhere?: string
+  clockInLocation?: string
   breakInImage?: string
   breakInWhere?: string
+  breakInLocation?: string
   breakOutImage?: string
   breakOutWhere?: string
+  breakOutLocation?: string
   clockOutImage?: string
   clockOutWhere?: string
+  clockOutLocation?: string
   /** "insert" = manually added (red). "update" = from punch or edited (green). */
   clockInSource?: "insert" | "update"
   breakInSource?: "insert" | "update"
@@ -40,20 +44,31 @@ interface DailyTimesheetRow {
   clockOutSource?: "insert" | "update"
 }
 
+/** Auth-protected link for Cloudinary images (proxied via /api/image). */
+function getImageLinkHref(url: string): string {
+  if (url.includes("res.cloudinary.com")) {
+    return `/api/image?url=${encodeURIComponent(url)}`
+  }
+  return url
+}
+
 /** Single column: image on top, location link directly below. Aligns with Clock In / Break In / Break Out / Clock Out columns. */
 function PunchPhotoAndLocation({
   imageUrl,
   where,
+  locationName,
 }: {
   imageUrl?: string
   where?: string
+  locationName?: string
 }) {
   const mapsUrl = where ? `https://www.google.com/maps/@${where}` : null
+  const imageLinkHref = imageUrl ? getImageLinkHref(imageUrl) : null
   return (
     <div className="flex flex-col items-center gap-2 min-w-0">
       {imageUrl ? (
         <a
-          href={imageUrl}
+          href={imageLinkHref ?? imageUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="relative block w-16 h-16 rounded overflow-hidden border border-border hover:opacity-90 shrink-0"
@@ -73,7 +88,7 @@ function PunchPhotoAndLocation({
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline break-all text-center"
         >
           <MapPin className="h-3 w-3 shrink-0" />
-          Location
+          {locationName || "Location"}
         </a>
       ) : (
         <span className="text-muted-foreground text-xs">—</span>
@@ -88,10 +103,10 @@ function renderExpandedRowCells(row: DailyTimesheetRow): React.ReactNode[] {
   return [
     empty,
     empty,
-    <div key="ci" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockInImage} where={row.clockInWhere} /></div>,
-    <div key="bi" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakInImage} where={row.breakInWhere} /></div>,
-    <div key="bo" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakOutImage} where={row.breakOutWhere} /></div>,
-    <div key="co" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockOutImage} where={row.clockOutWhere} /></div>,
+    <div key="ci" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockInImage} where={row.clockInWhere} locationName={row.clockInLocation} /></div>,
+    <div key="bi" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakInImage} where={row.breakInWhere} locationName={row.breakInLocation} /></div>,
+    <div key="bo" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakOutImage} where={row.breakOutWhere} locationName={row.breakOutLocation} /></div>,
+    <div key="co" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockOutImage} where={row.clockOutWhere} locationName={row.clockOutLocation} /></div>,
     empty,
     empty,
     empty,

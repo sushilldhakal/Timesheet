@@ -26,17 +26,52 @@ export function CategoriesTable({
   onDelete,
 }: Props) {
   const columns = useMemo<ColumnDef<CategoryRow>[]>(
-    () => [
-      {
-        accessorKey: "name",
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Name" />
-        ),
-        cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
-        ),
-      },
-      {
+    () => {
+      const base: ColumnDef<CategoryRow>[] = [
+        {
+          accessorKey: "name",
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Name" />
+          ),
+          cell: ({ row }) => (
+            <span className="font-medium">{row.original.name}</span>
+          ),
+        },
+      ]
+      if (type === "location") {
+        base.push(
+          {
+            id: "coordinates",
+            header: () => <span>Coordinates</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              if (c.lat != null && c.lng != null) {
+                return (
+                  <span className="text-muted-foreground text-sm font-mono">
+                    {c.lat.toFixed(5)}, {c.lng.toFixed(5)}
+                  </span>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: false,
+          },
+          {
+            id: "range",
+            header: () => <span>Range (m)</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              return (
+                <span className="text-muted-foreground text-sm">
+                  {c.radius != null ? `${c.radius}m` : "—"}
+                </span>
+              )
+            },
+            enableSorting: false,
+          }
+        )
+      }
+      base.push({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => {
@@ -66,9 +101,10 @@ export function CategoriesTable({
         },
         enableSorting: false,
         enableHiding: false,
-      },
-    ],
-    [onEdit, onDelete]
+      })
+      return base
+    },
+    [type, onEdit, onDelete]
   )
 
   return (

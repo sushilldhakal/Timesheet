@@ -33,6 +33,10 @@ export async function GET(
         id: category._id,
         name: category.name,
         type: category.type,
+        lat: category.lat,
+        lng: category.lng,
+        radius: category.radius,
+        geofenceMode: category.geofenceMode,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt,
       },
@@ -78,20 +82,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Category not found" }, { status: 404 })
     }
 
-    const { name } = parsedUpdate.data
-    const duplicate = await Category.findOne({
-      type: existing.type,
-      name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
-      _id: { $ne: id },
-    })
-    if (duplicate) {
-      return NextResponse.json(
-        { error: "A category with this name already exists for this type" },
-        { status: 409 }
-      )
+    const { name, lat, lng, radius, geofenceMode } = parsedUpdate.data
+    if (name != null) {
+      const duplicate = await Category.findOne({
+        type: existing.type,
+        name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
+        _id: { $ne: id },
+      })
+      if (duplicate) {
+        return NextResponse.json(
+          { error: "A category with this name already exists for this type" },
+          { status: 409 }
+        )
+      }
+      existing.name = name.trim()
     }
-
-    existing.name = name.trim()
+    if (existing.type === "location") {
+      if (lat !== undefined) existing.lat = lat ?? undefined
+      if (lng !== undefined) existing.lng = lng ?? undefined
+      if (radius !== undefined) existing.radius = radius ?? undefined
+      if (geofenceMode !== undefined) existing.geofenceMode = geofenceMode ?? undefined
+    }
     await existing.save()
 
     return NextResponse.json({
@@ -99,6 +110,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         id: existing._id,
         name: existing.name,
         type: existing.type,
+        lat: existing.lat,
+        lng: existing.lng,
+        radius: existing.radius,
+        geofenceMode: existing.geofenceMode,
         createdAt: existing.createdAt,
         updatedAt: existing.updatedAt,
       },

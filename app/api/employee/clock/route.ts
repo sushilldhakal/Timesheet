@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { getEmployeeFromCookie } from "@/lib/employee-auth"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, Timesheet, Category } from "@/lib/db"
+import { isWithinGeofence } from "@/lib/utils/geofence"
 import { z } from "zod"
 
 const clockBodySchema = z.object({
@@ -43,7 +44,91 @@ export async function POST(request: NextRequest) {
     const latStr = (lat && String(lat).trim()) || ""
     const lngStr = (lng && String(lng).trim()) || ""
     const where = latStr && lngStr ? `${latStr},${lngStr}` : ""
-    const flag = !imageUrl || !latStr || !lngStr
+    let flag = !imageUrl || !latStr || !lngStr
+    let detectedLocationName = ""
+
+    // Geofence check for all punch types — detect location and enforce on clock-in only
+    const rawLocationNames = (employee.location ?? []) as string[]
+    const locationNames = rawLocationNames.map((n) => String(n).trim()).filter(Boolean)
+    
+    if (locationNames.length > 0 && latStr && lngStr) {
+      const userLat = parseFloat(latStr)
+      const userLng = parseFloat(lngStr)
+      
+      if (!Number.isNaN(userLat) && !Number.isNaN(userLng)) {
+        const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        const nameRegex = locationNames.length > 0
+          ? new RegExp(`^(${locationNames.map(esc).join("|")})$`, "i")
+          : /^$/
+        const locations = await Category.find({
+          type: "location",
+          name: { $regex: nameRegex },
+          lat: { $exists: true, $ne: null, $gte: -90, $lte: 90 },
+          lng: { $exists: true, $ne: null, $gte: -180, $lte: 180 },
+        }).lean()
+
+        // Check if user is within ANY assigned location and track which one
+        let withinFence = false
+        for (const loc of locations) {
+          if (
+            loc.lat != null &&
+            loc.lng != null &&
+            isWithinGeofence(
+              userLat,
+              userLng,
+              loc.lat,
+              loc.lng,
+              loc.radius ?? 100
+            )
+          ) {
+            withinFence = true
+            detectedLocationName = loc.name
+            break
+          }
+        }
+
+        if (!withinFence && locations.length > 0) {
+          // Only enforce geofence on clock-in
+          if (type === "in") {
+            const hasHardBlock = locations.some((loc) => loc.geofenceMode !== "soft")
+            if (hasHardBlock) {
+              return NextResponse.json(
+                { error: "You are not at an approved location." },
+                { status: 403 }
+              )
+            }
+          }
+          
+          // Find nearest location for display purposes
+          let minDistance = Infinity
+          for (const loc of locations) {
+            if (loc.lat != null && loc.lng != null) {
+              const R = 6371e3 // Earth radius in meters
+              const φ1 = (userLat * Math.PI) / 180
+              const φ2 = (loc.lat * Math.PI) / 180
+              const Δφ = ((loc.lat - userLat) * Math.PI) / 180
+              const Δλ = ((loc.lng - userLng) * Math.PI) / 180
+              const a =
+                Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+              const distance = R * c
+              if (distance < minDistance) {
+                minDistance = distance
+                detectedLocationName = loc.name
+              }
+            }
+          }
+          flag = true
+        }
+      }
+    } else if (type === "in" && locationNames.length > 0) {
+      // Clock-in requires location if employee has assigned locations
+      return NextResponse.json(
+        { error: "Location is required for clock-in at an assigned location." },
+        { status: 400 }
+      )
+    }
 
     const now = new Date()
     const dateStr =
@@ -65,6 +150,7 @@ export async function POST(request: NextRequest) {
       lng: lngStr,
       where,
       flag,
+      working: detectedLocationName, // Store the detected location name
     })
 
     return NextResponse.json({

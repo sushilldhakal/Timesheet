@@ -8,7 +8,14 @@ import { Button } from "@/components/ui/button"
  * PWA Install prompt - shows instructions for adding to home screen.
  * Hidden when app is already installed (standalone mode).
  */
+/** Detect iPhone, iPad, Android phone/tablet; exclude desktop/laptop */
+function isMobileOrTablet(): boolean {
+  if (typeof navigator === "undefined") return false
+  return /iPad|iPhone|iPod|Android/i.test(navigator.userAgent)
+}
+
 export function InstallPrompt() {
+  const [isMobileOrTabletDevice, setIsMobileOrTabletDevice] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -18,7 +25,7 @@ export function InstallPrompt() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-
+    setIsMobileOrTabletDevice(isMobileOrTablet())
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: boolean }).MSStream)
     setIsStandalone(
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -40,7 +47,7 @@ export function InstallPrompt() {
     }
   }
 
-  if (isStandalone || dismissed) return null
+  if (!isMobileOrTabletDevice || isStandalone || dismissed) return null
 
   return (
     <div

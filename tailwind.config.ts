@@ -14,6 +14,7 @@ const config: Config = {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
       colors: {
+        /* ── shadcn tokens (keep as-is) ─────────── */
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -47,6 +48,15 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+
+        /* ── Brand colours (values in globals.css :root) ─────────────
+           Usage: bg-brand/50  text-success  border-warning  bg-danger
+        ─────────────────────────────────────── */
+        brand: "rgb(var(--brand) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        success: "rgb(var(--success) / <alpha-value>)",
+        dark: "rgb(var(--dark) / <alpha-value>)",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -54,7 +64,7 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       maxWidth: {
-        "8xl": "96rem", // 1536px – Tailwind default scale ends at 7xl (80rem)
+        "8xl": "96rem",
       },
     },
   },

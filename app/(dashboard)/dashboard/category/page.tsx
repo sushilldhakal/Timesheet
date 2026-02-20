@@ -18,6 +18,10 @@ export type CategoryRow = {
   id: string
   name: string
   type: CategoryType
+  lat?: number
+  lng?: number
+  radius?: number
+  geofenceMode?: "hard" | "soft"
   createdAt?: string
   updatedAt?: string
 }

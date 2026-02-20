@@ -6,6 +6,7 @@ import {
   UserCog,
   FolderTree,
   Flag,
+  Settings,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/types/dashboard';
 
@@ -48,6 +49,12 @@ export const baseNavigationItems: NavigationItem[] = [
     children: [
       { href: '/dashboard/users', label: 'All Users', icon: List, adminOnly: true },
     ],
+  },
+  {
+    href: '/dashboard/Setting',
+    label: 'Settings',
+    icon: Settings,
+    adminOnly: true,
   },
   {
     href: '/dashboard/flag',

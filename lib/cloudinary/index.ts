@@ -92,4 +92,86 @@ export async function deleteFromCloudinary(
   await cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
 }
 
+/** Resource shape from Cloudinary Admin API resources() */
+export type CloudinaryResource = { public_id: string; created_at: string; [key: string]: unknown }
+
+/**
+ * List all resources in a folder (paginated). Uses Admin API.
+ */
+export async function listResourcesInFolder(
+  prefix: string,
+  options?: { type?: "upload" | "private" | "authenticated"; maxResults?: number }
+): Promise<CloudinaryResource[]> {
+  const type = options?.type ?? "upload"
+  const maxResults = options?.maxResults ?? 500
+  const prefixNorm = prefix.endsWith("/") ? prefix : `${prefix}/`
+  const out: CloudinaryResource[] = []
+  let nextCursor: string | undefined
+  do {
+    const result = (await cloudinary.api.resources({
+      type,
+      prefix: prefixNorm,
+      max_results: Math.min(maxResults, 500),
+      ...(nextCursor && { next_cursor: nextCursor }),
+    })) as { resources: CloudinaryResource[]; next_cursor?: string }
+    out.push(...(result.resources ?? []))
+    nextCursor = result.next_cursor
+  } while (nextCursor)
+  return out
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Delete images in the timesheet folder older than the given number of days.
+ * Returns the count of deleted images.
+ */
+export async function deleteTimesheetImagesOlderThanDays(
+  olderThanDays: number,
+  folder: string = UPLOAD_FOLDER
+): Promise<{ deleted: number; errors: number }> {
+  const resources = await listResourcesInFolder(folder)
+  const cutoff = Date.now() - olderThanDays * MS_PER_DAY
+  let deleted = 0
+  let errors = 0
+  for (const r of resources) {
+    const created = new Date(r.created_at).getTime()
+    if (created < cutoff) {
+      try {
+        await deleteFromCloudinary(r.public_id, "image")
+        deleted++
+      } catch {
+        errors++
+      }
+    }
+  }
+  return { deleted, errors }
+}
+
+/**
+ * Delete images in the folder older than the given date (start of day UTC).
+ * beforeDate: "YYYY-MM-DD"
+ */
+export async function deleteImagesOlderThanDate(
+  beforeDate: string,
+  folder: string = UPLOAD_FOLDER
+): Promise<{ deleted: number; errors: number }> {
+  const cutoff = new Date(beforeDate + "T00:00:00.000Z").getTime()
+  const resources = await listResourcesInFolder(folder)
+  let deleted = 0
+  let errors = 0
+  for (const r of resources) {
+    const created = new Date(r.created_at).getTime()
+    if (created < cutoff) {
+      try {
+        await deleteFromCloudinary(r.public_id, "image")
+        deleted++
+      } catch {
+        errors++
+      }
+    }
+  }
+  return { deleted, errors }
+}
+
 export { cloudinary }
