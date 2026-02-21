@@ -5,6 +5,7 @@
 .yarn/install-state.gz
 
 *.md
+!README.md
 # testing
 /coverage
 
