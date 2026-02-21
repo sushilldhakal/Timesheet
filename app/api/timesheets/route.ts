@@ -55,6 +55,14 @@ export interface DashboardTimesheetRow {
   breakHours: string
   totalMinutes: number
   totalHours: string
+  clockInDeviceId?: string
+  clockInDeviceLocation?: string
+  breakInDeviceId?: string
+  breakInDeviceLocation?: string
+  breakOutDeviceId?: string
+  breakOutDeviceLocation?: string
+  clockOutDeviceId?: string
+  clockOutDeviceLocation?: string
 }
 
 /** GET /api/timesheets - Aggregated timesheets with filters */
@@ -194,6 +202,14 @@ export async function GET(request: NextRequest) {
         break?: string
         endBreak?: string
         out?: string
+        inDeviceId?: string
+        inDeviceLocation?: string
+        breakDeviceId?: string
+        breakDeviceLocation?: string
+        endBreakDeviceId?: string
+        endBreakDeviceLocation?: string
+        outDeviceId?: string
+        outDeviceLocation?: string
       }
     >()
     for (const r of raw) {
@@ -204,10 +220,25 @@ export async function GET(request: NextRequest) {
       const entry = byPinAndDate.get(key) ?? {}
       const t = String(r.time ?? "").trim()
       const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-      if (type === "in") entry.in = t
-      else if (type === "break") entry.break = t
-      else if (type === "endbreak") entry.endBreak = t
-      else if (type === "out") entry.out = t
+      const deviceId = r.deviceId ? String(r.deviceId).trim() : undefined
+      const deviceLocation = r.deviceLocation ? String(r.deviceLocation).trim() : undefined
+      if (type === "in") {
+        entry.in = t
+        if (deviceId) entry.inDeviceId = deviceId
+        if (deviceLocation) entry.inDeviceLocation = deviceLocation
+      } else if (type === "break") {
+        entry.break = t
+        if (deviceId) entry.breakDeviceId = deviceId
+        if (deviceLocation) entry.breakDeviceLocation = deviceLocation
+      } else if (type === "endbreak") {
+        entry.endBreak = t
+        if (deviceId) entry.endBreakDeviceId = deviceId
+        if (deviceLocation) entry.endBreakDeviceLocation = deviceLocation
+      } else if (type === "out") {
+        entry.out = t
+        if (deviceId) entry.outDeviceId = deviceId
+        if (deviceLocation) entry.outDeviceLocation = deviceLocation
+      }
       byPinAndDate.set(key, entry)
     }
 
@@ -246,6 +277,14 @@ export async function GET(request: NextRequest) {
         breakHours: minutesToHours(breakMinutes),
         totalMinutes: totalMin,
         totalHours: minutesToHours(totalMin),
+        clockInDeviceId: entry.inDeviceId,
+        clockInDeviceLocation: entry.inDeviceLocation,
+        breakInDeviceId: entry.breakDeviceId,
+        breakInDeviceLocation: entry.breakDeviceLocation,
+        breakOutDeviceId: entry.endBreakDeviceId,
+        breakOutDeviceLocation: entry.endBreakDeviceLocation,
+        clockOutDeviceId: entry.outDeviceId,
+        clockOutDeviceLocation: entry.outDeviceLocation,
       })
     }
 

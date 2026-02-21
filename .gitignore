@@ -5,9 +5,11 @@
 .yarn/install-state.gz
 
 *.md
+!README.md
 # testing
 /coverage
-
+.kiro
+.cursor
 # next.js
 /.next/
 /out/

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import bcrypt from "bcrypt"
 import { connectDB, User } from "@/lib/db"
 import { createAuthToken, setAuthCookie } from "@/lib/auth"
 import { adminLoginSchema } from "@/lib/validation/user"
@@ -30,6 +29,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const bcrypt = await import("bcrypt")
     const passwordMatch = await bcrypt.compare(password, user.password)
     if (!passwordMatch) {
       return NextResponse.json(

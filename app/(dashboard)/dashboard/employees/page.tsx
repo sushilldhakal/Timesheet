@@ -43,7 +43,7 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(10)
-  const [sortBy, setSortBy] = useState<string>("name")
+  const [sortBy, setSortBy] = useState<string | null>("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [addOpen, setAddOpen] = useState(false)
   const [editEmployee, setEditEmployee] = useState<EmployeeRow | null>(null)
@@ -58,10 +58,12 @@ export default function EmployeesPage() {
       const params = new URLSearchParams({
         limit: String(limit),
         offset: String(offset),
-        sortBy,
-        order: sortOrder,
       })
       if (debouncedSearch) params.set("search", debouncedSearch)
+      if (sortBy) {
+        params.set("sortBy", sortBy)
+        params.set("order", sortOrder)
+      }
       const res = await fetch(`/api/employees?${params}`)
       if (res.ok) {
         const data = await res.json()
@@ -85,10 +87,16 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     setPageIndex(0)
-  }, [debouncedSearch, sortBy, sortOrder])
+  }, [debouncedSearch])
 
   const handleRowClick = (row: EmployeeRow) => {
     router.push(`/dashboard/employees/${row.id}`)
+  }
+
+  const handleSortChange = (columnId: string, order: "asc" | "desc") => {
+    setSortBy(columnId)
+    setSortOrder(order)
+    setPageIndex(0) // Reset to first page on sort
   }
 
   return (
@@ -129,14 +137,7 @@ export default function EmployeesPage() {
             }}
             sortBy={sortBy}
             sortOrder={sortOrder}
-            onSort={(column) => {
-              if (sortBy === column) {
-                setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-              } else {
-                setSortBy(column)
-                setSortOrder("asc")
-              }
-            }}
+            onSortChange={handleSortChange}
             onRowClick={handleRowClick}
             onEdit={setEditEmployee}
             onDelete={setDeleteEmployee}

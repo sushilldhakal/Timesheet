@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
-import { logger } from "@/lib/utils/logger"
 
-/** GET /api/employees?search=...&limit=10&offset=0&sortBy=name&order=asc - List employees with search, pagination, and sorting */
+/** GET /api/employees?search=...&limit=10&offset=0 - List employees with search and pagination */
 export async function GET(request: NextRequest) {
   const ctx = await getAuthWithUserLocations()
   if (!ctx) {
@@ -21,7 +20,7 @@ export async function GET(request: NextRequest) {
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
   
   // Validate sortBy to prevent injection
-  const validSortFields = ["name", "pin", "role", "employer", "location", "email", "phone"]
+  const validSortFields = ["name", "pin", "email", "phone", "hire", "createdAt"]
   const sortBy = validSortFields.includes(sortByParam) ? sortByParam : "name"
   const order = orderParam === "desc" ? -1 : 1
 
@@ -84,7 +83,7 @@ export async function GET(request: NextRequest) {
       offset,
     })
   } catch (err) {
-    logger.error("[api/employees GET]", err)
+    console.error("[api/employees GET]", err)
     return NextResponse.json(
       { error: "Failed to fetch employees" },
       { status: 500 }
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err) {
-    logger.error("[api/employees POST]", err)
+    console.error("[api/employees POST]", err)
     return NextResponse.json(
       { error: "Failed to create employee" },
       { status: 500 }

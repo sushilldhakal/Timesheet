@@ -200,8 +200,15 @@ export default function ClockPage() {
 
     // No cached session - check if user has valid cookie
     fetch("/api/employee/me")
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) throw new Error("Unauthorized")
+        
+        // Check if response is JSON or HTML (redirect)
+        const contentType = res.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Not JSON - likely redirected")
+        }
+        
         return res.json()
       })
       .then((data) => {
@@ -366,6 +373,13 @@ export default function ClockPage() {
           noPhoto: noPhoto,   // true when face not detected
         }),
       })
+      
+      // Check if response is JSON
+      const contentType = res.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Session expired - please log in again")
+      }
+      
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Failed")
 

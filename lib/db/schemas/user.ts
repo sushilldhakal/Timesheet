@@ -1,5 +1,4 @@
 import mongoose from "mongoose"
-import bcrypt from "bcrypt"
 import { RIGHTS_LIST, type Right } from "@/lib/config/rights"
 
 export interface IUser {
@@ -68,11 +67,13 @@ userSchema.pre("save", async function (next) {
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next()
+  const bcrypt = await import("bcrypt")
   this.password = bcrypt.hashSync(this.password, 10)
   next()
 })
 
-userSchema.methods.comparePassword = function (candidate: string) {
+userSchema.methods.comparePassword = async function (candidate: string) {
+  const bcrypt = await import("bcrypt")
   return bcrypt.compare(candidate, this.password)
 }
 

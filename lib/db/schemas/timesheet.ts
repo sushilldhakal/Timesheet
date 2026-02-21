@@ -15,6 +15,8 @@ export interface ITimesheet {
   flag?: boolean
   working?: string
   source?: TimesheetSource
+  deviceId?: string // Device that recorded this entry
+  deviceLocation?: string // Location name at time of entry
 }
 
 export interface ITimesheetDocument extends ITimesheet, mongoose.Document {}
@@ -32,6 +34,8 @@ const timesheetSchema = new mongoose.Schema<ITimesheetDocument>(
     flag: { type: Boolean, default: false },
     working: { type: String, default: "" },
     source: { type: String, default: "" },
+    deviceId: { type: String, default: "" },
+    deviceLocation: { type: String, default: "" },
   },
   {
     timestamps: false,
