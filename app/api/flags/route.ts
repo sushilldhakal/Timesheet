@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, subDays } from "date-fns"
 import { getAuthFromCookie } from "@/lib/auth"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 export type FlagIssueType = "no_image" | "no_location" | "no_image_no_location"
 
@@ -71,14 +71,14 @@ export async function GET(request: NextRequest) {
     await connectDB()
     const dateStrings = last30DaysDDMM()
 
-    const raw = await Timesheet.find({
+    const shifts = await DailyShift.find({
       date: { $in: dateStrings },
-      flag: true,
+      flags: { $exists: true, $ne: [] },
     })
-      .sort({ date: -1, time: 1 })
+      .sort({ date: -1 })
       .lean()
 
-    const pins = [...new Set(raw.map((r) => String(r.pin ?? "")))].filter(Boolean)
+    const pins = [...new Set(shifts.map((s) => String(s.pin ?? "")))].filter(Boolean)
     const employees = await Employee.find({ pin: { $in: pins } }).lean()
     const pinToName = new Map<string, string>()
     const pinToId = new Map<string, string>()
@@ -89,31 +89,60 @@ export async function GET(request: NextRequest) {
     })
 
     const rows: FlagRow[] = []
-    for (const r of raw) {
-      const imageStr = String(r.image ?? "").trim()
-      const whereStr = String(r.where ?? "").trim()
-      const hasImage = imageStr.length > 0
-      const hasLocation = whereStr.length > 0
-      const issueType = getIssueType(hasImage, hasLocation)
-      if (!issueType) continue
-      if (filterType) {
-        if (filterType === "no_image" && hasImage) continue
-        if (filterType === "no_location" && hasLocation) continue
-        if (filterType === "no_image_no_location" && issueType !== "no_image_no_location") continue
+    for (const shift of shifts) {
+      // Check clock-in flags
+      if (shift.clockIn?.flag) {
+        const imageStr = String(shift.clockIn.image ?? "").trim()
+        const hasLocation = !!(shift.clockIn.lat && shift.clockIn.lng)
+        const hasImage = imageStr.length > 0
+        const issueType = getIssueType(hasImage, hasLocation)
+        if (!issueType) continue
+        if (filterType) {
+          if (filterType === "no_image" && hasImage) continue
+          if (filterType === "no_location" && hasLocation) continue
+          if (filterType === "no_image_no_location" && issueType !== "no_image_no_location") continue
+        }
+
+        rows.push({
+          id: `${shift.pin}-${shift.date}-in`,
+          employeeId: pinToId.get(String(shift.pin ?? "")) ?? "",
+          date: String(shift.date ?? ""),
+          pin: String(shift.pin ?? ""),
+          name: pinToName.get(String(shift.pin ?? "")) ?? "",
+          type: "in",
+          typeLabel: "Clock In",
+          hasImage,
+          hasLocation,
+          issueType,
+        })
       }
 
-      rows.push({
-        id: `${r.pin}-${r.date}-${r.type}-${String(r.time ?? "")}`,
-        employeeId: pinToId.get(String(r.pin ?? "")) ?? "",
-        date: String(r.date ?? ""),
-        pin: String(r.pin ?? ""),
-        name: pinToName.get(String(r.pin ?? "")) ?? "",
-        type: String(r.type ?? ""),
-        typeLabel: TYPE_LABELS[String(r.type ?? "").toLowerCase()] ?? String(r.type ?? ""),
-        hasImage,
-        hasLocation,
-        issueType,
-      })
+      // Check clock-out flags
+      if (shift.clockOut?.flag) {
+        const imageStr = String(shift.clockOut.image ?? "").trim()
+        const hasLocation = !!(shift.clockOut.lat && shift.clockOut.lng)
+        const hasImage = imageStr.length > 0
+        const issueType = getIssueType(hasImage, hasLocation)
+        if (!issueType) continue
+        if (filterType) {
+          if (filterType === "no_image" && hasImage) continue
+          if (filterType === "no_location" && hasLocation) continue
+          if (filterType === "no_image_no_location" && issueType !== "no_image_no_location") continue
+        }
+
+        rows.push({
+          id: `${shift.pin}-${shift.date}-out`,
+          employeeId: pinToId.get(String(shift.pin ?? "")) ?? "",
+          date: String(shift.date ?? ""),
+          pin: String(shift.pin ?? ""),
+          name: pinToName.get(String(shift.pin ?? "")) ?? "",
+          type: "out",
+          typeLabel: "Clock Out",
+          hasImage,
+          hasLocation,
+          issueType,
+        })
+      }
     }
 
     const parseDateForSort = (s: string) => {

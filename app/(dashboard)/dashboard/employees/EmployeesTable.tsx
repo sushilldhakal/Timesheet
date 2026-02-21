@@ -17,6 +17,9 @@ type Props = {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  sortBy: string | null
+  sortOrder: "asc" | "desc"
+  onSortChange: (columnId: string, order: "asc" | "desc") => void
   onRowClick: (row: EmployeeRow) => void
   onEdit: (e: EmployeeRow) => void
   onDelete: (e: EmployeeRow) => void
@@ -32,6 +35,9 @@ export function EmployeesTable({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  sortBy,
+  sortOrder,
+  onSortChange,
   onRowClick,
   onEdit,
   onDelete,
@@ -129,6 +135,10 @@ export function EmployeesTable({
       pageSize={pageSize}
       onPageChange={onPageChange}
       onPageSizeChange={onPageSizeChange}
+      sortBy={sortBy}
+      sortOrder={sortOrder}
+      onSortChange={onSortChange}
+      sortableColumnIds={["name", "pin", "email", "phone"]}
       getRowId={(row) => row.id}
       emptyMessage="No employees yet. Click Add Employee to create one."
       onRowClick={onRowClick}

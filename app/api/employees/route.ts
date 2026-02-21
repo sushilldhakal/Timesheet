@@ -14,8 +14,15 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search")?.trim() ?? ""
   const limitParam = searchParams.get("limit")
   const offsetParam = searchParams.get("offset")
+  const sortByParam = searchParams.get("sortBy")?.trim() ?? "name"
+  const orderParam = searchParams.get("order")?.trim().toLowerCase() ?? "asc"
   const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 1000) : 10
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
+  
+  // Validate sortBy to prevent injection
+  const validSortFields = ["name", "pin", "email", "phone", "hire", "createdAt"]
+  const sortBy = validSortFields.includes(sortByParam) ? sortByParam : "name"
+  const order = orderParam === "desc" ? -1 : 1
 
   try {
     await connectDB()
@@ -43,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     const [employees, total] = await Promise.all([
       Employee.find(filter)
-        .sort({ name: 1 })
+        .sort({ [sortBy]: order })
         .skip(offset)
         .limit(limit)
         .lean(),

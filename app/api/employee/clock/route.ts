@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/employee-auth"
-import { connectDB, Employee, Timesheet, Category, Device } from "@/lib/db"
+import { connectDB, Employee, DailyShift, Category, Device } from "@/lib/db"
 import { isWithinGeofence } from "@/lib/utils/geofence"
 import { logger } from "@/lib/utils/logger"
 import { z } from "zod"
+import { updateComputedFields } from "@/lib/utils/shift-calculations"
+import type { IClockEvent } from "@/lib/db/schemas/daily-shift"
 
 const clockBodySchema = z.object({
   type: z.enum(["in", "out", "break", "endBreak"]),
@@ -151,22 +153,93 @@ export async function POST(request: NextRequest) {
     const timeStr =
       clientTime && clientTime.trim()
         ? clientTime.trim()
-        : format(now, "EEEE, MMMM d, yyyy h:mm:ss a", { locale: enUS })
+        : now.toISOString()
 
-    await Timesheet.create({
-      pin: employee.pin,
-      type,
-      date: dateStr,
+    // Build clock event object
+    const clockEvent: IClockEvent = {
       time: timeStr,
-      image: imageUrl,
       lat: latStr,
       lng: lngStr,
-      where,
+      image: imageUrl,
       flag,
-      working: detectedLocationName, // Store the detected location name
-      deviceId, // Associate with device
-      deviceLocation, // Store device location
-    })
+    }
+
+    // Handle different clock types using upsert pattern
+    if (type === "in") {
+      // Clock-in: Create or update daily shift
+      await DailyShift.findOneAndUpdate(
+        { pin: employee.pin, date: dateStr },
+        {
+          $setOnInsert: {
+            pin: employee.pin,
+            date: dateStr,
+            source: "clock",
+            status: "active",
+          },
+          $set: {
+            clockIn: clockEvent,
+          },
+        },
+        { upsert: true, new: true }
+      )
+    } else if (type === "out") {
+      // Clock-out: Update existing shift and calculate hours
+      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateStr })
+      
+      if (!shift) {
+        return NextResponse.json(
+          { error: "No clock-in found for today. Please clock in first." },
+          { status: 400 }
+        )
+      }
+
+      // Calculate computed fields
+      const computed = updateComputedFields(shift.clockIn, clockEvent, shift.breakIn, shift.breakOut)
+
+      await DailyShift.findOneAndUpdate(
+        { pin: employee.pin, date: dateStr },
+        {
+          $set: {
+            clockOut: clockEvent,
+            status: "completed",
+            totalBreakMinutes: computed.totalBreakMinutes,
+            totalWorkingHours: computed.totalWorkingHours,
+          },
+        }
+      )
+    } else if (type === "break") {
+      // Break start: Set breakIn field
+      await DailyShift.findOneAndUpdate(
+        { pin: employee.pin, date: dateStr },
+        {
+          $set: { breakIn: clockEvent },
+        }
+      )
+    } else if (type === "endBreak") {
+      // Break end: Set breakOut field and recalculate
+      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateStr })
+      
+      if (!shift || !shift.breakIn) {
+        return NextResponse.json(
+          { error: "No active break found." },
+          { status: 400 }
+        )
+      }
+
+      // Calculate computed fields
+      const computed = updateComputedFields(shift.clockIn, shift.clockOut, shift.breakIn, clockEvent)
+
+      await DailyShift.findOneAndUpdate(
+        { pin: employee.pin, date: dateStr },
+        {
+          $set: {
+            breakOut: clockEvent,
+            totalBreakMinutes: computed.totalBreakMinutes,
+            totalWorkingHours: computed.totalWorkingHours,
+          },
+        }
+      )
+    }
 
     // Invalidate employee session after successful clock operation
     await invalidateEmployeeSession()

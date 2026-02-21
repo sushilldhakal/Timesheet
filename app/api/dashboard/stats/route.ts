@@ -9,7 +9,7 @@ import {
   getDay,
 } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 const DATE_FMT = "dd-MM-yyyy"
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]

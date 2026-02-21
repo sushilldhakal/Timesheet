@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { getEmployeeFromCookie } from "@/lib/employee-auth"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 /** GET /api/employee/timesheet - Today's punches for the logged-in employee */
 export async function GET() {
@@ -19,24 +19,13 @@ export async function GET() {
     }
 
     const today = format(new Date(), "dd-MM-yyyy", { locale: enUS })
-    const raw = await Timesheet.find({ pin: employee.pin, date: today })
-      .sort({ time: 1 })
-      .lean()
+    const shift = await DailyShift.findOne({ pin: employee.pin, date: today }).lean()
 
     const punches = {
-      clockIn: "",
-      breakIn: "",
-      breakOut: "",
-      clockOut: "",
-    }
-
-    for (const r of raw) {
-      const t = String(r.time ?? "").trim()
-      const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-      if (type === "in") punches.clockIn = t
-      else if (type === "break") punches.breakIn = t
-      else if (type === "endbreak") punches.breakOut = t
-      else if (type === "out") punches.clockOut = t
+      clockIn: shift?.clockIn?.time || "",
+      breakIn: shift?.breakIn?.time || "",
+      breakOut: shift?.breakOut?.time || "",
+      clockOut: shift?.clockOut?.time || "",
     }
 
     return NextResponse.json({ date: today, punches })

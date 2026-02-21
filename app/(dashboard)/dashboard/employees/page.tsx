@@ -43,6 +43,8 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+  const [sortBy, setSortBy] = useState<string | null>("name")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [addOpen, setAddOpen] = useState(false)
   const [editEmployee, setEditEmployee] = useState<EmployeeRow | null>(null)
   const [deleteEmployee, setDeleteEmployee] = useState<EmployeeRow | null>(null)
@@ -58,6 +60,10 @@ export default function EmployeesPage() {
         offset: String(offset),
       })
       if (debouncedSearch) params.set("search", debouncedSearch)
+      if (sortBy) {
+        params.set("sortBy", sortBy)
+        params.set("order", sortOrder)
+      }
       const res = await fetch(`/api/employees?${params}`)
       if (res.ok) {
         const data = await res.json()
@@ -73,7 +79,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, pageIndex, pageSize])
+  }, [debouncedSearch, pageIndex, pageSize, sortBy, sortOrder])
 
   useEffect(() => {
     fetchEmployees()
@@ -85,6 +91,12 @@ export default function EmployeesPage() {
 
   const handleRowClick = (row: EmployeeRow) => {
     router.push(`/dashboard/employees/${row.id}`)
+  }
+
+  const handleSortChange = (columnId: string, order: "asc" | "desc") => {
+    setSortBy(columnId)
+    setSortOrder(order)
+    setPageIndex(0) // Reset to first page on sort
   }
 
   return (
@@ -123,6 +135,9 @@ export default function EmployeesPage() {
               setPageSize(size)
               setPageIndex(0)
             }}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={handleSortChange}
             onRowClick={handleRowClick}
             onEdit={setEditEmployee}
             onDelete={setDeleteEmployee}

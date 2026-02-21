@@ -7,9 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate:employees": "node --env-file=.env scripts/migrate-employees-to-arrays.mjs",
     "generate:pwa-icons": "node scripts/generate-pwa-icons.mjs",
-    "cleanup:cloudinary": "node --env-file=.env scripts/cleanup-cloudinary-timesheet.mjs"
+    "cleanup:cloudinary": "node --env-file=.env scripts/cleanup-cloudinary-timesheet.mjs",
+    "migrate:daily-shifts": "node --env-file=.env scripts/migrate-standalone.mjs",
+    "verify:migration": "node --env-file=.env scripts/verify-migration.mjs",
+    "rollback:migration": "node --env-file=.env scripts/rollback-standalone.mjs",
+    "migrate:full": "./scripts/run-migration.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

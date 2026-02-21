@@ -57,15 +57,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { InactiveEmployeesTable, type InactiveEmployee } from "@/components/dashboard/InactiveEmployeesTable"
 
 interface DashboardStats {
   dailyTimeline: { hour: string; clockIn: number; breakIn: number; breakOut: number; clockOut: number }[]
@@ -80,14 +73,6 @@ interface HoursSummaryRow {
   name: string
   pin: string
   hours: number
-}
-
-interface InactiveEmployee {
-  id: string
-  name: string
-  pin: string
-  lastPunchDate: string | null
-  daysInactive: number
 }
 
 const dailyTimelineConfig = {
@@ -531,41 +516,11 @@ export default function DashboardContent() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {inactiveEmployees.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No inactive employees (everyone has punched in the last 100 days).</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>PIN</TableHead>
-                  <TableHead>Last punch</TableHead>
-                  <TableHead className="text-right">Days inactive</TableHead>
-                  <TableHead className="w-[100px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {inactiveEmployees.map((emp) => (
-                  <TableRow key={emp.id}>
-                    <TableCell className="font-medium">{emp.name}</TableCell>
-                    <TableCell>{emp.pin}</TableCell>
-                    <TableCell>{emp.lastPunchDate ?? "Never"}</TableCell>
-                    <TableCell className="text-right">{emp.daysInactive}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeleteId(emp.id)}
-                        disabled={deleting}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <InactiveEmployeesTable
+            employees={inactiveEmployees}
+            onDelete={setDeleteId}
+            deleting={deleting}
+          />
         </CardContent>
       </Card>
 
