@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
 
 const EMPLOYEE_COOKIE = "employee_session"
-const MAX_AGE = 60 * 60 * 10 // 10 hours
+const MAX_AGE = 60 * 5 // 5 minutes (300 seconds)
 const IS_PRODUCTION = process.env.NODE_ENV === "production"
 
 export type EmployeeAuthPayload = {
@@ -33,6 +33,8 @@ export async function createEmployeeToken(payload: Omit<EmployeeAuthPayload, "ty
 
 export async function verifyEmployeeToken(token: string): Promise<EmployeeAuthPayload | null> {
   try {
+    // jwtVerify performs constant-time comparison for signature verification
+    // This prevents timing attacks on token validation
     const { payload } = await jwtVerify(token, getSecret())
     if (payload.type !== "employee") return null
     const sub = payload.sub
@@ -80,4 +82,9 @@ export function getEmployeeTokenFromRequest(request: Request): string | undefine
   if (!cookieHeader) return undefined
   const match = cookieHeader.match(new RegExp(`${EMPLOYEE_COOKIE}=([^;]+)`))
   return match?.[1]
+}
+
+/** Invalidate employee session by clearing the session cookie */
+export async function invalidateEmployeeSession(): Promise<void> {
+  await clearEmployeeCookie()
 }

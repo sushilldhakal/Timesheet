@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "@/lib/utils/toast"
 import { logger } from "@/lib/utils/logger"
+import { DeviceRegistrationDialog } from "@/components/DeviceRegistrationDialog"
 
 function formatTime12hr(date: Date) {
   return date.toLocaleTimeString("en-US", {
@@ -167,8 +168,46 @@ export function Home() {
 
   if (status === "success") {
     return (
+      <>
+        {/* Device Registration Dialog - conditionally rendered based on query params */}
+        <DeviceRegistrationDialog />
+
+        <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
+          <div className="flex flex-col items-center gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
+                {time12}
+              </h1>
+              <p className="text-sm text-white/70">
+                Enter your PIN
+              </p>
+            </div>
+
+            {/* PIN Display - Success State */}
+            <div className="mt-4">
+              <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
+            </div>
+
+            {/* Success message */}
+            <div className="h-6">
+              <p className="text-sm text-emerald-400 font-medium animate-in fade-in duration-200">
+                ✓ Verified! Loading...
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {/* Device Registration Dialog - conditionally rendered based on query params */}
+      <DeviceRegistrationDialog />
+
       <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
         <div className="flex flex-col items-center gap-6">
+        
           <div className="flex flex-col items-center gap-2">
             <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
               {time12}
@@ -178,61 +217,33 @@ export function Home() {
             </p>
           </div>
 
-          {/* PIN Display - Success State */}
+          {/* PIN Display */}
           <div className="mt-4">
             <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
           </div>
 
-          {/* Success message */}
+          {/* Status messages */}
           <div className="h-6">
-            <p className="text-sm text-emerald-400 font-medium animate-in fade-in duration-200">
-              ✓ Verified! Loading...
-            </p>
+            {status === "verifying" && (
+              <p className="animate-pulse text-sm text-white/90">Verifying...</p>
+            )}
+            {status === "error" && errorMessage && (
+              <p className={cn("text-sm text-red-400 animate-in fade-in duration-200")}>
+                {errorMessage}
+              </p>
+            )}
           </div>
         </div>
-      </div>
-    )
-  }
 
-  return (
-    <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
-      <div className="flex flex-col items-center gap-6">
-      
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
-            {time12}
-          </h1>
-          <p className="text-sm text-white/70">
-            Enter your PIN
-          </p>
-        </div>
-
-        {/* PIN Display */}
-        <div className="mt-4">
-          <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
-        </div>
-
-        {/* Status messages */}
-        <div className="h-6">
-          {status === "verifying" && (
-            <p className="animate-pulse text-sm text-white/90">Verifying...</p>
-          )}
-          {status === "error" && errorMessage && (
-            <p className={cn("text-sm text-red-400 animate-in fade-in duration-200")}>
-              {errorMessage}
-            </p>
-          )}
+        {/* Numpad */}
+        <div className="w-full max-w-sm">
+          <Numpad
+            onKeyPress={handleKeyPress}
+            onDelete={handleDelete}
+            disabled={status === "verifying" || status === "error"}
+          />
         </div>
       </div>
-
-      {/* Numpad */}
-      <div className="w-full max-w-sm">
-        <Numpad
-          onKeyPress={handleKeyPress}
-          onDelete={handleDelete}
-          disabled={status === "verifying" || status === "error"}
-        />
-      </div>
-    </div>
+    </>
   )
 }

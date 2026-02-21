@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
-import { getEmployeeFromCookie } from "@/lib/employee-auth"
-import { connectDB, Employee, Timesheet, Category } from "@/lib/db"
+import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/employee-auth"
+import { connectDB, Employee, Timesheet, Category, Device } from "@/lib/db"
 import { isWithinGeofence } from "@/lib/utils/geofence"
 import { logger } from "@/lib/utils/logger"
 import { z } from "zod"
@@ -39,6 +39,18 @@ export async function POST(request: NextRequest) {
     const employee = await Employee.findById(auth.sub).lean()
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+    }
+
+    // Get device context from headers (set by middleware)
+    const deviceId = request.headers.get("x-device-id") || ""
+    let deviceLocation = ""
+    
+    // Fetch device location from database if deviceId is available
+    if (deviceId) {
+      const device = await Device.findOne({ deviceId }).lean()
+      if (device) {
+        deviceLocation = device.locationName
+      }
     }
 
     const imageUrl = (clientImageUrl && clientImageUrl.trim()) || ""
@@ -152,7 +164,12 @@ export async function POST(request: NextRequest) {
       where,
       flag,
       working: detectedLocationName, // Store the detected location name
+      deviceId, // Associate with device
+      deviceLocation, // Store device location
     })
+
+    // Invalidate employee session after successful clock operation
+    await invalidateEmployeeSession()
 
     return NextResponse.json({
       success: true,

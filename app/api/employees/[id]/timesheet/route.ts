@@ -63,15 +63,23 @@ export interface DailyTimesheetRow {
   clockInImage?: string
   clockInWhere?: string
   clockInLocation?: string
+  clockInDeviceId?: string
+  clockInDeviceLocation?: string
   breakInImage?: string
   breakInWhere?: string
   breakInLocation?: string
+  breakInDeviceId?: string
+  breakInDeviceLocation?: string
   breakOutImage?: string
   breakOutWhere?: string
   breakOutLocation?: string
+  breakOutDeviceId?: string
+  breakOutDeviceLocation?: string
   clockOutImage?: string
   clockOutWhere?: string
   clockOutLocation?: string
+  clockOutDeviceId?: string
+  clockOutDeviceLocation?: string
   /** Red when manually added (no punch); green when from punch or edited. */
   clockInSource?: TimesheetTimeSource
   breakInSource?: TimesheetTimeSource
@@ -123,7 +131,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .sort({ date: -1, time: 1 })
       .lean()
 
-    // Aggregate by date; keep image, where, working (location name), and source (insert/update from admin edit) per punch type
+    // Aggregate by date; keep image, where, working (location name), deviceId, deviceLocation, and source (insert/update from admin edit) per punch type
     const byDate = new Map<
       string,
       {
@@ -134,23 +142,33 @@ export async function GET(request: NextRequest, context: RouteContext) {
         inImage?: string
         inWhere?: string
         inWorking?: string
+        inDeviceId?: string
+        inDeviceLocation?: string
         inSource?: TimesheetTimeSource
         breakImage?: string
         breakWhere?: string
         breakWorking?: string
+        breakDeviceId?: string
+        breakDeviceLocation?: string
         breakSource?: TimesheetTimeSource
         endBreakImage?: string
         endBreakWhere?: string
         endBreakWorking?: string
+        endBreakDeviceId?: string
+        endBreakDeviceLocation?: string
         endBreakSource?: TimesheetTimeSource
         outImage?: string
         outWhere?: string
         outWorking?: string
+        outDeviceId?: string
+        outDeviceLocation?: string
         outSource?: TimesheetTimeSource
       }
     >()
     const getImage = (r: { image?: string }) => (r.image ? String(r.image).trim() : undefined)
     const getWhere = (r: { where?: string }) => (r.where ? String(r.where).trim() : undefined)
+    const getDeviceId = (r: { deviceId?: string }) => (r.deviceId ? String(r.deviceId).trim() : undefined)
+    const getDeviceLocation = (r: { deviceLocation?: string }) => (r.deviceLocation ? String(r.deviceLocation).trim() : undefined)
     const getWorkingLocation = (r: { working?: string }): string | undefined => {
       const s = String(r.working ?? "").trim()
       // If working field contains "insert" or "update", it's a source marker (old data)
@@ -173,15 +191,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const entry = byDate.get(d) ?? {}
       const t = String(r.time ?? "").trim()
       const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-      const rec = r as { image?: string; where?: string; working?: string; source?: string }
+      const rec = r as { image?: string; where?: string; working?: string; source?: string; deviceId?: string; deviceLocation?: string }
       if (type === "in") {
         entry.in = t
         const img = getImage(rec)
         const where = getWhere(rec)
         const working = getWorkingLocation(rec)
+        const deviceId = getDeviceId(rec)
+        const deviceLocation = getDeviceLocation(rec)
         if (img) entry.inImage = img
         if (where) entry.inWhere = where
         if (working) entry.inWorking = working
+        if (deviceId) entry.inDeviceId = deviceId
+        if (deviceLocation) entry.inDeviceLocation = deviceLocation
         const src = getSource(rec)
         if (src) entry.inSource = src
       } else if (type === "break") {
@@ -189,9 +211,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         const img = getImage(rec)
         const where = getWhere(rec)
         const working = getWorkingLocation(rec)
+        const deviceId = getDeviceId(rec)
+        const deviceLocation = getDeviceLocation(rec)
         if (img) entry.breakImage = img
         if (where) entry.breakWhere = where
         if (working) entry.breakWorking = working
+        if (deviceId) entry.breakDeviceId = deviceId
+        if (deviceLocation) entry.breakDeviceLocation = deviceLocation
         const src = getSource(rec)
         if (src) entry.breakSource = src
       } else if (type === "endbreak") {
@@ -199,9 +225,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         const img = getImage(rec)
         const where = getWhere(rec)
         const working = getWorkingLocation(rec)
+        const deviceId = getDeviceId(rec)
+        const deviceLocation = getDeviceLocation(rec)
         if (img) entry.endBreakImage = img
         if (where) entry.endBreakWhere = where
         if (working) entry.endBreakWorking = working
+        if (deviceId) entry.endBreakDeviceId = deviceId
+        if (deviceLocation) entry.endBreakDeviceLocation = deviceLocation
         const src = getSource(rec)
         if (src) entry.endBreakSource = src
       } else if (type === "out") {
@@ -209,9 +239,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         const img = getImage(rec)
         const where = getWhere(rec)
         const working = getWorkingLocation(rec)
+        const deviceId = getDeviceId(rec)
+        const deviceLocation = getDeviceLocation(rec)
         if (img) entry.outImage = img
         if (where) entry.outWhere = where
         if (working) entry.outWorking = working
+        if (deviceId) entry.outDeviceId = deviceId
+        if (deviceLocation) entry.outDeviceLocation = deviceLocation
         const src = getSource(rec)
         if (src) entry.outSource = src
       }
@@ -257,15 +291,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
         clockInImage: entry.inImage,
         clockInWhere: entry.inWhere,
         clockInLocation: entry.inWorking,
+        clockInDeviceId: entry.inDeviceId,
+        clockInDeviceLocation: entry.inDeviceLocation,
         breakInImage: entry.breakImage,
         breakInWhere: entry.breakWhere,
         breakInLocation: entry.breakWorking,
+        breakInDeviceId: entry.breakDeviceId,
+        breakInDeviceLocation: entry.breakDeviceLocation,
         breakOutImage: entry.endBreakImage,
         breakOutWhere: entry.endBreakWhere,
         breakOutLocation: entry.endBreakWorking,
+        breakOutDeviceId: entry.endBreakDeviceId,
+        breakOutDeviceLocation: entry.endBreakDeviceLocation,
         clockOutImage: entry.outImage,
         clockOutWhere: entry.outWhere,
         clockOutLocation: entry.outWorking,
+        clockOutDeviceId: entry.outDeviceId,
+        clockOutDeviceLocation: entry.outDeviceLocation,
         clockInSource: entry.inSource,
         breakInSource: entry.breakSource,
         breakOutSource: entry.endBreakSource,
