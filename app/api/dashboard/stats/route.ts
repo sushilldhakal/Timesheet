@@ -109,24 +109,45 @@ export async function GET(request: Request) {
       allowedPins && allowedPins.length > 0 ? { ...base, pin: { $in: allowedPins } } : base
 
     // ─── 1. Daily Timeline: punches by hour and type (clock in, break in, break out, clock out) ─
-    const todayPunches = await Timesheet.find(timesheetFilter({ date: timelineDateStr })).lean()
+    const todayShifts = await DailyShift.find(timesheetFilter({ date: timelineDateStr })).lean()
     type HourCounts = { clockIn: number; breakIn: number; breakOut: number; clockOut: number }
     const byHour: Record<string, HourCounts> = {}
     for (let h = 6; h <= 20; h++) {
       byHour[`${h.toString().padStart(2, "0")}:00`] = { clockIn: 0, breakIn: 0, breakOut: 0, clockOut: 0 }
     }
-    for (const row of todayPunches) {
-      const t = String(row.time ?? "").trim()
-      const hour24 = parseTimeToHour24(t)
-      if (hour24 == null || hour24 < 6 || hour24 > 20) continue
-      const key = `${hour24.toString().padStart(2, "0")}:00`
-      const entry = byHour[key]
-      if (!entry) continue
-      const type = String(row.type ?? "").toLowerCase().replace(/\s/g, "")
-      if (type === "in") entry.clockIn += 1
-      else if (type === "break") entry.breakIn += 1
-      else if (type === "endbreak") entry.breakOut += 1
-      else if (type === "out") entry.clockOut += 1
+    for (const shift of todayShifts) {
+      // Count clock-in
+      if (shift.clockIn?.time) {
+        const hour24 = parseTimeToHour24(shift.clockIn.time)
+        if (hour24 != null && hour24 >= 6 && hour24 <= 20) {
+          const key = `${hour24.toString().padStart(2, "0")}:00`
+          if (byHour[key]) byHour[key].clockIn += 1
+        }
+      }
+      // Count break-in
+      if (shift.breakIn?.time) {
+        const hour24 = parseTimeToHour24(shift.breakIn.time)
+        if (hour24 != null && hour24 >= 6 && hour24 <= 20) {
+          const key = `${hour24.toString().padStart(2, "0")}:00`
+          if (byHour[key]) byHour[key].breakIn += 1
+        }
+      }
+      // Count break-out
+      if (shift.breakOut?.time) {
+        const hour24 = parseTimeToHour24(shift.breakOut.time)
+        if (hour24 != null && hour24 >= 6 && hour24 <= 20) {
+          const key = `${hour24.toString().padStart(2, "0")}:00`
+          if (byHour[key]) byHour[key].breakOut += 1
+        }
+      }
+      // Count clock-out
+      if (shift.clockOut?.time) {
+        const hour24 = parseTimeToHour24(shift.clockOut.time)
+        if (hour24 != null && hour24 >= 6 && hour24 <= 20) {
+          const key = `${hour24.toString().padStart(2, "0")}:00`
+          if (byHour[key]) byHour[key].clockOut += 1
+        }
+      }
     }
     const dailyTimeline = Object.entries(byHour)
       .map(([hour, counts]) => ({ hour, ...counts }))
@@ -152,17 +173,17 @@ export async function GET(request: Request) {
     // ─── 3. Attendance by day of week (last 4 weeks) ───────────────────────
     const fourWeeksAgo = subDays(now, 28)
     const dateStrings = dateRangeToDDMM(fourWeeksAgo, now)
-    const punchesByDay = await Timesheet.find(timesheetFilter({
+    const shiftsForAttendance = await DailyShift.find(timesheetFilter({
       date: { $in: dateStrings },
-      type: { $in: ["in", "In"] },
+      clockIn: { $exists: true },
     })).lean()
     const dayCounts: Record<string, Set<string>> = {}
     DAY_NAMES.forEach((d) => (dayCounts[d] = new Set()))
-    for (const row of punchesByDay) {
-      const d = parseDate(String(row.date))
+    for (const shift of shiftsForAttendance) {
+      const d = parseDate(String(shift.date))
       if (d) {
         const dayName = DAY_NAMES[getDay(d)]
-        dayCounts[dayName].add(String(row.pin))
+        dayCounts[dayName].add(String(shift.pin))
       }
     }
     const attendanceByDay = DAY_NAMES.map((day) => ({
@@ -183,29 +204,23 @@ export async function GET(request: Request) {
       const start = weekStarts[w]
       const end = endOfWeek(start, { weekStartsOn: 1 })
       const rangeStr = dateRangeToDDMM(start, end)
-      const weekPunches = await Timesheet.find(timesheetFilter({ date: { $in: rangeStr } })).sort({ date: 1, time: 1 }).lean()
-      const byPinDate = new Map<string, { in?: string; out?: string }>()
-      for (const r of weekPunches) {
-        const key = `${r.pin}|${r.date}`
-        const entry = byPinDate.get(key) ?? {}
-        const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-        const time = String(r.time ?? "").trim()
-        if (type === "in") entry.in = time
-        else if (type === "out") entry.out = time
-        byPinDate.set(key, entry)
-      }
-      let totalMinutes = 0
+      const weekShifts = await DailyShift.find(timesheetFilter({ date: { $in: rangeStr } })).lean()
+      
+      let totalHours = 0
       const activePins = new Set<string>()
-      for (const [key, entry] of byPinDate) {
-        const pin = key.split("|")[0]
-        activePins.add(pin)
-        const inMin = parseTimeToMinutes(entry.in)
-        const outMin = parseTimeToMinutes(entry.out)
-        if (outMin > 0 && inMin > 0) totalMinutes += Math.max(0, outMin - inMin)
+      
+      for (const shift of weekShifts) {
+        if (shift.clockIn) {
+          activePins.add(String(shift.pin))
+        }
+        if (shift.totalWorkingHours && shift.totalWorkingHours > 0) {
+          totalHours += shift.totalWorkingHours
+        }
       }
+      
       const attendanceRate = totalEmployees > 0 ? Math.round((activePins.size / totalEmployees) * 100) : 0
       weeklyData.push({
-        totalHours: Math.round(totalMinutes / 60),
+        totalHours: Math.round(totalHours),
         activeEmployees: activePins.size,
         attendanceRate,
       })
@@ -222,9 +237,9 @@ export async function GET(request: Request) {
 
     // ─── 5. Role-based staffing: count by role (last 7 days, no morning/evening) ─
     const sevenDaysStr = dateRangeToDDMM(subDays(now, 7), now)
-    const recentPunches = await Timesheet.find(timesheetFilter({
+    const recentShifts = await DailyShift.find(timesheetFilter({
       date: { $in: sevenDaysStr },
-      type: { $in: ["in", "In"] },
+      clockIn: { $exists: true },
     })).lean()
     const pinToEmployee = new Map<string, { role: string[]; employer: string[] }>()
     for (const e of employees) {
@@ -244,8 +259,8 @@ export async function GET(request: Request) {
     const countByRole: Record<string, Set<string>> = {}
     const roleKeys = ["sorter", "rfms", "depotHand", "customerServices", "other"]
     roleKeys.forEach((r) => { countByRole[r] = new Set() })
-    for (const row of recentPunches) {
-      const pin = String(row.pin ?? "")
+    for (const shift of recentShifts) {
+      const pin = String(shift.pin ?? "")
       const meta = pinToEmployee.get(pin)
       const roles = meta?.role?.length ? meta.role : ["Other"]
       const firstRole = normalizeRole(roles[0] ?? "Other")
@@ -268,7 +283,7 @@ export async function GET(request: Request) {
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
       const monthStr = format(monthStart, "MMM yyyy")
       const rangeStr = dateRangeToDDMM(monthStart, monthEnd)
-      const pinsActiveInMonth = await Timesheet.distinct("pin", timesheetFilter({ date: { $in: rangeStr } }))
+      const pinsActiveInMonth = await DailyShift.distinct("pin", timesheetFilter({ date: { $in: rangeStr } }))
       const counts = { employees: 0, subcontractors: 0, dmx: 0, vicLogistics: 0, mandm: 0 }
       for (const pin of pinsActiveInMonth) {
         const meta = pinToEmployee.get(pin)
