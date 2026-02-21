@@ -28,7 +28,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/dashboard/employees"
           className="rounded-lg border p-4 transition-colors hover:bg-muted/50"

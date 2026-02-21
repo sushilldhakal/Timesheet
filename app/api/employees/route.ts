@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
+import { logger } from "@/lib/utils/logger"
 
-/** GET /api/employees?search=...&limit=10&offset=0 - List employees with search and pagination */
+/** GET /api/employees?search=...&limit=10&offset=0&sortBy=name&order=asc - List employees with search, pagination, and sorting */
 export async function GET(request: NextRequest) {
   const ctx = await getAuthWithUserLocations()
   if (!ctx) {
@@ -14,8 +15,15 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search")?.trim() ?? ""
   const limitParam = searchParams.get("limit")
   const offsetParam = searchParams.get("offset")
+  const sortByParam = searchParams.get("sortBy")?.trim() ?? "name"
+  const orderParam = searchParams.get("order")?.trim().toLowerCase() ?? "asc"
   const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 1000) : 10
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
+  
+  // Validate sortBy to prevent injection
+  const validSortFields = ["name", "pin", "role", "employer", "location", "email", "phone"]
+  const sortBy = validSortFields.includes(sortByParam) ? sortByParam : "name"
+  const order = orderParam === "desc" ? -1 : 1
 
   try {
     await connectDB()
@@ -43,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     const [employees, total] = await Promise.all([
       Employee.find(filter)
-        .sort({ name: 1 })
+        .sort({ [sortBy]: order })
         .skip(offset)
         .limit(limit)
         .lean(),
@@ -76,7 +84,7 @@ export async function GET(request: NextRequest) {
       offset,
     })
   } catch (err) {
-    console.error("[api/employees GET]", err)
+    logger.error("[api/employees GET]", err)
     return NextResponse.json(
       { error: "Failed to fetch employees" },
       { status: 500 }
@@ -145,7 +153,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err) {
-    console.error("[api/employees POST]", err)
+    logger.error("[api/employees POST]", err)
     return NextResponse.json(
       { error: "Failed to create employee" },
       { status: 500 }

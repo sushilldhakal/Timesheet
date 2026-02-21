@@ -62,7 +62,7 @@ function PunchPhotoAndLocation({
   where?: string
   locationName?: string
 }) {
-  const mapsUrl = where ? `https://www.google.com/maps/@${where}` : null
+  const mapsUrl = where ? `https://www.google.com/maps?q=${where}` : null
   const imageLinkHref = imageUrl ? getImageLinkHref(imageUrl) : null
   return (
     <div className="flex flex-col items-center gap-2 min-w-0">

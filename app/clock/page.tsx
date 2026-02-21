@@ -595,7 +595,7 @@ export default function ClockPage() {
                   >
                     {clockLoading
                       ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</>
-                      : faceDetected ? "CLOCK IN" : "CLOCK IN (no photo)"}
+                      :  "CLOCK IN"}
                   </Button>
                 </TabsContent>
 

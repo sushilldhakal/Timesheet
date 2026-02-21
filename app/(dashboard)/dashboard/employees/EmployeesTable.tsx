@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { ServerDataTable } from "@/components/ui/data-table"
 import type { EmployeeRow } from "./page"
 
@@ -17,6 +17,9 @@ type Props = {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  sortBy: string
+  sortOrder: "asc" | "desc"
+  onSort: (column: string) => void
   onRowClick: (row: EmployeeRow) => void
   onEdit: (e: EmployeeRow) => void
   onDelete: (e: EmployeeRow) => void
@@ -32,42 +35,65 @@ export function EmployeesTable({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  sortBy,
+  sortOrder,
+  onSort,
   onRowClick,
   onEdit,
   onDelete,
 }: Props) {
+  const SortableHeader = ({ column, label }: { column: string; label: string }) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="-ml-3 h-8"
+      onClick={() => onSort(column)}
+    >
+      {label}
+      {sortBy === column ? (
+        sortOrder === "desc" ? (
+          <ArrowDown className="ml-2 h-4 w-4" />
+        ) : (
+          <ArrowUp className="ml-2 h-4 w-4" />
+        )
+      ) : (
+        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+      )}
+    </Button>
+  )
+
   const columns = useMemo<ColumnDef<EmployeeRow>[]>(
     () => [
       {
         accessorKey: "name",
-        header: "Name",
+        header: () => <SortableHeader column="name" label="Name" />,
         cell: ({ row }) => (
           <span className="font-medium">{row.original.name || "—"}</span>
         ),
       },
       {
         accessorKey: "pin",
-        header: "PIN",
+        header: () => <SortableHeader column="pin" label="PIN" />,
         cell: ({ row }) => row.original.pin,
       },
       {
         accessorKey: "role",
         accessorFn: (row) => (row.role ?? []).join(", "),
-        header: "Roles",
+        header: () => <SortableHeader column="role" label="Roles" />,
         cell: ({ row }) =>
           row.original.role?.length ? row.original.role.join(", ") : "—",
       },
       {
         accessorKey: "employer",
         accessorFn: (row) => (row.employer ?? []).join(", "),
-        header: "Employers",
+        header: () => <SortableHeader column="employer" label="Employers" />,
         cell: ({ row }) =>
           row.original.employer?.length ? row.original.employer.join(", ") : "—",
       },
       {
         accessorKey: "location",
         accessorFn: (row) => (row.location ?? []).join(", "),
-        header: "Locations",
+        header: () => <SortableHeader column="location" label="Locations" />,
         cell: ({ row }) =>
           row.original.location?.length
             ? row.original.location.join(", ")
@@ -113,7 +139,7 @@ export function EmployeesTable({
         },
       },
     ],
-    [onEdit, onDelete]
+    [onEdit, onDelete, sortBy, sortOrder, onSort]
   )
 
   return (

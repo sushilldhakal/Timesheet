@@ -66,6 +66,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface DashboardStats {
   dailyTimeline: { hour: string; clockIn: number; breakIn: number; breakOut: number; clockOut: number }[]
@@ -547,7 +548,14 @@ export default function DashboardContent() {
               <TableBody>
                 {inactiveEmployees.map((emp) => (
                   <TableRow key={emp.id}>
-                    <TableCell className="font-medium">{emp.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link
+          href={`/dashboard/employees/${emp.id}`}
+          className="p-4 transition-colors hover:bg-muted/50"
+        >
+                      {emp.name}
+                      </Link>
+                      </TableCell>
                     <TableCell>{emp.pin}</TableCell>
                     <TableCell>{emp.lastPunchDate ?? "Never"}</TableCell>
                     <TableCell className="text-right">{emp.daysInactive}</TableCell>

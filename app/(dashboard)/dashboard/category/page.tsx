@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Briefcase, MapPin, UserCircle, Plus } from "lucide-react"
+import { Briefcase, MapPin, UserCircle, Plus, CircleDollarSign } from "lucide-react"
 import {
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
@@ -30,18 +30,21 @@ const categoryTabs = [
   { id: CATEGORY_TYPES.ROLE as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.ROLE], icon: UserCircle },
   { id: CATEGORY_TYPES.EMPLOYER as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.EMPLOYER], icon: Briefcase },
   { id: CATEGORY_TYPES.LOCATION as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.LOCATION], icon: MapPin },
+  {id: CATEGORY_TYPES.PAYRATE as CategoryType,   label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.PAYRATE], icon: CircleDollarSign}
 ] as const
 
 const TAB_DESCRIPTIONS: Record<CategoryType, string> = {
   [CATEGORY_TYPES.ROLE]: "Roles you can assign to employees (e.g. Driver, Supervisor).",
   [CATEGORY_TYPES.EMPLOYER]: "Employers to assign to employees.",
   [CATEGORY_TYPES.LOCATION]: "Locations to assign to employees (sites, offices).",
+  [CATEGORY_TYPES.PAYRATE]: "Pay Rate to assign to employee",
 }
 
 const ADD_BUTTON_LABELS: Record<CategoryType, string> = {
   [CATEGORY_TYPES.ROLE]: "Add Role",
   [CATEGORY_TYPES.EMPLOYER]: "Add Employer",
   [CATEGORY_TYPES.LOCATION]: "Add Location",
+  [CATEGORY_TYPES.PAYRATE]: "Add Pay Rate",
 }
 
 export default function CategoryPage() {
