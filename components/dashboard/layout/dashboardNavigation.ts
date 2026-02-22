@@ -7,6 +7,7 @@ import {
   FolderTree,
   Flag,
   Settings,
+  Award,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/types/dashboard';
 
@@ -49,6 +50,13 @@ export const baseNavigationItems: NavigationItem[] = [
     children: [
       { href: '/dashboard/users', label: 'All Users', icon: List, adminOnly: true },
     ],
+  },
+  
+ {
+    href: '/dashboard/awards',
+    label: 'Awards',
+    icon: Award,
+    adminOnly: true,
   },
   {
     href: '/dashboard/Setting',

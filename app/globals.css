@@ -1,127 +1,161 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
 
 /* ─────────────────────────────────────────────
-   BRAND COLOURS — single source of truth
-   Define here; tailwind.config.ts references these for bg-success, etc.
-   Usage: bg-brand/50  text-success  border-warning  bg-danger
-   #3fafd7  → brand   (blue)
-   #ff9503  → warning (amber)
-   #eb5c59  → danger  (red / clock-out)
-   #1a8754  → success (green / clock-in)
-   #212a35  → dark    (dark bg)
+   CSS CUSTOM PROPERTIES
+   Raw values live here in :root and .dark.
+   @theme inline below reads these and generates
+   Tailwind utility classes from them.
 ───────────────────────────────────────────── */
+:root {
+  /* Brand colours */
+  --brand:   rgb(63 175 215);
+  --success: rgb(26 135 84);
+  --warning: rgb(255 149 3);
+  --danger:  rgb(235 92 89);
+  --dark:    rgb(33 42 53);
 
-@layer base {
-  :root {
-    /* Brand colours — single source; tailwind uses these for bg-success, etc. */
-    --success: 26 135 84;   /* #1a8754 green */
-    --warning: 255 149 3;   /* #ff9503 amber */
-    --danger: 235 92 89;    /* #eb5c59 red */
-    --brand: 63 175 215;    /* #3fafd7 blue */
-    --dark: 33 42 53;       /* #212a35 */
+  --button-hover-brightness: 0.9;
 
-    /* Button/arrow hover — single variable for consistency */
-    --button-hover-brightness: 0.9;
-
-    /* Backgrounds */
-    --background: 0 0% 97%;               /* near-white */
-    --foreground: 210 25% 12%;            /* near-black */
-
-    /* Cards / surfaces */
-    --card: 0 0% 100%;
-    --card-foreground: 210 25% 12%;
-
-    /* Popovers */
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 25% 12%;
-
-    /* Primary → blue #3fafd7 */
-    --primary: 196 55% 54%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Secondary → muted blue tint */
-    --secondary: 196 30% 92%;
-    --secondary-foreground: 196 55% 30%;
-
-    /* Muted */
-    --muted: 0 0% 93%;
-    --muted-foreground: 210 10% 45%;
-
-    /* Accent → same blue, lighter */
-    --accent: 196 40% 88%;
-    --accent-foreground: 196 55% 25%;
-
-    /* Destructive → red #eb5c59 */
-    --destructive: 1 77% 63%;
-    --destructive-foreground: 0 0% 100%;
-
-    /* Borders / inputs */
-    --border: 210 15% 85%;
-    --input: 0 0% 100%;
-    --ring: 196 55% 54%;                  /* blue focus ring */
-
-    /* Charts */
+  /* shadcn palette — your new palette */
+  --radius: 0.65rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(0.90 0.06 231);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.577 0.245 27.325);
+  --primary-foreground: oklch(0.971 0.013 17.38);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.21 0.006 285.885);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.704 0.191 22.216);
+  /* Charts */
     --chart-1: 196 55% 54%;               /* blue */
     --chart-2: 35 100% 50%;               /* amber */
     --chart-3: 1 77% 63%;                 /* red */
     --chart-4: 150 68% 32%;               /* green */
     --chart-5: 196 30% 70%;               /* light blue */
 
-    --radius: 0.5rem;
-  }
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.577 0.245 27.325);
+  --sidebar-primary-foreground: oklch(0.971 0.013 17.38);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.704 0.191 22.216);
+}
 
-  .dark {
-    /* Backgrounds — your specified dark bg */
-    --background: 210 25% 17%;            /* #212a35 */
-    --foreground: 0 0% 95%;
-
-    /* Cards — slightly elevated */
-    --card: 210 22% 22%;
-    --card-foreground: 0 0% 95%;
-
-    /* Popovers */
-    --popover: 210 22% 25%;
-    --popover-foreground: 0 0% 95%;
-
-    /* Primary → blue #3fafd7 (same in both modes) */
-    --primary: 196 55% 54%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Secondary */
-    --secondary: 210 20% 28%;
-    --secondary-foreground: 0 0% 85%;
-
-    /* Muted */
-    --muted: 210 18% 24%;
-    --muted-foreground: 210 10% 55%;
-
-    /* Accent */
-    --accent: 210 20% 30%;
-    --accent-foreground: 0 0% 90%;
-
-    /* Destructive → red #eb5c59 */
-    --destructive: 1 77% 63%;
-    --destructive-foreground: 0 0% 100%;
-
-    /* Borders / inputs */
-    --border: 210 18% 30%;
-    --input: 210 22% 20%;
-    --ring: 196 55% 54%;
-
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.29 0.06 243);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.637 0.237 25.331);
+  --primary-foreground: oklch(0.971 0.013 17.38);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.396 0.141 25.723);
     /* Charts */
     --chart-1: 196 55% 60%;
     --chart-2: 35 100% 55%;
     --chart-3: 1 77% 68%;
     --chart-4: 150 68% 42%;
     --chart-5: 196 30% 75%;
-  }
+
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.637 0.237 25.331);
+  --sidebar-primary-foreground: oklch(0.971 0.013 17.38);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.396 0.141 25.723);
 }
 
+/* ─────────────────────────────────────────────
+   @theme inline
+   The "inline" keyword tells Tailwind to read
+   the --color-* variables from :root/.dark at
+   runtime rather than baking values in at build.
+   This is what makes dark mode switching work
+   and why the values live in :root not here.
+───────────────────────────────────────────── */
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Brand — bg-brand, bg-success, text-danger etc */
+  --color-brand:   var(--brand);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger:  var(--danger);
+  --color-dark:    var(--dark);
+
+  /* shadcn tokens — bg-card, bg-muted, text-foreground etc */
+  --color-background:                  var(--background);
+  --color-foreground:                  var(--foreground);
+  --color-card:                        var(--card);
+  --color-card-foreground:             var(--card-foreground);
+  --color-popover:                     var(--popover);
+  --color-popover-foreground:          var(--popover-foreground);
+  --color-primary:                     var(--primary);
+  --color-primary-foreground:          var(--primary-foreground);
+  --color-secondary:                   var(--secondary);
+  --color-secondary-foreground:        var(--secondary-foreground);
+  --color-muted:                       var(--muted);
+  --color-muted-foreground:            var(--muted-foreground);
+  --color-accent:                      var(--accent);
+  --color-accent-foreground:           var(--accent-foreground);
+  --color-destructive:                 var(--destructive);
+  --color-border:                      var(--border);
+  --color-input:                       var(--input);
+  --color-ring:                        var(--ring);
+  --color-chart-1:                     var(--chart-1);
+  --color-chart-2:                     var(--chart-2);
+  --color-chart-3:                     var(--chart-3);
+  --color-chart-4:                     var(--chart-4);
+  --color-chart-5:                     var(--chart-5);
+  --color-sidebar:                     var(--sidebar);
+  --color-sidebar-foreground:          var(--sidebar-foreground);
+  --color-sidebar-primary:             var(--sidebar-primary);
+  --color-sidebar-primary-foreground:  var(--sidebar-primary-foreground);
+  --color-sidebar-accent:              var(--sidebar-accent);
+  --color-sidebar-accent-foreground:   var(--sidebar-accent-foreground);
+  --color-sidebar-border:              var(--sidebar-border);
+  --color-sidebar-ring:                var(--sidebar-ring);
+}
+
+/* ─────────────────────────────────────────────
+   BASE
+───────────────────────────────────────────── */
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
@@ -129,12 +163,10 @@
 }
 
 /* ─────────────────────────────────────────────
-   SEMANTIC COLOUR UTILITIES
-   Use Tailwind classes: bg-success  text-warning  border-danger  etc.
+   COMPONENT STYLES
 ───────────────────────────────────────────── */
 @layer components {
 
-  /* ── Clock / Timesheet tab strip ─────────── */
   .clock-tab-list {
     background-color: #171717 !important;
     border: none !important;
@@ -153,9 +185,7 @@
     position: relative !important;
     z-index: 1 !important;
   }
-  .clock-tab-trigger::after {
-    display: none !important;
-  }
+  .clock-tab-trigger::after { display: none !important; }
   .clock-tab-trigger[data-state="active"] {
     background-color: transparent !important;
     border: none !important;
@@ -163,91 +193,54 @@
     border-radius: 24px !important;
   }
   .clock-tab-trigger[data-state="inactive"] {
-    background-color: rgb(var(--dark) / 0.8) !important;
+    background-color: color-mix(in srgb, var(--dark) 80%, transparent) !important;
     border-radius: 24px !important;
-    color: rgb(var(--brand)) !important;
+    color: var(--brand) !important;
   }
   .clock-tab-trigger:disabled {
     opacity: 0.4 !important;
     pointer-events: none !important;
   }
 
-  /* Sliding active indicator */
   .clock-tab-indicator {
-    background-color: rgb(var(--brand)) !important;
+    background-color: var(--brand) !important;
     border-radius: 24px !important;
     border: none !important;
     box-shadow: none !important;
   }
 
-  /* Tab arrow indicator — matches button colour per tab */
-  .clock-tab-arrow[data-tab="start"] { border-bottom-color: rgb(var(--success)) !important; }
-  .clock-tab-arrow[data-tab="break"] { border-bottom-color: rgb(var(--warning)) !important; }
-  .clock-tab-arrow[data-tab="end"]   { border-bottom-color: rgb(var(--danger)) !important; }
+  .clock-tab-arrow[data-tab="start"] { border-bottom-color: var(--success) !important; }
+  .clock-tab-arrow[data-tab="break"] { border-bottom-color: var(--warning) !important; }
+  .clock-tab-arrow[data-tab="end"]   { border-bottom-color: var(--danger)  !important; }
 
-  /* Arrow matches button hover via :has() — pure CSS, no JS */
-  .clock-tabs-wrapper:has(.clock-in-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="start"],
-  .clock-tabs-wrapper:has(.break-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="break"],
+  .clock-tabs-wrapper:has(.clock-in-btn:hover:not(:disabled))  .clock-tab-arrow[data-tab="start"],
+  .clock-tabs-wrapper:has(.break-btn:hover:not(:disabled))     .clock-tab-arrow[data-tab="break"],
   .clock-tabs-wrapper:has(.clock-out-btn:hover:not(:disabled)) .clock-tab-arrow[data-tab="end"] {
     filter: brightness(var(--button-hover-brightness));
   }
 
-  /* ── PIN error shake ──────────────────────── */
   @keyframes shake {
     0%, 100% { transform: translateX(0); }
     20%, 60% { transform: translateX(-6px); }
     40%, 80% { transform: translateX(6px); }
   }
-  .animate-shake {
-    animation: shake 0.4s ease-in-out;
-  }
+  .animate-shake { animation: shake 0.4s ease-in-out; }
 
-  /* ── PIN dots ─────────────────────────────── */
-  .pin-filled {
-    background-color: rgb(var(--brand)) !important;
-  }
+  .pin-filled    { background-color: var(--brand)   !important; }
+  .clock-in-btn  { background-color: var(--success) !important; color: #fff !important; }
+  .break-btn     { background-color: var(--warning) !important; color: #fff !important; }
+  .clock-out-btn { background-color: var(--danger)  !important; color: #fff !important; }
+  .primary-btn   { background-color: var(--brand)   !important; color: #fff !important; }
 
-  /* ── Action buttons (use Tailwind or these classes) ──────────────── */
-
-  /* Clock IN → success */
-  .clock-in-btn {
-    background-color: rgb(var(--success)) !important;
-    color: #fff !important;
-  }
-  .clock-in-btn:hover:not(:disabled) {
-    filter: brightness(var(--button-hover-brightness));
-  }
-
-  /* Break → warning */
-  .break-btn {
-    background-color: rgb(var(--warning)) !important;
-    color: #fff !important;
-  }
-  .break-btn:hover:not(:disabled) {
-    filter: brightness(var(--button-hover-brightness));
-  }
-
-  /* Clock OUT → danger */
-  .clock-out-btn {
-    background-color: rgb(var(--danger)) !important;
-    color: #fff !important;
-  }
-  .clock-out-btn:hover:not(:disabled) {
-    filter: brightness(var(--button-hover-brightness));
-  }
-
-  /* Generic primary (brand) */
-  .primary-btn {
-    background-color: rgb(var(--brand)) !important;
-    color: #fff !important;
-  }
+  .clock-in-btn:hover:not(:disabled),
+  .break-btn:hover:not(:disabled),
+  .clock-out-btn:hover:not(:disabled),
   .primary-btn:hover:not(:disabled) {
     filter: brightness(var(--button-hover-brightness));
   }
 
-  /* ── Status badges ────────────────────────── */
-  .badge-clocked-in  { background-color: rgb(var(--success)); color: #fff; }
-  .badge-on-break    { background-color: rgb(var(--warning)); color: #fff; }
-  .badge-clocked-out { background-color: rgb(var(--danger));  color: #fff; }
-  .badge-info        { background-color: rgb(var(--brand));   color: #fff; }
+  .badge-clocked-in  { background-color: var(--success); color: #fff; }
+  .badge-on-break    { background-color: var(--warning); color: #fff; }
+  .badge-clocked-out { background-color: var(--danger);  color: #fff; }
+  .badge-info        { background-color: var(--brand);   color: #fff; }
 }

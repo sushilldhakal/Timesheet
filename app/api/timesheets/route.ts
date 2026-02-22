@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, startOfWeek, endOfWeek } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 function parseTimeToMinutes(t?: string): number {
   if (!t || typeof t !== "string" || !t.trim()) return 0
@@ -25,6 +25,19 @@ function minutesToHours(min: number | null | undefined): string {
   const remainder = Math.round(min % 60)
   if (remainder === 0) return `${h}h`
   return `${h}h ${remainder}m`
+}
+
+/**
+ * Convert Date object or string to HH:mm format string.
+ */
+function formatTimeString(t?: Date | string): string {
+  if (!t) return ""
+  if (t instanceof Date) {
+    const hours = t.getHours().toString().padStart(2, "0")
+    const minutes = t.getMinutes().toString().padStart(2, "0")
+    return `${hours}:${minutes}`
+  }
+  return String(t)
 }
 
 /** Build list of dd-MM-yyyy dates between start and end (inclusive). */
@@ -193,72 +206,23 @@ export async function GET(request: NextRequest) {
       pin: { $in: pins },
       date: { $in: dateStrings },
     }
-    const raw = await Timesheet.find(query).sort({ date: 1, time: 1 }).lean()
-
-    const byPinAndDate = new Map<
-      string,
-      {
-        in?: string
-        break?: string
-        endBreak?: string
-        out?: string
-        inDeviceId?: string
-        inDeviceLocation?: string
-        breakDeviceId?: string
-        breakDeviceLocation?: string
-        endBreakDeviceId?: string
-        endBreakDeviceLocation?: string
-        outDeviceId?: string
-        outDeviceLocation?: string
-      }
-    >()
-    for (const r of raw) {
-      const pin = String(r.pin ?? "")
-      const d = String(r.date ?? "")
-      if (!pin || !d) continue
-      const key = `${pin}|${d}`
-      const entry = byPinAndDate.get(key) ?? {}
-      const t = String(r.time ?? "").trim()
-      const type = String(r.type ?? "").toLowerCase().replace(/\s/g, "")
-      const deviceId = r.deviceId ? String(r.deviceId).trim() : undefined
-      const deviceLocation = r.deviceLocation ? String(r.deviceLocation).trim() : undefined
-      if (type === "in") {
-        entry.in = t
-        if (deviceId) entry.inDeviceId = deviceId
-        if (deviceLocation) entry.inDeviceLocation = deviceLocation
-      } else if (type === "break") {
-        entry.break = t
-        if (deviceId) entry.breakDeviceId = deviceId
-        if (deviceLocation) entry.breakDeviceLocation = deviceLocation
-      } else if (type === "endbreak") {
-        entry.endBreak = t
-        if (deviceId) entry.endBreakDeviceId = deviceId
-        if (deviceLocation) entry.endBreakDeviceLocation = deviceLocation
-      } else if (type === "out") {
-        entry.out = t
-        if (deviceId) entry.outDeviceId = deviceId
-        if (deviceLocation) entry.outDeviceLocation = deviceLocation
-      }
-      byPinAndDate.set(key, entry)
-    }
+    const shifts = await DailyShift.find(query).lean()
 
     const rows: DashboardTimesheetRow[] = []
-    for (const [key, entry] of byPinAndDate.entries()) {
-      const [pin, date] = key.split("|")
+    for (const shift of shifts) {
+      const pin = String(shift.pin ?? "")
+      const date = String(shift.date ?? "")
+      if (!pin || !date) continue
+
       const meta = employeeMap.get(pin)
 
-      const clockIn = entry.in ?? ""
-      const breakIn = entry.break ?? ""
-      const breakOut = entry.endBreak ?? ""
-      const clockOut = entry.out ?? ""
+      const clockIn = formatTimeString(shift.clockIn?.time)
+      const breakIn = formatTimeString(shift.breakIn?.time)
+      const breakOut = formatTimeString(shift.breakOut?.time)
+      const clockOut = formatTimeString(shift.clockOut?.time)
 
-      const inMin = parseTimeToMinutes(clockIn)
-      const outMin = parseTimeToMinutes(clockOut)
-      const biMin = parseTimeToMinutes(breakIn)
-      const boMin = parseTimeToMinutes(breakOut)
-      const breakMinutes = Math.max(0, boMin - biMin)
-      const totalMin =
-        outMin > 0 && inMin > 0 ? Math.max(0, outMin - inMin - breakMinutes) : 0
+      const breakMinutes = shift.totalBreakMinutes ?? 0
+      const totalMin = shift.totalWorkingHours ? Math.round(shift.totalWorkingHours * 60) : 0
 
       rows.push({
         date,
@@ -277,14 +241,14 @@ export async function GET(request: NextRequest) {
         breakHours: minutesToHours(breakMinutes),
         totalMinutes: totalMin,
         totalHours: minutesToHours(totalMin),
-        clockInDeviceId: entry.inDeviceId,
-        clockInDeviceLocation: entry.inDeviceLocation,
-        breakInDeviceId: entry.breakDeviceId,
-        breakInDeviceLocation: entry.breakDeviceLocation,
-        breakOutDeviceId: entry.endBreakDeviceId,
-        breakOutDeviceLocation: entry.endBreakDeviceLocation,
-        clockOutDeviceId: entry.outDeviceId,
-        clockOutDeviceLocation: entry.outDeviceLocation,
+        clockInDeviceId: shift.clockIn?.deviceId,
+        clockInDeviceLocation: shift.clockIn?.deviceLocation,
+        breakInDeviceId: shift.breakIn?.deviceId,
+        breakInDeviceLocation: shift.breakIn?.deviceLocation,
+        breakOutDeviceId: shift.breakOut?.deviceId,
+        breakOutDeviceLocation: shift.breakOut?.deviceLocation,
+        clockOutDeviceId: shift.clockOut?.deviceId,
+        clockOutDeviceLocation: shift.clockOut?.deviceLocation,
       })
     }
 

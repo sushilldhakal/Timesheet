@@ -13,7 +13,9 @@ import { ColumnDef, type ExpandedState } from "@tanstack/react-table"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
 import { EditTimesheetDialog } from "./EditTimesheetDialog"
+import EmployeeProfileCard from "@/components/employees/employee-profile-card"
 import type { EmployeeRow } from "../page"
+import AwardHistoryCard from "@/components/employees/award-history-card"
 
 interface DailyTimesheetRow {
   date: string
@@ -205,6 +207,9 @@ export default function EmployeeDetailPage() {
   const router = useRouter()
   const id = params.id as string
   const [employee, setEmployee] = useState<EmployeeRow | null>(null)
+  const [awardId, setAwardId] = useState<string | null>(null)
+  const [awardLevel, setAwardLevel] = useState<string | null>(null)
+  const [employmentType, setEmploymentType] = useState<string | null>(null)
   const [timesheets, setTimesheets] = useState<DailyTimesheetRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -249,6 +254,10 @@ export default function EmployeeDetailPage() {
           comment: e.comment ?? "",
           img: e.img ?? "",
         })
+        // Set award fields
+        setAwardId(e.awardId ?? null)
+        setAwardLevel(e.awardLevel ?? null)
+        setEmploymentType(e.employmentType ?? null)
       } else {
         setEmployee(null)
       }
@@ -274,8 +283,9 @@ export default function EmployeeDetailPage() {
       const res = await fetch(`/api/employees/${id}/timesheet?${sp}`)
       if (res.ok) {
         const data = await res.json()
-        setTimesheets(data.timesheets ?? [])
-        setTotal(data.total ?? 0)
+        // API returns { data: [...], pagination: { total, ... } }
+        setTimesheets(data.data ?? [])
+        setTotal(data.pagination?.total ?? 0)
       } else {
         setTimesheets([])
         setTotal(0)
@@ -475,40 +485,15 @@ export default function EmployeeDetailPage() {
         <h1 className="text-2xl font-semibold">Employee Details</h1>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between">
-          <div className="flex gap-4">
-            <div className="relative h-16 w-16 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
-              {employee.img ? (
-                <OptimizedImage src={employee.img} alt={employee.name} fill className="object-cover" sizes="64px" />
-              ) : (
-                <UserCircle className="h-10 w-10 text-muted-foreground" />
-              )}
-            </div>
-            <div>
-              <CardTitle>{employee.name}</CardTitle>
-              <CardDescription>
-                PIN: {employee.pin} • Roles: {employee.role?.length ? employee.role.join(", ") : "—"} • Employers: {employee.employer?.length ? employee.employer.join(", ") : "—"}
-              </CardDescription>
-              {employee.location?.length ? (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Locations: {employee.location.join(", ")}
-                </p>
-              ) : null}
-              {employee.email && (
-                <p className="text-sm text-muted-foreground">Email: {employee.email}</p>
-              )}
-              {employee.phone && (
-                <p className="text-sm text-muted-foreground">Phone: {employee.phone}</p>
-              )}
-            </div>
-          </div>
-          <Button onClick={() => setEditEmployeeOpen(true)}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit Employee
-          </Button>
-        </CardHeader>
-      </Card>
+      <EmployeeProfileCard
+        employeeId={id}
+        employee={employee}
+        currentAwardId={awardId}
+        currentAwardLevel={awardLevel}
+        currentEmploymentType={employmentType}
+        onUpdate={fetchEmployee}
+        onEditEmployee={() => setEditEmployeeOpen(true)}
+      />
 
       <Card>
         <CardHeader>

@@ -63,6 +63,7 @@ export function useFaceDetection(
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null)
   const stableFrames   = useRef(0)
+  const humanRef       = useRef<any>(null)
 
   // The ONE blob captured the first time face is stable — never overwritten
   const capturedBlob   = useRef<Blob | null>(null)
@@ -75,11 +76,11 @@ export function useFaceDetection(
   // ── Single frame capture ───────────────────────────────────────────────────
   const captureOnce = useCallback((): Promise<Blob | null> =>
     new Promise((resolve) => {
-        const webcam = webcamRef.current
-        console.log("[FaceDetection] captureOnce — webcam:", !!webcam)
-        if (!webcam) return resolve(null)
-        const canvas = webcam.getCanvas({ width: captureWidth, height: captureHeight })
-        console.log("[FaceDetection] captureOnce — canvas:", !!canvas)
+      const webcam = webcamRef.current
+      console.log("[FaceDetection] captureOnce — webcam:", !!webcam)
+      if (!webcam) return resolve(null)
+      const canvas = webcam.getCanvas({ width: captureWidth, height: captureHeight })
+      console.log("[FaceDetection] captureOnce — canvas:", !!canvas)
       if (!canvas) return resolve(null)
       canvas.toBlob((blob) => resolve(blob), "image/jpeg", captureQuality)
     }),
@@ -93,29 +94,60 @@ export function useFaceDetection(
     }
   }, [])
 
-  // ── Load models ────────────────────────────────────────────────────────────
+  // ── Load Human library ─────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const faceapi = await import("@vladmandic/face-api")
-        await faceapi.nets.tinyFaceDetector.loadFromUri("/models")
+        // Use local .mjs copy to avoid webpack resolution issues
+        const { default: Human } = await import("@/lib/human-browser")
+        
+        const human = new Human({
+          modelBasePath: "/models",
+          face: {
+            enabled: true,
+            detector: { 
+              enabled: true,
+              rotation: false,
+              maxDetected: 1,
+              minConfidence: minScore,
+              return: true
+            },
+            mesh: { enabled: false },
+            iris: { enabled: false },
+            description: { enabled: false },
+            emotion: { enabled: false },
+            antispoof: { enabled: false },
+            liveness: { enabled: false }
+          },
+          body: { enabled: false },
+          hand: { enabled: false },
+          object: { enabled: false },
+          gesture: { enabled: false },
+          filter: { enabled: false }
+        })
+
+        await human.load({})
+        // Warmup models for faster first detection
+        await human.warmup({})
+        
         if (!cancelled) {
+          humanRef.current = human
           setModelsLoaded(true)
           setStatus("no_face")
         }
       } catch (err) {
-        console.error("[FaceDetection] model load failed:", err)
+        console.error("[FaceDetection] Human library load failed:", err)
         if (!cancelled) setStatus("error")
       }
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [minScore])
 
   // ── Detection loop — stops itself once blob is captured ───────────────────
   useEffect(() => {
-    if (!modelsLoaded) return
+    if (!modelsLoaded || !humanRef.current) return
 
     async function detect() {
       // Already have our image — nothing left to do
@@ -124,10 +156,10 @@ export function useFaceDetection(
         return
       }
 
-      const faceapi = await import("@vladmandic/face-api")
-      const video   = webcamRef.current?.video
-      const canvas  = canvasRef.current
-      if (!video || video.readyState < 2 || !canvas) return
+      const human = humanRef.current
+      const video = webcamRef.current?.video
+      const canvas = canvasRef.current
+      if (!video || video.readyState < 2 || !canvas || !human) return
 
       // Size overlay canvas to video
       const { videoWidth: vw, videoHeight: vh } = video
@@ -141,18 +173,25 @@ export function useFaceDetection(
       ctx.clearRect(0, 0, vw, vh)
 
       try {
-        const detection = await faceapi.detectSingleFace(
-          video,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: minScore })
-        )
-
-        if (!detection) {
+        const result = await human.detect(video)
+        
+        if (!result.face || result.face.length === 0) {
           stableFrames.current = 0
           setStatus("no_face")
           return
         }
 
-        const { x, y, width, height } = detection.box
+        const face = result.face[0]
+        const box = face.box
+        const score = face.score || face.boxScore || 0
+
+        if (score < minScore) {
+          stableFrames.current = 0
+          setStatus("no_face")
+          return
+        }
+
+        const [x, y, width, height] = box
         const faceRatio = width / vw
 
         if (faceRatio < minFaceRatio) {
@@ -173,14 +212,14 @@ export function useFaceDetection(
 
           console.log("[FaceDetection] Stable face reached — attempting capture")
 
-  const blob = await captureOnce()
-  console.log("[FaceDetection] captureOnce result:", blob ? `Blob ${blob.size} bytes` : "NULL — canvas returned nothing")
-  if (blob) {
-    capturedBlob.current = blob
-    console.log("[FaceDetection] ✅ Blob saved to capturedBlob.current")
-  } else {
-    console.warn("[FaceDetection] ❌ Blob was null — webcam canvas not ready?")
-  }
+          const blob = await captureOnce()
+          console.log("[FaceDetection] captureOnce result:", blob ? `Blob ${blob.size} bytes` : "NULL — canvas returned nothing")
+          if (blob) {
+            capturedBlob.current = blob
+            console.log("[FaceDetection] ✅ Blob saved to capturedBlob.current")
+          } else {
+            console.warn("[FaceDetection] ❌ Blob was null — webcam canvas not ready?")
+          }
 
           // Stop detection loop — job done, no more CPU/memory usage
           stopLoop()
@@ -188,8 +227,9 @@ export function useFaceDetection(
           // Clear the canvas overlay — no need to keep drawing the box
           ctx.clearRect(0, 0, vw, vh)
         }
-      } catch {
+      } catch (err) {
         // Ignore per-frame errors
+        console.error("[FaceDetection] Detection error:", err)
       }
     }
 
@@ -215,21 +255,12 @@ export function useFaceDetection(
     setStatus("no_face")
 
     // Restart detection loop for next person
-    // (modelsLoaded is still true so the useEffect won't re-run — restart manually)
-    // We set modelsLoaded triggers via a small trick: re-run by clearing canvas
     const canvas = canvasRef.current
     if (canvas) {
       const ctx = canvas.getContext("2d")
       ctx?.clearRect(0, 0, canvas.width, canvas.height)
     }
   }, [])
-
-  // Restart detection loop after reset
-  useEffect(() => {
-    if (!modelsLoaded) return
-    if (hasCaptured.current) return // don't restart if already captured
-    // Loop is managed by the detection useEffect above
-  }, [modelsLoaded])
 
   return { status, modelsLoaded, canvasRef, getLatestBlob, reset }
 }

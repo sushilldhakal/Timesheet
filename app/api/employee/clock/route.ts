@@ -157,9 +157,9 @@ export async function POST(request: NextRequest) {
 
     // Build clock event object
     const clockEvent: IClockEvent = {
-      time: timeStr,
-      lat: latStr,
-      lng: lngStr,
+      time: new Date(timeStr),
+      lat: latStr ? parseFloat(latStr) : undefined,
+      lng: lngStr ? parseFloat(lngStr) : undefined,
       image: imageUrl,
       flag,
     }

@@ -1,16 +1,18 @@
 import mongoose from "mongoose"
 
 export interface IClockEvent {
-  time: string
+  time: Date // Native Date object in UTC
   image?: string
-  lat?: string
-  lng?: string
+  lat?: number // Number for geospatial queries
+  lng?: number // Number for geospatial queries
   flag: boolean
+  deviceId?: string
+  deviceLocation?: string
 }
 
 export interface IDailyShift {
   pin: string
-  date: string // "dd-MM-yyyy" format
+  date: string // "YYYY-MM-DD" format (ISO 8601 date string)
   clockIn?: IClockEvent
   breakIn?: IClockEvent
   breakOut?: IClockEvent
@@ -27,11 +29,13 @@ export interface IDailyShiftDocument extends IDailyShift, mongoose.Document {}
 
 const clockEventSchema = new mongoose.Schema(
   {
-    time: { type: String, required: true },
+    time: { type: Date, required: true }, // Native Date for calculations
     image: { type: String },
-    lat: { type: String },
-    lng: { type: String },
+    lat: { type: Number }, // Number for geospatial queries
+    lng: { type: Number }, // Number for geospatial queries
     flag: { type: Boolean, default: false },
+    deviceId: { type: String },
+    deviceLocation: { type: String },
   },
   { _id: false }
 )
@@ -39,7 +43,7 @@ const clockEventSchema = new mongoose.Schema(
 const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
   {
     pin: { type: String, required: true, index: true },
-    date: { type: String, required: true, index: true },
+    date: { type: String, required: true, index: true }, // YYYY-MM-DD string
     clockIn: { type: clockEventSchema },
     breakIn: { type: clockEventSchema },
     breakOut: { type: clockEventSchema },

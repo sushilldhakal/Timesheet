@@ -130,7 +130,7 @@ A modern staff workforce management app with kiosk-style time clock — built wi
 | Database | MongoDB Atlas (Mongoose) |
 | Images | Cloudinary |
 | Auth | JWT (custom implementation) |
-| Face Detection | TensorFlow.js (@vladmandic/face-api) |
+| Face Detection | Human Library (@vladmandic/human) |
 | Webcam | react-webcam |
 | Validation | Zod |
 | Date Handling | date-fns |
@@ -399,7 +399,7 @@ const { url } = await res.json()
 ## 🎯 Face Detection & Geofencing
 
 ### Real-time Face Detection
-- Uses TensorFlow.js (@vladmandic/face-api) for client-side face detection
+- Uses Human Library (@vladmandic/human) for client-side face detection
 - Detects face presence and size before capturing photo
 - Provides visual feedback (corner brackets, status indicators)
 - Captures photo only when face is stable and properly sized
@@ -473,17 +473,12 @@ CLOUDINARY_UPLOAD_FOLDER=timesheet
 CRON_SECRET=your-random-secret
 ```
 
-### 3. Download face detection models
+### 3. Setup face detection models
 ```bash
-# Create public/models directory
-mkdir -p public/models
-
-# Download TensorFlow.js face detection models
-# Visit: https://github.com/vladmandic/face-api/tree/master/model
-# Download these files to public/models/:
-# - tiny_face_detector_model-weights_manifest.json
-# - tiny_face_detector_model-shard1
+npm run setup:models
 ```
+
+This copies the required Human library models from node_modules to public/models/.
 
 ### 4. Run locally
 ```bash

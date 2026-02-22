@@ -71,7 +71,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     }, []);
 
     return (
-        <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 lg:px-6">
+        <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b backdrop-blur-sm px-4 lg:px-6">
             {/* Left section: sidebar toggle + breadcrumbs */}
             <div className="flex items-center gap-4 flex-1 overflow-hidden">
                 <Button

@@ -3,6 +3,9 @@ import mongoose from "mongoose"
 /** Set by admin when editing timesheet: "insert" = time was added (was empty), "update" = time was changed (had value). Device punches leave this unset. */
 export type TimesheetSource = "insert" | "update"
 
+/** Break source tracking for audit purposes */
+export type BreakSource = "punched" | "auto_rule" | "none"
+
 export interface ITimesheet {
   pin: string
   type: string // in, out, break, endBreak
@@ -17,6 +20,8 @@ export interface ITimesheet {
   source?: TimesheetSource
   deviceId?: string // Device that recorded this entry
   deviceLocation?: string // Location name at time of entry
+  breakSource?: BreakSource // Where the break calculation came from
+  breakRuleRef?: string // Label of the break rule that was applied
 }
 
 export interface ITimesheetDocument extends ITimesheet, mongoose.Document {}
@@ -36,6 +41,8 @@ const timesheetSchema = new mongoose.Schema<ITimesheetDocument>(
     source: { type: String, default: "" },
     deviceId: { type: String, default: "" },
     deviceLocation: { type: String, default: "" },
+    breakSource: { type: String, enum: ["punched", "auto_rule", "none"], default: "none" },
+    breakRuleRef: { type: String, default: "" },
   },
   {
     timestamps: false,

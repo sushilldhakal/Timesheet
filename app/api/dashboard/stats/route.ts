@@ -23,9 +23,13 @@ function parseTimeToMinutes(t?: string): number {
   return isNaN(d.getTime()) ? 0 : d.getHours() * 60 + d.getMinutes()
 }
 
-/** Parse time string to 24h hour (0–23). Handles "15:25", "3:25 PM", "Thursday, February 12, 2026 3:25 PM". */
-function parseTimeToHour24(t?: string): number | null {
-  if (!t || typeof t !== "string" || !t.trim()) return null
+/** Parse time string or Date to 24h hour (0–23). Handles "15:25", "3:25 PM", "Thursday, February 12, 2026 3:25 PM", or Date objects. */
+function parseTimeToHour24(t?: string | Date): number | null {
+  if (!t) return null
+  if (t instanceof Date) {
+    return !isNaN(t.getTime()) ? t.getHours() : null
+  }
+  if (typeof t !== "string" || !t.trim()) return null
   const s = t.trim()
   const d = new Date(s)
   if (!isNaN(d.getTime())) return d.getHours()

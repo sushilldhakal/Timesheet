@@ -8,7 +8,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== "" ? [String(v).trim()] : []
-function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; hire?: string; site?: string; email?: string; phone?: string; dob?: string; comment?: string; img?: string; createdAt?: Date; updatedAt?: Date }) {
+function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; hire?: string; site?: string; email?: string; phone?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string; employmentType?: string; createdAt?: Date; updatedAt?: Date }) {
   return {
     id: e._id,
     name: e.name ?? "",
@@ -23,6 +23,9 @@ function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: st
     dob: e.dob ?? "",
     comment: e.comment ?? "",
     img: e.img ?? "",
+    awardId: e.awardId,
+    awardLevel: e.awardLevel,
+    employmentType: e.employmentType,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
   }
