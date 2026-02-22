@@ -40,5 +40,5 @@ env.txt
 *.tsbuildinfo
 next-env.d.ts
 
-*.mjs
+scripts/
 
