@@ -76,12 +76,41 @@ export function useFaceDetection(
   // ── Single frame capture ───────────────────────────────────────────────────
   const captureOnce = useCallback((): Promise<Blob | null> =>
     new Promise((resolve) => {
-      const webcam = webcamRef.current
-      console.log("[FaceDetection] captureOnce — webcam:", !!webcam)
-      if (!webcam) return resolve(null)
-      const canvas = webcam.getCanvas({ width: captureWidth, height: captureHeight })
-      console.log("[FaceDetection] captureOnce — canvas:", !!canvas)
-      if (!canvas) return resolve(null)
+      const video = webcamRef.current?.video as HTMLVideoElement | undefined
+      console.log("[FaceDetection] captureOnce — video:", !!video)
+      if (!video || video.readyState < 2) return resolve(null)
+
+      const sourceWidth = video.videoWidth
+      const sourceHeight = video.videoHeight
+      if (!sourceWidth || !sourceHeight) return resolve(null)
+
+      const targetWidth = captureWidth || sourceWidth
+      const targetHeight = captureHeight || sourceHeight
+
+      const canvas = document.createElement("canvas")
+      canvas.width = targetWidth
+      canvas.height = targetHeight
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return resolve(null)
+
+      // Center-crop to target ratio so mobile captures don't look stretched.
+      const sourceRatio = sourceWidth / sourceHeight
+      const targetRatio = targetWidth / targetHeight
+      let sx = 0
+      let sy = 0
+      let sw = sourceWidth
+      let sh = sourceHeight
+
+      if (sourceRatio > targetRatio) {
+        sw = sourceHeight * targetRatio
+        sx = (sourceWidth - sw) / 2
+      } else if (sourceRatio < targetRatio) {
+        sh = sourceWidth / targetRatio
+        sy = (sourceHeight - sh) / 2
+      }
+
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight)
       canvas.toBlob((blob) => resolve(blob), "image/jpeg", captureQuality)
     }),
   [webcamRef, captureWidth, captureHeight, captureQuality])

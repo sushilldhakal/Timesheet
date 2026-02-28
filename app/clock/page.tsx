@@ -133,6 +133,30 @@ export default function ClockPage() {
     }
   )
 
+  // ── iOS Safari / PWA video playback quirks ──────────────────────────────────
+  const applyMobileVideoFixes = useCallback(() => {
+    const video = webcamRef.current?.video as HTMLVideoElement | undefined
+    if (!video) return false
+    video.setAttribute("playsinline", "true")
+    video.setAttribute("webkit-playsinline", "true")
+    video.setAttribute("autoplay", "true")
+    video.setAttribute("muted", "true")
+    video.playsInline = true
+    video.autoplay = true
+    video.muted = true
+    return true
+  }, [])
+
+  useEffect(() => {
+    let rafId = 0
+    const ensureVideoAttrs = () => {
+      if (applyMobileVideoFixes()) return
+      rafId = window.requestAnimationFrame(ensureVideoAttrs)
+    }
+    ensureVideoAttrs()
+    return () => window.cancelAnimationFrame(rafId)
+  }, [applyMobileVideoFixes, webcamRef])
+
   // ── Face detection is advisory — buttons are ALWAYS enabled ─────────────
   // Face detection only captures the photo — it never blocks punching.
   // noPhoto flag is sent to API when no face was detected.
@@ -503,8 +527,12 @@ export default function ClockPage() {
             <Webcam
               ref={webcamRef}
               audio={false}
+              autoPlay
+              muted
+              playsInline
               screenshotFormat="image/jpeg"
               screenshotQuality={0.85}
+              onUserMedia={applyMobileVideoFixes}
               videoConstraints={{
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
