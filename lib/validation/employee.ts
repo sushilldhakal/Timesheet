@@ -3,7 +3,6 @@ import { z } from "zod"
 export const employeeCreateSchema = z.object({
   name: z.string().min(1, "Name required").max(200).trim(),
   pin: z.string().min(4, "PIN at least 4 characters").max(20).trim(),
-  role: z.array(z.string().trim()).default([]),
   employer: z.array(z.string().trim()).default([]),
   location: z.array(z.string().trim()).default([]),
   email: z.string().trim().optional().default(""),
@@ -18,7 +17,6 @@ const stringArray = z.union([z.string(), z.array(z.string())]).transform((v) => 
 export const employeeUpdateSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
   pin: z.string().min(4).max(20).trim().optional(),
-  role: stringArray.optional(),
   employer: stringArray.optional(),
   location: stringArray.optional(),
   email: z.string().trim().optional(),
@@ -26,6 +24,7 @@ export const employeeUpdateSchema = z.object({
   dob: z.string().trim().optional(),
   comment: z.string().trim().optional(),
   img: z.string().optional(),
+  standardHoursPerWeek: z.number().min(0).max(168).nullable().optional(),
 })
 
 export const employeeIdParamSchema = z.object({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { connectDB, Employee, DailyShift, Category } from "@/lib/db"
+import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import { createEmployeeToken, setEmployeeCookie } from "@/lib/employee-auth"
 import { pinLoginSchema } from "@/lib/validation/timesheet"
 import { isWithinGeofence } from "@/lib/utils/geofence"
@@ -81,8 +82,17 @@ export async function POST(request: NextRequest) {
     // Helper to normalize arrays
     const arr = (v: unknown) => (Array.isArray(v) ? v : v ? [String(v)] : [])
     const locations = arr(employee.location)
-    const roles = arr(employee.role)
     const employers = arr(employee.employer)
+    
+    // Get employee's current role assignments
+    const roleAssignments = await EmployeeRoleAssignment.find({
+      employeeId: employee._id,
+      isActive: true,
+    })
+      .populate("roleId", "name")
+      .lean()
+    
+    const roles = roleAssignments.map((assignment: any) => assignment.roleId?.name).filter(Boolean)
     
     let geofenceWarning = false
     let detectedLocation: string | null = null
@@ -166,6 +176,7 @@ export async function POST(request: NextRequest) {
         name: employee.name,
         pin: employee.pin,
         role: displayRole,
+        location: locations[0] || "", // Include employee's assigned location
       },
       punches,
       geofenceWarning, // Include warning flag for soft mode violations

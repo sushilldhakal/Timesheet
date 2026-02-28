@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, startOfWeek, endOfWeek } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
-import { connectDB, Employee, DailyShift } from "@/lib/db"
+import { connectDB, Employee, DailyShift, Timesheet } from "@/lib/db"
 
 function parseTimeToMinutes(t?: string): number {
   if (!t || typeof t !== "string" || !t.trim()) return 0
@@ -301,6 +301,143 @@ export async function GET(request: NextRequest) {
     console.error("[api/timesheets GET]", err)
     return NextResponse.json(
       { error: "Failed to fetch timesheets" },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/timesheets
+ * Create a new timesheet entry with automatic shift matching
+ * 
+ * Request body:
+ * {
+ *   pin: string (required)
+ *   type: string (required) - in, out, break, endBreak
+ *   date: string (required) - YYYY-MM-DD format
+ *   time: string (optional) - HH:mm format or ISO string
+ *   image: string (optional)
+ *   lat: string (optional)
+ *   lng: string (optional)
+ *   where: string (optional)
+ *   flag: boolean (optional)
+ *   working: string (optional)
+ *   source: string (optional) - insert, update
+ *   deviceId: string (optional)
+ *   deviceLocation: string (optional)
+ *   breakSource: string (optional) - punched, auto_rule, none
+ *   breakRuleRef: string (optional)
+ *   scheduleShiftId: string (optional) - Manual shift ID override
+ * }
+ */
+export async function POST(request: NextRequest) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json()
+    const {
+      pin,
+      type,
+      date,
+      time,
+      image,
+      lat,
+      lng,
+      where,
+      flag,
+      working,
+      source,
+      deviceId,
+      deviceLocation,
+      breakSource,
+      breakRuleRef,
+      scheduleShiftId,
+    } = body
+
+    // Validate required fields
+    if (!pin || !type || !date) {
+      return NextResponse.json(
+        { error: "pin, type, and date are required" },
+        { status: 400 }
+      )
+    }
+
+    // Validate type
+    if (!["in", "out", "break", "endBreak"].includes(type)) {
+      return NextResponse.json(
+        { error: "type must be one of: in, out, break, endBreak" },
+        { status: 400 }
+      )
+    }
+
+    // Validate date format (basic check)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (!dateRegex.test(date)) {
+      return NextResponse.json(
+        { error: "Invalid date format. Use YYYY-MM-DD" },
+        { status: 400 }
+      )
+    }
+
+    await connectDB()
+
+    // Import TimesheetManager
+    const { TimesheetManager } = await import("@/lib/managers/timesheet-manager")
+    const manager = new TimesheetManager()
+
+    // Prepare timesheet data
+    const timesheetData: any = {
+      pin,
+      type,
+      date,
+      time,
+      image,
+      lat,
+      lng,
+      where,
+      flag,
+      working,
+      source,
+      deviceId,
+      deviceLocation,
+      breakSource,
+      breakRuleRef,
+    }
+
+    // Add manual shift ID if provided
+    if (scheduleShiftId) {
+      const mongoose = await import("mongoose")
+      if (!mongoose.Types.ObjectId.isValid(scheduleShiftId)) {
+        return NextResponse.json(
+          { error: "Invalid scheduleShiftId format" },
+          { status: 400 }
+        )
+      }
+      timesheetData.scheduleShiftId = new mongoose.Types.ObjectId(scheduleShiftId)
+    }
+
+    // Create timesheet
+    const timesheet = await Timesheet.create(timesheetData)
+
+    // Attempt automatic shift matching for clock-in entries
+    let shiftMatched = false
+    if (type === "in" && !scheduleShiftId) {
+      const matchResult = await manager.autoMatchTimesheetToShift(timesheet)
+      shiftMatched = matchResult.matched
+    }
+
+    return NextResponse.json({
+      success: true,
+      timesheet,
+      shiftMatched,
+    }, { status: 201 })
+  } catch (err) {
+    console.error("[api/timesheets POST]", err)
+    return NextResponse.json(
+      { error: "Failed to create timesheet" },
       { status: 500 }
     )
   }

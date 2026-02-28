@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { getEmployeeFromCookie } from "@/lib/employee-auth"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
+import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 
 /** GET /api/employee/me - Current authenticated employee + today's punches (single fetch) */
 export async function GET() {
@@ -19,9 +20,18 @@ export async function GET() {
     }
 
     const arr = (v: unknown) => (Array.isArray(v) ? v : v ? [String(v)] : [])
-    const roles = arr(employee.role)
     const locations = arr(employee.location)
     const employers = arr(employee.employer)
+    
+    // Get employee's current role assignments
+    const roleAssignments = await EmployeeRoleAssignment.find({
+      employeeId: employee._id,
+      isActive: true,
+    })
+      .populate("roleId", "name")
+      .lean()
+    
+    const roles = roleAssignments.map((assignment: any) => assignment.roleId?.name).filter(Boolean)
     const displayRole = locations[0] || employers[0] || roles[0] || ""
 
     const today = format(new Date(), "dd-MM-yyyy", { locale: enUS })

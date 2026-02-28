@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // Add empty turbopack config to silence the warning
+  turbopack: {},
   async headers() {
     return [
       {
@@ -41,6 +43,8 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "**.cloudinary.com", pathname: "/**" },
+      { protocol: "https", hostname: "**.r2.cloudflarestorage.com", pathname: "/**" },
+      { protocol: "https", hostname: "**.r2.dev", pathname: "/**" },
       { protocol: "http", hostname: "localhost", pathname: "/**" },
       { protocol: "http", hostname: "127.0.0.1", pathname: "/**" },
     ],

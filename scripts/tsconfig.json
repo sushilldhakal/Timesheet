@@ -1,16 +1,17 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "esnext",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noEmit": false,
-    "outDir": "../dist/scripts"
+    "strict": false,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": ["./**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["./**/*"],
+  "exclude": ["node_modules", "dist"]
 }

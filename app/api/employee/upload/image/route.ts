@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getEmployeeFromCookie } from "@/lib/employee-auth"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadFile } from "@/lib/storage"
 
-/** POST /api/employee/upload/image - Upload image to Cloudinary. Returns { url }. Requires employee session. */
+/** POST /api/employee/upload/image - Upload image to configured storage. Returns { url }. Requires employee session. */
 export async function POST(request: NextRequest) {
   const auth = await getEmployeeFromCookie()
   if (!auth) {
@@ -21,15 +21,19 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const result = await uploadToCloudinary(buffer, {
+    
+    // Upload to configured storage provider (Cloudinary or R2)
+    const result = await uploadFile(buffer, {
       folder: "timesheet",
+      filename: `${Date.now()}-${auth.pin}`,
     })
 
-    return NextResponse.json({ url: result.secure_url })
+    return NextResponse.json({ url: result.url })
   } catch (err) {
     console.error("[api/employee/upload/image]", err)
+    const message = err instanceof Error ? err.message : "Failed to upload image"
     return NextResponse.json(
-      { error: "Failed to upload image" },
+      { error: message },
       { status: 500 }
     )
   }

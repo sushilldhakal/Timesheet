@@ -121,6 +121,11 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       globalFilter,
     },
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,

@@ -8,14 +8,48 @@ type RouteContext = { params: Promise<{ id: string }> }
 
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== "" ? [String(v).trim()] : []
-function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; hire?: string; site?: string; email?: string; phone?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string; employmentType?: string; createdAt?: Date; updatedAt?: Date }) {
+
+async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; hire?: string; site?: string; email?: string; phone?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
+  const { Category } = await import("@/lib/db")
+  
+  // Get unique location IDs from active role assignments
+  const locationIds = Array.from(new Set(roleAssignments.map(ra => ra.locationId.toString())))
+  
+  // Fetch location details
+  const locations = await Category.find({
+    _id: { $in: locationIds },
+    type: "location"
+  }).select("_id name color").lean()
+  
+  const locationData = locations.map(loc => ({
+    id: loc._id.toString(),
+    name: loc.name,
+    color: loc.color
+  }))
+  
+  // Fetch employer details
+  const employerNames = arr(e.employer)
+  const employers = await Category.find({
+    name: { $in: employerNames },
+    type: "employer"
+  }).select("_id name color").lean()
+  
+  const employerData = employers.map(emp => ({
+    id: emp._id.toString(),
+    name: emp.name,
+    color: emp.color
+  }))
+  
   return {
     id: e._id,
     name: e.name ?? "",
     pin: e.pin ?? "",
-    role: arr(e.role),
-    employer: arr(e.employer),
-    location: arr(e.location),
+    role: [], // Deprecated - use roleAssignments field
+    roleAssignments,
+    employer: employerNames, // Keep for backward compatibility
+    employerDetails: employerData, // New field with IDs and colors
+    location: locationData.map(l => l.name), // Derived from roleAssignments
+    locationDetails: locationData, // New field with IDs and colors
     hire: e.hire ?? "",
     site: e.site ?? "",
     email: e.email ?? "",
@@ -26,6 +60,7 @@ function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: st
     awardId: e.awardId,
     awardLevel: e.awardLevel,
     employmentType: e.employmentType,
+    standardHoursPerWeek: e.standardHoursPerWeek ?? undefined,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
   }
@@ -55,7 +90,30 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 })
     }
-    return NextResponse.json({ employee: toEmployeeRow(employee) })
+    
+    // Fetch role assignments for this employee
+    const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+    const roleAssignments = await EmployeeRoleAssignment.find({
+      employeeId: id,
+      isActive: true,
+    })
+      .populate("roleId", "name color type")
+      .populate("locationId", "name type")
+      .lean()
+    
+    const formattedAssignments = roleAssignments.map(assignment => ({
+      id: assignment._id.toString(),
+      roleId: (assignment.roleId as any)._id.toString(),
+      roleName: (assignment.roleId as any).name,
+      roleColor: (assignment.roleId as any).color,
+      locationId: (assignment.locationId as any)._id.toString(),
+      locationName: (assignment.locationId as any).name,
+      validFrom: assignment.validFrom,
+      validTo: assignment.validTo,
+      isActive: assignment.isActive,
+    }))
+    
+    return NextResponse.json({ employee: await toEmployeeRow(employee, formattedAssignments) })
   } catch (err) {
     console.error("[api/employees/[id] GET]", err)
     return NextResponse.json({ error: "Failed to fetch employee" }, { status: 500 })
@@ -107,7 +165,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
       updates.pin = data.pin.trim()
     }
-    if (data.role !== undefined) updates.role = arr(data.role)
+    // Note: role field is deprecated - use EmployeeRoleAssignment API instead
     if (data.employer !== undefined) updates.employer = arr(data.employer)
     if (data.location !== undefined) updates.location = arr(data.location)
     if (data.email !== undefined) updates.email = (data.email ?? "").toString().trim()
@@ -115,16 +173,63 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (data.dob !== undefined) updates.dob = (data.dob ?? "").toString().trim()
     if (data.comment !== undefined) updates.comment = (data.comment ?? "").toString().trim()
     if (data.img !== undefined) updates.img = (data.img ?? "").toString().trim()
+    if (data.standardHoursPerWeek !== undefined) updates.standardHoursPerWeek = data.standardHoursPerWeek
 
     if (Object.keys(updates).length === 0) {
       const updated = await Employee.findById(id).lean()
-      return NextResponse.json({ employee: toEmployeeRow(updated!) })
+      
+      // Fetch role assignments
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const roleAssignments = await EmployeeRoleAssignment.find({
+        employeeId: id,
+        isActive: true,
+      })
+        .populate("roleId", "name color type")
+        .populate("locationId", "name type")
+        .lean()
+      
+      const formattedAssignments = roleAssignments.map(assignment => ({
+        id: assignment._id.toString(),
+        roleId: (assignment.roleId as any)._id.toString(),
+        roleName: (assignment.roleId as any).name,
+        roleColor: (assignment.roleId as any).color,
+        locationId: (assignment.locationId as any)._id.toString(),
+        locationName: (assignment.locationId as any).name,
+        validFrom: assignment.validFrom,
+        validTo: assignment.validTo,
+        isActive: assignment.isActive,
+      }))
+      
+      return NextResponse.json({ employee: await toEmployeeRow(updated!, formattedAssignments) })
     }
 
     updates.updatedAt = new Date()
     await Employee.updateOne(empFilter, { $set: updates })
     const updated = await Employee.findById(id).lean()
-    return NextResponse.json({ employee: toEmployeeRow(updated!) })
+    
+    // Fetch role assignments
+    const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+    const roleAssignments = await EmployeeRoleAssignment.find({
+      employeeId: id,
+      isActive: true,
+    })
+      .populate("roleId", "name color type")
+      .populate("locationId", "name type")
+      .lean()
+    
+    const formattedAssignments = roleAssignments.map(assignment => ({
+      id: assignment._id.toString(),
+      roleId: (assignment.roleId as any)._id.toString(),
+      roleName: (assignment.roleId as any).name,
+      roleColor: (assignment.roleId as any).color,
+      locationId: (assignment.locationId as any)._id.toString(),
+      locationName: (assignment.locationId as any).name,
+      validFrom: assignment.validFrom,
+      validTo: assignment.validTo,
+      isActive: assignment.isActive,
+    }))
+    
+    return NextResponse.json({ employee: await toEmployeeRow(updated!, formattedAssignments) })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"
     console.error("[api/employees/[id] PATCH]", err)

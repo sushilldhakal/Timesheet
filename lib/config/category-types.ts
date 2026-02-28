@@ -6,7 +6,6 @@ export const CATEGORY_TYPES = {
   ROLE: "role",
   EMPLOYER: "employer",
   LOCATION: "location",
-  PAYRATE: "Pay Rate",
 } as const
 
 export type CategoryType =
@@ -16,7 +15,6 @@ export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   [CATEGORY_TYPES.ROLE]: "Role",
   [CATEGORY_TYPES.EMPLOYER]: "Employer",
   [CATEGORY_TYPES.LOCATION]: "Location",
-  [CATEGORY_TYPES.PAYRATE]: "Pay Rate",
 }
 
 export const CATEGORY_TYPES_LIST: CategoryType[] = Object.values(CATEGORY_TYPES)

@@ -282,6 +282,13 @@ interface MultiSelectProps
      * Optional, defaults to false.
      */
     closeOnSelect?: boolean;
+
+    /**
+     * If true, displays selected items as avatar badges with initials instead of full names.
+     * Useful for user selection interfaces.
+     * Optional, defaults to false.
+     */
+    avatarView?: boolean;
 }
 
 /**
@@ -341,6 +348,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
             resetOnDefaultValueChange = true,
             closeOnSelect = false,
             matchTriggerWidth = false,
+            avatarView = false,
             ...props
         },
         ref
@@ -577,20 +585,20 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                     uniqueOptions.push(option);
                 }
             });
-            if (process.env.NODE_ENV === "development" && duplicates.length > 0) {
-                const action = deduplicateOptions
-                    ? "automatically removed"
-                    : "detected";
-                console.warn(
-                    `MultiSelect: Duplicate option values ${action}: ${duplicates.join(
-                        ", "
-                    )}. ` +
-                    `${deduplicateOptions
-                        ? "Duplicates have been removed automatically."
-                        : "This may cause unexpected behavior. Consider setting 'deduplicateOptions={true}' or ensure all option values are unique."
-                    }`
-                );
-            }
+            // if (process.env.NODE_ENV === "development" && duplicates.length > 0) {
+            //     const action = deduplicateOptions
+            //         ? "automatically removed"
+            //         : "detected";
+            //     console.warn(
+            //         `MultiSelect: Duplicate option values ${action}: ${duplicates.join(
+            //             ", "
+            //         )}. ` +
+            //         `${deduplicateOptions
+            //             ? "Duplicates have been removed automatically."
+            //             : "This may cause unexpected behavior. Consider setting 'deduplicateOptions={true}' or ensure all option values are unique."
+            //         }`
+            //     );
+            // }
             return deduplicateOptions ? uniqueOptions : allOptions;
         }, [options, deduplicateOptions, isGroupedOptions]);
 
@@ -816,7 +824,9 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                 .join(", ")}`}
                     </div>
 
-                    <PopoverTrigger asChild>
+                    <PopoverTrigger 
+                    className="!bg-muted"
+                    asChild>
                         <Button
                             ref={buttonRef}
                             {...props}
@@ -843,21 +853,153 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                             }}>
                             {selectedValues.length > 0 ? (
                                 <div className="flex justify-between items-center w-full">
-                                    <div
-                                        className={cn(
-                                            "flex items-center gap-1",
-                                            singleLine
-                                                ? "overflow-x-auto multiselect-singleline-scroll"
-                                                : "flex-wrap",
-                                            responsiveSettings.compactMode && "gap-0.5"
-                                        )}
-                                        style={
-                                            singleLine
-                                                ? {
-                                                    paddingBottom: "4px",
-                                                }
-                                                : {}
-                                        }>
+                                    {avatarView ? (
+                                        // Avatar view: stacked avatars
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <div className="flex items-center -space-x-2">
+                                                {selectedValues
+                                                    .slice(0, responsiveSettings.maxCount)
+                                                    .map((value, index) => {
+                                                        const option = getOptionByValue(value);
+                                                        const customStyle = option?.style;
+                                                        if (!option) {
+                                                            return null;
+                                                        }
+                                                        
+                                                        // Get initials from label (first letter of each word, max 2)
+                                                        const getInitials = (label: string) => {
+                                                            return label
+                                                                .split(' ')
+                                                                .map(word => word[0])
+                                                                .join('')
+                                                                .toUpperCase()
+                                                                .slice(0, 2);
+                                                        };
+                                                        
+                                                        // Generate a consistent color based on the value
+                                                        const getAvatarColor = (val: string) => {
+                                                            const colors = [
+                                                                { bg: 'bg-blue-500', text: 'text-white' },
+                                                                { bg: 'bg-green-500', text: 'text-white' },
+                                                                { bg: 'bg-purple-500', text: 'text-white' },
+                                                                { bg: 'bg-orange-500', text: 'text-white' },
+                                                                { bg: 'bg-pink-500', text: 'text-white' },
+                                                                { bg: 'bg-indigo-500', text: 'text-white' },
+                                                                { bg: 'bg-teal-500', text: 'text-white' },
+                                                                { bg: 'bg-red-500', text: 'text-white' },
+                                                                { bg: 'bg-cyan-500', text: 'text-white' },
+                                                                { bg: 'bg-amber-500', text: 'text-white' },
+                                                            ];
+                                                            const hash = val.split('').reduce((acc, char) => {
+                                                                return char.charCodeAt(0) + ((acc << 5) - acc);
+                                                            }, 0);
+                                                            return colors[Math.abs(hash) % colors.length];
+                                                        };
+                                                        
+                                                        const avatarColor = getAvatarColor(value);
+                                                        
+                                                        const badgeStyle: React.CSSProperties = {
+                                                            animationDuration: `${animation}s`,
+                                                            zIndex: selectedValues.length - index,
+                                                            ...(customStyle?.badgeColor && {
+                                                                backgroundColor: customStyle.badgeColor,
+                                                            }),
+                                                            ...(customStyle?.gradient && {
+                                                                background: customStyle.gradient,
+                                                                color: "white",
+                                                            }),
+                                                        };
+                                                        
+                                                        return (
+                                                            <div
+                                                                key={value}
+                                                                className="relative group"
+                                                                style={{ zIndex: selectedValues.length - index }}
+                                                            >
+                                                                <Badge
+                                                                    title={option.label}
+                                                                    className={cn(
+                                                                        getBadgeAnimationClass(),
+                                                                        customStyle?.gradient
+                                                                            ? "text-white border-transparent"
+                                                                            : cn(avatarColor.bg, avatarColor.text),
+                                                                        "h-8 w-8 rounded-full p-0 flex items-center justify-center font-semibold border-2 border-background",
+                                                                        "transition-all duration-200 hover:scale-110 hover:z-50",
+                                                                        "shadow-sm"
+                                                                    )}
+                                                                    style={{
+                                                                        ...badgeStyle,
+                                                                        borderRadius: '50%',
+                                                                        animationDuration: `${animationConfig?.duration || animation
+                                                                            }s`,
+                                                                        animationDelay: `${animationConfig?.delay || 0}s`,
+                                                                    }}>
+                                                                    {getInitials(option.label)}
+                                                                </Badge>
+                                                                <div
+                                                                    role="button"
+                                                                    tabIndex={0}
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        toggleOption(value);
+                                                                    }}
+                                                                    onKeyDown={(event) => {
+                                                                        if (
+                                                                            event.key === "Enter" ||
+                                                                            event.key === " "
+                                                                        ) {
+                                                                            event.preventDefault();
+                                                                            event.stopPropagation();
+                                                                            toggleOption(value);
+                                                                        }
+                                                                    }}
+                                                                    aria-label={`Remove ${option.label} from selection`}
+                                                                    className="absolute -top-1 -right-1 h-4 w-4 cursor-pointer bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/80 focus:outline-none focus:ring-1 focus:ring-white/50 z-50 shadow-md">
+                                                                    <XCircle className="h-3 w-3" />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                    .filter(Boolean)}
+                                                {selectedValues.length > responsiveSettings.maxCount && (
+                                                    <Badge
+                                                        className={cn(
+                                                            "h-8 w-8 rounded-full p-0 flex items-center justify-center font-semibold border-2 border-background",
+                                                            "bg-muted text-muted-foreground hover:bg-muted/80",
+                                                            "shadow-sm",
+                                                            getBadgeAnimationClass(),
+                                                            multiSelectVariants({ variant })
+                                                        )}
+                                                        style={{
+                                                            borderRadius: '50%',
+                                                            animationDuration: `${animationConfig?.duration || animation
+                                                                }s`,
+                                                            animationDelay: `${animationConfig?.delay || 0}s`,
+                                                        }}
+                                                        title={`${selectedValues.length - responsiveSettings.maxCount} more selected`}
+                                                    >
+                                                        +{selectedValues.length - responsiveSettings.maxCount}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // Normal view: badges with labels
+                                        <div
+                                            className={cn(
+                                                "flex items-center gap-1",
+                                                singleLine
+                                                    ? "overflow-x-auto multiselect-singleline-scroll"
+                                                    : "flex-wrap",
+                                                responsiveSettings.compactMode && "gap-0.5"
+                                            )}
+                                            style={
+                                                singleLine
+                                                    ? {
+                                                        paddingBottom: "4px",
+                                                    }
+                                                    : {}
+                                            }>
                                         {selectedValues
                                             .slice(0, responsiveSettings.maxCount)
                                             .map((value) => {
@@ -867,6 +1009,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                 if (!option) {
                                                     return null;
                                                 }
+                                                
                                                 const badgeStyle: React.CSSProperties = {
                                                     animationDuration: `${animation}s`,
                                                     ...(customStyle?.badgeColor && {
@@ -877,9 +1020,11 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                         color: "white",
                                                     }),
                                                 };
+                                                
                                                 return (
                                                     <Badge
                                                         key={value}
+                                                        title={option.label}
                                                         className={cn(
                                                             getBadgeAnimationClass(),
                                                             multiSelectVariants({ variant }),
@@ -979,6 +1124,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                             </Badge>
                                         )}
                                     </div>
+                                    )}
                                     <div className="flex items-center justify-between">
                                         <div
                                             role="button"

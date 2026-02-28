@@ -5,7 +5,7 @@ import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { useRouter } from "next/navigation"
 import Webcam from "react-webcam"
-import { LogOut, Loader2, ScanFace, UserX, ZoomIn } from "lucide-react"
+import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -109,6 +109,7 @@ export default function ClockPage() {
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [currentTime, setCurrentTime] = useState("")
   const [clockLoading, setClockLoading] = useState(false)
+  const [clockSuccess, setClockSuccess] = useState(false)
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
   const [todayPunches, setTodayPunches] = useState<TodayPunches | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
@@ -225,12 +226,14 @@ export default function ClockPage() {
       })
   }, [router])
 
-  // ── Derive active tab from punch state ─────────────────────────────────────
+  // ── Derive initial active tab from punch state (on mount and when punches load) ─
   useEffect(() => {
-    const hasClockIn = !!(timeEntries.find((e) => e.type === "in")?.time || todayPunches?.clockIn)
-    const hasBreakIn = !!(timeEntries.find((e) => e.type === "break")?.time || todayPunches?.breakIn)
-    const hasBreakOut = !!(timeEntries.find((e) => e.type === "endBreak")?.time || todayPunches?.breakOut)
-    const hasClockOut = !!(timeEntries.find((e) => e.type === "out")?.time || todayPunches?.clockOut)
+    if (!todayPunches) return // Wait for punches to load
+    
+    const hasClockIn = !!todayPunches.clockIn
+    const hasBreakIn = !!todayPunches.breakIn
+    const hasBreakOut = !!todayPunches.breakOut
+    const hasClockOut = !!todayPunches.clockOut
     const isOnBreak = hasBreakIn && !hasBreakOut
 
     if (hasClockOut) setActiveTab("end")
@@ -238,7 +241,7 @@ export default function ClockPage() {
     else if (hasBreakIn && hasBreakOut) setActiveTab("end")
     else if (hasClockIn) setActiveTab("break")
     else setActiveTab("start")
-  }, [todayPunches, timeEntries])
+  }, [todayPunches]) // Run when todayPunches loads from session
 
   // ── Permissions (iOS/Safari PWA) ───────────────────────────────────────────
   const handleEnableCameraAndLocation = useCallback(() => {
@@ -309,6 +312,7 @@ export default function ClockPage() {
   // ── Clock action ───────────────────────────────────────────────────────────
   const handleClockAction = async (type: "in" | "break" | "endBreak" | "out") => {
     setClockLoading(true)
+    setClockSuccess(false)
     setMessage(null)
     
 
@@ -389,15 +393,22 @@ export default function ClockPage() {
         endBreak: "Break End",
         out: "Clocked Out",
       }
+      
+      // Show success state
+      setClockLoading(false)
+      setClockSuccess(true)
+      
       setTimeEntries((prev) => [...prev, { type, time: localTime, label: labels[type] }])
       setMessage({ type: "success", text: `${labels[type]} at ${format(now, "h:mm:ss a", { locale: enUS })}` })
 
-      // Log out immediately so next staff member can use kiosk
-      handleLogout()
+      // Wait 2 seconds to show success animation, then log out
+      setTimeout(() => {
+        handleLogout()
+      }, 2000)
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" })
-    } finally {
       setClockLoading(false)
+      setClockSuccess(false)
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" })
     }
   }
 
@@ -418,12 +429,6 @@ export default function ClockPage() {
   const isClockInTabDisabled = hasClockIn || (hasBreakIn && !hasClockIn)
   const isBreakTabDisabled   = hasClockOut || (hasBreakIn && hasBreakOut)
   const isClockOutDisabled   = isOnBreak || hasClockOut
-
-  const isArrowDimmed =
-    clockLoading ||
-    (activeTab === "start" && isClockInTabDisabled) ||
-    (activeTab === "break" && isBreakTabDisabled) ||
-    (activeTab === "end"   && isClockOutDisabled)
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (!employee) {
@@ -472,7 +477,7 @@ export default function ClockPage() {
 
       {/* Birthday Badge - only shows on their birthday */}
       {isBirthday && (
-        <div className="absolute top-4 right-4 z-50 animate-bounce bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 text-white px-4 py-2 rounded-full shadow-lg">
+        <div className="absolute top-4 right-4 z-50 animate-bounce px-4 py-2 rounded-full shadow-lg">
           🎂 Happy Birthday {firstName}!
         </div>
       )}
@@ -520,16 +525,47 @@ export default function ClockPage() {
 
             {/* Info overlay */}
             <div className="absolute inset-0 flex flex-col justify-between p-6 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto pointer-events-none">
-              <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">
-                <p className="font-bold text-lg">{employee.name}</p>
-                <p className="text-sm text-white/80">{employee.role || "—"}</p>
-                {employee.detectedLocation && (
-                  <p className="text-xs text-white/70 mt-1">📍 {employee.detectedLocation}</p>
-                )}
-                {/* Face status */}
-                <div className="mt-2 pointer-events-none">
-                  <FaceStatusBadge status={faceStatus} />
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">
+                  <p className="font-bold text-lg [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">{employee.name}</p>
+                  <p className="text-sm font-bold text-white/80 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">{employee.role || "—"}</p>
+                  {employee.detectedLocation && (
+                    <p className="text-xs font-bold text-white/70 mt-1 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">📍 {employee.detectedLocation}</p>
+                  )}
+                  {/* Face status */}
+                  <div className="mt-2 pointer-events-none">
+                    <FaceStatusBadge status={faceStatus} />
+                  </div>
                 </div>
+                
+                {/* Last clock status badge */}
+                {(() => {
+                  let statusText = ""
+                  let statusColor = ""
+                  
+                  if (hasClockOut) {
+                    statusText = "Clocked Out"
+                    statusColor = "bg-danger/90"
+                  } else if (isOnBreak) {
+                    statusText = "On Break"
+                    statusColor = "bg-warning/90"
+                  } else if (hasBreakOut) {
+                    statusText = "Break Ended"
+                    statusColor = "bg-warning/90"
+                  } else if (hasClockIn) {
+                    statusText = "Clocked In"
+                    statusColor = "bg-success/90"
+                  }
+                  
+                  return statusText ? (
+                    <div className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-lg [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]",
+                      statusColor
+                    )}>
+                      {statusText}
+                    </div>
+                  ) : null
+                })()}
               </div>
               <Button
                 onClick={handleLogout}
@@ -566,82 +602,92 @@ export default function ClockPage() {
               <Tabs
                 value={activeTab}
                 onValueChange={(v) => setActiveTab(v as "start" | "break" | "end")}
-                className="clock-tabs-wrapper w-full flex flex-col"
+                className=" w-full flex flex-col"
               >
                 <TabsList
                   variant="line"
                   className="clock-tab-list flex w-full gap-1 mb-2"
-                  indicatorClassName="clock-tab-indicator"
+                  indicatorClassName="!bg-brand rounded-[24px] z-1"
                 >
-                  <TabsTrigger value="start" disabled={isClockInTabDisabled} className="clock-tab-trigger text-2xl">
-                    START
+                  <TabsTrigger value="start" disabled={isClockInTabDisabled} className="text-brand data-[state=active]:text-white data-[state=active]:!z-2 !bg-dark data-[state=active]:!bg-transparent  rounded-[24px] cursor-pointer hover:text-brand text-2xl disabled:opacity-100">
+                    <span className="relative z-2">START</span>
                   </TabsTrigger>
-                  <TabsTrigger value="break" disabled={isBreakTabDisabled} className="clock-tab-trigger text-2xl">
-                    BREAK
+                  <TabsTrigger value="break" disabled={isBreakTabDisabled} className="text-brand data-[state=active]:text-white data-[state=active]:!z-2 !bg-dark data-[state=active]:!bg-transparent  rounded-[24px] cursor-pointer hover:text-brand text-2xl disabled:opacity-100">
+                    <span className="relative z-2">BREAK</span>
                   </TabsTrigger>
-                  <TabsTrigger value="end" disabled={isClockOutDisabled} className="clock-tab-trigger text-2xl">
-                    FINISH
+                  <TabsTrigger value="end" disabled={isClockOutDisabled} className="text-brand data-[state=active]:text-white data-[state=active]:!z-2 !bg-dark data-[state=active]:!bg-transparent  rounded-[24px] cursor-pointer hover:text-brand text-2xl disabled:opacity-100">
+                    <span className="relative z-2">FINISH</span>
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Arrow indicator */}
-                <div className="relative h-2 w-full mt-[-5px]">
-                  <div
-                    className="clock-tab-arrow absolute bottom-0 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[10px] transition-all duration-200 ease-out"
-                    data-tab={activeTab}
-                    style={{
-                      left: activeTab === "start" ? "16.67%" : activeTab === "break" ? "50%" : "83.33%",
-                      transform: "translate(-50%, 0)",
-                      opacity: isArrowDimmed ? 0.5 : 1,
-                    }}
-                    aria-hidden
-                  />
-                </div>
-
-               
-
                 {/* START tab */}
-                <TabsContent value="start" className="mt-[-8.5px]">
+                <TabsContent value="start" className="mt-2">
                   <Button
                     onClick={() => handleClockAction("in")}
-                    disabled={clockLoading || isClockInTabDisabled}
-                    className="clock-in-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40 transition-opacity"
+                    disabled={clockLoading || clockSuccess || isClockInTabDisabled}
+                    className={cn(
+                      "clock-in-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                      clockLoading || clockSuccess 
+                        ? "w-16 h-16 mx-auto before:hidden" 
+                        : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-[6rem] before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-success"
+                    )}
                   >
-                    {clockLoading
-                      ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</>
-                      :  "CLOCK IN"}
+                    {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                    {clockSuccess && <Check className="h-6 w-6" />}
+                    {!clockLoading && !clockSuccess && "CLOCK IN"}
                   </Button>
                 </TabsContent>
 
                 {/* BREAK tab */}
-                <TabsContent value="break" className="mt-[-8.5px]">
+                <TabsContent value="break" className="mt-2">
                   {isOnBreak ? (
                     <Button
                       onClick={() => handleClockAction("endBreak")}
-                      disabled={clockLoading}
-                      className="break-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
+                      disabled={clockLoading || clockSuccess}
+                      className={cn(
+                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                        clockLoading || clockSuccess 
+                          ? "w-16 h-16 mx-auto before:hidden" 
+                          : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-1/2 before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-warning"
+                      )}
                     >
-                      {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "END BREAK"}
+                      {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                      {clockSuccess && <Check className="h-6 w-6" />}
+                      {!clockLoading && !clockSuccess && "END BREAK"}
                     </Button>
                   ) : (
                     <Button
                       onClick={() => handleClockAction("break")}
-                      disabled={clockLoading}
-                      className="break-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
+                      disabled={clockLoading || clockSuccess}
+                      className={cn(
+                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                        clockLoading || clockSuccess 
+                          ? "w-16 h-16 mx-auto before:hidden" 
+                          : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-1/2 before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-warning"
+                      )}
                     >
-                      {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "START BREAK"}
+                      {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                      {clockSuccess && <Check className="h-6 w-6" />}
+                      {!clockLoading && !clockSuccess && "START BREAK"}
                     </Button>
                   )}
                 </TabsContent>
 
                 {/* END tab */}
-                <TabsContent value="end" className="mt-[-8.5px]">
+                <TabsContent value="end" className="mt-2">
                   <Button
                     onClick={() => handleClockAction("out")}
-                    disabled={clockLoading || isClockOutDisabled}
-                    className="clock-out-btn w-full h-16 text-2xl font-bold rounded-full text-white shadow-lg disabled:opacity-40"
+                    disabled={clockLoading || clockSuccess || isClockOutDisabled}
+                    className={cn(
+                      "clock-out-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                      clockLoading || clockSuccess 
+                        ? "w-16 h-16 mx-auto before:hidden" 
+                        : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-[85%] before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-danger"
+                    )}
                   >
-                    {clockLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> PROCESSING…</> : "CLOCK OUT"}
+                    {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                    {clockSuccess && <Check className="h-6 w-6" />}
+                    {!clockLoading && !clockSuccess && "CLOCK OUT"}
                   </Button>
                 </TabsContent>
 

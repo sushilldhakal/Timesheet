@@ -1,9 +1,10 @@
 "use client"
 
 import { useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, Settings } from "lucide-react"
 import {
   DataTable,
   DataTableColumnHeader,
@@ -25,6 +26,8 @@ export function CategoriesTable({
   onEdit,
   onDelete,
 }: Props) {
+  const router = useRouter()
+  
   const columns = useMemo<ColumnDef<CategoryRow>[]>(
     () => {
       const base: ColumnDef<CategoryRow>[] = [
@@ -33,11 +36,117 @@ export function CategoriesTable({
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title="Name" />
           ),
-          cell: ({ row }) => (
-            <span className="font-medium">{row.original.name}</span>
-          ),
+          cell: ({ row }) => {
+            const c = row.original
+            // Show color badge with name for roles and employers
+            if ((type === "role" || type === "employer") && c.color) {
+              return (
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="h-5 w-5 rounded border-2 border-gray-300 flex-shrink-0"
+                    style={{ backgroundColor: c.color }}
+                  />
+                  <span className="font-medium">{c.name}</span>
+                </div>
+              )
+            }
+            return <span className="font-medium">{c.name}</span>
+          },
         },
       ]
+      
+      // Add detailed columns for roles
+      if (type === "role") {
+        base.push(
+          {
+            id: "hours",
+            header: ({ column }) => (
+              <DataTableColumnHeader column={column} title="Hours/Week" />
+            ),
+            cell: ({ row }) => {
+              const c = row.original
+              const hours = c.defaultScheduleTemplate?.standardHoursPerWeek
+              if (hours != null) {
+                return (
+                  <span className="text-sm font-medium">
+                    {hours} hrs
+                  </span>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: true,
+          },
+          {
+            id: "working_days",
+            header: () => <span>Working Days</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              const days = c.defaultScheduleTemplate?.shiftPattern?.dayOfWeek
+              if (days && Array.isArray(days) && days.length > 0) {
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                const sortedDays = [...days].sort()
+                return (
+                  <div className="flex flex-wrap gap-1">
+                    {sortedDays.map((day) => (
+                      <span 
+                        key={day}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary"
+                      >
+                        {dayNames[day]}
+                      </span>
+                    ))}
+                  </div>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: false,
+          },
+          {
+            id: "shift_hours",
+            header: () => <span>Shift Hours</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              const pattern = c.defaultScheduleTemplate?.shiftPattern
+              if (pattern?.startHour != null && pattern?.endHour != null) {
+                const formatHour = (hour: number) => {
+                  if (hour === 0) return '12 AM'
+                  if (hour < 12) return `${hour} AM`
+                  if (hour === 12) return '12 PM'
+                  if (hour === 24) return '12 AM'
+                  return `${hour - 12} PM`
+                }
+                return (
+                  <span className="text-sm text-muted-foreground">
+                    {formatHour(pattern.startHour)} - {formatHour(pattern.endHour)}
+                  </span>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: false,
+          },
+          {
+            id: "description",
+            header: () => <span>Description</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              const description = c.defaultScheduleTemplate?.shiftPattern?.description
+              if (description) {
+                return (
+                  <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+                    {description}
+                  </span>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: false,
+          }
+        )
+      }
+      
       if (type === "location") {
         base.push(
           {
@@ -68,6 +177,29 @@ export function CategoriesTable({
               )
             },
             enableSorting: false,
+          },
+          {
+            id: "operating_hours",
+            header: () => <span>Operating Hours</span>,
+            cell: ({ row }) => {
+              const c = row.original
+              if (c.openingHour != null && c.closingHour != null) {
+                const formatHour = (hour: number) => {
+                  if (hour === 0) return '12 AM'
+                  if (hour < 12) return `${hour} AM`
+                  if (hour === 12) return '12 PM'
+                  if (hour === 24) return '12 AM'
+                  return `${hour - 12} PM`
+                }
+                return (
+                  <span className="text-muted-foreground text-sm">
+                    {formatHour(c.openingHour)} - {formatHour(c.closingHour)}
+                  </span>
+                )
+              }
+              return <span className="text-muted-foreground/60">—</span>
+            },
+            enableSorting: false,
           }
         )
       }
@@ -78,6 +210,18 @@ export function CategoriesTable({
           const c = row.original
           return (
             <div className="flex gap-1">
+              {/* Manage Roles button for locations */}
+              {type === "location" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => router.push(`/dashboard/locations/${c.id}/roles`)}
+                >
+                  <Settings className="h-4 w-4" />
+                  Manage Roles
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -104,7 +248,7 @@ export function CategoriesTable({
       })
       return base
     },
-    [type, onEdit, onDelete]
+    [type, onEdit, onDelete, router]
   )
 
   return (

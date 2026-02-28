@@ -10,16 +10,32 @@ export const categoryCreateSchema = z.object({
   type: categoryTypeSchema,
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+  address: z.string().max(500).trim().optional(),
   radius: z.number().min(10).max(5000).optional(),
   geofenceMode: z.enum(["hard", "soft"]).optional(),
+  openingHour: z.number().min(0).max(23).optional(),
+  closingHour: z.number().min(0).max(24).optional(),
+  color: z.string().optional(),
+  defaultScheduleTemplate: z.object({
+    standardHoursPerWeek: z.number().min(0).max(168).optional(),
+    shiftPattern: z.any().optional(),
+  }).optional(),
 })
 
 export const categoryUpdateSchema = z.object({
   name: z.string().min(1, "Name required").max(200).trim().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+  address: z.string().max(500).trim().optional(),
   radius: z.number().min(10).max(5000).optional(),
   geofenceMode: z.enum(["hard", "soft"]).optional(),
+  openingHour: z.number().min(0).max(23).optional(),
+  closingHour: z.number().min(0).max(24).optional(),
+  color: z.string().optional(),
+  defaultScheduleTemplate: z.object({
+    standardHoursPerWeek: z.number().min(0).max(168).optional(),
+    shiftPattern: z.any().optional(),
+  }).optional(),
 })
 
 export const categoryTypeParamSchema = z.object({

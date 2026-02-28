@@ -5,6 +5,12 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Pencil, Trash2 } from "lucide-react"
 import { ServerDataTable } from "@/components/ui/data-table"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
+import { Badge } from "@/components/ui/badge"
 import type { EmployeeRow } from "./page"
 
 type Props = {
@@ -58,10 +64,101 @@ export function EmployeesTable({
       },
       {
         accessorKey: "role",
-        accessorFn: (row) => (row.role ?? []).join(", "),
+        accessorFn: (row) => {
+          // Use roleAssignments if available, fallback to role array
+          if (row.roleAssignments && row.roleAssignments.length > 0) {
+            return row.roleAssignments.map(ra => ra.roleName).join(", ")
+          }
+          return (row.role ?? []).join(", ")
+        },
         header: "Roles",
-        cell: ({ row }) =>
-          row.original.role?.length ? row.original.role.join(", ") : "—",
+        cell: ({ row }) => {
+          const roleAssignments = row.original.roleAssignments
+          
+          // Use roleAssignments if available
+          if (roleAssignments && roleAssignments.length > 0) {
+            const activeRoles = roleAssignments.filter(ra => ra.isActive)
+            
+            if (activeRoles.length === 0) {
+              return <span className="text-muted-foreground">—</span>
+            }
+            
+            if (activeRoles.length === 1) {
+              const role = activeRoles[0]
+              return (
+                <div className="flex items-center gap-2">
+                  {role.roleColor && (
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: role.roleColor }}
+                    />
+                  )}
+                  <span>{role.roleName}</span>
+                </div>
+              )
+            }
+            
+            // Multiple roles - show first 2 with hover card
+            const displayRoles = activeRoles.slice(0, 2)
+            const remainingCount = activeRoles.length - 2
+            
+            return (
+              <HoverCard>
+                <HoverCardTrigger asChild>
+                  <div className="flex items-center gap-1 cursor-pointer">
+                    {displayRoles.map((role, idx) => (
+                      <Badge
+                        key={role.id}
+                        variant="secondary"
+                        className="flex items-center gap-1"
+                      >
+                        {role.roleColor && (
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: role.roleColor }}
+                          />
+                        )}
+                        {role.roleName}
+                      </Badge>
+                    ))}
+                    {remainingCount > 0 && (
+                      <Badge variant="outline">+{remainingCount}</Badge>
+                    )}
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80" align="start">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">Role Assignments</h4>
+                    <div className="space-y-2">
+                      {activeRoles.map((role) => (
+                        <div
+                          key={role.id}
+                          className="flex items-start gap-2 text-sm"
+                        >
+                          {role.roleColor && (
+                            <div
+                              className="w-3 h-3 rounded-full shrink-0 mt-0.5"
+                              style={{ backgroundColor: role.roleColor }}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium">{role.roleName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {role.locationName}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            )
+          }
+          
+          // Fallback to old role array
+          return row.original.role?.length ? row.original.role.join(", ") : "—"
+        },
       },
       {
         accessorKey: "employer",
@@ -138,7 +235,7 @@ export function EmployeesTable({
       sortBy={sortBy}
       sortOrder={sortOrder}
       onSortChange={onSortChange}
-      sortableColumnIds={["name", "pin", "email", "phone"]}
+      sortableColumnIds={["name", "pin", "email", "phone", "roles", "location", "employer"]}
       getRowId={(row) => row.id}
       emptyMessage="No employees yet. Click Add Employee to create one."
       onRowClick={onRowClick}

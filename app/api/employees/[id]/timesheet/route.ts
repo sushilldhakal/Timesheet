@@ -120,7 +120,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const offsetParam = searchParams.get("offset")
   const sortByParam = searchParams.get("sortBy")?.trim().toLowerCase() ?? "date"
   const orderParam = searchParams.get("order")?.trim().toLowerCase() ?? "desc"
-  const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 500) : 50
+  const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 500) : 50
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
   const sortBy =
     sortByParam === "totalminutes" || sortByParam === "total_minutes"

@@ -38,6 +38,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   const [dob, setDob] = useState(employee.dob ?? "")
   const [comment, setComment] = useState(employee.comment ?? "")
   const [img, setImg] = useState(employee.img ?? "")
+  const [standardHours, setStandardHours] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
@@ -56,6 +57,16 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
       setDob(employee.dob ?? "")
       setComment(employee.comment ?? "")
       setImg(employee.img ?? "")
+      
+      // Fetch employee's standardHoursPerWeek
+      fetch(`/api/employees/${employee.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.employee?.standardHoursPerWeek !== undefined) {
+            setStandardHours(data.employee.standardHoursPerWeek)
+          }
+        })
+        .catch(() => {})
     }
   }, [open, employee])
 
@@ -117,6 +128,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
           dob: dob.trim() || "",
           comment: comment.trim() || "",
           img: img || "",
+          standardHoursPerWeek: standardHours,
         }),
       })
       const data = await res.json()
@@ -272,6 +284,24 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                   onChange={(e) => setDob(e.target.value)}
                 />
               </Field>
+              <Field>
+                <FieldLabel htmlFor="edit-emp-hours">Standard Hours per Week</FieldLabel>
+                <Input
+                  id="edit-emp-hours"
+                  type="number"
+                  min={0}
+                  max={168}
+                  step={0.5}
+                  value={standardHours ?? ""}
+                  onChange={(e) => setStandardHours(e.target.value ? Number(e.target.value) : null)}
+                  placeholder="e.g. 38"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Target working hours (used in roster generation)
+                </p>
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
               <Field>
                 <FieldLabel htmlFor="edit-emp-comment">Comment</FieldLabel>
                 <textarea

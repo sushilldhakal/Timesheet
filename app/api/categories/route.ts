@@ -22,13 +22,19 @@ export async function GET(request: NextRequest) {
       .lean()
 
     const items = categories.map((c) => ({
-      id: c._id,
+      _id: c._id.toString(),
+      id: c._id.toString(),
       name: c.name,
       type: c.type,
+      color: c.color,
       lat: c.lat,
       lng: c.lng,
+      address: c.address,
       radius: c.radius,
       geofenceMode: c.geofenceMode,
+      openingHour: c.openingHour,
+      closingHour: c.closingHour,
+      defaultScheduleTemplate: c.defaultScheduleTemplate,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     }))
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, type, lat, lng, radius, geofenceMode } = parsed.data
+    const { name, type, lat, lng, address, radius, geofenceMode, openingHour, closingHour, color, defaultScheduleTemplate } = parsed.data
 
     await connectDB()
 
@@ -82,8 +88,17 @@ export async function POST(request: NextRequest) {
     if (type === "location") {
       if (lat != null) createData.lat = lat
       if (lng != null) createData.lng = lng
+      if (address != null) createData.address = address
       if (radius != null) createData.radius = radius
       if (geofenceMode != null) createData.geofenceMode = geofenceMode
+      if (openingHour != null) createData.openingHour = openingHour
+      if (closingHour != null) createData.closingHour = closingHour
+    }
+    if (type === "role" || type === "employer") {
+      if (color != null) createData.color = color
+    }
+    if (type === "role") {
+      if (defaultScheduleTemplate != null) createData.defaultScheduleTemplate = defaultScheduleTemplate
     }
     const category = await Category.create(createData)
 
@@ -94,8 +109,13 @@ export async function POST(request: NextRequest) {
         type: category.type,
         lat: category.lat,
         lng: category.lng,
+        address: category.address,
         radius: category.radius,
         geofenceMode: category.geofenceMode,
+        openingHour: category.openingHour,
+        closingHour: category.closingHour,
+        color: category.color,
+        defaultScheduleTemplate: category.defaultScheduleTemplate,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt,
       },

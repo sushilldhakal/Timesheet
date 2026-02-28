@@ -13,7 +13,8 @@
 # next.js
 /.next/
 /out/
-
+/full-calendar
+/big-calender
 # production
 /build
 

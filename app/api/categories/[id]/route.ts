@@ -35,8 +35,13 @@ export async function GET(
         type: category.type,
         lat: category.lat,
         lng: category.lng,
+        address: category.address,
         radius: category.radius,
         geofenceMode: category.geofenceMode,
+        openingHour: category.openingHour,
+        closingHour: category.closingHour,
+        color: category.color,
+        defaultScheduleTemplate: category.defaultScheduleTemplate,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt,
       },
@@ -82,7 +87,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Category not found" }, { status: 404 })
     }
 
-    const { name, lat, lng, radius, geofenceMode } = parsedUpdate.data
+    const { name, lat, lng, address, radius, geofenceMode, openingHour, closingHour, color, defaultScheduleTemplate } = parsedUpdate.data
     if (name != null) {
       const duplicate = await Category.findOne({
         type: existing.type,
@@ -100,8 +105,20 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (existing.type === "location") {
       if (lat !== undefined) existing.lat = lat ?? undefined
       if (lng !== undefined) existing.lng = lng ?? undefined
+      if (address !== undefined) existing.address = address ?? undefined
       if (radius !== undefined) existing.radius = radius ?? undefined
       if (geofenceMode !== undefined) existing.geofenceMode = geofenceMode ?? undefined
+      if (openingHour !== undefined) existing.openingHour = openingHour ?? undefined
+      if (closingHour !== undefined) existing.closingHour = closingHour ?? undefined
+    }
+    if (existing.type === "role" || existing.type === "employer") {
+      if (color !== undefined) existing.color = color
+    }
+    if (existing.type === "role") {
+      if (defaultScheduleTemplate !== undefined) {
+        existing.defaultScheduleTemplate = defaultScheduleTemplate
+        existing.markModified('defaultScheduleTemplate') // Mark nested object as modified for Mongoose
+      }
     }
     await existing.save()
 
@@ -112,8 +129,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         type: existing.type,
         lat: existing.lat,
         lng: existing.lng,
+        address: existing.address,
         radius: existing.radius,
         geofenceMode: existing.geofenceMode,
+        openingHour: existing.openingHour,
+        closingHour: existing.closingHour,
+        color: existing.color,
+        defaultScheduleTemplate: existing.defaultScheduleTemplate,
         createdAt: existing.createdAt,
         updatedAt: existing.updatedAt,
       },

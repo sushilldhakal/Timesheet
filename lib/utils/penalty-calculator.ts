@@ -4,7 +4,7 @@ import { ResolvedConditions } from "./award-resolver";
 export interface ApplicablePenalty {
   label: string;
   triggerReason: string;
-  rateType: "multiplier" | "flat_addition";
+  rateType: "multiplier" | "flat_amount";
   rateValue: number;
   stackable: boolean;
   amount: number;
@@ -35,7 +35,7 @@ export function calculateApplicablePenalties(
     let triggerReason = "";
 
     switch (rule.triggerType) {
-      case "overtime":
+      case "overtime_hours":
         if (rule.thresholdHours !== undefined && rule.thresholdHours !== null && hoursWorked > rule.thresholdHours) {
           applies = true;
           triggerReason = `Overtime after ${rule.thresholdHours} hours`;
@@ -57,10 +57,11 @@ export function calculateApplicablePenalties(
         break;
 
       case "day_of_week":
-        if (rule.days && rule.days.includes(dayOfWeek)) {
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const dayName = dayNames[dayOfWeek];
+        if (rule.days && rule.days.includes(dayName)) {
           applies = true;
-          const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-          triggerReason = `Day of week: ${dayNames[dayOfWeek]}`;
+          triggerReason = `Day of week: ${dayName}`;
         }
         break;
 

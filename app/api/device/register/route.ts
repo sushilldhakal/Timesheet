@@ -69,19 +69,10 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         )
       }
-    } else if (adminPin) {
-      // Admin PIN authentication
-      // TODO: Implement admin PIN authentication when admin PIN field is added to User schema
-      // For now, check if any admin user has a matching PIN-like identifier
-      logDeviceRegistrationFailure("Admin PIN authentication not yet implemented")
-      return NextResponse.json(
-        { error: "Admin PIN authentication not yet implemented" },
-        { status: 501 }
-      )
     } else {
       logDeviceRegistrationFailure("Missing authentication credentials")
       return NextResponse.json(
-        { error: "Email and password, or admin PIN required" },
+        { error: "Email and password required" },
         { status: 400 }
       )
     }

@@ -22,6 +22,7 @@ export interface ITimesheet {
   deviceLocation?: string // Location name at time of entry
   breakSource?: BreakSource // Where the break calculation came from
   breakRuleRef?: string // Label of the break rule that was applied
+  scheduleShiftId?: mongoose.Types.ObjectId // Reference to roster shift
 }
 
 export interface ITimesheetDocument extends ITimesheet, mongoose.Document {}
@@ -43,6 +44,7 @@ const timesheetSchema = new mongoose.Schema<ITimesheetDocument>(
     deviceLocation: { type: String, default: "" },
     breakSource: { type: String, enum: ["punched", "auto_rule", "none"], default: "none" },
     breakRuleRef: { type: String, default: "" },
+    scheduleShiftId: { type: mongoose.Schema.Types.ObjectId, ref: "Roster", default: null },
   },
   {
     timestamps: false,
@@ -51,6 +53,7 @@ const timesheetSchema = new mongoose.Schema<ITimesheetDocument>(
 )
 
 timesheetSchema.index({ pin: 1, date: 1 })
+timesheetSchema.index({ scheduleShiftId: 1 })
 
 export const Timesheet =
   (mongoose.models.Timesheet as mongoose.Model<ITimesheetDocument>) ??

@@ -74,7 +74,7 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
         <BreadcrumbsProvider>
             <div
                 data-dashboard-layout={isFullWidth ? 'full' : 'boxed'}
-                className="flex min-h-screen w-full min-w-0 bg-gradient-to-b from-blue-50 via-blue-100 to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900"
+                className="flex min-h-screen w-full min-w-0 "
             >
                 {/* Mobile Overlay */}
                 {mobileMenuOpen && (

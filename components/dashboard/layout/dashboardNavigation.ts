@@ -8,6 +8,9 @@ import {
   Flag,
   Settings,
   Award,
+  Calendar,
+  Cloud,
+  Mail,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/types/dashboard';
 
@@ -32,6 +35,11 @@ export const baseNavigationItems: NavigationItem[] = [
     href: '/dashboard/timesheet',
     label: 'Timesheet',
     icon: CalendarCheck,
+  },
+  {
+    href: '/dashboard/scheduling',
+    label: 'Scheduling / Rostering',
+    icon: Calendar,
   },
   {
     href: '/dashboard/category',
@@ -59,10 +67,13 @@ export const baseNavigationItems: NavigationItem[] = [
     adminOnly: true,
   },
   {
-    href: '/dashboard/Setting',
     label: 'Settings',
     icon: Settings,
     adminOnly: true,
+    children: [
+      { href: '/dashboard/Setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
+      { href: '/dashboard/Setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },
+    ],
   },
   {
     href: '/dashboard/flag',

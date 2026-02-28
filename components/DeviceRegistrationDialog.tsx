@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 type AuthMethod = "email" | "pin"
@@ -9,6 +9,7 @@ type AuthMethod = "email" | "pin"
 export function DeviceRegistrationDialog() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const [method, setMethod] = useState<AuthMethod>("email")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -17,8 +18,14 @@ export function DeviceRegistrationDialog() {
   const isDisabled = searchParams.get("disabled") === "true"
   const showRegister = searchParams.get("register") === "true"
 
-  // Don't render if none of the query params are present
-  if (!showRegister && !isRevoked && !isDisabled) {
+  // Only show on home page (/) and clock page (/clock)
+  const allowedPaths = ["/", "/clock"]
+  const isAllowedPath = allowedPaths.includes(pathname)
+
+  // Don't render if:
+  // 1. None of the query params are present, OR
+  // 2. Current path is not in the allowed paths (dashboard, login, etc.)
+  if (!isAllowedPath || (!showRegister && !isRevoked && !isDisabled)) {
     return null
   }
 

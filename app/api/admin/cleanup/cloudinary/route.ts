@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
-import { deleteImagesOlderThanDate } from "@/lib/cloudinary"
+import { deleteFilesOlderThanDate } from "@/lib/storage"
 
-/** POST /api/admin/cleanup/cloudinary - Delete Cloudinary images older than date (admin only). Body: { beforeDate: "YYYY-MM-DD" } */
+/** POST /api/admin/cleanup/cloudinary - Delete images older than date (admin only). Body: { beforeDate: "YYYY-MM-DD" } */
 export async function POST(request: NextRequest) {
   const auth = await getAuthFromCookie()
   if (!auth) {
@@ -23,15 +23,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { deleted, errors } = await deleteImagesOlderThanDate(beforeDate, "timesheet")
+    const { deleted, errors } = await deleteFilesOlderThanDate(beforeDate, "timesheet")
 
     return NextResponse.json({ deleted, errors })
   } catch (err) {
     if (process.env.NODE_ENV === 'development') {
-    console.error("[api/admin/cleanup/cloudinary]", err)
+      console.error("[api/admin/cleanup/cloudinary]", err)
     }
+    const message = err instanceof Error ? err.message : "Failed to delete images"
     return NextResponse.json(
-      { error: "Failed to delete images" },
+      { error: message },
       { status: 500 }
     )
   }

@@ -16,6 +16,8 @@ import { EditTimesheetDialog } from "./EditTimesheetDialog"
 import EmployeeProfileCard from "@/components/employees/employee-profile-card"
 import type { EmployeeRow } from "../page"
 import AwardHistoryCard from "@/components/employees/award-history-card"
+import EmployeeRoleAssignmentList from "@/components/employees/EmployeeRoleAssignmentList"
+import { EmployeeRoleAssignmentDialog } from "@/components/employees/EmployeeRoleAssignmentDialog"
 
 interface DailyTimesheetRow {
   date: string
@@ -216,9 +218,10 @@ export default function EmployeeDetailPage() {
   const [tsLoading, setTsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(50)
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false)
   const [editTimesheetRow, setEditTimesheetRow] = useState<DailyTimesheetRow | null>(null)
+  const [roleAssignmentDialogOpen, setRoleAssignmentDialogOpen] = useState(false)
   const [sortBy, setSortBy] = useState<"date" | "totalMinutes" | "breakMinutes">("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [expanded, setExpanded] = useState<ExpandedState>({})
@@ -495,6 +498,11 @@ export default function EmployeeDetailPage() {
         onEditEmployee={() => setEditEmployeeOpen(true)}
       />
 
+      <EmployeeRoleAssignmentList
+        employeeId={id}
+        onAdd={() => setRoleAssignmentDialogOpen(true)}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Timesheet</CardTitle>
@@ -552,6 +560,19 @@ export default function EmployeeDetailPage() {
           onSuccess={() => {
             setEditTimesheetRow(null)
             fetchTimesheets()
+          }}
+        />
+      )}
+
+      {employee && (
+        <EmployeeRoleAssignmentDialog
+          open={roleAssignmentDialogOpen}
+          onOpenChange={setRoleAssignmentDialogOpen}
+          employeeId={id}
+          employeeName={employee.name}
+          onSuccess={() => {
+            // The EmployeeRoleAssignmentList component will automatically refresh
+            // when the dialog closes successfully
           }}
         />
       )}

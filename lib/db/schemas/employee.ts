@@ -1,4 +1,5 @@
 import mongoose from "mongoose"
+import { ISchedule, ScheduleSchema } from "./schedule"
 
 // ─── Pay Condition History ────────────────────────────────
 export interface IPayConditionHistory {
@@ -13,7 +14,6 @@ export interface IPayConditionHistory {
 export interface IEmployee {
   name: string
   pin: string
-  role?: string[]
   employer?: string[]
   location?: string[]
   hire?: string
@@ -26,7 +26,9 @@ export interface IEmployee {
   awardId?: mongoose.Types.ObjectId | null
   awardLevel?: string | null
   employmentType?: string | null
+  standardHoursPerWeek?: number | null // NEW: Target hours per week for this employee
   payConditions?: IPayConditionHistory[]
+  schedules?: ISchedule[]
   createdAt?: Date
   updatedAt?: Date
 }
@@ -49,7 +51,6 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
   {
     name: { type: String, required: true, trim: true },
     pin: { type: String, required: true },
-    role: { type: [String], default: [] },
     employer: { type: [String], default: [] },
     location: { type: [String], default: [] },
     hire: { type: String, default: "" },
@@ -62,7 +63,9 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     awardId: { type: mongoose.Schema.Types.ObjectId, ref: "Award", default: null },
     awardLevel: { type: String, default: null },
     employmentType: { type: String, default: null },
+    standardHoursPerWeek: { type: Number, default: null }, // NEW
     payConditions: { type: [PayConditionHistorySchema], default: [] },
+    schedules: { type: [ScheduleSchema], default: [] },
   },
   {
     timestamps: true,
@@ -73,6 +76,19 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
 employeeSchema.index({ pin: 1 })
 employeeSchema.index({ site: 1 })
 employeeSchema.index({ awardId: 1 })
+// Sparse compound index for efficient roster auto-population queries
+employeeSchema.index(
+  { "schedules.effectiveFrom": 1, "schedules.effectiveTo": 1 },
+  { sparse: true }
+)
+
+// Virtual field for current role assignments (populated from EmployeeRoleAssignment)
+employeeSchema.virtual("currentRoleAssignments", {
+  ref: "EmployeeRoleAssignment",
+  localField: "_id",
+  foreignField: "employeeId",
+  match: { isActive: true }, // Only get active assignments
+})
 
 export const Employee =
   (mongoose.models.Employee as mongoose.Model<IEmployeeDocument>) ??

@@ -8,6 +8,7 @@ import { logDeviceTokenFailure, logStaffSessionFailure } from "@/lib/auth-logger
 const PUBLIC_PATHS = ["/", "/login"]
 const AUTH_PATHS = ["/login"]
 const EMPLOYEE_CLOCK_PATH = "/clock"
+const DEVICE_REQUIRED_PATHS = ["/", "/clock"] // Only these paths require device registration
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => p === pathname || pathname.startsWith(p + "/"))
@@ -19,6 +20,10 @@ function isAuthPath(pathname: string) {
 
 function isEmployeeClockPath(pathname: string) {
   return pathname === EMPLOYEE_CLOCK_PATH || pathname.startsWith(EMPLOYEE_CLOCK_PATH + "/")
+}
+
+function requiresDeviceToken(pathname: string) {
+  return DEVICE_REQUIRED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
 }
 
 export async function middleware(request: NextRequest) {
@@ -38,7 +43,36 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Layer 1: Device Token Validation
+  // Skip device token validation for paths that don't require it (login, dashboard, etc.)
+  if (!requiresDeviceToken(pathname)) {
+    // Continue with normal auth flow for non-device pages
+    const token = getTokenFromRequest(request)
+    let auth = null
+    if (token) {
+      try {
+        auth = await verifyAuthToken(token)
+      } catch {
+        auth = null
+      }
+    }
+    const isAuthenticated = !!auth
+
+    if (isAuthPath(pathname) && isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    if (!isPublic(pathname) && !isAuthenticated) {
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("redirect", pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    const response = NextResponse.next()
+    response.headers.set("x-user-role", auth?.role ?? "")
+    return response
+  }
+
+  // Layer 1: Device Token Validation (only for device-required paths)
   const deviceToken = getDeviceTokenFromRequest(request)
   let deviceAuth = null
 

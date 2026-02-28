@@ -31,8 +31,29 @@ interface EmployeeProfileCardProps {
     name: string;
     pin: string;
     role?: string[];
+    roleAssignments?: Array<{
+      id: string;
+      roleId: string;
+      roleName: string;
+      roleColor?: string;
+      locationId: string;
+      locationName: string;
+      validFrom: string;
+      validTo: string | null;
+      isActive: boolean;
+    }>;
     employer?: string[];
+    employerDetails?: Array<{
+      id: string;
+      name: string;
+      color?: string;
+    }>;
     location?: string[];
+    locationDetails?: Array<{
+      id: string;
+      name: string;
+      color?: string;
+    }>;
     email?: string;
     phone?: string;
     img?: string;
@@ -89,6 +110,7 @@ export default function EmployeeProfileCard({
   const [currentAwardName, setCurrentAwardName] = useState<string>('');
   const [history, setHistory] = useState<PayCondition[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [standardHours, setStandardHours] = useState<number | null>(null);
 
   // Fetch awards
   useEffect(() => {
@@ -143,6 +165,20 @@ export default function EmployeeProfileCard({
     if (currentAwardId) {
       fetchHistory();
     }
+    
+    // Fetch standardHoursPerWeek
+    const fetchStandardHours = async () => {
+      try {
+        const res = await fetch(`/api/employees/${employeeId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setStandardHours(data.employee?.standardHoursPerWeek ?? null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch standard hours:', err);
+      }
+    };
+    fetchStandardHours();
   }, [currentAwardId, employeeId]);
 
   const selectedAward = awards.find((a) => a._id === selectedAwardId);
@@ -223,10 +259,84 @@ export default function EmployeeProfileCard({
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="mb-1">{employee.name}</CardTitle>
-              <CardDescription className="space-y-0.5">
-                <div>PIN: {employee.pin} • Roles: {employee.role?.length ? employee.role.join(", ") : "—"} • Employers: {employee.employer?.length ? employee.employer.join(", ") : "—"}</div>
-                {employee.location?.length ? (
-                  <div>Locations: {employee.location.join(", ")}</div>
+              <CardDescription className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>PIN: {employee.pin}</span>
+                  {employee.roleAssignments && employee.roleAssignments.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span>Roles:</span>
+                        {employee.roleAssignments
+                          .filter(ra => ra.isActive)
+                          .map((ra) => (
+                            <a
+                              key={ra.id}
+                              href={`/dashboard/category?type=role`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
+                            >
+                              {ra.roleColor && (
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: ra.roleColor }}
+                                />
+                              )}
+                              {ra.roleName}
+                              <span className="text-muted-foreground">@ {ra.locationName}</span>
+                            </a>
+                          ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                {employee.employerDetails && employee.employerDetails.length > 0 ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span>Employers:</span>
+                    {employee.employerDetails.map((emp) => (
+                      <a
+                        key={emp.id}
+                        href={`/dashboard/category?type=employer`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
+                      >
+                        {emp.color && (
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: emp.color }}
+                          />
+                        )}
+                        {emp.name}
+                      </a>
+                    ))}
+                  </div>
+                ) : employee.employer?.length ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span>Employers:</span>
+                    {employee.employer.map((emp, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary">
+                        {emp}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {employee.locationDetails && employee.locationDetails.length > 0 ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span>Locations:</span>
+                    {employee.locationDetails.map((loc) => (
+                      <a
+                        key={loc.id}
+                        href={`/dashboard/category?type=location`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
+                      >
+                        {loc.color && (
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: loc.color }}
+                          />
+                        )}
+                        {loc.name}
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
                 {employee.email && <div>Email: {employee.email}</div>}
                 {employee.phone && <div>Phone: {employee.phone}</div>}
@@ -264,7 +374,7 @@ export default function EmployeeProfileCard({
                   <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                   <span className="text-xs font-medium text-primary">CURRENTLY ACTIVE</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Award</p>
                     <p className="text-sm font-medium">{currentAwardName || 'Loading...'}</p>
@@ -276,6 +386,10 @@ export default function EmployeeProfileCard({
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Employment Type</p>
                     <p className="text-sm font-medium">{currentEmploymentType || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Standard Hours/Week</p>
+                    <p className="text-sm font-medium">{standardHours !== null ? `${standardHours} hrs` : '—'}</p>
                   </div>
                 </div>
               </div>

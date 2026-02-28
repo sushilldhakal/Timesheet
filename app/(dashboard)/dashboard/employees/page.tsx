@@ -15,6 +15,17 @@ export type EmployeeRow = {
   name: string
   pin: string
   role: string[]
+  roleAssignments?: Array<{
+    id: string
+    roleId: string
+    roleName: string
+    roleColor?: string
+    locationId: string
+    locationName: string
+    validFrom: string
+    validTo: string | null
+    isActive: boolean
+  }>
   employer: string[]
   location: string[]
   hire: string
@@ -42,7 +53,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(50)
   const [sortBy, setSortBy] = useState<string | null>("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [addOpen, setAddOpen] = useState(false)
