@@ -8,13 +8,6 @@ import { ChangeBadgeVariantInput } from '@/components/calendar/components/change
 import { ChangeVisibleHoursInput } from '@/components/calendar/components/change-visible-hours-input';
 import { ChangeWorkingHoursInput } from '@/components/calendar/components/change-working-hours-input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import type { IUser } from '@/components/calendar/interfaces';
 
@@ -29,7 +22,6 @@ export default function SchedulingPage() {
   const [users, setUsers] = useState<IUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [locations, setLocations] = useState<ILocation[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]); // For multi-select
   const [locationHours, setLocationHours] = useState<{ from: number; to: number }>({ from: 7, to: 18 });
   const [totalEmployeeCount, setTotalEmployeeCount] = useState<number>(0);
@@ -97,10 +89,6 @@ export default function SchedulingPage() {
             
             if (userLocationIds.length > 0) {
               setSelectedLocations(userLocationIds);
-              // Set single location for backward compatibility
-              if (userLocationIds.length === 1) {
-                setSelectedLocation(userLocationIds[0]);
-              }
             }
           }
           
@@ -198,19 +186,31 @@ export default function SchedulingPage() {
   useEffect(() => {
     async function fetchUsers() {
       try {
-        // Fetch ALL users by setting a high limit
-        const response = await fetch('/api/employees?limit=10000&offset=0');
+        // Fetch users with a reasonable limit
+        const response = await fetch('/api/employees?limit=1000&offset=0');
         if (response.ok) {
           const data = await response.json();
-          const transformedUsers: IUser[] = data.employees.map((emp: any) => ({
-            id: String(emp._id || emp.id),
-            name: emp.name,
-            picturePath: emp.picturePath || emp.img || null,
-            location: emp.location || [], // Add location field
-            role: emp.role || [], // Add role field for filtering
-            employer: emp.employer || [], // Add employer field for filtering
-          }));
+          const transformedUsers: IUser[] = data.employees.map((emp: any) => {
+            // Extract location names from the detailed locations array
+            const locationNames = emp.locations?.map((loc: any) => loc.name) || emp.location || [];
+            // Extract role names from the detailed roles array
+            const roleNames = emp.roles?.map((r: any) => r.role?.name).filter(Boolean) || emp.role || [];
+            // Extract employer names from the detailed employers array
+            const employerNames = emp.employers?.map((e: any) => e.name) || emp.employer || [];
+            
+            return {
+              id: String(emp._id || emp.id),
+              name: emp.name,
+              picturePath: emp.img || null,
+              location: locationNames,
+              role: roleNames,
+              employer: employerNames,
+            };
+          });
           setUsers(transformedUsers);
+        } else {
+          console.error('Failed to fetch users:', response.status, response.statusText);
+          setUsers([]);
         }
       } catch (error) {
         console.error('Failed to fetch users:', error);
@@ -237,11 +237,7 @@ export default function SchedulingPage() {
   // Events will be fetched by CalendarProvider based on date range
   const filteredEvents: any[] = [];
 
-  // Get selected location data for display
-  const selectedLocationData = selectedLocations.length === 1 
-    ? locations.find(loc => loc._id === selectedLocations[0])
-    : undefined;
-  
+  // Get selected location names for display
   const selectedLocationNames = selectedLocations.length > 0
     ? locations.filter(loc => selectedLocations.includes(loc._id)).map(loc => loc.name).join(', ')
     : undefined;
@@ -253,6 +249,7 @@ export default function SchedulingPage() {
       initialView="week"
       initialVisibleHours={locationHours}
       selectedLocationId={selectedLocations.length === 1 ? selectedLocations[0] : undefined}
+      selectedLocationIds={selectedLocations}
       selectedLocationName={selectedLocationNames}
     >
       <div className="flex flex-col h-full">
@@ -282,14 +279,6 @@ export default function SchedulingPage() {
                 }))}
                 onValueChange={(values) => {
                   setSelectedLocations(values);
-                  // Update selectedLocation for backward compatibility
-                  if (values.length === 1) {
-                    setSelectedLocation(values[0]);
-                  } else if (values.length === 0) {
-                    setSelectedLocation('all');
-                  } else {
-                    setSelectedLocation('multiple');
-                  }
                 }}
                 defaultValue={selectedLocations}
                 placeholder="Select locations"

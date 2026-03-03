@@ -5,18 +5,6 @@ import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 export type FlagIssueType = "no_image" | "no_location" | "no_image_no_location"
 
-function last30DaysDDMM(): string[] {
-  const end = new Date()
-  const start = subDays(end, 29)
-  const out: string[] = []
-  const cur = new Date(start)
-  while (cur <= end) {
-    out.push(format(cur, "dd-MM-yyyy"))
-    cur.setDate(cur.getDate() + 1)
-  }
-  return out
-}
-
 function getIssueType(hasImage: boolean, hasLocation: boolean): FlagIssueType | null {
   if (!hasImage && !hasLocation) return "no_image_no_location"
   if (!hasImage) return "no_image"
@@ -69,11 +57,19 @@ export async function GET(request: NextRequest) {
 
   try {
     await connectDB()
-    const dateStrings = last30DaysDDMM()
+    
+    // Get date range for last 30 days
+    const end = new Date()
+    end.setHours(23, 59, 59, 999)
+    const start = subDays(end, 29)
+    start.setHours(0, 0, 0, 0)
 
     const shifts = await DailyShift.find({
-      date: { $in: dateStrings },
-      flags: { $exists: true, $ne: [] },
+      date: { $gte: start, $lte: end },
+      $or: [
+        { "clockIn.flag": true },
+        { "clockOut.flag": true },
+      ],
     })
       .sort({ date: -1 })
       .lean()
@@ -90,6 +86,8 @@ export async function GET(request: NextRequest) {
 
     const rows: FlagRow[] = []
     for (const shift of shifts) {
+      const shiftDate = shift.date instanceof Date ? format(shift.date, "dd-MM-yyyy") : String(shift.date ?? "")
+      
       // Check clock-in flags
       if (shift.clockIn?.flag) {
         const imageStr = String(shift.clockIn.image ?? "").trim()
@@ -104,9 +102,9 @@ export async function GET(request: NextRequest) {
         }
 
         rows.push({
-          id: `${shift.pin}-${shift.date}-in`,
+          id: `${shift.pin}-${shiftDate}-in`,
           employeeId: pinToId.get(String(shift.pin ?? "")) ?? "",
-          date: String(shift.date ?? ""),
+          date: shiftDate,
           pin: String(shift.pin ?? ""),
           name: pinToName.get(String(shift.pin ?? "")) ?? "",
           type: "in",
@@ -131,9 +129,9 @@ export async function GET(request: NextRequest) {
         }
 
         rows.push({
-          id: `${shift.pin}-${shift.date}-out`,
+          id: `${shift.pin}-${shiftDate}-out`,
           employeeId: pinToId.get(String(shift.pin ?? "")) ?? "",
-          date: String(shift.date ?? ""),
+          date: shiftDate,
           pin: String(shift.pin ?? ""),
           name: pinToName.get(String(shift.pin ?? "")) ?? "",
           type: "out",

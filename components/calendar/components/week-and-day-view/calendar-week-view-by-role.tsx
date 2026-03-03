@@ -26,7 +26,7 @@ interface IRole {
 }
 
 export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IProps) {
-  const { selectedDate } = useCalendar();
+  const { selectedDate, selectedLocationIds } = useCalendar();
   const [roles, setRoles] = useState<IRole[]>([]);
   const [expandedRoles, setExpandedRoles] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -34,20 +34,58 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
   const weekStart = startOfWeek(selectedDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Fetch roles from API
+  // Fetch roles from API based on selected locations
   useEffect(() => {
     async function fetchRoles() {
       try {
-        const response = await fetch('/api/categories?type=role');
-        if (response.ok) {
-          const data = await response.json();
-          setRoles(data.categories || []);
+        setIsLoading(true);
+        
+        // If locations are selected, fetch roles for those locations
+        if (selectedLocationIds && selectedLocationIds.length > 0) {
+          // Fetch roles for each location and combine them
+          const allRolesMap = new Map<string, IRole>();
+          
+          for (const locationId of selectedLocationIds) {
+            const response = await fetch(`/api/locations/${locationId}/roles`);
+            if (response.ok) {
+              const data = await response.json();
+              const locationRoles = data.data?.roles || [];
+              
+              // Add roles to map (using roleId as key to avoid duplicates)
+              locationRoles.forEach((r: any) => {
+                if (!allRolesMap.has(r.roleId)) {
+                  allRolesMap.set(r.roleId, {
+                    _id: r.roleId,
+                    name: r.roleName,
+                    color: r.roleColor,
+                  });
+                }
+              });
+            }
+          }
+          
+          const uniqueRoles = Array.from(allRolesMap.values());
+          setRoles(uniqueRoles);
+          
           // Expand all roles by default
           const initialExpanded: Record<string, boolean> = {};
-          data.categories.forEach((r: IRole) => {
+          uniqueRoles.forEach((r: IRole) => {
             initialExpanded[r._id] = true;
           });
           setExpandedRoles(initialExpanded);
+        } else {
+          // No location selected - fetch all roles
+          const response = await fetch('/api/categories?type=role');
+          if (response.ok) {
+            const data = await response.json();
+            setRoles(data.categories || []);
+            // Expand all roles by default
+            const initialExpanded: Record<string, boolean> = {};
+            data.categories.forEach((r: IRole) => {
+              initialExpanded[r._id] = true;
+            });
+            setExpandedRoles(initialExpanded);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch roles:', error);
@@ -57,7 +95,7 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
     }
 
     fetchRoles();
-  }, []);
+  }, [selectedLocationIds]);
 
   const toggleRole = (roleId: string) => {
     setExpandedRoles(prev => ({
@@ -148,7 +186,7 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
                     <div className="flex">
                       <button
                         onClick={() => toggleRole(role._id)}
-                        className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent"
+                        className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent sticky left-0 bg-background z-10 flex-shrink-0"
                       >
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4 flex-shrink-0" />
@@ -193,7 +231,7 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
                     {/* Expanded shift details */}
                     {isExpanded && (
                       <div className="flex bg-muted/30">
-                        <div className="w-48 border-r"></div>
+                        <div className="w-48 border-r sticky left-0 bg-muted/30 z-10 flex-shrink-0"></div>
                         <div className="grid flex-1 grid-cols-7 divide-x">
                           {weekDays.map((day, dayIndex) => {
                             const dayEvents = getEventsForRole(role._id, day);

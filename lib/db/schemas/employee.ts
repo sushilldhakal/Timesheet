@@ -16,8 +16,6 @@ export interface IEmployee {
   pin: string
   employer?: string[]
   location?: string[]
-  hire?: string
-  site?: string
   email?: string
   phone?: string
   dob?: string
@@ -53,8 +51,6 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     pin: { type: String, required: true },
     employer: { type: [String], default: [] },
     location: { type: [String], default: [] },
-    hire: { type: String, default: "" },
-    site: { type: String, default: "" },
     email: { type: String, default: "" },
     phone: { type: String, default: "" },
     dob: { type: String, default: "" },
@@ -74,7 +70,6 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
 )
 
 employeeSchema.index({ pin: 1 })
-employeeSchema.index({ site: 1 })
 employeeSchema.index({ awardId: 1 })
 // Sparse compound index for efficient roster auto-population queries
 employeeSchema.index(

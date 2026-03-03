@@ -155,6 +155,11 @@ export async function POST(request: NextRequest) {
         ? clientTime.trim()
         : now.toISOString()
 
+    // Convert dateStr to Date object for MongoDB storage
+    // dateStr is in format "dd-MM-yyyy", convert to Date at start of day UTC
+    const [day, month, year] = dateStr.split("-").map(Number)
+    const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+
     // Build clock event object
     const clockEvent: IClockEvent = {
       time: new Date(timeStr),
@@ -168,11 +173,11 @@ export async function POST(request: NextRequest) {
     if (type === "in") {
       // Clock-in: Create or update daily shift
       await DailyShift.findOneAndUpdate(
-        { pin: employee.pin, date: dateStr },
+        { pin: employee.pin, date: dateObj },
         {
           $setOnInsert: {
             pin: employee.pin,
-            date: dateStr,
+            date: dateObj,
             source: "clock",
             status: "active",
           },
@@ -184,7 +189,7 @@ export async function POST(request: NextRequest) {
       )
     } else if (type === "out") {
       // Clock-out: Update existing shift and calculate hours
-      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateStr })
+      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateObj })
       
       if (!shift) {
         return NextResponse.json(
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
       const computed = updateComputedFields(shift.clockIn, clockEvent, shift.breakIn, shift.breakOut)
 
       await DailyShift.findOneAndUpdate(
-        { pin: employee.pin, date: dateStr },
+        { pin: employee.pin, date: dateObj },
         {
           $set: {
             clockOut: clockEvent,
@@ -210,14 +215,14 @@ export async function POST(request: NextRequest) {
     } else if (type === "break") {
       // Break start: Set breakIn field
       await DailyShift.findOneAndUpdate(
-        { pin: employee.pin, date: dateStr },
+        { pin: employee.pin, date: dateObj },
         {
           $set: { breakIn: clockEvent },
         }
       )
     } else if (type === "endBreak") {
       // Break end: Set breakOut field and recalculate
-      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateStr })
+      const shift = await DailyShift.findOne({ pin: employee.pin, date: dateObj })
       
       if (!shift || !shift.breakIn) {
         return NextResponse.json(
@@ -230,7 +235,7 @@ export async function POST(request: NextRequest) {
       const computed = updateComputedFields(shift.clockIn, shift.clockOut, shift.breakIn, clockEvent)
 
       await DailyShift.findOneAndUpdate(
-        { pin: employee.pin, date: dateStr },
+        { pin: employee.pin, date: dateObj },
         {
           $set: {
             breakOut: clockEvent,

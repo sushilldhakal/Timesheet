@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -180,6 +181,9 @@ export function AddCategoryDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add {typeLabel}</DialogTitle>
+          <DialogDescription>
+            Create a new {typeLabel.toLowerCase()} for your organization.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">

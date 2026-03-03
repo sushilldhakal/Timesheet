@@ -5,10 +5,8 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2 } from "lucide-react"
-import {
-  DataTable,
-  DataTableColumnHeader,
-} from "@/components/ui/data-table"
+import { DataTable } from "@/components/ui/data-table/data-table"
+import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { RIGHT_LABELS } from "@/lib/config/rights"
 import type { UserRow } from "./page"
 
@@ -72,6 +70,28 @@ export function UsersTable({
               ? row.original.location.join(", ")
               : "—"}
           </span>
+        ),
+        enableSorting: false,
+        enableHiding: true,
+      },
+      {
+        accessorKey: "managedRoles",
+        accessorFn: (row) => (row.managedRoles ?? []).join(", "),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Managed Roles" />
+        ),
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.managedRoles?.length ? (
+              row.original.managedRoles.map((r) => (
+                <Badge key={r} variant="secondary" className="text-xs">
+                  {r}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </div>
         ),
         enableSorting: false,
         enableHiding: true,

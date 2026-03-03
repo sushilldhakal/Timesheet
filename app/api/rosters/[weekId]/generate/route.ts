@@ -11,6 +11,7 @@ const generateSchema = z.object({
   mode: z.enum(["copy", "schedules"]),
   copyFromWeekId: z.string().regex(/^\d{4}-W\d{2}$/).optional(),
   includeEmploymentTypes: z.array(z.string()).optional(),
+  locationIds: z.array(z.string()).optional(),
 })
 
 /** POST /api/rosters/[weekId]/generate - Generate roster from schedules or copy from another week */
@@ -89,7 +90,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       // Mode: schedules
       const result = await rosterManager.populateRosterFromSchedules(
         weekId,
-        parsed.data.includeEmploymentTypes
+        parsed.data.includeEmploymentTypes,
+        parsed.data.locationIds
       )
 
       if (!result.success) {

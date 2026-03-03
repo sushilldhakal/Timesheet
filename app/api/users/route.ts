@@ -28,6 +28,7 @@ export async function GET() {
       role: u.role,
       location: Array.isArray(u.location) ? u.location : u.location ? [String(u.location)] : [],
       rights: u.rights ?? [],
+      managedRoles: u.managedRoles ?? [],
       createdAt: u.createdAt,
     }))
 
@@ -50,15 +51,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    console.log('[POST /api/users] Received body:', JSON.stringify(body, null, 2))
+    
     const parsed = userCreateSchema.safeParse(body)
     if (!parsed.success) {
+      console.log('[POST /api/users] Validation failed:', parsed.error)
       return NextResponse.json(
         { error: "Validation failed", issues: parsed.error.flatten().fieldErrors },
         { status: 400 }
       )
     }
 
-    const { name, username, password, role, location, rights } = parsed.data
+    const { name, username, password, role, location, rights, managedRoles } = parsed.data
+    console.log('[POST /api/users] Parsed data - managedRoles:', managedRoles)
 
     await connectDB()
 
@@ -74,7 +79,10 @@ export async function POST(request: NextRequest) {
       role: role ?? "user",
       location: location ?? [],
       rights: rights ?? [],
+      managedRoles: managedRoles ?? [],
     })
+
+    console.log('[POST /api/users] Created user with managedRoles:', user.managedRoles)
 
     return NextResponse.json({
       user: {
@@ -84,6 +92,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         location: user.location ?? [],
         rights: user.rights ?? [],
+        managedRoles: user.managedRoles ?? [],
       },
     })
   } catch (err) {

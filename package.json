@@ -16,7 +16,9 @@
     "setup:models": "node scripts/setup-human-models.mjs",
     "fix:timesheet-format": "node --env-file=.env scripts/fix-timesheet-format.mjs",
     "seed:working-hours": "node --env-file=.env scripts/seed-working-hours.mjs",
-    "seed:data": "node --env-file=.env scripts/seed-data.mjs"
+    "seed:data": "node --env-file=.env scripts/seed-data.mjs",
+    "generate:test-data": "node --env-file=.env scripts/generate-test-data.mjs",
+    "cleanup:test-data": "node --env-file=.env scripts/cleanup-test-data.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.999.0",

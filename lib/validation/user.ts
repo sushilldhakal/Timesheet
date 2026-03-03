@@ -13,6 +13,7 @@ export const userCreateSchema = z.object({
   role: userRoleEnum.optional().default("user"),
   location: z.array(z.string().trim()).default([]),
   rights: rightsSchema.optional().default([]),
+  managedRoles: z.array(z.string().trim()).optional().default([]),
 })
 
 /** Admin updates user - full fields, all optional except at least one */
@@ -23,6 +24,7 @@ export const userAdminUpdateSchema = z.object({
   role: userRoleEnum.optional(),
   location: z.array(z.string().trim()).optional(),
   rights: rightsSchema.optional(),
+  managedRoles: z.array(z.string().trim()).optional(),
 })
 
 /** User updates own profile - username and password only */

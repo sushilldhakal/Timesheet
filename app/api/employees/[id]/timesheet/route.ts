@@ -170,7 +170,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const totalMin = shift.totalWorkingHours ? Math.round(shift.totalWorkingHours * 60) : null
 
       return {
-        date: shift.date,
+        date: shift.date instanceof Date ? shift.date.toISOString().split('T')[0] : shift.date,
         clockIn,
         breakIn,
         breakOut,
@@ -205,7 +205,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       rows.sort((a, b) => {
         const aTime = parseDateForSort(a.date)
         const bTime = parseDateForSort(b.date)
-        return order === "asc" ? aTime - bTime : bTime - aTime
+        const result = order === "asc" ? aTime - bTime : bTime - aTime
+        return result
       })
     } else if (sortBy === "totalminutes") {
       rows.sort((a, b) => {
@@ -221,6 +222,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const total = rows.length
     const paginatedRows = rows.slice(offset, offset + limit)
+
+    // Log sorting results
+    console.log('🔧 API Sorting:', {
+      sortBy,
+      order,
+      totalRows: total,
+      paginatedCount: paginatedRows.length,
+      firstDate: paginatedRows[0]?.date,
+      lastDate: paginatedRows[paginatedRows.length - 1]?.date,
+      firstDateParsed: paginatedRows[0] ? parseDateForSort(paginatedRows[0].date) : null,
+      lastDateParsed: paginatedRows[paginatedRows.length - 1] ? parseDateForSort(paginatedRows[paginatedRows.length - 1].date) : null,
+    })
 
     return NextResponse.json({
       data: paginatedRows,

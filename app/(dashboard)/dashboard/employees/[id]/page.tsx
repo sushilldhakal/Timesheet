@@ -6,9 +6,8 @@ import { format, parse, isValid } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Pencil, MapPin, ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react"
-import { UserCircle } from "lucide-react"
-import { ServerDataTable } from "@/components/ui/data-table"
+import { ArrowLeft, Pencil, MapPin, ChevronRight, ChevronDown } from "lucide-react"
+import { DataTable } from "@/components/ui/data-table/data-table"
 import { ColumnDef, type ExpandedState } from "@tanstack/react-table"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
@@ -18,6 +17,7 @@ import type { EmployeeRow } from "../page"
 import AwardHistoryCard from "@/components/employees/award-history-card"
 import EmployeeRoleAssignmentList from "@/components/employees/EmployeeRoleAssignmentList"
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/EmployeeRoleAssignmentDialog"
+import { formatDateLong as formatDateLongUtil } from "@/lib/utils/date-format"
 
 interface DailyTimesheetRow {
   date: string
@@ -117,13 +117,20 @@ function renderExpandedRowCells(row: DailyTimesheetRow): React.ReactNode[] {
   ]
 }
 
-/** Parse date "31-12-2025" (dd-MM-yyyy) or "2025-12-31" (yyyy-MM-dd). */
+/** Parse date "31-12-2025" (dd-MM-yyyy) or "2025-12-31" (yyyy-MM-dd) or ISO format. */
 function parseDate(dateStr: string): Date | null {
   if (!dateStr || typeof dateStr !== "string") return null
   const s = dateStr.trim()
   try {
+    // Try ISO format first (most common from API)
+    const isoDate = new Date(s)
+    if (isValid(isoDate)) return isoDate
+    
+    // Try dd-MM-yyyy format
     const d1 = parse(s, "dd-MM-yyyy", new Date(), { locale: enUS })
     if (isValid(d1)) return d1
+    
+    // Try yyyy-MM-dd format
     const d2 = parse(s, "yyyy-MM-dd", new Date(), { locale: enUS })
     return isValid(d2) ? d2 : null
   } catch {
@@ -131,11 +138,12 @@ function parseDate(dateStr: string): Date | null {
   }
 }
 
-/** Format date as "Fri 31st December 2025". */
+/** Format date as "Fri 27th Feb 2026" using the utility function. */
 function formatDateLong(dateStr: string): string {
-  const d = parseDate(dateStr)
-  if (!d) return dateStr || "—"
-  return format(d, "EEE do MMMM yyyy", { locale: enUS })
+  if (!dateStr) return "—"
+  // Use the utility function which handles all date formats
+  const formatted = formatDateLongUtil(dateStr)
+  return formatted || dateStr || "—"
 }
 
 /**
@@ -222,19 +230,8 @@ export default function EmployeeDetailPage() {
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false)
   const [editTimesheetRow, setEditTimesheetRow] = useState<DailyTimesheetRow | null>(null)
   const [roleAssignmentDialogOpen, setRoleAssignmentDialogOpen] = useState(false)
-  const [sortBy, setSortBy] = useState<"date" | "totalMinutes" | "breakMinutes">("date")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [expanded, setExpanded] = useState<ExpandedState>({})
   const debouncedSearch = useDebounce(search, 300)
-
-  const handleSortHeader = useCallback((key: "date" | "totalMinutes" | "breakMinutes") => {
-    if (sortBy !== key) {
-      setSortBy(key)
-      setSortOrder("desc")
-    } else {
-      setSortOrder((p) => (p === "asc" ? "desc" : "asc"))
-    }
-  }, [sortBy])
 
   const fetchEmployee = useCallback(async () => {
     try {
@@ -246,9 +243,9 @@ export default function EmployeeDetailPage() {
           id: e.id,
           name: e.name ?? "",
           pin: e.pin ?? "",
-          role: e.role ?? "",
-          employer: e.employer ?? "",
-          location: e.location ?? [],
+          roles: e.roles ?? [],
+          employers: e.employers ?? [],
+          locations: e.locations ?? [],
           hire: e.hire ?? "",
           site: e.site ?? "",
           email: e.email ?? "",
@@ -257,9 +254,9 @@ export default function EmployeeDetailPage() {
           comment: e.comment ?? "",
           img: e.img ?? "",
         })
-        // Set award fields
-        setAwardId(e.awardId ?? null)
-        setAwardLevel(e.awardLevel ?? null)
+        // Set award fields from the award object
+        setAwardId(e.award?.id ?? null)
+        setAwardLevel(e.award?.level ?? null)
         setEmploymentType(e.employmentType ?? null)
       } else {
         setEmployee(null)
@@ -279,27 +276,35 @@ export default function EmployeeDetailPage() {
       const sp = new URLSearchParams({
         limit: String(limit),
         offset: String(offset),
-        sortBy: sortBy === "totalMinutes" ? "totalMinutes" : sortBy === "breakMinutes" ? "breakMinutes" : "date",
-        order: sortOrder,
+        sortBy: "date", // Always fetch by date from server
+        order: "desc",  // Always fetch newest first
       })
       if (debouncedSearch) sp.set("search", debouncedSearch)
+      
+      console.log('📡 Fetching timesheets (client-side sorting enabled)')
+      
       const res = await fetch(`/api/employees/${id}/timesheet?${sp}`)
       if (res.ok) {
         const data = await res.json()
-        // API returns { data: [...], pagination: { total, ... } }
+        console.log('✅ Timesheets fetched:', {
+          count: data.data?.length || 0,
+          total: data.pagination?.total || 0,
+        })
         setTimesheets(data.data ?? [])
         setTotal(data.pagination?.total ?? 0)
       } else {
+        console.error('❌ Failed to fetch timesheets:', res.status)
         setTimesheets([])
         setTotal(0)
       }
-    } catch {
+    } catch (err) {
+      console.error('❌ Error fetching timesheets:', err)
       setTimesheets([])
       setTotal(0)
     } finally {
       setTsLoading(false)
     }
-  }, [id, debouncedSearch, pageIndex, pageSize, sortBy, sortOrder])
+  }, [id, debouncedSearch, pageIndex, pageSize])
 
   useEffect(() => {
     fetchEmployee()
@@ -312,36 +317,6 @@ export default function EmployeeDetailPage() {
   useEffect(() => {
     setPageIndex(0)
   }, [debouncedSearch])
-
-  useEffect(() => {
-    setPageIndex(0)
-  }, [sortBy, sortOrder])
-
-  const SortableHeader = ({
-    label,
-    sortKey,
-  }: {
-    label: string
-    sortKey: "date" | "totalMinutes" | "breakMinutes"
-  }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="-ml-3 h-8"
-      onClick={() => handleSortHeader(sortKey)}
-    >
-      {label}
-      {sortBy === sortKey ? (
-        sortOrder === "desc" ? (
-          <ArrowDown className="ml-2 h-4 w-4" />
-        ) : (
-          <ArrowUp className="ml-2 h-4 w-4" />
-        )
-      ) : (
-        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-      )}
-    </Button>
-  )
 
   const tsColumns: ColumnDef<DailyTimesheetRow>[] = [
     {
@@ -404,38 +379,54 @@ export default function EmployeeDetailPage() {
     },
     {
       accessorKey: "date",
-      header: () => <SortableHeader label="Date" sortKey="date" />,
+      header: "Date",
       cell: ({ row }) => formatDateLong(row.original.date),
+      sortingFn: (rowA, rowB) => {
+        const dateA = parseDate(rowA.original.date)
+        const dateB = parseDate(rowB.original.date)
+        if (!dateA || !dateB) return 0
+        return dateA.getTime() - dateB.getTime()
+      },
     },
     {
       accessorKey: "clockIn",
       header: "Clock In",
       cell: ({ row }) => <TimeCell time={row.original.clockIn} source={row.original.clockInSource} />,
+      enableSorting: false,
     },
     {
       accessorKey: "breakIn",
       header: "Break In",
       cell: ({ row }) => <TimeCell time={row.original.breakIn} source={row.original.breakInSource} />,
+      enableSorting: false,
     },
     {
       accessorKey: "breakOut",
       header: "Break Out",
       cell: ({ row }) => <TimeCell time={row.original.breakOut} source={row.original.breakOutSource} />,
+      enableSorting: false,
     },
     {
       accessorKey: "clockOut",
       header: "Clock Out",
       cell: ({ row }) => <TimeCell time={row.original.clockOut} source={row.original.clockOutSource} />,
+      enableSorting: false,
     },
     {
       accessorKey: "breakHours",
-      header: () => <SortableHeader label="Break Hours" sortKey="breakMinutes" />,
+      header: "Break Hours",
       cell: ({ row }) => formatBreakHours(row.original.breakHours),
+      sortingFn: (rowA, rowB) => {
+        return rowA.original.breakMinutes - rowB.original.breakMinutes
+      },
     },
     {
       accessorKey: "totalHours",
-      header: () => <SortableHeader label="Total Hours" sortKey="totalMinutes" />,
+      header: "Total Hours",
       cell: ({ row }) => formatTotalHours(row.original.totalHours),
+      sortingFn: (rowA, rowB) => {
+        return rowA.original.totalMinutes - rowB.original.totalMinutes
+      },
     },
     {
       id: "actions",
@@ -503,6 +494,10 @@ export default function EmployeeDetailPage() {
         onAdd={() => setRoleAssignmentDialogOpen(true)}
       />
 
+      {awardId && (
+        <AwardHistoryCard employeeId={id} />
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Timesheet</CardTitle>
@@ -513,7 +508,8 @@ export default function EmployeeDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ServerDataTable<DailyTimesheetRow, unknown>
+          <DataTable
+            mode="server"
             columns={tsColumns}
             data={timesheets}
             totalCount={total}

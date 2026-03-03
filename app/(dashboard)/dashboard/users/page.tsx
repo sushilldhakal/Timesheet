@@ -18,6 +18,7 @@ export type UserRow = {
   role: "admin" | "user"
   location: string[]
   rights: string[]
+  managedRoles?: string[]
   createdAt?: string
 }
 

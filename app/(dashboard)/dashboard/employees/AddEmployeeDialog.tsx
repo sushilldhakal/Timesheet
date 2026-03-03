@@ -37,11 +37,17 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [dob, setDob] = useState("")
   const [comment, setComment] = useState("")
   const [img, setImg] = useState("")
+  const [employmentType, setEmploymentType] = useState<string>("")
+  const [standardHours, setStandardHours] = useState<number | null>(null)
+  const [awardId, setAwardId] = useState<string>("")
+  const [awardLevel, setAwardLevel] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
   const [employerOptions, setEmployerOptions] = useState<{ value: string; label: string }[]>([])
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([])
+  const [awardOptions, setAwardOptions] = useState<{ value: string; label: string; levels: string[] }[]>([])
+  const [availableLevels, setAvailableLevels] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -50,13 +56,26 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
         fetch(`/api/categories?type=${CATEGORY_TYPES.ROLE}`).then((r) => (r.ok ? r.json() : { categories: [] })),
         fetch(`/api/categories?type=${CATEGORY_TYPES.EMPLOYER}`).then((r) => (r.ok ? r.json() : { categories: [] })),
         fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`).then((r) => (r.ok ? r.json() : { categories: [] })),
-      ]).then(([roleData, employerData, locationData]) => {
+        fetch('/api/awards').then((r) => (r.ok ? r.json() : { awards: [] })),
+      ]).then(([roleData, employerData, locationData, awardsData]) => {
         setRoleOptions((roleData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
         setEmployerOptions((employerData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
         setLocationOptions((locationData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
+        setAwardOptions((awardsData.awards ?? []).map((a: any) => ({
+          value: a._id,
+          label: a.name,
+          levels: a.levels?.map((l: any) => l.label) || []
+        })))
       })
     }
   }, [open])
+
+  // Update available levels when award changes
+  useEffect(() => {
+    const selectedAward = awardOptions.find(a => a.value === awardId)
+    setAvailableLevels(selectedAward?.levels || [])
+    setAwardLevel("") // Reset level when award changes
+  }, [awardId, awardOptions])
 
   const reset = () => {
     setName("")
@@ -69,6 +88,10 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     setDob("")
     setComment("")
     setImg("")
+    setEmploymentType("")
+    setStandardHours(null)
+    setAwardId("")
+    setAwardLevel("")
     setError(null)
   }
 
@@ -83,7 +106,10 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   // When phone has 4+ digits, use last 4 as PIN
   useEffect(() => {
     const digits = phone.replace(/\D/g, "")
-    if (digits.length >= 4) setPin(digits.slice(-4))
+    if (digits.length >= 4) {
+      // Try last 4 digits first
+      setPin(digits.slice(-4))
+    }
   }, [phone])
 
   const handleGeneratePin = async () => {
@@ -99,6 +125,49 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     } finally {
       setGeneratingPin(false)
     }
+  }
+
+  // Function to find available PIN from phone number
+  const findAvailablePin = async (phoneDigits: string): Promise<string | null> => {
+    if (phoneDigits.length < 4) return null
+    
+    // Try different 4-digit combinations from the phone number
+    const attempts = []
+    
+    // Last 4 digits
+    if (phoneDigits.length >= 4) {
+      attempts.push(phoneDigits.slice(-4))
+    }
+    
+    // Second-to-last 4 digits (skip last digit)
+    if (phoneDigits.length >= 5) {
+      attempts.push(phoneDigits.slice(-5, -1))
+    }
+    
+    // Third attempt (skip last 2 digits)
+    if (phoneDigits.length >= 6) {
+      attempts.push(phoneDigits.slice(-6, -2))
+    }
+    
+    // Fourth attempt (skip last 3 digits)
+    if (phoneDigits.length >= 7) {
+      attempts.push(phoneDigits.slice(-7, -3))
+    }
+    
+    // Try each PIN
+    for (const testPin of attempts) {
+      try {
+        const res = await fetch(`/api/employees/check-pin?pin=${testPin}`)
+        const data = await res.json()
+        if (data.available) {
+          return testPin
+        }
+      } catch {
+        // Continue to next attempt
+      }
+    }
+    
+    return null
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,14 +200,41 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const finalPin = getEffectivePin()
+    let finalPin = getEffectivePin()
+    
     if (finalPin.length < 4) {
       setError("Enter phone (last 4 digits used as PIN) or click Generate")
       return
     }
+    
     setError(null)
     setLoading(true)
+    
     try {
+      // If using phone-derived PIN, check if it's available and find alternative if needed
+      const phoneDigits = phone.replace(/\D/g, "")
+      if (phoneDigits.length >= 4 && finalPin === phoneDigits.slice(-4)) {
+        const availablePin = await findAvailablePin(phoneDigits)
+        if (availablePin) {
+          finalPin = availablePin
+          setPin(availablePin) // Update the displayed PIN
+        } else {
+          // If no phone-based PIN available, generate a random one
+          try {
+            const res = await fetch("/api/employees/generate-pin")
+            const data = await res.json()
+            if (res.ok && data.pin) {
+              finalPin = data.pin
+              setPin(data.pin)
+            }
+          } catch {
+            setError("Could not find available PIN from phone number. Please use Generate button.")
+            setLoading(false)
+            return
+          }
+        }
+      }
+      
       const res = await fetch("/api/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,6 +249,10 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
           dob: dob.trim() || undefined,
           comment: comment.trim() || undefined,
           img: img || undefined,
+          employmentType: employmentType || undefined,
+          standardHoursPerWeek: standardHours,
+          awardId: awardId || undefined,
+          awardLevel: awardLevel || undefined,
         }),
       })
       const data = await res.json()
@@ -173,7 +273,9 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] rounded-lg">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] rounded-lg"  onInteractOutside={(e) => {
+          e.preventDefault();
+        }}>
         <DialogHeader>
           <DialogTitle>Add Employee</DialogTitle>
         </DialogHeader>
@@ -329,6 +431,38 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor="add-emp-employment-type">Employment Type</FieldLabel>
+                <select
+                  id="add-emp-employment-type"
+                  value={employmentType}
+                  onChange={(e) => setEmploymentType(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select type...</option>
+                  <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option>
+                  <option value="Casual">Casual</option>
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="add-emp-hours">Standard Hours per Week</FieldLabel>
+                <Input
+                  id="add-emp-hours"
+                  type="number"
+                  min={0}
+                  max={168}
+                  step={0.5}
+                  value={standardHours ?? ""}
+                  onChange={(e) => setStandardHours(e.target.value ? Number(e.target.value) : null)}
+                  placeholder="e.g. 38"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Target working hours (used in roster generation)
+                </p>
+              </Field>
+              <Field>
                 <FieldLabel htmlFor="add-emp-comment">Comment</FieldLabel>
                 <textarea
                   id="add-emp-comment"
@@ -338,6 +472,41 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
                   rows={3}
                 />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="add-emp-award">Award</FieldLabel>
+                <select
+                  id="add-emp-award"
+                  value={awardId}
+                  onChange={(e) => setAwardId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select award...</option>
+                  {awardOptions.map((award) => (
+                    <option key={award.value} value={award.value}>
+                      {award.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="add-emp-award-level">Award Level</FieldLabel>
+                <select
+                  id="add-emp-award-level"
+                  value={awardLevel}
+                  onChange={(e) => setAwardLevel(e.target.value)}
+                  disabled={!awardId || availableLevels.length === 0}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">Select level...</option>
+                  {availableLevels.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
             {error && <FieldError>{error}</FieldError>}

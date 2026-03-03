@@ -45,24 +45,49 @@ export function EditUserDialog({
   const [rights, setRights] = useState<Right[]>(
     (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
   )
+  const [managedRoles, setManagedRoles] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([])
+  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
+  const [allRoles, setAllRoles] = useState<Array<{ id: string; name: string; locations?: string[] }>>([])
 
   useEffect(() => {
     if (open) {
-      fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`)
-        .then((res) => res.ok ? res.json() : { categories: [] })
-        .then((data) => {
-          const opts = (data.categories ?? []).map((c: { id: string; name: string }) => ({
-            value: c.name,
-            label: c.name,
-          }))
-          setLocationOptions(opts)
-        })
-        .catch(() => setLocationOptions([]))
+      Promise.all([
+        fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`).then((res) => res.ok ? res.json() : { categories: [] }),
+        fetch(`/api/categories?type=${CATEGORY_TYPES.ROLE}`).then((res) => res.ok ? res.json() : { categories: [] }),
+        fetch(`/api/users/${user.id}`).then((res) => res.ok ? res.json() : { user: {} }),
+      ]).then(([locationData, roleData, userData]) => {
+        const locOpts = (locationData.categories ?? []).map((c: { id: string; name: string }) => ({
+          value: c.name,
+          label: c.name,
+        }))
+        setLocationOptions(locOpts)
+        setAllRoles(roleData.categories ?? [])
+        setManagedRoles(userData.user?.managedRoles ?? [])
+      }).catch(() => {
+        setLocationOptions([])
+        setAllRoles([])
+      })
     }
-  }, [open])
+  }, [open, user.id])
+
+  // Filter roles based on selected locations
+  useEffect(() => {
+    if (location.length === 0) {
+      setRoleOptions([])
+      return
+    }
+    
+    // Show all roles when locations are selected
+    // In the future, you can add location-specific filtering if roles have location associations
+    const opts = allRoles.map(r => ({
+      value: r.name,
+      label: r.name,
+    }))
+    setRoleOptions(opts)
+  }, [location, allRoles])
 
   useEffect(() => {
     if (open && user) {
@@ -74,15 +99,10 @@ export function EditUserDialog({
       setRights(
         (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
       )
+      setManagedRoles(user.managedRoles ?? [])
       setError(null)
     }
   }, [open, user])
-
-  const toggleRight = (r: Right) => {
-    setRights((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
-    )
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +121,7 @@ export function EditUserDialog({
             role,
             location,
             rights,
+            managedRoles,
           }
 
       const res = await fetch(`/api/users/${user.id}`, {
@@ -181,7 +202,7 @@ export function EditUserDialog({
                   </select>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="edit-location">Locations</FieldLabel>
+                  <FieldLabel htmlFor="edit-location">Locations *</FieldLabel>
                   <MultiSelect
                     options={locationOptions}
                     defaultValue={location}
@@ -190,23 +211,40 @@ export function EditUserDialog({
                     variant="secondary"
                     resetOnDefaultValueChange
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select locations to enable role selection
+                  </p>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="edit-managed-roles">Managed Roles (Supervisor)</FieldLabel>
+                  {location.length === 0 ? (
+                    <div className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground items-center">
+                      Please select locations first
+                    </div>
+                  ) : (
+                    <MultiSelect
+                      options={roleOptions}
+                      defaultValue={managedRoles}
+                      onValueChange={setManagedRoles}
+                      placeholder="Select roles to supervise..."
+                      variant="secondary"
+                      resetOnDefaultValueChange
+                    />
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    User can manage timesheets and rosters for staff in these roles
+                  </p>
                 </Field>
                 <Field>
                   <FieldLabel>Rights</FieldLabel>
-                  <div className="flex flex-wrap gap-4 pt-2">
-                    {RIGHTS_LIST.map((r) => (
-                      <label
-                        key={r}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={rights.includes(r)}
-                          onCheckedChange={() => toggleRight(r)}
-                        />
-                        <span className="text-sm">{RIGHT_LABELS[r]}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <MultiSelect
+                    options={RIGHTS_LIST.map(r => ({ value: r, label: RIGHT_LABELS[r] }))}
+                    defaultValue={rights}
+                    onValueChange={(values) => setRights(values as Right[])}
+                    placeholder="Select rights..."
+                    variant="secondary"
+                    resetOnDefaultValueChange
+                  />
                 </Field>
               </>
             )}

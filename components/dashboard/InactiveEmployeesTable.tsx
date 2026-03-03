@@ -4,7 +4,9 @@ import { useMemo } from "react"
 import Link from "next/link"
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table"
+import { DataTable } from "@/components/ui/data-table/data-table"
+import { DataTableToolbar } from "@/components/ui/data-table/data-table-toolbar"
+import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 
 export interface InactiveEmployee {
   id: string
@@ -90,11 +92,18 @@ export function InactiveEmployeesTable({ employees, onDelete, deleting }: Props)
   )
 
   return (
-    <DataTable<InactiveEmployee, unknown>
+    <DataTable
       columns={columns}
       data={employees}
       getRowId={(row) => row.id}
       emptyMessage="No inactive employees (everyone has punched in the last 100 days)."
+      toolbar={(table) => (
+        <DataTableToolbar
+          table={table}
+          searchKey="name"
+          searchPlaceholder="Search employees..."
+        />
+      )}
     />
   )
 }

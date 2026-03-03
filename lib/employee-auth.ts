@@ -52,7 +52,7 @@ export async function verifyEmployeeToken(token: string): Promise<EmployeeAuthPa
 export function getEmployeeCookieOptions() {
   return {
     httpOnly: true,
-    secure: IS_PRODUCTION,
+    secure: false, // Allow cookies over HTTP for local network access
     sameSite: "lax" as const,
     path: "/",
     maxAge: MAX_AGE,

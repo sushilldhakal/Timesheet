@@ -80,17 +80,43 @@ export class WorkingHoursHierarchy {
 
   /**
    * Get role-level template configuration
-   * Note: This method is deprecated as the role field has been removed from Employee schema.
-   * Role assignments are now managed through EmployeeRoleAssignment collection.
+   * Uses EmployeeRoleAssignment collection to find active role assignments
    */
   async getRoleTemplate(
     employeeId: mongoose.Types.ObjectId | string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
-      // TODO: Update this to use EmployeeRoleAssignment collection
-      // For now, return null as the legacy role field no longer exists
-      console.warn("getRoleTemplate is deprecated - role field removed from Employee schema")
+      // Import EmployeeRoleAssignment
+      const { EmployeeRoleAssignment } = await import("../db/schemas/employee-role-assignment")
+      
+      // Get active role assignments for this employee
+      const roleAssignments = await EmployeeRoleAssignment.find({
+        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
+        isActive: true,
+      }).populate('roleId').lean()
+
+      if (!roleAssignments || roleAssignments.length === 0) {
+        return null
+      }
+
+      // Find the first role with a defaultScheduleTemplate
+      for (const assignment of roleAssignments) {
+        const role = assignment.roleId as any
+        if (!role || typeof role === 'string' || !role.defaultScheduleTemplate) {
+          continue
+        }
+
+        const template = role.defaultScheduleTemplate
+        if (template.standardHoursPerWeek && template.shiftPattern) {
+          return {
+            standardHoursPerWeek: template.standardHoursPerWeek,
+            shiftPattern: template.shiftPattern,
+            source: "role",
+          }
+        }
+      }
+
       return null
     } catch (error) {
       console.error("Error getting role template:", error)

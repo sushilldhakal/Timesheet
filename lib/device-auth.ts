@@ -55,8 +55,8 @@ export async function verifyDeviceToken(
 export function getDeviceCookieOptions() {
   return {
     httpOnly: true,
-    secure: IS_PRODUCTION,
-    sameSite: "strict" as const,
+    secure: false, // Allow cookies over HTTP for local network access
+    sameSite: "lax" as const, // Changed from strict to lax for better mobile compatibility
     path: "/",
     // No maxAge - cookie persists until manually cleared
   }

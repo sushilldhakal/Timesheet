@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import { ServerDataTable } from "@/components/ui/data-table"
+import { DataTable } from "@/components/ui/data-table/data-table"
 import { FileDown, Printer } from "lucide-react"
 import Link from "next/link"
 
@@ -483,7 +483,8 @@ export default function TimesheetPage() {
           {error && (
             <p className="text-destructive px-4 py-2 text-sm">{error}</p>
           )}
-          <ServerDataTable<DashboardTimesheetRow, unknown>
+          <DataTable
+            mode="server"
             columns={columns}
             data={timesheets}
             totalCount={totalCount}

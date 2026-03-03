@@ -39,7 +39,7 @@ export function DeleteEmployeeDialog({ employee, open, onOpenChange, onSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Delete Employee</DialogTitle>
         </DialogHeader>

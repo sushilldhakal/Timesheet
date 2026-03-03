@@ -27,7 +27,7 @@ const tabs = [
     icon: Grid3x3,
   },
   {
-    name: "Agenda",
+    name: "Shift",
     value: "agenda" as TCalendarView,
     icon: CalendarRange,
   },

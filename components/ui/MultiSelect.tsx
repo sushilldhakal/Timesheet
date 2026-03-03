@@ -825,7 +825,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                     </div>
 
                     <PopoverTrigger 
-                    className="!bg-muted"
+                    className=""
                     asChild>
                         <Button
                             ref={buttonRef}
@@ -840,7 +840,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                             aria-label={`Multi-select: ${selectedValues.length} of ${getAllOptions().length
                                 } options selected. ${placeholder}`}
                             className={cn(
-                                "flex p-1 rounded-lg border min-h-10 h-auto bg-transparent hover:bg-transparent text-primary items-center justify-between bg-inherit hover:bg-inherit [&_svg]:pointer-events-auto",
+                                "flex p-1 rounded-lg border-border min-h-10 h-auto bg-transparent hover:bg-transparent text-primary items-center justify-between bg-inherit hover:bg-inherit [&_svg]:pointer-events-auto",
                                 autoSize ? "w-auto" : "w-full",
                                 responsiveSettings.compactMode && "min-h-8 text-sm",
                                 screenSize === "mobile" && "min-h-12 text-base",

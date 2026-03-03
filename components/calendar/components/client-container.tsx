@@ -47,7 +47,7 @@ export function ClientContainer() {
   // Error state
   if (error) {
     return (
-      <div className="overflow-hidden rounded-xl border">
+      <div className="overflow-scroll rounded-xl border">
         <CalendarHeader view={currentView} events={events} />
         <div className="flex items-center justify-center h-96">
           <div className="text-center max-w-md px-4">
@@ -71,7 +71,7 @@ export function ClientContainer() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="overflow-scroll rounded-xl border">
       <CalendarHeader view={currentView} events={events} />
 
       {isLoading ? (

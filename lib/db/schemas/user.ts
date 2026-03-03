@@ -8,6 +8,7 @@ export interface IUser {
   role: "admin" | "user" | "super_admin"
   location: string[]
   rights: Right[]
+  managedRoles: string[] // Role names that this user can supervise
   createdAt?: Date
   updatedAt?: Date
 }
@@ -43,11 +44,14 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     location: {
       type: [String],
       default: [],
-      trim: true,
     },
     rights: {
       type: [String],
       enum: Object.values(RIGHTS_LIST),
+      default: [],
+    },
+    managedRoles: {
+      type: [String],
       default: [],
     },
   },

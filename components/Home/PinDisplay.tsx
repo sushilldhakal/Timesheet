@@ -31,7 +31,7 @@ export function PinDisplay({ value, maxLength, status }: PinDisplayProps) {
           <div
             key={i}
             className={cn(
-              "relative flex h-24 w-20 items-center justify-center rounded-xl border-2 text-3xl font-semibold transition-all duration-200",
+              "relative flex h-24 w-20 sm:w-28 items-center justify-center rounded-xl border-2 text-3xl font-semibold transition-all duration-200",
               // Error state
               status === "error" && "animate-shake border-red-400 bg-red-400/10",
               // Success state - will be overridden by inline styles

@@ -48,7 +48,7 @@ export function Home() {
           })
         },
         (error) => {
-          logger.warn("Location access denied or unavailable:", error)
+          toast.error("Location access denied or unavailable:")
           // Continue without location - backend will handle accordingly
         },
         {
@@ -236,7 +236,7 @@ export function Home() {
         </div>
 
         {/* Numpad */}
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-lg">
           <Numpad
             onKeyPress={handleKeyPress}
             onDelete={handleDelete}

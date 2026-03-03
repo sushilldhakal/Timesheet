@@ -1,39 +1,10 @@
 import { NextResponse } from "next/server"
 import { format } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
-import { connectDB, Employee, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 const INACTIVE_DAYS = 100
 const DATE_FMT = "dd-MM-yyyy"
-
-/** Parse dd-MM-yyyy or yyyy-MM-dd string to Date. Returns null if invalid. */
-function parseDateStr(s: unknown): Date | null {
-  if (s instanceof Date) return isNaN(s.getTime()) ? null : s
-  if (s == null || typeof s !== "string") return null
-  const trimmed = s.trim()
-  if (!trimmed) return null
-  const parts = trimmed.split("-")
-  if (parts.length !== 3) {
-    const d = new Date(trimmed)
-    return isNaN(d.getTime()) ? null : d
-  }
-  const a = parseInt(parts[0], 10)
-  const b = parseInt(parts[1], 10)
-  const c = parseInt(parts[2], 10)
-  if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) return null
-  let day: number, month: number, year: number
-  if (a <= 31 && b <= 12 && c >= 1900 && c <= 2100) {
-    day = a
-    month = b - 1
-    year = c
-  } else if (c <= 31 && b <= 12 && a >= 1900 && a <= 2100) {
-    year = a
-    month = b - 1
-    day = c
-  } else return null
-  const d = new Date(year, month, day)
-  return isNaN(d.getTime()) ? null : d
-}
 
 export interface InactiveEmployeeRow {
   id: string
@@ -53,26 +24,22 @@ export async function GET() {
   try {
     await connectDB()
 
-    // Group by pin and collect all date strings; we'll parse in Node so we handle
-    // dd-MM-yyyy vs string comparison and any mixed/invalid formats safely.
-    const grouped = await Timesheet.aggregate<{ _id: string; dates: string[] }>([
-      { $group: { _id: "$pin", dates: { $addToSet: "$date" } } },
+    // Group by pin and get the most recent date for each employee
+    const grouped = await DailyShift.aggregate<{ _id: string; lastDate: Date }>([
+      { $group: { _id: "$pin", lastDate: { $max: "$date" } } },
     ])
 
     const lastPunchMap = new Map<string, { date: Date; dateStr: string }>()
     for (const x of grouped) {
-      if (!x._id || !Array.isArray(x.dates)) continue
+      if (!x._id || !x.lastDate) continue
       const pin = String(x._id)
-      let maxDate: Date | null = null
-      let maxStr: string | null = null
-      for (const dStr of x.dates) {
-        const parsed = parseDateStr(dStr)
-        if (parsed && (!maxDate || parsed.getTime() > maxDate.getTime())) {
-          maxDate = parsed
-          maxStr = typeof dStr === "string" ? dStr : format(parsed, DATE_FMT)
-        }
+      const date = x.lastDate instanceof Date ? x.lastDate : new Date(x.lastDate)
+      if (!isNaN(date.getTime())) {
+        lastPunchMap.set(pin, { 
+          date, 
+          dateStr: format(date, DATE_FMT) 
+        })
       }
-      if (maxDate && maxStr) lastPunchMap.set(pin, { date: maxDate, dateStr: maxStr })
     }
 
     const empFilter: Record<string, unknown> = {}

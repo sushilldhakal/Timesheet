@@ -61,12 +61,20 @@ import { cn } from "@/lib/utils"
 import { InactiveEmployeesTable, type InactiveEmployee } from "@/components/dashboard/InactiveEmployeesTable"
 
 interface DashboardStats {
-  dailyTimeline: { hour: string; clockIn: number; breakIn: number; breakOut: number; clockOut: number }[]
   locationDistribution: { name: string; value: number; fill: string }[]
   attendanceByDay: { day: string; count: number }[]
   weeklyMonthly: { period: string; totalHours: number; activeEmployees: number; attendanceRate: number }[]
-  roleStaffingByRole: { name: string; count: number }[]
-  employerMix: { month: string; employees: number; subcontractors: number; dmx: number; vicLogistics: number; mandm: number }[]
+  roleStaffingByRole: { name: string; count: number; color?: string }[]
+  employerMix: { month: string; [key: string]: number | string }[]
+  employerCategories?: Array<{ name: string; color?: string }>
+}
+
+interface DailyTimelineData {
+  hour: string
+  clockIn: number
+  breakIn: number
+  breakOut: number
+  clockOut: number
 }
 
 interface HoursSummaryRow {
@@ -95,20 +103,8 @@ const weeklyMonthlyConfig = {
   attendanceRate: { label: "Attendance %", color: "hsl(var(--chart-2))" },
 } satisfies ChartConfig
 
-const roleStaffingByRoleConfig = {
-  count: { label: "Staff", color: "hsl(var(--chart-1))" },
-} satisfies ChartConfig
-
 const hoursChartConfig = {
   hours: { label: "Hours", color: "hsl(var(--chart-1))" },
-} satisfies ChartConfig
-
-const employerMixConfig = {
-  employees: { label: "Employees", color: "hsl(var(--chart-1))" },
-  subcontractors: { label: "Subcontractors", color: "hsl(var(--chart-2))" },
-  dmx: { label: "DMX", color: "hsl(var(--chart-3))" },
-  vicLogistics: { label: "VIC Logistics", color: "hsl(var(--chart-4))" },
-  mandm: { label: "M&M", color: "hsl(var(--chart-5))" },
 } satisfies ChartConfig
 
 function getDefaultWeek() {
@@ -123,22 +119,45 @@ export default function DashboardContent() {
   const [timelineDate, setTimelineDate] = React.useState(() => format(new Date(), "yyyy-MM-dd"))
   const [hoursRange, setHoursRange] = React.useState(getDefaultWeek)
   const [stats, setStats] = React.useState<DashboardStats | null>(null)
+  const [dailyTimeline, setDailyTimeline] = React.useState<DailyTimelineData[]>([])
   const [hoursSummary, setHoursSummary] = React.useState<{ mostHours: HoursSummaryRow[]; leastHours: HoursSummaryRow[] } | null>(null)
   const [inactiveEmployees, setInactiveEmployees] = React.useState<InactiveEmployee[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [timelineLoading, setTimelineLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [deleteId, setDeleteId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
   const fetchStats = React.useCallback(async () => {
     try {
-      const url = `/api/dashboard/stats?timelineDate=${encodeURIComponent(timelineDate)}`
+      // Fetch stats without timeline date dependency - use current date for initial load
+      const initialDate = format(new Date(), "yyyy-MM-dd")
+      const url = `/api/dashboard/stats?timelineDate=${encodeURIComponent(initialDate)}`
       const res = await fetch(url)
       if (!res.ok) throw new Error("Failed to load stats")
       const data = await res.json()
-      setStats(data)
+      
+      // Separate daily timeline from other stats
+      const { dailyTimeline: timeline, ...restStats } = data
+      setStats(restStats)
+      setDailyTimeline(timeline || [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load stats")
+    }
+  }, []) // No dependencies - only runs on mount
+
+  const fetchDailyTimeline = React.useCallback(async () => {
+    setTimelineLoading(true)
+    try {
+      const url = `/api/dashboard/stats?timelineDate=${encodeURIComponent(timelineDate)}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error("Failed to load timeline")
+      const data = await res.json()
+      setDailyTimeline(data.dailyTimeline || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load timeline")
+    } finally {
+      setTimelineLoading(false)
     }
   }, [timelineDate])
 
@@ -175,6 +194,11 @@ export default function DashboardContent() {
     return () => { cancelled = true }
   }, [fetchStats, fetchInactive])
 
+  // Separate effect for daily timeline - runs when date changes
+  React.useEffect(() => {
+    fetchDailyTimeline()
+  }, [fetchDailyTimeline])
+
   React.useEffect(() => {
     fetchHoursSummary()
   }, [fetchHoursSummary])
@@ -202,9 +226,8 @@ export default function DashboardContent() {
     return stats.weeklyMonthly.slice(-n)
   }, [stats?.weeklyMonthly, trendPeriod])
 
-  const dailyTimeline = React.useMemo(() => {
-    const raw = stats?.dailyTimeline ?? []
-    if (raw.length > 0) return raw
+  const processedDailyTimeline = React.useMemo(() => {
+    if (dailyTimeline.length > 0) return dailyTimeline
     return Array.from({ length: 15 }, (_, i) => ({
       hour: `${(i + 6).toString().padStart(2, "0")}:00`,
       clockIn: 0,
@@ -212,14 +235,48 @@ export default function DashboardContent() {
       breakOut: 0,
       clockOut: 0,
     }))
-  }, [stats?.dailyTimeline])
-  const dailyTimelineEmpty = dailyTimeline.every(
+  }, [dailyTimeline])
+  
+  const dailyTimelineEmpty = processedDailyTimeline.every(
     (d) => d.clockIn + d.breakIn + d.breakOut + d.clockOut === 0
   )
   const locationDistribution = stats?.locationDistribution ?? []
   const attendanceByDay = stats?.attendanceByDay ?? []
   const roleStaffingByRole = stats?.roleStaffingByRole ?? []
   const employerMix = stats?.employerMix ?? []
+  const employerCategories = stats?.employerCategories ?? []
+  
+  // Dynamic employer mix config based on actual categories from API
+  const employerMixConfig = React.useMemo(() => {
+    const defaultColors = [
+      "hsl(var(--chart-1))", 
+      "hsl(var(--chart-2))", 
+      "hsl(var(--chart-3))", 
+      "hsl(var(--chart-4))", 
+      "hsl(var(--chart-5))"
+    ]
+    const config: ChartConfig = {}
+    employerCategories.forEach((cat, i) => {
+      config[cat.name] = {
+        label: cat.name,
+        color: cat.color || defaultColors[i % defaultColors.length],
+      }
+    })
+    return config
+  }, [employerCategories, employerMix])
+  
+  // Dynamic role staffing config based on actual roles with colors
+  const roleStaffingConfig = React.useMemo(() => {
+    const config: ChartConfig = {}
+    roleStaffingByRole.forEach((role) => {
+      config[role.name] = {
+        label: role.name,
+        color: role.color || "hsl(var(--chart-1))",
+      }
+    })
+    return config
+  }, [roleStaffingByRole])
+  
   const mostHours = hoursSummary?.mostHours ?? []
   const leastHours = hoursSummary?.leastHours ?? []
 
@@ -243,7 +300,7 @@ export default function DashboardContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
-            <CardTitle>Daily Timeline</CardTitle>
+            <CardTitle>Daily Timeline {timelineLoading && <span className="text-muted-foreground text-xs font-normal ml-2">(loading...)</span>}</CardTitle>
             <CardDescription>Punch activity by hour — select a date</CardDescription>
           </div>
           <Popover>
@@ -271,11 +328,11 @@ export default function DashboardContent() {
           <p className="text-muted-foreground mb-2 text-center text-sm">
             By type: Clock in, Break in, Break out, Clock out.
           </p>
-          {dailyTimelineEmpty && (
+          {!timelineLoading && dailyTimelineEmpty && (
             <p className="text-muted-foreground mb-2 text-center text-sm">No punches recorded for this date.</p>
           )}
           <ChartContainer config={dailyTimelineConfig} className="h-[240px] w-full">
-            <BarChart data={dailyTimeline} margin={{ left: 12, right: 12 }} barCategoryGap="12%">
+            <BarChart data={processedDailyTimeline} margin={{ left: 12, right: 12 }} barCategoryGap="12%">
               <CartesianGrid vertical={false} />
               <XAxis dataKey="hour" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
@@ -327,7 +384,7 @@ export default function DashboardContent() {
             <CardDescription>Staff count by role (last 7 days)</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={roleStaffingByRoleConfig} className="aspect-auto h-[260px] w-full">
+            <ChartContainer config={roleStaffingConfig} className="aspect-auto h-[260px] w-full">
               <BarChart
                 data={roleStaffingByRole.length ? roleStaffingByRole : [{ name: "—", count: 0 }]}
                 layout="vertical"
@@ -337,7 +394,11 @@ export default function DashboardContent() {
                 <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={100} />
                 <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="var(--color-count)" />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                  {roleStaffingByRole.map((role, index) => (
+                    <Cell key={`cell-${index}`} fill={role.color || "hsl(var(--chart-1))"} />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -419,34 +480,46 @@ export default function DashboardContent() {
       <Card>
         <CardHeader>
           <CardTitle>Employer / contractor mix</CardTitle>
-          <CardDescription>Workforce planning — Employees vs subcontractors vs contractors (DMX, VIC Logistics, M&M) over time</CardDescription>
+          <CardDescription>Workforce planning — breakdown by employer categories over time</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={employerMixConfig} className="aspect-auto h-[260px] w-full">
-            <AreaChart
-              data={employerMix.length ? employerMix : [{ month: "—", employees: 0, subcontractors: 0, dmx: 0, vicLogistics: 0, mandm: 0 }]}
-              margin={{ left: 12, right: 12 }}
-            >
-              <defs>
-                {["employees", "subcontractors", "dmx", "vicLogistics", "mandm"].map((key) => (
-                  <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={1} />
-                    <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.15} />
-                  </linearGradient>
+          {employerCategories.length === 0 ? (
+            <div className="text-muted-foreground py-8 text-center text-sm">
+              No employer data available
+            </div>
+          ) : (
+            <ChartContainer config={employerMixConfig} className="aspect-auto h-[260px] w-full">
+              <AreaChart
+                data={employerMix.length ? employerMix : [{ month: "—", ...Object.fromEntries(employerCategories.map(c => [c.name, 0])) }]}
+                margin={{ left: 12, right: 12 }}
+              >
+                <defs>
+                  {employerCategories.map((cat) => (
+                    <linearGradient key={cat.name} id={`fill-${cat.name}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={cat.color || `var(--color-${cat.name})`} stopOpacity={1} />
+                      <stop offset="95%" stopColor={cat.color || `var(--color-${cat.name})`} stopOpacity={0.15} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                {employerCategories.map((cat) => (
+                  <Area 
+                    key={cat.name}
+                    type="monotone" 
+                    dataKey={cat.name} 
+                    stackId="1" 
+                    fill={`url(#fill-${cat.name})`} 
+                    stroke={cat.color || `var(--color-${cat.name})`} 
+                    strokeWidth={1.5} 
+                  />
                 ))}
-              </defs>
-              <CartesianGrid vertical={false} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-              <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-              <Area type="monotone" dataKey="employees" stackId="1" fill="url(#fill-employees)" stroke="var(--color-employees)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="subcontractors" stackId="1" fill="url(#fill-subcontractors)" stroke="var(--color-subcontractors)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="dmx" stackId="1" fill="url(#fill-dmx)" stroke="var(--color-dmx)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="vicLogistics" stackId="1" fill="url(#fill-vicLogistics)" stroke="var(--color-vicLogistics)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="mandm" stackId="1" fill="url(#fill-mandm)" stroke="var(--color-mandm)" strokeWidth={1.5} />
-              <ChartLegend content={<ChartLegendContent />} />
-            </AreaChart>
-          </ChartContainer>
+                <ChartLegend content={<ChartLegendContent />} />
+              </AreaChart>
+            </ChartContainer>
+          )}
         </CardContent>
       </Card>
 

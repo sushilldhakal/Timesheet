@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ServerDataTable } from "@/components/ui/data-table"
+import { DataTable } from "@/components/ui/data-table/data-table"
 import { ExternalLink } from "lucide-react"
 
 export type FlagIssueType = "no_image" | "no_location" | "no_image_no_location"
@@ -131,6 +131,10 @@ export default function FlagPage() {
     params.set("limit", String(pageSize))
     params.set("offset", String(offset))
     if (filter) params.set("filter", filter)
+    if (sortBy) {
+      params.set("sortBy", sortBy)
+      params.set("order", sortOrder)
+    }
     try {
       const res = await fetch(`/api/flags?${params.toString()}`)
       if (!res.ok) {
@@ -193,7 +197,8 @@ export default function FlagPage() {
           {error && (
             <p className="text-destructive px-4 py-2 text-sm">{error}</p>
           )}
-          <ServerDataTable<FlagRow, unknown>
+          <DataTable
+            mode="server"
             columns={columns}
             data={items}
             totalCount={totalCount}

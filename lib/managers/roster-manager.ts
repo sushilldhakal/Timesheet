@@ -88,13 +88,16 @@ export class RosterManager {
 
   /**
    * Auto-populate roster shifts from active employee schedules
+   * Implements three-tier hierarchy: Employee_Schedule → Role_Template → Award_Standard
    * @param weekId - ISO week identifier (YYYY-Www)
-   * @param includeEmploymentTypes - Optional filter for employment types (e.g., ["full_time", "part_time"])
+   * @param includeEmploymentTypes - Optional filter for employment types (e.g., ["Full-time", "Part-time"])
+   * @param locationIds - Optional filter for specific locations
    * @returns Success status or error
    */
   async populateRosterFromSchedules(
     weekId: string,
-    includeEmploymentTypes?: string[]
+    includeEmploymentTypes?: string[],
+    locationIds?: string[]
   ): Promise<{ success: true; shiftsCreated: number } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
@@ -110,68 +113,416 @@ export class RosterManager {
       // Calculate week boundaries
       const { start: weekStartDate, end: weekEndDate } = getWeekBoundaries(weekId)
 
-      // Build query for employees with schedules
-      const query: any = {
-        schedules: { $exists: true, $ne: [] },
-      }
+      // Build query for employees - don't require schedules, we'll use hierarchy
+      const query: any = {}
 
-      // Filter by employment type if specified
+      // Filter by employment type if specified (case-insensitive)
       if (includeEmploymentTypes && includeEmploymentTypes.length > 0) {
-        query.employmentType = { $in: includeEmploymentTypes }
+        // Create case-insensitive regex patterns for each employment type
+        const typePatterns = includeEmploymentTypes.map(type => 
+          new RegExp(`^${type}$`, 'i')
+        )
+        query.employmentType = { $in: typePatterns }
       }
 
-      // Query employees
+      // Filter by location if specified
+      if (locationIds && locationIds.length > 0) {
+        // Import EmployeeRoleAssignment to filter by location
+        const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+        const mongoose = await import("mongoose")
+        
+        // Find employees who have role assignments at the specified locations
+        const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id))
+        const roleAssignments = await EmployeeRoleAssignment.find({
+          locationId: { $in: locationObjectIds },
+          isActive: true,
+        }).distinct('employeeId')
+        
+        // Add to query
+        query._id = { $in: roleAssignments }
+        
+        console.log(`[RosterManager] Filtering by ${locationIds.length} location(s), found ${roleAssignments.length} employees`)
+      }
+
+      // Query ALL employees (not just those with schedules)
       const employees = await Employee.find(query)
+
+      console.log(`[RosterManager] Query:`, JSON.stringify(query))
+      console.log(`[RosterManager] Found ${employees.length} employees matching query`)
+
+      // Import Category model and EmployeeRoleAssignment to fetch role assignments
+      const { Category } = await import("@/lib/db")
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const { WorkingHoursHierarchy } = await import("@/lib/managers/working-hours-hierarchy")
+      const workingHoursHierarchy = new WorkingHoursHierarchy()
 
       const generatedShifts: IShift[] = []
       const filteredEmployees: Array<{ employeeName: string; reason: string }> = []
+      const skippedEmployees: Array<{ employeeName: string; reason: string }> = []
 
       // Process each employee
       for (const employee of employees) {
-        if (!employee.schedules || employee.schedules.length === 0) {
+        console.log(`[RosterManager] Processing employee ${employee.name}`)
+
+        // Try to resolve working hours using three-tier hierarchy
+        const workingHoursConfig = await workingHoursHierarchy.resolveWorkingHours(employee._id)
+        
+        if (!workingHoursConfig) {
+          skippedEmployees.push({
+            employeeName: employee.name,
+            reason: "No working hours configuration found (no employee schedule, role template, or award standard)",
+          })
+          console.log(`[RosterManager] Skipped ${employee.name}: No working hours configuration`)
           continue
         }
 
-        // Filter schedules that are active during this week
-        const activeSchedules = employee.schedules.filter((schedule) => {
-          const effectiveFrom = new Date(schedule.effectiveFrom)
-          const effectiveTo = schedule.effectiveTo ? new Date(schedule.effectiveTo) : null
+        console.log(`[RosterManager] ${employee.name} working hours from ${workingHoursConfig.source}: ${workingHoursConfig.standardHoursPerWeek}h/week`)
 
-          // Check if the week overlaps with the schedule's effective date range
-          const isAfterStart = weekEndDate >= effectiveFrom
-          const isBeforeEnd = effectiveTo === null || weekStartDate <= effectiveTo
-
-          return isAfterStart && isBeforeEnd
-        })
-
-        if (activeSchedules.length === 0) {
-          continue
+        // If employee has schedules, use them
+        if (employee.schedules && employee.schedules.length > 0) {
+          await this.processEmployeeSchedules(
+            employee,
+            weekStartDate,
+            weekEndDate,
+            weekId,
+            generatedShifts,
+            filteredEmployees,
+            Category
+          )
+        } else {
+          // No employee schedules - generate from role assignments using Award ∩ Role ∩ Location
+          console.log(`[RosterManager] ${employee.name} has no schedules - generating from role assignments`)
+          await this.generateShiftsFromRoleAssignments(
+            employee,
+            workingHoursConfig.standardHoursPerWeek,
+            weekStartDate,
+            weekEndDate,
+            weekId,
+            generatedShifts,
+            skippedEmployees,
+            EmployeeRoleAssignment,
+            Category,
+            locationIds
+          )
         }
+      }
 
-        // Group schedules by day to handle overlaps
-        const schedulesByDay = new Map<number, ISchedule>()
+      // Log summary
+      if (skippedEmployees.length > 0) {
+        console.log(`[RosterManager] Skipped ${skippedEmployees.length} employee(s):`)
+        skippedEmployees.forEach(e => console.log(`  - ${e.employeeName}: ${e.reason}`))
+      }
 
-        for (const schedule of activeSchedules) {
-          for (const day of schedule.dayOfWeek) {
-            const existing = schedulesByDay.get(day)
-            if (!existing) {
-              schedulesByDay.set(day, schedule)
-            } else {
-              // Apply schedule with most recent effectiveFrom
-              const existingFrom = new Date(existing.effectiveFrom)
-              const currentFrom = new Date(schedule.effectiveFrom)
-              if (currentFrom > existingFrom) {
-                schedulesByDay.set(day, schedule)
-              }
-            }
+      if (filteredEmployees.length > 0) {
+        console.log(`[RosterManager] Filtered ${filteredEmployees.length} employee shift(s):`)
+        filteredEmployees.forEach(e => console.log(`  - ${e.employeeName}: ${e.reason}`))
+      }
+
+      // Add generated shifts to roster
+      roster.shifts.push(...generatedShifts)
+      await roster.save()
+
+      // Provide helpful message if no shifts were created
+      if (generatedShifts.length === 0) {
+        console.log(`[RosterManager] No shifts created. Summary:`)
+        console.log(`  - Total employees: ${employees.length}`)
+        console.log(`  - Skipped (no config): ${skippedEmployees.length}`)
+        console.log(`  - Filtered (validation): ${filteredEmployees.length}`)
+      }
+
+      return {
+        success: true,
+        shiftsCreated: generatedShifts.length,
+      }
+    } catch (error) {
+      console.error("[RosterManager] Error in populateRosterFromSchedules:", error)
+      return {
+        success: false,
+        error: "POPULATE_FAILED",
+        message: error instanceof Error ? error.message : "Failed to populate roster from schedules",
+      }
+    }
+  }
+
+  /**
+   * Helper method to process employee schedules and generate shifts
+   */
+  private async processEmployeeSchedules(
+    employee: any,
+    weekStartDate: Date,
+    weekEndDate: Date,
+    weekId: string,
+    generatedShifts: IShift[],
+    filteredEmployees: Array<{ employeeName: string; reason: string }>,
+    Category: any
+  ): Promise<void> {
+    // Filter schedules that are active during this week
+    const activeSchedules = employee.schedules.filter((schedule: ISchedule) => {
+      const effectiveFrom = new Date(schedule.effectiveFrom)
+      const effectiveTo = schedule.effectiveTo ? new Date(schedule.effectiveTo) : null
+
+      // Check if the week overlaps with the schedule's effective date range
+      const isAfterStart = weekEndDate >= effectiveFrom
+      const isBeforeEnd = effectiveTo === null || weekStartDate <= effectiveTo
+
+      return isAfterStart && isBeforeEnd
+    })
+
+    if (activeSchedules.length === 0) {
+      console.log(`[RosterManager] Employee ${employee.name} has no active schedules for week ${weekId}`)
+      return
+    }
+
+    console.log(`[RosterManager] Employee ${employee.name} has ${activeSchedules.length} active schedule(s)`)
+
+    // Group schedules by day to handle overlaps
+    const schedulesByDay = new Map<number, ISchedule>()
+
+    for (const schedule of activeSchedules) {
+      for (const day of schedule.dayOfWeek) {
+        const existing = schedulesByDay.get(day)
+        if (!existing) {
+          schedulesByDay.set(day, schedule)
+        } else {
+          // Apply schedule with most recent effectiveFrom
+          const existingFrom = new Date(existing.effectiveFrom)
+          const currentFrom = new Date(schedule.effectiveFrom)
+          if (currentFrom > existingFrom) {
+            schedulesByDay.set(day, schedule)
           }
         }
+      }
+    }
 
-        // Generate shifts for each day in the schedule
-        for (const [dayOfWeek, schedule] of schedulesByDay.entries()) {
+    // Generate shifts for each day in the schedule
+    for (const [dayOfWeek, schedule] of schedulesByDay.entries()) {
+      // Calculate the actual date for this day in the week
+      const shiftDate = addDays(weekStartDate, dayOfWeek === 0 ? 6 : dayOfWeek - 1)
+
+      // Ensure the shift date falls within the week boundaries
+      if (shiftDate < weekStartDate || shiftDate > weekEndDate) {
+        continue
+      }
+
+      // Validate role assignment before creating shift
+      const validationResult = await this.schedulingValidator.validateShift(
+        employee._id,
+        schedule.roleId,
+        schedule.locationId,
+        shiftDate
+      )
+
+      if (!validationResult.valid) {
+        filteredEmployees.push({
+          employeeName: employee.name,
+          reason: validationResult.message || validationResult.error || "Validation failed",
+        })
+        continue
+      }
+
+      // Fetch location details to check opening/closing hours
+      const location = await Category.findById(schedule.locationId)
+      
+      // Create shift times
+      const scheduleStartTime = new Date(schedule.startTime)
+      const scheduleEndTime = new Date(schedule.endTime)
+
+      let shiftStartTime = new Date(shiftDate)
+      shiftStartTime.setUTCHours(
+        scheduleStartTime.getUTCHours(),
+        scheduleStartTime.getUTCMinutes(),
+        0,
+        0
+      )
+
+      let shiftEndTime = new Date(shiftDate)
+      shiftEndTime.setUTCHours(scheduleEndTime.getUTCHours(), scheduleEndTime.getUTCMinutes(), 0, 0)
+
+      // If end time is before or equal to start time, shift spans midnight
+      if (shiftEndTime <= shiftStartTime) {
+        shiftEndTime.setDate(shiftEndTime.getDate() + 1)
+      }
+
+      // Check if shift fits within location operating hours
+      if (location && location.openingHour !== undefined && location.closingHour !== undefined) {
+        const shiftStartHour = shiftStartTime.getUTCHours() + shiftStartTime.getUTCMinutes() / 60
+        const shiftEndHour = shiftEndTime.getUTCHours() + shiftEndTime.getUTCMinutes() / 60
+        const spansMultipleDays = shiftEndTime.getDate() !== shiftStartTime.getDate()
+        
+        if (!spansMultipleDays) {
+          if (shiftStartHour < location.openingHour || shiftEndHour > location.closingHour) {
+            filteredEmployees.push({
+              employeeName: employee.name,
+              reason: `Shift (${shiftStartHour.toFixed(1)}-${shiftEndHour.toFixed(1)}) outside location hours (${location.openingHour}-${location.closingHour})`,
+            })
+            continue
+          }
+        }
+      }
+
+      // Calculate estimated cost
+      const estimatedCost = await this.calculateShiftCost(
+        {
+          employeeId: employee._id,
+          date: shiftDate,
+          startTime: shiftStartTime,
+          endTime: shiftEndTime,
+          locationId: schedule.locationId,
+          roleId: schedule.roleId,
+        },
+        employee
+      )
+
+      // Create the shift
+      const shift: IShift = {
+        _id: new mongoose.Types.ObjectId(),
+        employeeId: employee._id,
+        date: shiftDate,
+        startTime: shiftStartTime,
+        endTime: shiftEndTime,
+        locationId: schedule.locationId,
+        roleId: schedule.roleId,
+        sourceScheduleId: schedule._id,
+        estimatedCost,
+        notes: "",
+      }
+
+      generatedShifts.push(shift)
+    }
+  }
+
+  /**
+   * Generate shifts from role assignments using Award ∩ Role ∩ Location intersection
+   * This implements the core scheduling logic when employees don't have explicit schedules
+   */
+  private async generateShiftsFromRoleAssignments(
+    employee: any,
+    standardHoursPerWeek: number,
+    weekStartDate: Date,
+    weekEndDate: Date,
+    weekId: string,
+    generatedShifts: IShift[],
+    skippedEmployees: Array<{ employeeName: string; reason: string }>,
+    EmployeeRoleAssignment: any,
+    Category: any,
+    locationIds?: string[]
+  ): Promise<void> {
+    try {
+      // Build query for role assignments
+      const assignmentQuery: any = {
+        employeeId: employee._id,
+        isActive: true,
+      }
+      
+      // Filter by location if specified
+      if (locationIds && locationIds.length > 0) {
+        const mongoose = await import("mongoose")
+        assignmentQuery.locationId = { 
+          $in: locationIds.map(id => new mongoose.Types.ObjectId(id)) 
+        }
+      }
+      
+      // Get active role assignments for this employee
+      const roleAssignments = await EmployeeRoleAssignment.find(assignmentQuery)
+        .populate('roleId')
+        .populate('locationId')
+
+      if (!roleAssignments || roleAssignments.length === 0) {
+        skippedEmployees.push({
+          employeeName: employee.name,
+          reason: "No active role assignments found",
+        })
+        return
+      }
+
+      console.log(`[RosterManager] ${employee.name} has ${roleAssignments.length} active role assignment(s)`)
+
+      // Get award details for employment type
+      let award = null
+      if (employee.awardId) {
+        award = await Award.findById(employee.awardId)
+      }
+
+      const employmentType = employee.employmentType || "FULL_TIME"
+      const isFullTime = employmentType.toUpperCase().includes("FULL")
+      const isPartTime = employmentType.toUpperCase().includes("PART")
+
+      console.log(`[RosterManager] ${employee.name} is ${employmentType}, target: ${standardHoursPerWeek}h/week`)
+
+      // Process each role assignment
+      for (const assignment of roleAssignments) {
+        const role = assignment.roleId
+        const location = assignment.locationId
+
+        if (!role || !location) {
+          console.log(`[RosterManager] Skipping assignment - missing role or location`)
+          continue
+        }
+
+        // Get role template (shift pattern)
+        const roleTemplate = role.defaultScheduleTemplate
+        if (!roleTemplate || !roleTemplate.shiftPattern) {
+          console.log(`[RosterManager] Role ${role.name} has no shift pattern defined`)
+          continue
+        }
+
+        const shiftPattern = roleTemplate.shiftPattern
+        const roleDays = shiftPattern.dayOfWeek || []
+        const roleStartHour = shiftPattern.startHour !== undefined ? shiftPattern.startHour : 9
+        const roleEndHour = shiftPattern.endHour !== undefined ? shiftPattern.endHour : 17
+
+        // Get location operating hours
+        const locationStartHour = location.openingHour !== undefined ? location.openingHour : 0
+        const locationEndHour = location.closingHour !== undefined ? location.closingHour : 24
+        const locationWorkingDays = location.workingDays || [1, 2, 3, 4, 5] // Default Mon-Fri
+
+        console.log(`[RosterManager] Role ${role.name}: days=${roleDays}, hours=${roleStartHour}-${roleEndHour}`)
+        console.log(`[RosterManager] Location ${location.name}: days=${locationWorkingDays}, hours=${locationStartHour}-${locationEndHour}`)
+
+        // Calculate intersection of role days and location days
+        const workableDays = roleDays.filter((day: number) => locationWorkingDays.includes(day))
+        
+        if (workableDays.length === 0) {
+          console.log(`[RosterManager] No overlapping days between role and location`)
+          continue
+        }
+
+        // Calculate shift time window (intersection of role and location hours)
+        const shiftStartHour = Math.max(roleStartHour, locationStartHour)
+        const shiftEndHour = Math.min(roleEndHour, locationEndHour)
+
+        if (shiftStartHour >= shiftEndHour) {
+          console.log(`[RosterManager] No overlapping hours: role(${roleStartHour}-${roleEndHour}) ∩ location(${locationStartHour}-${locationEndHour})`)
+          continue
+        }
+
+        const hoursPerShift = shiftEndHour - shiftStartHour
+        console.log(`[RosterManager] Shift window: ${shiftStartHour}:00 - ${shiftEndHour}:00 (${hoursPerShift}h per shift)`)
+
+        // Calculate how many shifts needed to meet weekly hours
+        let shiftsNeeded: number
+        let daysToSchedule: number[]
+
+        if (isFullTime) {
+          // Full-time: spread hours evenly across all workable days
+          shiftsNeeded = Math.min(workableDays.length, Math.ceil(standardHoursPerWeek / hoursPerShift))
+          daysToSchedule = workableDays.slice(0, shiftsNeeded)
+        } else if (isPartTime) {
+          // Part-time: fewer days, respect min/max hours
+          shiftsNeeded = Math.min(workableDays.length, Math.ceil(standardHoursPerWeek / hoursPerShift))
+          daysToSchedule = workableDays.slice(0, shiftsNeeded)
+        } else {
+          // Casual: use all available days but shorter shifts
+          daysToSchedule = workableDays
+        }
+
+        console.log(`[RosterManager] Scheduling ${daysToSchedule.length} shift(s) on days: ${daysToSchedule}`)
+
+        // Generate shifts for each scheduled day
+        for (const dayOfWeek of daysToSchedule) {
           // Calculate the actual date for this day in the week
           // dayOfWeek: 0=Sunday, 1=Monday, ..., 6=Saturday
-          // ISO week starts on Monday (day 1)
+          // weekStartDate is Monday, so we need to adjust
           const shiftDate = addDays(weekStartDate, dayOfWeek === 0 ? 6 : dayOfWeek - 1)
 
           // Ensure the shift date falls within the week boundaries
@@ -182,52 +533,32 @@ export class RosterManager {
           // Validate role assignment before creating shift
           const validationResult = await this.schedulingValidator.validateShift(
             employee._id,
-            schedule.roleId,
-            schedule.locationId,
+            role._id,
+            location._id,
             shiftDate
           )
 
           if (!validationResult.valid) {
-            // Log filtered employee for debugging
-            filteredEmployees.push({
-              employeeName: employee.name,
-              reason: validationResult.message || validationResult.error || "Validation failed",
-            })
-            console.log(
-              `[RosterManager] Filtered employee ${employee.name} for shift on ${shiftDate.toISOString()}: ${validationResult.message || validationResult.error}`
-            )
+            console.log(`[RosterManager] Validation failed for ${employee.name}: ${validationResult.message}`)
             continue
           }
 
-          // Create shift times by combining the shift date with schedule times
-          const scheduleStartTime = new Date(schedule.startTime)
-          const scheduleEndTime = new Date(schedule.endTime)
-
+          // Create shift times (use local time, not UTC)
           const shiftStartTime = new Date(shiftDate)
-          shiftStartTime.setUTCHours(
-            scheduleStartTime.getUTCHours(),
-            scheduleStartTime.getUTCMinutes(),
-            0,
-            0
-          )
+          shiftStartTime.setHours(Math.floor(shiftStartHour), (shiftStartHour % 1) * 60, 0, 0)
 
           const shiftEndTime = new Date(shiftDate)
-          shiftEndTime.setUTCHours(scheduleEndTime.getUTCHours(), scheduleEndTime.getUTCMinutes(), 0, 0)
+          shiftEndTime.setHours(Math.floor(shiftEndHour), (shiftEndHour % 1) * 60, 0, 0)
 
-          // If end time is before or equal to start time, shift spans midnight - add 1 day to end time
-          if (shiftEndTime <= shiftStartTime) {
-            shiftEndTime.setDate(shiftEndTime.getDate() + 1)
-          }
-
-          // Calculate estimated cost for the shift
+          // Calculate estimated cost
           const estimatedCost = await this.calculateShiftCost(
             {
               employeeId: employee._id,
               date: shiftDate,
               startTime: shiftStartTime,
               endTime: shiftEndTime,
-              locationId: schedule.locationId,
-              roleId: schedule.roleId,
+              locationId: location._id,
+              roleId: role._id,
             },
             employee
           )
@@ -239,38 +570,23 @@ export class RosterManager {
             date: shiftDate,
             startTime: shiftStartTime,
             endTime: shiftEndTime,
-            locationId: schedule.locationId,
-            roleId: schedule.roleId,
-            sourceScheduleId: schedule._id,
+            locationId: location._id,
+            roleId: role._id,
+            sourceScheduleId: null, // Auto-generated, not from a schedule
             estimatedCost,
-            notes: "",
+            notes: `Auto-generated from ${employmentType} award (${standardHoursPerWeek}h/week)`,
           }
 
           generatedShifts.push(shift)
+          console.log(`[RosterManager] Created shift for ${employee.name} on ${shiftDate.toISOString().split('T')[0]} ${shiftStartHour}:00-${shiftEndHour}:00`)
         }
       }
-
-      // Log summary of filtered employees
-      if (filteredEmployees.length > 0) {
-        console.log(
-          `[RosterManager] Filtered ${filteredEmployees.length} employee shift(s) due to role assignment validation`
-        )
-      }
-
-      // Add generated shifts to roster
-      roster.shifts.push(...generatedShifts)
-      await roster.save()
-
-      return {
-        success: true,
-        shiftsCreated: generatedShifts.length,
-      }
     } catch (error) {
-      return {
-        success: false,
-        error: "POPULATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to populate roster from schedules",
-      }
+      console.error(`[RosterManager] Error generating shifts for ${employee.name}:`, error)
+      skippedEmployees.push({
+        employeeName: employee.name,
+        reason: `Error generating shifts: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      })
     }
   }
 

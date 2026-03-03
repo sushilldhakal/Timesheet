@@ -58,6 +58,33 @@ function formatTimeDisplay(t?: string): string {
   return format(d, "h:mm a", { locale: enUS })
 }
 
+function calculateBreakDuration(breakIn?: string, breakOut?: string): string {
+  if (!breakIn || !breakOut) return "—"
+  
+  try {
+    const breakInDate = new Date(breakIn)
+    const breakOutDate = new Date(breakOut)
+    
+    if (isNaN(breakInDate.getTime()) || isNaN(breakOutDate.getTime())) return "—"
+    
+    const diffMs = breakOutDate.getTime() - breakInDate.getTime()
+    if (diffMs <= 0) return "—"
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60))
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+    
+    if (hours > 0 && minutes > 0) {
+      return `${hours}h ${minutes}m`
+    } else if (hours > 0) {
+      return `${hours}h`
+    } else {
+      return `${minutes}m`
+    }
+  } catch {
+    return "—"
+  }
+}
+
 const HOME_BG = "min-h-dvh bg-dark"
 
 // ─── Face status indicator ────────────────────────────────────────────────────
@@ -132,6 +159,30 @@ export default function ClockPage() {
       captureHeight: 480,
     }
   )
+
+  // ── iOS Safari / PWA video playback quirks ──────────────────────────────────
+  const applyMobileVideoFixes = useCallback(() => {
+    const video = webcamRef.current?.video as HTMLVideoElement | undefined
+    if (!video) return false
+    video.setAttribute("playsinline", "true")
+    video.setAttribute("webkit-playsinline", "true")
+    video.setAttribute("autoplay", "true")
+    video.setAttribute("muted", "true")
+    video.playsInline = true
+    video.autoplay = true
+    video.muted = true
+    return true
+  }, [])
+
+  useEffect(() => {
+    let rafId = 0
+    const ensureVideoAttrs = () => {
+      if (applyMobileVideoFixes()) return
+      rafId = window.requestAnimationFrame(ensureVideoAttrs)
+    }
+    ensureVideoAttrs()
+    return () => window.cancelAnimationFrame(rafId)
+  }, [applyMobileVideoFixes, webcamRef])
 
   // ── Face detection is advisory — buttons are ALWAYS enabled ─────────────
   // Face detection only captures the photo — it never blocks punching.
@@ -308,13 +359,15 @@ export default function ClockPage() {
 
     return () => clearInterval(countdownInterval)
   }, [employee, handleLogout])
-
+  console.log("no thing clicked ")
+console.log("clockLoading",clockLoading)
   // ── Clock action ───────────────────────────────────────────────────────────
   const handleClockAction = async (type: "in" | "break" | "endBreak" | "out") => {
     setClockLoading(true)
     setClockSuccess(false)
     setMessage(null)
-    
+  console.log("punch in done")
+    console.log("clockLoading",clockLoading)
 
     const now = new Date()
     const localDate = format(now, "dd-MM-yyyy", { locale: enUS })
@@ -497,14 +550,18 @@ export default function ClockPage() {
 
         {/* ── Left — Video Feed ──────────────────────────────────────────────── */}
         <div className="lg:w-[40%] flex-shrink-0">
-          <Card className="overflow-hidden relative group py-0 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto">
+          <Card className="overflow-hidden relative group py-0 lg:w-[485px] xs:w-[420px] h-[500px] mx-auto bg-dark">
 
             {/* Webcam */}
             <Webcam
               ref={webcamRef}
               audio={false}
+              autoPlay
+              muted
+              playsInline
               screenshotFormat="image/jpeg"
               screenshotQuality={0.85}
+              onUserMedia={applyMobileVideoFixes}
               videoConstraints={{
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
@@ -555,49 +612,71 @@ export default function ClockPage() {
                   } else if (hasClockIn) {
                     statusText = "Clocked In"
                     statusColor = "bg-success/90"
+                  } else {
+                    // No punches at all - show clocked out
+                    statusText = "Clocked Out"
+                    statusColor = "bg-gray-500/90"
                   }
                   
-                  return statusText ? (
+                  return (
                     <div className={cn(
                       "px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-lg [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]",
                       statusColor
                     )}>
                       {statusText}
                     </div>
-                  ) : null
+                  )
                 })()}
               </div>
-              <Button
-                onClick={handleLogout}
-                variant="outline"
-                size="sm"
-                className="w-fit bg-black/20 border-white/30 text-white hover:bg-black/40 hover:text-white pointer-events-auto"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
+              
+              {/* Time display overlay - replaces logout button */}
+              <div className="grid grid-cols-3 gap-10 pointer-events-none">
+  {/* Clock In */}
+  {hasClockIn && 
+  <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+    <p className="text-sm font-medium text-white/60 mb-0.5">IN</p>
+    <p className="text-sm font-bold text-white tabular-nums">
+      {formatTimeDisplay(mergedPunches.clockIn)}
+    </p>
+  </div>
+}
+
+  {/* Clock Out */}
+  {hasClockOut && 
+  <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+    <p className="text-sm font-medium text-white/60 mb-0.5">OUT</p>
+    <p className="text-sm font-bold text-white tabular-nums">
+      {formatTimeDisplay(mergedPunches.clockOut)}
+    </p>
+  </div>
+}
+
+  {/* Break Duration */}
+  {hasBreakOut && 
+  <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+    <p className="text-sm font-medium text-white/60 mb-0.5">BREAK</p>
+    <p className="text-sm font-bold text-white tabular-nums">
+      {hasBreakOut && mergedPunches.breakIn && mergedPunches.breakOut 
+        ? calculateBreakDuration(mergedPunches.breakIn, mergedPunches.breakOut)
+        : hasBreakIn
+          ? formatTimeDisplay(mergedPunches.breakIn)
+          : "—"
+      }
+    </p>
+  </div>
+}
+
+
+
+</div>
             </div>
           </Card>
-
-          {/* Punch times */}
-          <div className="grid grid-cols-4 gap-2 mt-3 mx-auto lg:w-[485px] md:w-[420px] xs:w-[420px]">
-            {[
-              { label: "Clock In",  time: mergedPunches.clockIn,  cls: "bg-success/25 border-success text-success" },
-              { label: "Break In",  time: mergedPunches.breakIn,  cls: "bg-warning/20 border-warning text-warning" },
-              { label: "Break Out", time: mergedPunches.breakOut, cls: "bg-warning/20 border-warning text-warning" },
-              { label: "Clock Out", time: mergedPunches.clockOut, cls: "bg-danger/20  border-danger  text-danger"  },
-            ].map(({ label, time, cls }) => (
-              <div key={label} className={cn("rounded-lg p-2 border text-center", cls)}>
-                <p className="text-xs font-medium opacity-90">{label}</p>
-                <p className="text-sm font-bold tabular-nums">{formatTimeDisplay(time)}</p>
-              </div>
-            ))}
-          </div>
+         
         </div>
 
         {/* ── Right — Controls ───────────────────────────────────────────────── */}
         <div className="lg:w-[60%] flex flex-col">
-          <Card className="lg:p-8 md:p-12 xs:p-0 bg-transparent border-none ring-0">
+          <Card className="lg:p-8 md:p-12 xs:p-5 bg-transparent border-none ring-0 !mt-24 sm:!mt-0">
             <div className="flex-1 w-full">
               <Tabs
                 value={activeTab}
@@ -606,7 +685,7 @@ export default function ClockPage() {
               >
                 <TabsList
                   variant="line"
-                  className="clock-tab-list flex w-full gap-1 mb-2"
+                  className="clock-tab-list flex w-full gap-1 mb-2 relative"
                   indicatorClassName="!bg-brand rounded-[24px] z-1"
                 >
                   <TabsTrigger value="start" disabled={isClockInTabDisabled} className="text-brand data-[state=active]:text-white data-[state=active]:!z-2 !bg-dark data-[state=active]:!bg-transparent  rounded-[24px] cursor-pointer hover:text-brand text-2xl disabled:opacity-100">
@@ -618,6 +697,22 @@ export default function ClockPage() {
                   <TabsTrigger value="end" disabled={isClockOutDisabled} className="text-brand data-[state=active]:text-white data-[state=active]:!z-2 !bg-dark data-[state=active]:!bg-transparent  rounded-[24px] cursor-pointer hover:text-brand text-2xl disabled:opacity-100">
                     <span className="relative z-2">FINISH</span>
                   </TabsTrigger>
+                  
+                  {/* Animated pointer triangle */}
+                  <div 
+                    className={cn(
+                      "absolute bottom-[-25px] mt-1 w-0 h-0 transition-all duration-300 ease-in-out",
+                      "border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[10px]",
+                      activeTab === "start" && "left-[16.666%] border-b-success",
+                      (activeTab === "start" && isClockInTabDisabled) && "opacity-50",
+                      activeTab === "break" && "left-[50%] border-b-warning",
+                      (activeTab === "break" && isBreakTabDisabled) && "opacity-50",
+                      activeTab === "end" && "left-[83.333%] border-b-danger",
+                      (clockLoading || clockSuccess) && "opacity-0 invisible",
+                      (activeTab === "end" && isClockOutDisabled) && "opacity-50",
+                    )}
+                    style={{ transform: "translateX(-50%)" }}
+                  />
                 </TabsList>
 
                 {/* START tab */}
@@ -626,10 +721,10 @@ export default function ClockPage() {
                     onClick={() => handleClockAction("in")}
                     disabled={clockLoading || clockSuccess || isClockInTabDisabled}
                     className={cn(
-                      "clock-in-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                      "clock-in-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
                       clockLoading || clockSuccess 
-                        ? "w-16 h-16 mx-auto before:hidden" 
-                        : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-[6rem] before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-success"
+                        ? "w-16 h-16 mx-auto" 
+                        : "w-full h-16 text-2xl"
                     )}
                   >
                     {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
@@ -645,10 +740,10 @@ export default function ClockPage() {
                       onClick={() => handleClockAction("endBreak")}
                       disabled={clockLoading || clockSuccess}
                       className={cn(
-                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
                         clockLoading || clockSuccess 
-                          ? "w-16 h-16 mx-auto before:hidden" 
-                          : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-1/2 before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-warning"
+                          ? "w-16 h-16 mx-auto" 
+                          : "w-full h-16 text-2xl"
                       )}
                     >
                       {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
@@ -660,10 +755,10 @@ export default function ClockPage() {
                       onClick={() => handleClockAction("break")}
                       disabled={clockLoading || clockSuccess}
                       className={cn(
-                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                        "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
                         clockLoading || clockSuccess 
-                          ? "w-16 h-16 mx-auto before:hidden" 
-                          : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-1/2 before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-warning"
+                          ? "w-16 h-16 mx-auto" 
+                          : "w-full h-16 text-2xl"
                       )}
                     >
                       {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
@@ -679,10 +774,10 @@ export default function ClockPage() {
                     onClick={() => handleClockAction("out")}
                     disabled={clockLoading || clockSuccess || isClockOutDisabled}
                     className={cn(
-                      "clock-out-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300 relative",
+                      "clock-out-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
                       clockLoading || clockSuccess 
-                        ? "w-16 h-16 mx-auto before:hidden" 
-                        : "w-full h-16 text-2xl before:content-[''] before:absolute before:top-[-10px] before:left-[85%] before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-b-[10px] before:border-b-danger"
+                        ? "w-16 h-16 mx-auto" 
+                        : "w-full h-16 text-2xl"
                     )}
                   >
                     {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}

@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronRight 
 } from "lucide-react"
-import { format } from "date-fns"
 import { toast } from "sonner"
+import { formatDateLong } from "@/lib/utils/date-format"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,11 +163,7 @@ export default function EmployeeRoleAssignmentList({
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Present"
-    try {
-      return format(new Date(dateStr), "MMM d, yyyy")
-    } catch {
-      return dateStr
-    }
+    return formatDateLong(dateStr) || dateStr
   }
 
   if (loading) {

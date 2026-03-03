@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { format, parse, isValid, startOfWeek, endOfWeek } from "date-fns"
+import { format, parse, isValid, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
 import { connectDB, Employee, DailyShift, Timesheet } from "@/lib/db"
+import { formatDate as formatDateDisplay } from "@/lib/utils/date-format"
 
 function parseTimeToMinutes(t?: string): number {
   if (!t || typeof t !== "string" || !t.trim()) return 0
@@ -40,12 +41,17 @@ function formatTimeString(t?: Date | string): string {
   return String(t)
 }
 
-/** Build list of dd-MM-yyyy dates between start and end (inclusive). */
-function dateRangeToDDMM(start: Date, end: Date): string[] {
-  const out: string[] = []
+/** Build list of Date objects between start and end (inclusive) for querying. */
+function dateRangeToDateObjects(start: Date, end: Date): Date[] {
+  const out: Date[] = []
   const cur = new Date(start)
-  while (cur <= end) {
-    out.push(format(cur, "dd-MM-yyyy"))
+  cur.setHours(0, 0, 0, 0) // Start of day
+  
+  const endDate = new Date(end)
+  endDate.setHours(0, 0, 0, 0) // Start of day
+  
+  while (cur <= endDate) {
+    out.push(new Date(cur))
     cur.setDate(cur.getDate() + 1)
   }
   return out
@@ -127,7 +133,7 @@ export async function GET(request: NextRequest) {
     end = endOfWeek(now, { weekStartsOn: 1 })
   }
 
-  const dateStrings = dateRangeToDDMM(start, end)
+  const dateStrings = dateRangeToDateObjects(start, end)
   if (dateStrings.length > 366) {
     return NextResponse.json(
       { error: "Date range too large (max 366 days)" },
@@ -147,10 +153,10 @@ export async function GET(request: NextRequest) {
     if (employeeIds.length > 0) {
       const emps = await Employee.find({ _id: { $in: employeeIds } }).lean()
       for (const emp of emps) {
-        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; hire?: string; role?: string[]; location?: string[]; site?: string; comment?: string }
+        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; role?: string[]; location?: string[]; comment?: string }
         const locFilter = employeeLocationFilter(ctx.userLocations)
         if (Object.keys(locFilter).length > 0) {
-          const empLocs = Array.isArray(e.location) ? e.location : e.site ? [e.site] : []
+          const empLocs = Array.isArray(e.location) ? e.location : []
           const userLocs = ctx.userLocations ?? []
           const inLocation = empLocs.some((loc) => userLocs.includes(String(loc).trim()))
           if (!inLocation) continue
@@ -159,9 +165,9 @@ export async function GET(request: NextRequest) {
         employeeMap.set(e.pin, {
           id: String(e._id),
           name: e.name ?? "",
-          employer: Array.isArray(e.employer) ? e.employer.join(", ") : e.hire ?? "",
+          employer: Array.isArray(e.employer) ? e.employer.join(", ") : "",
           role: Array.isArray(e.role) ? e.role.join(", ") : "",
-          location: Array.isArray(e.location) ? e.location.join(", ") : e.site ?? "",
+          location: Array.isArray(e.location) ? e.location.join(", ") : "",
           comment: e.comment ?? "",
         })
       }
@@ -172,49 +178,54 @@ export async function GET(request: NextRequest) {
       if (Object.keys(locFilter).length > 0) andConditions.push(locFilter)
       if (employers.length > 0) {
         andConditions.push({
-          $or: [
-            { employer: { $in: employers } },
-            { hire: { $in: employers } },
-          ],
+          employer: { $in: employers }
         })
       }
       if (locations.length > 0) {
         andConditions.push({
-          $or: [
-            { location: { $in: locations } },
-            { site: { $in: locations } },
-          ],
+          location: { $in: locations }
         })
       }
       if (andConditions.length > 0) filter.$and = andConditions
       const employees = await Employee.find(filter).lean()
       pins = employees.map((e) => (e as { pin: string }).pin)
       for (const emp of employees) {
-        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; hire?: string; role?: string[]; location?: string[]; site?: string; comment?: string }
+        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; role?: string[]; location?: string[]; comment?: string }
         employeeMap.set(e.pin, {
           id: String(e._id),
           name: e.name ?? "",
-          employer: Array.isArray(e.employer) ? e.employer.join(", ") : e.hire ?? "",
+          employer: Array.isArray(e.employer) ? e.employer.join(", ") : "",
           role: Array.isArray(e.role) ? e.role.join(", ") : "",
-          location: Array.isArray(e.location) ? e.location.join(", ") : e.site ?? "",
+          location: Array.isArray(e.location) ? e.location.join(", ") : "",
           comment: e.comment ?? "",
         })
       }
     }
 
-    const query: { pin: { $in: string[] }; date: { $in: string[] } } = {
+    // Query using Date range with UTC normalization
+    // MongoDB stores dates in UTC, so we need to query with UTC dates
+    const startUTC = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0))
+    const endUTC = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999))
+    
+    const query: { pin: { $in: string[] }; date: { $gte: Date; $lte: Date } } = {
       pin: { $in: pins },
-      date: { $in: dateStrings },
+      date: { 
+        $gte: startUTC,
+        $lte: endUTC
+      },
     }
     const shifts = await DailyShift.find(query).lean()
 
     const rows: DashboardTimesheetRow[] = []
     for (const shift of shifts) {
       const pin = String(shift.pin ?? "")
-      const date = String(shift.date ?? "")
-      if (!pin || !date) continue
+      const shiftDate = shift.date
+      if (!pin || !shiftDate) continue
 
       const meta = employeeMap.get(pin)
+
+      // Format date for display using configured format
+      const date = formatDateDisplay(shiftDate)
 
       const clockIn = formatTimeString(shift.clockIn?.time)
       const breakIn = formatTimeString(shift.breakIn?.time)
@@ -254,8 +265,10 @@ export async function GET(request: NextRequest) {
 
     const parseDateForSort = (s: string) => {
       try {
-        const d1 = parse(s, "dd-MM-yyyy", new Date())
+        // Try parsing with configured format first
+        const d1 = parse(s, process.env.NEXT_PUBLIC_DATE_FORMAT || process.env.DATE_FORMAT || "dd-MM-yyyy", new Date())
         if (isValid(d1)) return d1.getTime()
+        // Fallback to ISO format
         const d2 = parse(s, "yyyy-MM-dd", new Date())
         return isValid(d2) ? d2.getTime() : 0
       } catch {

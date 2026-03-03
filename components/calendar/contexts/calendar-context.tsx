@@ -29,6 +29,7 @@ interface ICalendarContext {
   currentView: TCalendarView;
   setCurrentView: (view: TCalendarView) => void;
   selectedLocationId?: string;
+  selectedLocationIds?: string[];
   selectedLocationName?: string;
 }
 
@@ -53,6 +54,7 @@ export function CalendarProvider({
   initialView = "week",
   initialVisibleHours,
   selectedLocationId,
+  selectedLocationIds,
   selectedLocationName,
 }: { 
   children: React.ReactNode; 
@@ -61,6 +63,7 @@ export function CalendarProvider({
   initialView?: TCalendarView;
   initialVisibleHours?: TVisibleHours;
   selectedLocationId?: string;
+  selectedLocationIds?: string[];
   selectedLocationName?: string;
 }) {
   const [badgeVariant, setBadgeVariant] = useState<TBadgeVariant>("colored");
@@ -93,12 +96,12 @@ export function CalendarProvider({
   // Client-side filter events by selected users
   const filteredEvents = useMemo(() => {
     if (selectedUserIds.length === 0) {
-      return allEvents;
+      return localEvents;
     }
-    return allEvents.filter(event => 
+    return localEvents.filter(event => 
       event.user && selectedUserIds.includes(event.user.id)
     );
-  }, [allEvents, selectedUserIds]);
+  }, [localEvents, selectedUserIds]);
 
   // Memoize date range to prevent recalculation on every render
   const dateRange = useMemo(() => {
@@ -176,6 +179,7 @@ export function CalendarProvider({
         currentView,
         setCurrentView,
         selectedLocationId,
+        selectedLocationIds,
         selectedLocationName,
       }}
     >

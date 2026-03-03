@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
 
     // Transform roster shifts to calendar events
     const events: IEvent[] = [];
-    let eventId = 1;
 
     for (const roster of rosters) {
       for (const shift of roster.shifts) {
@@ -106,6 +105,9 @@ export async function GET(request: NextRequest) {
           const matchesLocation = locationIdParam === "all" || locationIdParam === locationId;
           
           if (matchesUser && matchesLocation) {
+            // Use shift._id as unique identifier to avoid duplicate keys
+            const shiftId = shift._id?.toString() || `${roster._id}-${events.length}`;
+            
             // Determine color based on role (you can customize this logic)
             const colors: Array<"blue" | "green" | "red" | "yellow" | "purple" | "orange"> = [
               "blue",
@@ -115,10 +117,10 @@ export async function GET(request: NextRequest) {
               "purple",
               "orange",
             ];
-            const colorIndex = eventId % colors.length;
+            const colorIndex = events.length % colors.length;
 
             const event: IEvent = {
-              id: eventId++,
+              id: shiftId,
               startDate: shiftStart.toISOString(),
               endDate: shiftEnd.toISOString(),
               title: `${roleName} - ${locationName}`,

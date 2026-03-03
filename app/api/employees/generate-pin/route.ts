@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthWithUserLocations } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 
 /** GET /api/employees/generate-pin - Returns a unique random 4-digit PIN for clock-in */
 export async function GET() {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
+  const ctx = await getAuthWithUserLocations()
+  if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

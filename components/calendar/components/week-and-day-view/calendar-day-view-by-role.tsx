@@ -26,7 +26,7 @@ interface IRole {
 }
 
 export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProps) {
-  const { selectedDate, workingHours, visibleHours, setLocalEvents } = useCalendar();
+  const { selectedDate, workingHours, visibleHours, setLocalEvents, selectedLocationIds } = useCalendar();
   const [roles, setRoles] = useState<IRole[]>([]);
   const [expandedRoles, setExpandedRoles] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -51,23 +51,63 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
   console.log('CalendarDayViewByRole - visibleHours from context:', visibleHours);
   console.log('CalendarDayViewByRole - hours array:', hours);
 
-  // Fetch roles from API
+  // Fetch roles from API based on selected locations
   useEffect(() => {
     async function fetchRoles() {
       try {
-        const response = await fetch('/api/categories?type=role');
-        if (response.ok) {
-          const data = await response.json();
+        setIsLoading(true);
+        
+        // If locations are selected, fetch roles for those locations
+        if (selectedLocationIds && selectedLocationIds.length > 0) {
+          // Fetch roles for each location and combine them
+          const allRolesMap = new Map<string, IRole>();
           
-          const rolesData = data.categories || [];
-          setRoles(rolesData);
+          for (const locationId of selectedLocationIds) {
+            const response = await fetch(`/api/locations/${locationId}/roles`);
+            if (response.ok) {
+              const data = await response.json();
+              const locationRoles = data.data?.roles || [];
+              
+              // Add roles to map (using roleId as key to avoid duplicates)
+              locationRoles.forEach((r: any) => {
+                if (!allRolesMap.has(r.roleId)) {
+                  allRolesMap.set(r.roleId, {
+                    _id: r.roleId,
+                    name: r.roleName,
+                    color: r.roleColor,
+                  });
+                }
+              });
+            }
+          }
+          
+          const uniqueRoles = Array.from(allRolesMap.values());
+          console.log('[CalendarDayViewByRole] Fetched roles from locations:', uniqueRoles);
+          setRoles(uniqueRoles);
           
           // Expand all roles by default
           const initialExpanded: Record<string, boolean> = {};
-          rolesData.forEach((r: IRole) => {
+          uniqueRoles.forEach((r: IRole) => {
             initialExpanded[r._id] = true;
           });
           setExpandedRoles(initialExpanded);
+        } else {
+          // No location selected - fetch all roles
+          const response = await fetch('/api/categories?type=role');
+          if (response.ok) {
+            const data = await response.json();
+            
+            const rolesData = data.categories || [];
+            console.log('[CalendarDayViewByRole] Fetched all roles (no location filter):', rolesData);
+            setRoles(rolesData);
+            
+            // Expand all roles by default
+            const initialExpanded: Record<string, boolean> = {};
+            rolesData.forEach((r: IRole) => {
+              initialExpanded[r._id] = true;
+            });
+            setExpandedRoles(initialExpanded);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch roles:', error);
@@ -77,7 +117,7 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
     }
 
     fetchRoles();
-  }, []);
+  }, [selectedLocationIds]);
 
   const toggleRole = (roleId: string) => {
     setExpandedRoles(prev => ({
@@ -88,22 +128,28 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
 
   // Group events by role and detect overlaps
   const getEventsForRoleWithLanes = (roleId: string) => {
+    console.log('[getEventsForRoleWithLanes] Looking for roleId:', roleId);
+    console.log('[getEventsForRoleWithLanes] All singleDayEvents:', singleDayEvents);
+    
     const events = singleDayEvents.filter(event => {
       const matchesDay = isSameDay(parseISO(event.startDate), selectedDate);
-      const matchesRole = (event as any).roleId === roleId;
+      const eventRoleId = (event as any).roleId;
+      const matchesRole = eventRoleId === roleId;
       
-      if (matchesDay) {
-        console.log('Event day match:', {
-          eventId: event.id,
-          eventRoleId: (event as any).roleId,
-          targetRoleId: roleId,
-          matchesRole,
-          event
-        });
-      }
+      console.log('[getEventsForRoleWithLanes] Event filter check:', {
+        eventId: event.id,
+        eventRoleId,
+        targetRoleId: roleId,
+        matchesDay,
+        matchesRole,
+        eventStartDate: event.startDate,
+        selectedDate: selectedDate.toISOString(),
+      });
       
       return matchesDay && matchesRole;
     });
+    
+    console.log('[getEventsForRoleWithLanes] Filtered events for role:', roleId, events);
 
     // Sort by start time
     const sortedEvents = [...events].sort((a, b) => 
@@ -183,10 +229,13 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
   const handleDragStart = (eventId: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
     
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
     setDraggingEvent({
       id: eventId,
       startX: e.clientX,
-      originalLeft: (e.currentTarget as HTMLElement).getBoundingClientRect().left,
+      originalLeft: rect.left,
     });
   };
 
@@ -196,20 +245,48 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
 
     const handleMouseMove = (e: MouseEvent) => {
       if (draggingEvent) {
+        // For smooth dragging, we'll use CSS transform instead of updating state
         const deltaX = e.clientX - draggingEvent.startX;
         
-        const hourWidth = 96;
-        const hoursChanged = Math.round(deltaX / hourWidth);
+        // Find the dragging element and apply transform
+        const element = document.querySelector(`[data-event-id="${draggingEvent.id}"]`) as HTMLElement;
+        if (element) {
+          element.style.transform = `translateX(${deltaX}px)`;
+        }
+      } else if (resizingEvent) {
+        // For smooth resizing, we'll use CSS width/left instead of updating state
+        const deltaX = e.clientX - resizingEvent.startX;
         
-        if (hoursChanged !== 0) {
+        const element = document.querySelector(`[data-event-id="${resizingEvent.id}"]`) as HTMLElement;
+        if (element) {
+          if (resizingEvent.edge === 'left') {
+            element.style.left = `${resizingEvent.originalLeft + deltaX}px`;
+            element.style.width = `${resizingEvent.originalWidth - deltaX}px`;
+          } else {
+            element.style.width = `${resizingEvent.originalWidth + deltaX}px`;
+          }
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (draggingEvent) {
+        // Snap to nearest 15-minute increment
+        const dragElement = document.querySelector(`[data-event-id="${draggingEvent.id}"]`) as HTMLElement;
+        const deltaX = dragElement ? parseInt(dragElement.style.transform?.match(/translateX\((.+)px\)/)?.[1] || '0') : 0;
+        
+        const hourWidth = 96;
+        const minutesChanged = Math.round((deltaX / hourWidth) * 60 / 15) * 15; // Snap to 15-min
+        
+        if (minutesChanged !== 0) {
           // Update event time
           setLocalEvents((prevEvents) => 
             prevEvents.map((ev) => {
               if (ev.id.toString() === draggingEvent.id) {
                 const newStart = new Date(parseISO(ev.startDate));
                 const newEnd = new Date(parseISO(ev.endDate));
-                newStart.setHours(newStart.getHours() + hoursChanged);
-                newEnd.setHours(newEnd.getHours() + hoursChanged);
+                newStart.setMinutes(newStart.getMinutes() + minutesChanged);
+                newEnd.setMinutes(newEnd.getMinutes() + minutesChanged);
                 
                 return {
                   ...ev,
@@ -220,61 +297,61 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
               return ev;
             })
           );
-          
-          // Reset drag state to new position
-          setDraggingEvent({
-            ...draggingEvent,
-            startX: e.clientX,
-          });
+        }
+        
+        // Reset transform
+        if (dragElement) {
+          dragElement.style.transform = '';
         }
       } else if (resizingEvent) {
-        const deltaX = e.clientX - resizingEvent.startX;
-        
-        const hourWidth = 96;
-        const hoursChanged = Math.round(deltaX / hourWidth);
-        
-        if (hoursChanged !== 0) {
-          setLocalEvents((prevEvents) => 
-            prevEvents.map((ev) => {
-              if (ev.id.toString() === resizingEvent.id) {
-                if (resizingEvent.edge === 'left') {
-                  const newStart = new Date(parseISO(ev.startDate));
-                  newStart.setHours(newStart.getHours() + hoursChanged);
-                  
-                  // Prevent start from going past end
-                  if (newStart < parseISO(ev.endDate)) {
-                    return {
-                      ...ev,
-                      startDate: newStart.toISOString(),
-                    };
-                  }
-                } else {
-                  const newEnd = new Date(parseISO(ev.endDate));
-                  newEnd.setHours(newEnd.getHours() + hoursChanged);
-                  
-                  // Prevent end from going before start
-                  if (newEnd > parseISO(ev.startDate)) {
-                    return {
-                      ...ev,
-                      endDate: newEnd.toISOString(),
-                    };
+        // Snap to nearest 15-minute increment
+        const resizeElement = document.querySelector(`[data-event-id="${resizingEvent.id}"]`) as HTMLElement;
+        if (resizeElement) {
+          const newWidth = parseInt(resizeElement.style.width || '0');
+          const deltaWidth = newWidth - resizingEvent.originalWidth;
+          
+          const hourWidth = 96;
+          const minutesChanged = Math.round((deltaWidth / hourWidth) * 60 / 15) * 15; // Snap to 15-min
+          
+          if (minutesChanged !== 0) {
+            setLocalEvents((prevEvents) => 
+              prevEvents.map((ev) => {
+                if (ev.id.toString() === resizingEvent.id) {
+                  if (resizingEvent.edge === 'left') {
+                    const newStart = new Date(parseISO(ev.startDate));
+                    newStart.setMinutes(newStart.getMinutes() + minutesChanged);
+                    
+                    // Prevent start from going past end
+                    if (newStart < parseISO(ev.endDate)) {
+                      return {
+                        ...ev,
+                        startDate: newStart.toISOString(),
+                      };
+                    }
+                  } else {
+                    const newEnd = new Date(parseISO(ev.endDate));
+                    newEnd.setMinutes(newEnd.getMinutes() + minutesChanged);
+                    
+                    // Prevent end from going before start
+                    if (newEnd > parseISO(ev.startDate)) {
+                      return {
+                        ...ev,
+                        endDate: newEnd.toISOString(),
+                      };
+                    }
                   }
                 }
-              }
-              return ev;
-            })
-          );
+                return ev;
+              })
+            );
+          }
           
-          // Reset resize state to new position
-          setResizingEvent({
-            ...resizingEvent,
-            startX: e.clientX,
-          });
+          // Reset styles
+          resizeElement.style.left = '';
+          resizeElement.style.width = '';
         }
       }
-    };
-
-    const handleMouseUp = () => {
+      
       setDraggingEvent(null);
       setResizingEvent(null);
     };
@@ -351,30 +428,30 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
         </div>
       )}
 
-      {/* Hours header - Fixed */}
-      <div className="relative z-20 flex border-b bg-background sticky top-0">
-        <div className="w-48 border-r flex items-center justify-center flex-shrink-0">
-          <AddEventDialog startDate={selectedDate} startTime={{ hour: 9, minute: 0 }}>
-            <Button variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              Add Shift
-            </Button>
-          </AddEventDialog>
-        </div>
-        <div className="flex flex-1 divide-x min-w-0">
-          {hours.map((hour, index) => (
-            <div key={hour} className="flex-shrink-0 px-2 py-2 text-center" style={{ width: "96px" }}>
-              <span className="text-xs font-medium text-muted-foreground">
-                {format(new Date().setHours(hour, 0, 0, 0), "h a")}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Scrollable content area - both vertical and horizontal */}
       <div className="flex-1 overflow-auto h-[600px]">
         <div className="flex flex-col min-w-max">
+          {/* Hours header - scrolls with content */}
+          <div className="relative z-20 flex border-b bg-background sticky top-0">
+            <div className="w-48 border-r flex items-center justify-center flex-shrink-0 sticky left-0 bg-background z-30">
+              <AddEventDialog startDate={selectedDate} startTime={{ hour: 9, minute: 0 }}>
+                <Button variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Shift
+                </Button>
+              </AddEventDialog>
+            </div>
+            <div className="flex flex-1 divide-x min-w-0">
+              {hours.map((hour, index) => (
+                <div key={hour} className="flex-shrink-0 px-2 py-2 text-center" style={{ width: "96px" }}>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {format(new Date().setHours(hour, 0, 0, 0), "h a")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {roles.length === 0 ? (
             <div className="flex items-center justify-center py-20 text-muted-foreground">
               <p>No roles found. Please add roles in the Categories section.</p>
@@ -452,6 +529,7 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
                           return (
                             <div
                               key={event.id}
+                              data-event-id={event.id}
                               className="absolute pointer-events-auto group"
                               style={{
                                 ...style,

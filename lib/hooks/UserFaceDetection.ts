@@ -76,12 +76,41 @@ export function useFaceDetection(
   // ── Single frame capture ───────────────────────────────────────────────────
   const captureOnce = useCallback((): Promise<Blob | null> =>
     new Promise((resolve) => {
-      const webcam = webcamRef.current
-      console.log("[FaceDetection] captureOnce — webcam:", !!webcam)
-      if (!webcam) return resolve(null)
-      const canvas = webcam.getCanvas({ width: captureWidth, height: captureHeight })
-      console.log("[FaceDetection] captureOnce — canvas:", !!canvas)
-      if (!canvas) return resolve(null)
+      const video = webcamRef.current?.video as HTMLVideoElement | undefined
+      console.log("[FaceDetection] captureOnce — video:", !!video)
+      if (!video || video.readyState < 2) return resolve(null)
+
+      const sourceWidth = video.videoWidth
+      const sourceHeight = video.videoHeight
+      if (!sourceWidth || !sourceHeight) return resolve(null)
+
+      const targetWidth = captureWidth || sourceWidth
+      const targetHeight = captureHeight || sourceHeight
+
+      const canvas = document.createElement("canvas")
+      canvas.width = targetWidth
+      canvas.height = targetHeight
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return resolve(null)
+
+      // Center-crop to target ratio so mobile captures don't look stretched.
+      const sourceRatio = sourceWidth / sourceHeight
+      const targetRatio = targetWidth / targetHeight
+      let sx = 0
+      let sy = 0
+      let sw = sourceWidth
+      let sh = sourceHeight
+
+      if (sourceRatio > targetRatio) {
+        sw = sourceHeight * targetRatio
+        sx = (sourceWidth - sw) / 2
+      } else if (sourceRatio < targetRatio) {
+        sh = sourceWidth / targetRatio
+        sy = (sourceHeight - sh) / 2
+      }
+
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight)
       canvas.toBlob((blob) => resolve(blob), "image/jpeg", captureQuality)
     }),
   [webcamRef, captureWidth, captureHeight, captureQuality])
@@ -127,7 +156,12 @@ export function useFaceDetection(
           filter: { enabled: false }
         })
 
+        // Load models with error handling
         await human.load({})
+        
+        // Warmup with a small delay for mobile devices
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         // Warmup models for faster first detection
         await human.warmup({})
         
@@ -135,6 +169,7 @@ export function useFaceDetection(
           humanRef.current = human
           setModelsLoaded(true)
           setStatus("no_face")
+          console.log("[FaceDetection] Models loaded successfully")
         }
       } catch (err) {
         console.error("[FaceDetection] Human library load failed:", err)
@@ -175,13 +210,28 @@ export function useFaceDetection(
       try {
         const result = await human.detect(video)
         
-        if (!result.face || result.face.length === 0) {
+        // Check if result is valid
+        if (!result || !result.face) {
+          stableFrames.current = 0
+          setStatus("no_face")
+          return
+        }
+        
+        if (result.face.length === 0) {
           stableFrames.current = 0
           setStatus("no_face")
           return
         }
 
         const face = result.face[0]
+        
+        // Validate face object
+        if (!face || !face.box) {
+          stableFrames.current = 0
+          setStatus("no_face")
+          return
+        }
+        
         const box = face.box
         const score = face.score || face.boxScore || 0
 
@@ -228,8 +278,19 @@ export function useFaceDetection(
           ctx.clearRect(0, 0, vw, vh)
         }
       } catch (err) {
-        // Ignore per-frame errors
-        console.error("[FaceDetection] Detection error:", err)
+        // Silently handle per-frame errors on mobile
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        
+        // Only log if it's not the common inputNodes error
+        if (!errorMessage.includes('inputNodes') && !errorMessage.includes('executor')) {
+          console.error("[FaceDetection] Detection error:", err)
+        }
+        
+        // Reset status on persistent errors
+        if (stableFrames.current > 0) {
+          stableFrames.current = 0
+          setStatus("no_face")
+        }
       }
     }
 

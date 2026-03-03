@@ -30,40 +30,58 @@ type Props = {
 
 export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: Props) {
   const [name, setName] = useState(employee.name)
-  const [role, setRole] = useState<string[]>(employee.role ?? [])
-  const [employer, setEmployer] = useState<string[]>(employee.employer ?? [])
-  const [location, setLocation] = useState<string[]>(employee.location ?? [])
+  // Extract role names from roles array
+  const [role, setRole] = useState<string[]>(
+    employee.roles?.map(r => r.role.name) ?? []
+  )
+  // Extract employer names from employers array
+  const [employer, setEmployer] = useState<string[]>(
+    employee.employers?.map(e => e.name) ?? []
+  )
+  // Extract location names from locations array
+  const [location, setLocation] = useState<string[]>(
+    employee.locations?.map(l => l.name) ?? []
+  )
   const [email, setEmail] = useState(employee.email ?? "")
   const [phone, setPhone] = useState(employee.phone ?? "")
   const [dob, setDob] = useState(employee.dob ?? "")
   const [comment, setComment] = useState(employee.comment ?? "")
   const [img, setImg] = useState(employee.img ?? "")
   const [standardHours, setStandardHours] = useState<number | null>(null)
+  const [employmentType, setEmploymentType] = useState<string>("")
+  const [awardId, setAwardId] = useState<string>("")
+  const [awardLevel, setAwardLevel] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
   const [employerOptions, setEmployerOptions] = useState<{ value: string; label: string }[]>([])
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([])
+  const [awardOptions, setAwardOptions] = useState<{ value: string; label: string; levels: string[] }[]>([])
+  const [availableLevels, setAvailableLevels] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open && employee) {
       setName(employee.name)
-      setRole(employee.role ?? [])
-      setEmployer(employee.employer ?? [])
-      setLocation(employee.location ?? [])
+      // Extract names from the new structure
+      setRole(employee.roles?.map(r => r.role.name) ?? [])
+      setEmployer(employee.employers?.map(e => e.name) ?? [])
+      setLocation(employee.locations?.map(l => l.name) ?? [])
       setEmail(employee.email ?? "")
       setPhone(employee.phone ?? "")
       setDob(employee.dob ?? "")
       setComment(employee.comment ?? "")
       setImg(employee.img ?? "")
       
-      // Fetch employee's standardHoursPerWeek
+      // Fetch employee's full details
       fetch(`/api/employees/${employee.id}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data?.employee?.standardHoursPerWeek !== undefined) {
-            setStandardHours(data.employee.standardHoursPerWeek)
+          if (data?.employee) {
+            setStandardHours(data.employee.standardHoursPerWeek ?? null)
+            setEmploymentType(data.employee.employmentType ?? "")
+            setAwardId(data.employee.award?.id ?? "")
+            setAwardLevel(data.employee.award?.level ?? "")
           }
         })
         .catch(() => {})
@@ -76,13 +94,26 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
         fetch(`/api/categories?type=${CATEGORY_TYPES.ROLE}`).then((r) => (r.ok ? r.json() : { categories: [] })),
         fetch(`/api/categories?type=${CATEGORY_TYPES.EMPLOYER}`).then((r) => (r.ok ? r.json() : { categories: [] })),
         fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`).then((r) => (r.ok ? r.json() : { categories: [] })),
-      ]).then(([roleData, employerData, locationData]) => {
+        fetch('/api/awards').then((r) => (r.ok ? r.json() : { awards: [] })),
+      ]).then(([roleData, employerData, locationData, awardsData]) => {
         setRoleOptions((roleData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
         setEmployerOptions((employerData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
         setLocationOptions((locationData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
+        setAwardOptions((awardsData.awards ?? []).map((a: any) => ({
+          value: a._id,
+          label: a.name,
+          levels: a.levels?.map((l: any) => l.label) || []
+        })))
       })
     }
   }, [open])
+
+  // Update available levels when award changes
+  useEffect(() => {
+    const selectedAward = awardOptions.find(a => a.value === awardId)
+    setAvailableLevels(selectedAward?.levels || [])
+    // Don't reset level when award changes in edit mode - keep existing level if valid
+  }, [awardId, awardOptions])
 
   const [uploading, setUploading] = useState(false)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,6 +160,9 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
           comment: comment.trim() || "",
           img: img || "",
           standardHoursPerWeek: standardHours,
+          employmentType: employmentType || undefined,
+          awardId: awardId || undefined,
+          awardLevel: awardLevel || undefined,
         }),
       })
       const data = await res.json()
@@ -147,7 +181,9 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] rounded-lg">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] rounded-lg"  onInteractOutside={(e) => {
+          e.preventDefault();
+        }}>
         <DialogHeader>
           <DialogTitle>Edit Employee</DialogTitle>
         </DialogHeader>
@@ -285,6 +321,22 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor="edit-emp-employment-type">Employment Type</FieldLabel>
+                <select
+                  id="edit-emp-employment-type"
+                  value={employmentType}
+                  onChange={(e) => setEmploymentType(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select type...</option>
+                  <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option>
+                  <option value="Casual">Casual</option>
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
                 <FieldLabel htmlFor="edit-emp-hours">Standard Hours per Week</FieldLabel>
                 <Input
                   id="edit-emp-hours"
@@ -300,8 +352,41 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                   Target working hours (used in roster generation)
                 </p>
               </Field>
+              <Field>
+                <FieldLabel htmlFor="edit-emp-award">Award</FieldLabel>
+                <select
+                  id="edit-emp-award"
+                  value={awardId}
+                  onChange={(e) => setAwardId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select award...</option>
+                  {awardOptions.map((award) => (
+                    <option key={award.value} value={award.value}>
+                      {award.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="edit-emp-award-level">Award Level</FieldLabel>
+                <select
+                  id="edit-emp-award-level"
+                  value={awardLevel}
+                  onChange={(e) => setAwardLevel(e.target.value)}
+                  disabled={!awardId || availableLevels.length === 0}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">Select level...</option>
+                  {availableLevels.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field>
                 <FieldLabel htmlFor="edit-emp-comment">Comment</FieldLabel>
                 <textarea

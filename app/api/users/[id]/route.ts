@@ -49,6 +49,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         role: user.role,
         location,
         rights: user.rights ?? [],
+        managedRoles: user.managedRoles ?? [],
         createdAt: user.createdAt,
       },
     })
@@ -102,7 +103,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         )
       }
 
-      const { name, username, password, role, location, rights } = parsedUpdate.data
+      const { name, username, password, role, location, rights, managedRoles } = parsedUpdate.data
 
       if (username !== undefined) {
         const duplicate = await User.findOne({
@@ -119,6 +120,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       if (role !== undefined) existing.role = role
       if (location !== undefined) existing.location = location
       if (rights !== undefined) existing.rights = rights as Right[]
+      if (managedRoles !== undefined) existing.managedRoles = managedRoles
 
       await existing.save()
 
@@ -134,6 +136,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           role: u?.role,
           location: locArr,
           rights: u?.rights ?? [],
+          managedRoles: u?.managedRoles ?? [],
         },
       })
     }

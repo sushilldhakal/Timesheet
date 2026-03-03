@@ -42,9 +42,6 @@ export async function getAuthWithUserLocations(): Promise<AuthWithLocations | nu
 export function employeeLocationFilter(userLocations: string[] | null): Record<string, unknown> {
   if (!userLocations || userLocations.length === 0) return {}
   return {
-    $or: [
-      { location: { $in: userLocations } },
-      { site: { $in: userLocations } },
-    ],
+    location: { $in: userLocations }
   }
 }

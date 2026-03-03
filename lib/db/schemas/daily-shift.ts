@@ -12,7 +12,7 @@ export interface IClockEvent {
 
 export interface IDailyShift {
   pin: string
-  date: string // "YYYY-MM-DD" format (ISO 8601 date string)
+  date: Date // BSON Date object for consistent querying and storage
   clockIn?: IClockEvent
   breakIn?: IClockEvent
   breakOut?: IClockEvent
@@ -43,7 +43,7 @@ const clockEventSchema = new mongoose.Schema(
 const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
   {
     pin: { type: String, required: true, index: true },
-    date: { type: String, required: true, index: true }, // YYYY-MM-DD string
+    date: { type: Date, required: true, index: true }, // BSON Date for efficient querying
     clockIn: { type: clockEventSchema },
     breakIn: { type: clockEventSchema },
     breakOut: { type: clockEventSchema },

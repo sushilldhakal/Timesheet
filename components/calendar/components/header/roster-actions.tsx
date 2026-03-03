@@ -23,9 +23,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 import { format, subWeeks } from "date-fns";
+import { toast } from "sonner";
 
 export function RosterActions() {
-  const { selectedDate } = useCalendar();
+  const { selectedDate, selectedLocationId, selectedLocationIds } = useCalendar();
   const [isGenerating, setIsGenerating] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["Full-time", "Part-time"]);
@@ -66,7 +67,7 @@ export function RosterActions() {
       console.log(`Successfully copied ${data.shiftsCreated} shifts`);
       
       // Show success message
-      alert(`Successfully copied ${data.shiftsCreated} shifts from last week`);
+      toast.success(`Successfully copied ${data.shiftsCreated} shifts from last week`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to copy roster";
       setError(message);
@@ -86,13 +87,20 @@ export function RosterActions() {
     setError(null);
 
     try {
+      const requestBody: any = {
+        mode: "schedules",
+        includeEmploymentTypes: selectedTypes,
+      };
+
+      // Add location filter if locations are selected
+      if (selectedLocationIds && selectedLocationIds.length > 0) {
+        requestBody.locationIds = selectedLocationIds;
+      }
+
       const response = await fetch(`/api/rosters/${currentWeekId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "schedules",
-          includeEmploymentTypes: selectedTypes,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -106,7 +114,7 @@ export function RosterActions() {
       console.log(`Successfully generated ${data.shiftsCreated} shifts`);
       
       // Show success message and close dialog
-      alert(`Successfully generated ${data.shiftsCreated} shifts from schedules`);
+      toast.success(`Successfully generated ${data.shiftsCreated} shifts from schedules`);
       setShowScheduleDialog(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate roster";

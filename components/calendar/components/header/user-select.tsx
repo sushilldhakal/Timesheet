@@ -15,8 +15,12 @@ export function UserSelect() {
     if (!selectedLocationName || selectedLocationName === 'all') {
       return users;
     }
+    
+    // Split comma-separated location names for multi-location support
+    const selectedLocations = selectedLocationName.split(', ').map(loc => loc.trim());
+    
     return users.filter(user => 
-      user.location && user.location.includes(selectedLocationName)
+      user.location && user.location.some(userLoc => selectedLocations.includes(userLoc))
     );
   }, [users, selectedLocationName]);
 
