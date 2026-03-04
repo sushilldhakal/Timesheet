@@ -6,11 +6,12 @@ export interface IUser {
   username: string
   password: string
   role: "admin" | "user" | "super_admin"
+  tenantId: string // Reference to Tenant._id
   location: string[]
   rights: Right[]
   managedRoles: string[] // Role names that this user can supervise
-  createdAt?: Date
-  updatedAt?: Date
+  createdAt: number // Unix timestamp (seconds since epoch)
+  updatedAt: number // Unix timestamp (seconds since epoch)
 }
 
 export interface IUserDocument extends IUser, mongoose.Document {
@@ -41,6 +42,11 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       enum: ["admin", "user", "super_admin"],
       default: "user",
     },
+    tenantId: {
+      type: String,
+      required: true,
+      index: true,
+    },
     location: {
       type: [String],
       default: [],
@@ -54,9 +60,16 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       type: [String],
       default: [],
     },
+    createdAt: {
+      type: Number,
+      required: true,
+    },
+    updatedAt: {
+      type: Number,
+      required: true,
+    },
   },
   {
-    timestamps: true,
     collection: "users",
   }
 )
@@ -66,6 +79,16 @@ userSchema.pre("save", async function (next) {
   if (this.location && !Array.isArray(this.location)) {
     this.location = this.location ? [String(this.location)] : []
   }
+  next()
+})
+
+// Set timestamps as Unix seconds
+userSchema.pre("save", async function (next) {
+  const now = Math.floor(Date.now() / 1000)
+  if (this.isNew) {
+    this.createdAt = now
+  }
+  this.updatedAt = now
   next()
 })
 

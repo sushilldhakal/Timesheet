@@ -11,9 +11,7 @@ import { CalendarHeader } from "@/components/calendar/components/header/calendar
 import { CalendarYearView } from "@/components/calendar/components/year-view/calendar-year-view";
 import { CalendarMonthView } from "@/components/calendar/components/month-view/calendar-month-view";
 import { CalendarAgendaView } from "@/components/calendar/components/agenda-view/calendar-agenda-view";
-import { CalendarDayView } from "@/components/calendar/components/week-and-day-view/calendar-day-view";
 import { CalendarDayViewByRole } from "@/components/calendar/components/week-and-day-view/calendar-day-view-by-role";
-import { CalendarWeekView } from "@/components/calendar/components/week-and-day-view/calendar-week-view";
 import { CalendarWeekViewByRole } from "@/components/calendar/components/week-and-day-view/calendar-week-view-by-role";
 
 export function ClientContainer() {

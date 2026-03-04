@@ -28,3 +28,9 @@ export * from "./employee-role-assignment"
 
 // Storage settings
 export * from "./storage-settings"
+
+// OAuth 2 authentication
+export * from "./oauth-token"
+
+// Multi-tenant support
+export * from "./tenant"

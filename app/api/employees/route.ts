@@ -5,6 +5,7 @@ import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
 import { sendEmail } from "@/lib/mail/sendEmail"
 import { generateOnboardingEmail } from "@/lib/mail/templates/employee-onboarding"
+import { syncEmployeePhotoFromPunches } from "@/lib/utils/employee-photo-sync"
 
 /** GET /api/employees?search=...&limit=50&offset=0&location=... - List employees with search and pagination */
 export async function GET(request: NextRequest) {
@@ -192,6 +193,13 @@ export async function GET(request: NextRequest) {
       const employerDetails = arr(e.employer)
         .map(name => employerMap.get(name))
         .filter(Boolean)
+      
+      // Background sync photo if missing (non-blocking)
+      if (!e.img || e.img === "") {
+        syncEmployeePhotoFromPunches(e.pin).catch(err => 
+          console.error(`[Background photo sync] Failed for ${e.pin}:`, err)
+        );
+      }
       
       return {
         id: e._id.toString(),
