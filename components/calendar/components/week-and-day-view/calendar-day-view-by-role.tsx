@@ -3,11 +3,11 @@ import { format, parseISO, isSameDay } from "date-fns";
 
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
 import { AddEventDialog } from "@/components/calendar/components/dialogs/add-event-dialog";
+import { EventBlock } from "@/components/calendar/components/week-and-day-view/event-block";
 
 import { cn } from "@/lib/utils";
 import { getVisibleHours, isWorkingHour } from "@/components/calendar/helpers";
@@ -43,13 +43,8 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
     originalWidth: number;
   } | null>(null);
 
-  console.log('CalendarDayViewByRole - singleDayEvents:', singleDayEvents);
-  console.log('CalendarDayViewByRole - selectedDate:', selectedDate);
 
   const { hours, earliestEventHour } = getVisibleHours(visibleHours, singleDayEvents, false); // false = strict hours, no auto-expand
-
-  console.log('CalendarDayViewByRole - visibleHours from context:', visibleHours);
-  console.log('CalendarDayViewByRole - hours array:', hours);
 
   // Fetch roles from API based on selected locations
   useEffect(() => {
@@ -82,7 +77,6 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
           }
           
           const uniqueRoles = Array.from(allRolesMap.values());
-          console.log('[CalendarDayViewByRole] Fetched roles from locations:', uniqueRoles);
           setRoles(uniqueRoles);
           
           // Expand all roles by default
@@ -98,7 +92,6 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
             const data = await response.json();
             
             const rolesData = data.categories || [];
-            console.log('[CalendarDayViewByRole] Fetched all roles (no location filter):', rolesData);
             setRoles(rolesData);
             
             // Expand all roles by default
@@ -120,6 +113,7 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
   }, [selectedLocationIds]);
 
   const toggleRole = (roleId: string) => {
+    console.log("roleid", roleId)
     setExpandedRoles(prev => ({
       ...prev,
       [roleId]: !prev[roleId]
@@ -128,29 +122,14 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
 
   // Group events by role and detect overlaps
   const getEventsForRoleWithLanes = (roleId: string) => {
-    console.log('[getEventsForRoleWithLanes] Looking for roleId:', roleId);
-    console.log('[getEventsForRoleWithLanes] All singleDayEvents:', singleDayEvents);
-    
     const events = singleDayEvents.filter(event => {
       const matchesDay = isSameDay(parseISO(event.startDate), selectedDate);
       const eventRoleId = (event as any).roleId;
       const matchesRole = eventRoleId === roleId;
       
-      console.log('[getEventsForRoleWithLanes] Event filter check:', {
-        eventId: event.id,
-        eventRoleId,
-        targetRoleId: roleId,
-        matchesDay,
-        matchesRole,
-        eventStartDate: event.startDate,
-        selectedDate: selectedDate.toISOString(),
-      });
-      
       return matchesDay && matchesRole;
     });
     
-    console.log('[getEventsForRoleWithLanes] Filtered events for role:', roleId, events);
-
     // Sort by start time
     const sortedEvents = [...events].sort((a, b) => 
       parseISO(a.startDate).getTime() - parseISO(b.startDate).getTime()
@@ -398,32 +377,15 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
       {multiDayEvents.length > 0 && (
         <div className="border-b p-4">
           <div className="space-y-2">
-            {multiDayEvents.map(event => {
-              const start = parseISO(event.startDate);
-              const end = parseISO(event.endDate);
-              
-              return (
-                <div
-                  key={event.id}
-                  className={cn(
-                    "rounded-md border-l-4 bg-card p-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer",
-                    event.color === "blue" && "border-l-blue-600 bg-blue-50 dark:bg-blue-950/30",
-                    event.color === "green" && "border-l-green-600 bg-green-50 dark:bg-green-950/30",
-                    event.color === "red" && "border-l-red-600 bg-red-50 dark:bg-red-950/30",
-                    event.color === "yellow" && "border-l-yellow-600 bg-yellow-50 dark:bg-yellow-950/30",
-                    event.color === "purple" && "border-l-purple-600 bg-purple-50 dark:bg-purple-950/30",
-                    event.color === "orange" && "border-l-orange-600 bg-orange-50 dark:bg-orange-950/30",
-                    event.color === "gray" && "border-l-gray-600 bg-gray-50 dark:bg-gray-950/30"
-                  )}
-                >
-                  <div className="text-sm font-semibold">{event.user?.name || "Vacant"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(start, "MMM d")} - {format(end, "MMM d")}
-                  </div>
-                  {event.title && <div className="text-xs mt-1">{event.title}</div>}
-                </div>
-              );
-            })}
+            {multiDayEvents.map(event => (
+              <EventBlock 
+                key={event.id}
+                event={event}
+                layout="compact"
+                showTime={false}
+                enableDragDrop={false}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -468,9 +430,10 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
               return (
                 <div key={role._id} className="border-b flex">
                   {/* Role name column - sticky */}
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => toggleRole(role._id)}
-                    className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent flex-shrink-0 sticky left-0 bg-background z-10"
+                    className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent flex-shrink-0 sticky left-0 bg-background z-10 justify-start h-auto"
                   >
                     {isExpanded ? (
                       <ChevronDown className="h-4 w-4 flex-shrink-0" />
@@ -486,104 +449,90 @@ export function CalendarDayViewByRole({ singleDayEvents, multiDayEvents }: IProp
                       )}
                       <span className="text-sm font-medium truncate">{role.name}</span>
                     </div>
-                  </button>
+                  </Button>
 
-                  {/* Time grid for this role */}
-                  <div className="relative flex-1">
-                    <div className="flex divide-x">
-                      {hours.map((hour, index) => {
-                        const isDisabled = !isWorkingHour(selectedDate, hour, workingHours);
-                        
-                        return (
-                          <div
-                            key={hour}
-                            className={cn("relative flex-shrink-0", isDisabled && "bg-calendar-disabled-hour")}
-                            style={{ width: "96px", height: `${rowHeight}px` }}
-                          >
-                            {index !== 0 && (
-                              <div className="pointer-events-none absolute inset-y-0 left-0 border-l"></div>
-                            )}
-                            
-                            {/* Clickable area to add shift */}
-                            <AddEventDialog 
-                              startDate={selectedDate} 
-                              startTime={{ hour, minute: 0 }}
-                            >
-                              <div className="absolute inset-0 cursor-pointer transition-colors hover:bg-accent/50" />
-                            </AddEventDialog>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Events overlay */}
-                    {roleEventsWithLanes.length > 0 && (
-                      <div className="absolute inset-0 pointer-events-none">
-                        {roleEventsWithLanes.map(({ event, lane, totalLanes }) => {
-                          const style = getEventStyle(event, lane, totalLanes);
-                          const start = parseISO(event.startDate);
-                          const end = parseISO(event.endDate);
-                          const isDragging = draggingEvent?.id === event.id.toString();
-                          const isResizing = resizingEvent?.id === event.id.toString();
+                  {/* Time grid for this role - only show if expanded */}
+                  {isExpanded && (
+                    <div className="relative flex-1">
+                      <div className="flex divide-x">
+                        {hours.map((hour, index) => {
+                          const isDisabled = !isWorkingHour(selectedDate, hour, workingHours);
                           
                           return (
                             <div
-                              key={event.id}
-                              data-event-id={event.id}
-                              className="absolute pointer-events-auto group"
-                              style={{
-                                ...style,
-                                height: "60px",
-                                cursor: isDragging ? 'grabbing' : 'grab',
-                              }}
-                              onMouseDown={handleDragStart(event.id.toString())}
+                              key={hour}
+                              className={cn("relative flex-shrink-0", isDisabled && "bg-calendar-disabled-hour")}
+                              style={{ width: "96px", height: `${rowHeight}px` }}
                             >
-                              {/* Resize handle - left */}
-                              <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 transition-opacity z-10"
-                                onMouseDown={handleResizeStart(event.id.toString(), 'left')}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-
-                              <div
-                                className={cn(
-                                  "h-full rounded-md border-l-4 bg-card p-2 shadow-sm hover:shadow-md transition-shadow overflow-hidden",
-                                  isDragging && "opacity-50 shadow-lg",
-                                  isResizing && "ring-2 ring-blue-500",
-                                  event.color === "blue" && "border-l-blue-600 bg-blue-50 dark:bg-blue-950/30",
-                                  event.color === "green" && "border-l-green-600 bg-green-50 dark:bg-green-950/30",
-                                  event.color === "red" && "border-l-red-600 bg-red-50 dark:bg-red-950/30",
-                                  event.color === "yellow" && "border-l-yellow-600 bg-yellow-50 dark:bg-yellow-950/30",
-                                  event.color === "purple" && "border-l-purple-600 bg-purple-50 dark:bg-purple-950/30",
-                                  event.color === "orange" && "border-l-orange-600 bg-orange-50 dark:bg-orange-950/30",
-                                  event.color === "gray" && "border-l-gray-600 bg-gray-50 dark:bg-gray-950/30"
-                                )}
+                              {index !== 0 && (
+                                <div className="pointer-events-none absolute inset-y-0 left-0 border-l"></div>
+                              )}
+                              
+                              {/* Clickable area to add shift */}
+                              <AddEventDialog 
+                                startDate={selectedDate} 
+                                startTime={{ hour, minute: 0 }}
                               >
-                                <div className="text-xs font-semibold truncate">
-                                  {event.user?.name || "Vacant"}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-0.5">
-                                  {format(start, "h:mm a")} - {format(end, "h:mm a")}
-                                </div>
-                                {event.title && (
-                                  <div className="text-xs text-muted-foreground mt-1 truncate">
-                                    {event.title}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Resize handle - right */}
-                              <div
-                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 transition-opacity z-10"
-                                onMouseDown={handleResizeStart(event.id.toString(), 'right')}
-                                onClick={(e) => e.stopPropagation()}
-                              />
+                                <div className="absolute inset-0 cursor-pointer transition-colors hover:bg-accent/50" />
+                              </AddEventDialog>
                             </div>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
+
+                      {/* Events overlay */}
+                      {roleEventsWithLanes.length > 0 && (
+                        <div className="absolute inset-0 pointer-events-none">
+                          {roleEventsWithLanes.map(({ event, lane }) => {
+                            const style = getEventStyle(event, lane, 1);
+                            const isDragging = draggingEvent?.id === event.id.toString();
+                            const isResizing = resizingEvent?.id === event.id.toString();
+                            
+                            return (
+                              <div
+                                key={event.id}
+                                data-event-id={event.id}
+                                className={cn(
+                                  "absolute pointer-events-auto group",
+                                  isDragging && "opacity-50 shadow-lg",
+                                  isResizing && "ring-2 ring-blue-500"
+                                )}
+                                style={{
+                                  ...style,
+                                  height: "60px",
+                                  cursor: isDragging ? 'grabbing' : 'grab',
+                                }}
+                                onMouseDown={handleDragStart(event.id.toString())}
+                              >
+                                {/* Resize handle - left */}
+                                <div
+                                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 transition-opacity z-10"
+                                  onMouseDown={handleResizeStart(event.id.toString(), 'left')}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+
+                                <EventBlock 
+                                  event={event} 
+                                  layout="horizontal"
+                                  customStyle={{ height: "100%" }}
+                                  showTime={true}
+                                  enableDragDrop={false}
+                                  className="h-full"
+                                />
+
+                                {/* Resize handle - right */}
+                                <div
+                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 transition-opacity z-10"
+                                  onMouseDown={handleResizeStart(event.id.toString(), 'right')}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })

@@ -1,23 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db/mongodb"
+import { connectDB } from "@/lib/db"
 import { Roster } from "@/lib/db/schemas/roster"
 import { Category } from "@/lib/db/schemas/category"
 import { Employee } from "@/lib/db/schemas/employee"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
-import { User } from "@/lib/db/schemas/user"
-import { verifyAuth } from "@/lib/auth"
+import { verifyAuth } from "@/lib/auth-api"
 import { validateRoster } from "@/lib/roster-validation"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { weekId: string } }
+  { params }: { params: Promise<{ weekId: string }> }
 ) {
   try {
     const user = await verifyAuth(req)
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     await connectDB()
-    const weekId = params.weekId
+    const { weekId } = await params
 
     // Validate weekId format (YYYY-Www)
     if (!/^\d{4}-W\d{2}$/.test(weekId)) {
@@ -39,8 +38,9 @@ export async function GET(
     const roles = await Category.find({ type: "role" })
 
     // Filter based on user permissions
+    // user.location contains location names, not IDs
     const accessibleLocations = user.location.length > 0 
-      ? locations.filter((l) => user.location.includes(l._id.toString()))
+      ? locations.filter((l) => user.location.includes(l.name))
       : locations
 
     const accessibleRoles = user.managedRoles.length > 0
@@ -59,8 +59,38 @@ export async function GET(
       return NextResponse.json({ error: "Access denied to this roster" }, { status: 403 })
     }
 
-    // Get all employees for available staff list
-    const employees = await Employee.find()
+    // Get filtered employees based on user's locations and managed roles
+    let employees
+    if (user.role === "super_admin" || user.role === "admin") {
+      // Admins see all employees
+      employees = await Employee.find()
+    } else {
+      // Get accessible location IDs
+      const accessibleLocationIds = accessibleLocations.map(l => l._id)
+      
+      // Get accessible role IDs
+      const accessibleRoleIds = accessibleRoles.map(r => r._id)
+      
+      // If user has managed roles, filter employees by role assignments
+      if (user.managedRoles.length > 0) {
+        // Find employees with role assignments matching user's managed roles and locations
+        const roleAssignmentsForUser = await EmployeeRoleAssignment.find({
+          roleId: { $in: accessibleRoleIds },
+          locationId: { $in: accessibleLocationIds },
+          isActive: true
+        }).select("employeeId").lean()
+        
+        const employeeIds = Array.from(
+          new Set(roleAssignmentsForUser.map(a => a.employeeId.toString()))
+        )
+        
+        employees = await Employee.find({ _id: { $in: employeeIds } })
+      } else {
+        // No managed roles - show all employees at their locations
+        employees = await Employee.find({ location: { $in: user.location } })
+      }
+    }
+    
     const employeeMap = new Map(employees.map((e) => [e._id.toString(), e]))
 
     // Get role assignments for validation
@@ -109,14 +139,14 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { weekId: string } }
+  { params }: { params: Promise<{ weekId: string }> }
 ) {
   try {
     const user = await verifyAuth(req)
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     await connectDB()
-    const weekId = params.weekId
+    const { weekId } = await params
     const { shifts } = await req.json()
 
     if (!Array.isArray(shifts)) {
@@ -133,9 +163,10 @@ export async function PUT(
     }
 
     // Check permission
+    // user.location contains location names, not IDs
     const accessibleLocations = user.location.length > 0 
       ? await Category.find({ 
-          _id: { $in: user.location },
+          name: { $in: user.location },
           type: "location"
         })
       : await Category.find({ type: "location" })

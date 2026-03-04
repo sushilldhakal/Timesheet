@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import mongoose from "mongoose"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter, getFilteredEmployeeIdsByRole } from "@/lib/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
 import { sendEmail } from "@/lib/mail/sendEmail"
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
   
   // Validate sortBy to prevent injection
-  const validSortFields = ["name", "pin", "email", "phone", "createdAt", "role", "employer", "location"]
+  const validSortFields = ["name", "pin", "email", "phone", "createdAt", "employer", "location"]
   const sortBy = validSortFields.includes(sortByParam) ? sortByParam : "name"
   const order = orderParam === "desc" ? -1 : 1
 
@@ -34,6 +34,13 @@ export async function GET(request: NextRequest) {
     const andConditions: Record<string, unknown>[] = []
     const locFilter = employeeLocationFilter(ctx.userLocations)
     if (Object.keys(locFilter).length > 0) andConditions.push(locFilter)
+
+    // Add role-based filtering
+    const roleFilteredEmployeeIds = await getFilteredEmployeeIdsByRole(ctx.userLocations, ctx.managedRoles)
+    if (roleFilteredEmployeeIds !== null) {
+      // User has managed roles - filter to only those employees
+      andConditions.push({ _id: { $in: roleFilteredEmployeeIds } })
+    }
 
     // Add location filter if provided
     if (locationFilter) {

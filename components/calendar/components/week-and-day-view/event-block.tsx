@@ -8,7 +8,7 @@ import { EventDetailsDialog } from "@/components/calendar/components/dialogs/eve
 
 import { cn } from "@/lib/utils";
 
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, CSSProperties } from "react";
 import type { IEvent } from "@/components/calendar/interfaces";
 import type { VariantProps } from "class-variance-authority";
 
@@ -35,28 +35,51 @@ const calendarWeekEventCardVariants = cva(
         "yellow-dot": "bg-neutral-50 dark:bg-neutral-900 [&_.event-dot]:fill-yellow-600",
         "gray-dot": "bg-neutral-50 dark:bg-neutral-900 [&_.event-dot]:fill-neutral-600",
       },
+      layout: {
+        vertical: "",
+        horizontal: "",
+        compact: "p-2",
+      },
     },
     defaultVariants: {
       color: "blue-dot",
+      layout: "vertical",
     },
   }
 );
 
 interface IProps extends HTMLAttributes<HTMLDivElement>, Omit<VariantProps<typeof calendarWeekEventCardVariants>, "color"> {
   event: IEvent;
+  customStyle?: CSSProperties;
+  showDot?: boolean;
+  showTime?: boolean;
+  enableDragDrop?: boolean;
 }
 
-export function EventBlock({ event, className }: IProps) {
+export function EventBlock({ 
+  event, 
+  className, 
+  layout = "vertical",
+  customStyle,
+  showDot,
+  showTime = true,
+  enableDragDrop = true,
+}: IProps) {
   const { badgeVariant } = useCalendar();
 
   const start = parseISO(event.startDate);
   const end = parseISO(event.endDate);
   const durationInMinutes = differenceInMinutes(end, start);
-  const heightInPixels = (durationInMinutes / 60) * 96 - 8;
+  
+  // Calculate height for vertical layout
+  const heightInPixels = layout === "vertical" ? (durationInMinutes / 60) * 96 - 8 : undefined;
 
   const color = (badgeVariant === "dot" ? `${event.color}-dot` : event.color) as VariantProps<typeof calendarWeekEventCardVariants>["color"];
 
-  const calendarWeekEventCardClasses = cn(calendarWeekEventCardVariants({ color, className }), durationInMinutes < 35 && "py-0 justify-center");
+  const calendarWeekEventCardClasses = cn(
+    calendarWeekEventCardVariants({ color, layout, className }), 
+    durationInMinutes < 35 && layout === "vertical" && "py-0 justify-center"
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -65,27 +88,50 @@ export function EventBlock({ event, className }: IProps) {
     }
   };
 
-  return (
-    <DraggableEvent event={event}>
-      <EventDetailsDialog event={event}>
-        <div role="button" tabIndex={0} className={calendarWeekEventCardClasses} style={{ height: `${heightInPixels}px` }} onKeyDown={handleKeyDown}>
-          <div className="flex items-center gap-1.5 truncate">
-            {["mixed", "dot"].includes(badgeVariant) && (
-              <svg width="8" height="8" viewBox="0 0 8 8" className="event-dot shrink-0">
-                <circle cx="4" cy="4" r="4" />
-              </svg>
-            )}
+  const displayName = event.user?.name || event.title || "Vacant";
+  const shouldShowDot = showDot ?? ["mixed", "dot"].includes(badgeVariant);
+  const shouldShowTime = showTime && (layout === "compact" || durationInMinutes > 25);
 
-            <p className="truncate font-semibold">{event.title}</p>
-          </div>
-
-          {durationInMinutes > 25 && (
-            <p>
-              {format(start, "h:mm a")} - {format(end, "h:mm a")}
-            </p>
+  const content = (
+    <EventDetailsDialog event={event}>
+      <div 
+        role="button" 
+        tabIndex={0} 
+        className={calendarWeekEventCardClasses} 
+        style={{ 
+          height: heightInPixels ? `${heightInPixels}px` : undefined,
+          ...customStyle 
+        }} 
+        onKeyDown={handleKeyDown}
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          {shouldShowDot && (
+            <svg width="8" height="8" viewBox="0 0 8 8" className="event-dot shrink-0">
+              <circle cx="4" cy="4" r="4" />
+            </svg>
           )}
+
+          <p className="truncate font-semibold">{displayName}</p>
         </div>
-      </EventDetailsDialog>
-    </DraggableEvent>
+
+        {shouldShowTime && (
+          <p className="text-muted-foreground">
+            {format(start, "h:mm a")} - {format(end, "h:mm a")}
+          </p>
+        )}
+        
+        {event.title && event.user && layout === "compact" && (
+          <p className="text-muted-foreground truncate">{event.title}</p>
+        )}
+      </div>
+    </EventDetailsDialog>
   );
+
+  if (enableDragDrop) {
+    return <DraggableEvent event={event}>{content}</DraggableEvent>;
+  }
+
+  return content;
 }
+
+export { calendarWeekEventCardVariants };

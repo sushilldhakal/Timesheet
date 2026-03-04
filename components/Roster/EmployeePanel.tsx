@@ -24,11 +24,15 @@ export function EmployeePanel({ weekId }: EmployeePanelProps) {
     setLoading(true)
     try {
       const res = await fetch(`/api/roster/schedule/${weekId}/available-employees`)
-      if (!res.ok) throw new Error("Failed to load employees")
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }))
+        console.error("API Error:", res.status, errorData)
+        throw new Error(errorData.error || "Failed to load employees")
+      }
       const data = await res.json()
       setEmployees(data.employees)
     } catch (err) {
-      console.error(err)
+      console.error("Load employees error:", err)
     } finally {
       setLoading(false)
     }
@@ -139,8 +143,8 @@ export function EmployeePanel({ weekId }: EmployeePanelProps) {
                       Roles:
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {employee.assignments.map((a: any) => (
-                        <Badge key={a.roleId} variant="secondary" className="text-xs">
+                      {employee.assignments.map((a: any, idx: number) => (
+                        <Badge key={`${a.roleId}-${a.locationId}-${idx}`} variant="secondary" className="text-xs">
                           {a.roleName}
                         </Badge>
                       ))}

@@ -16,6 +16,7 @@ export type AuthUser = {
   role: "admin" | "user" | "super_admin"
   location?: string[]
   rights?: string[]
+  managedRoles?: string[]
 }
 
 type AuthContextValue = {

@@ -9,8 +9,7 @@ import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
 import { AddEventDialog } from "@/components/calendar/components/dialogs/add-event-dialog";
 import { WeekViewMultiDayEventsRow } from "@/components/calendar/components/week-and-day-view/week-view-multi-day-events-row";
-
-import { cn } from "@/lib/utils";
+import { EventBlock } from "@/components/calendar/components/week-and-day-view/event-block";
 
 import type { IEvent } from "@/components/calendar/interfaces";
 
@@ -184,9 +183,10 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
                   <div key={role._id} className="border-b">
                     {/* Role header */}
                     <div className="flex">
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => toggleRole(role._id)}
-                        className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent sticky left-0 bg-background z-10 flex-shrink-0"
+                        className="flex w-48 items-center gap-2 border-r px-4 py-3 text-left hover:bg-accent sticky left-0 bg-background z-10 flex-shrink-0 justify-start h-auto"
                       >
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4 flex-shrink-0" />
@@ -202,7 +202,7 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
                           )}
                           <span className="text-sm font-medium truncate">{role.name}</span>
                         </div>
-                      </button>
+                      </Button>
 
                       {/* Day columns for this role */}
                       <div className="grid flex-1 grid-cols-7 divide-x">
@@ -239,33 +239,15 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
                             return (
                               <div key={dayIndex} className="relative min-h-[100px] p-2">
                                 <div className="space-y-1">
-                                  {dayEvents.map((event) => {
-                                    const start = parseISO(event.startDate);
-                                    const end = parseISO(event.endDate);
-                                    const timeStr = `${format(start, "h:mm a")} - ${format(end, "h:mm a")}`;
-
-                                    return (
-                                      <div
-                                        key={event.id}
-                                        className={cn(
-                                          "rounded border bg-background p-2 text-xs hover:shadow-sm cursor-pointer transition-shadow",
-                                          event.color === "blue" && "border-l-4 border-l-blue-600",
-                                          event.color === "green" && "border-l-4 border-l-green-600",
-                                          event.color === "red" && "border-l-4 border-l-red-600",
-                                          event.color === "yellow" && "border-l-4 border-l-yellow-600",
-                                          event.color === "purple" && "border-l-4 border-l-purple-600",
-                                          event.color === "orange" && "border-l-4 border-l-orange-600"
-                                        )}
-                                      >
-                                        <div className="font-medium">{timeStr}</div>
-                                        {event.user && (
-                                          <div className="text-muted-foreground mt-1">
-                                            {event.user.name}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                  {dayEvents.map((event) => (
+                                    <EventBlock
+                                      key={event.id}
+                                      event={event}
+                                      layout="compact"
+                                      showTime={true}
+                                      enableDragDrop={false}
+                                    />
+                                  ))}
 
                                   <AddEventDialog startDate={day} startTime={{ hour: 9, minute: 0 }}>
                                     <Button

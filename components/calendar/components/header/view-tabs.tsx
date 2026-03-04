@@ -1,9 +1,9 @@
 "use client";
 
 import { CalendarRange, List, Columns, Grid3x3, Grid2x2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 import type { TCalendarView } from "@/components/calendar/types";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const tabs = [
   {
@@ -37,38 +37,19 @@ export function ViewTabs() {
   const { currentView, setCurrentView } = useCalendar();
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
-      {tabs.map(({ icon: Icon, name, value }) => {
-        const isActive = currentView === value;
-
-        return (
-          <button
-            key={value}
-            onClick={() => setCurrentView(value)}
-            aria-label={`View by ${name.toLowerCase()}`}
-            className={cn(
-              "relative flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-              "hover:bg-background/60",
-              isActive && "bg-background text-foreground shadow-sm",
-              !isActive && "text-muted-foreground hover:text-foreground"
-            )}
-            style={{
-              minWidth: isActive ? "auto" : "40px",
-              width: isActive ? "auto" : "40px",
-            }}
-          >
-            <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
-            <span
-              className={cn(
-                "whitespace-nowrap transition-all duration-200 overflow-hidden",
-                isActive ? "opacity-100 max-w-[100px]" : "opacity-0 max-w-0"
-              )}
-            >
-              {name}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as TCalendarView)}>
+      <TabsList>
+        {tabs.map(({ icon: Icon, name, value }) => {
+          const isActive = currentView === value;
+          
+          return (
+            <TabsTrigger key={value} value={value} aria-label={`View by ${name.toLowerCase()}`}>
+              <Icon className="h-4 w-4" strokeWidth={1.8} />
+              {isActive && <span>{name}</span>}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </Tabs>
   );
 }

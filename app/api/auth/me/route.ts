@@ -37,6 +37,7 @@ export async function GET() {
         role,
         location,
         rights: user.rights ?? [],
+        managedRoles: user.managedRoles ?? [],
       },
     })
   } catch {

@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db/mongodb"
+import { connectDB } from "@/lib/db"
 import { Roster } from "@/lib/db/schemas/roster"
-import { verifyAuth } from "@/lib/auth"
+import { verifyAuth } from "@/lib/auth-api"
 import { addDays } from "date-fns"
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { weekId: string; sourceWeekId: string } }
+  { params }: { params: Promise<{ weekId: string; sourceWeekId: string }> }
 ) {
   try {
     const user = await verifyAuth(req)
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     await connectDB()
-    const { weekId, sourceWeekId } = params
+    const { weekId, sourceWeekId } = await params
 
     // Get source roster
     const sourceRoster = await Roster.findOne({ weekId: sourceWeekId })

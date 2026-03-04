@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db/mongodb"
+import { connectDB } from "@/lib/db"
 import { Roster } from "@/lib/db/schemas/roster"
 import { Category } from "@/lib/db/schemas/category"
 import { Employee } from "@/lib/db/schemas/employee"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
-import { verifyAuth } from "@/lib/auth"
+import { verifyAuth } from "@/lib/auth-api"
 import { validateRoster } from "@/lib/roster-validation"
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { weekId: string } }
+  { params }: { params: Promise<{ weekId: string }> }
 ) {
   try {
     const user = await verifyAuth(req)
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     await connectDB()
-    const weekId = params.weekId
+    const { weekId } = await params
 
     // Get roster
     let roster = await Roster.findOne({ weekId })

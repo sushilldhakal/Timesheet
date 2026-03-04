@@ -156,6 +156,9 @@ export default function EmployeesPage() {
     setPageIndex(0)
   }
 
+  // Define sortable column IDs (role sorting requires complex aggregation, so it's excluded)
+  const sortableColumnIds = ["name", "pin", "email", "phone", "employer", "location"]
+
   // Define columns
   const columns = useMemo<ColumnDef<EmployeeRow>[]>(
     () => [
@@ -169,7 +172,7 @@ export default function EmployeesPage() {
           <span className="font-medium">{row.original.name || "—"}</span>
         ),
         enableHiding: false,
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("name"),
       },
       {
         accessorKey: "pin",
@@ -178,7 +181,7 @@ export default function EmployeesPage() {
         ),
         cell: ({ row }) => row.original.pin,
         enableHiding: false,
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("pin"),
       },
       {
         accessorKey: "role",
@@ -196,9 +199,7 @@ export default function EmployeesPage() {
             employeeRoles.includes(selectedRole)
           )
         },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Roles" />
-        ),
+        header: () => <span>Roles</span>,
         cell: ({ row }) => {
           const roles = row.original.roles
           
@@ -283,7 +284,7 @@ export default function EmployeesPage() {
             </HoverCard>
           )
         },
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("role"),
       },
       {
         accessorKey: "employer",
@@ -299,7 +300,7 @@ export default function EmployeesPage() {
         ),
         cell: ({ row }) =>
           row.original.employers?.length ? row.original.employers.map(e => e.name).join(", ") : "—",
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("employer"),
       },
       {
         accessorKey: "location",
@@ -317,7 +318,7 @@ export default function EmployeesPage() {
           row.original.locations?.length
             ? row.original.locations.map(l => l.name).join(", ")
             : "—",
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("location"),
       },
       {
         accessorKey: "email",
@@ -325,7 +326,7 @@ export default function EmployeesPage() {
           <DataTableColumnHeader column={column} title="Email" />
         ),
         cell: ({ row }) => row.original.email || "—",
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("email"),
       },
       {
         accessorKey: "phone",
@@ -333,7 +334,7 @@ export default function EmployeesPage() {
           <DataTableColumnHeader column={column} title="Phone" />
         ),
         cell: ({ row }) => row.original.phone || "—",
-        enableSorting: true,
+        enableSorting: sortableColumnIds.includes("phone"),
       },
       {
         id: "actions",
@@ -366,7 +367,7 @@ export default function EmployeesPage() {
         },
       },
     ],
-    []
+    [sortableColumnIds]
   )
 
   // Extract unique filter options from data
@@ -438,7 +439,7 @@ export default function EmployeesPage() {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
-            sortableColumnIds={["name", "pin", "email", "phone", "role", "employer", "location"]}
+            sortableColumnIds={["name", "pin", "email", "phone", "employer", "location"]}
             filterConfig={filterConfig}
             enableRowSelection={true}
             onRowClick={handleRowClick}
