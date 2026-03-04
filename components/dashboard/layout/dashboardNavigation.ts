@@ -11,7 +11,6 @@ import {
   Calendar,
   Cloud,
   Mail,
-  LayoutGrid,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/types/dashboard';
 
@@ -36,11 +35,6 @@ export const baseNavigationItems: NavigationItem[] = [
     href: '/dashboard/timesheet',
     label: 'Timesheet',
     icon: CalendarCheck,
-  },
-  {
-    href: '/dashboard/roster',
-    label: 'Roster Builder',
-    icon: LayoutGrid,
   },
   {
     href: '/dashboard/scheduling',
