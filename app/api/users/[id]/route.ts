@@ -103,7 +103,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         )
       }
 
-      const { name, username, password, role, location, rights, managedRoles } = parsedUpdate.data
+      const { name, username, email, password, role, location, rights, managedRoles } = parsedUpdate.data
 
       if (username !== undefined) {
         const duplicate = await User.findOne({
@@ -114,6 +114,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           return NextResponse.json({ error: "Username already exists" }, { status: 409 })
         }
         existing.username = username.toLowerCase()
+      }
+      if (email !== undefined) {
+        const duplicate = await User.findOne({
+          email: email.toLowerCase(),
+          _id: { $ne: id },
+        })
+        if (duplicate) {
+          return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+        }
+        existing.email = email.toLowerCase()
       }
       if (name !== undefined) existing.name = name.trim()
       if (password) existing.password = password
@@ -133,6 +143,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           id: u?._id,
           name: u?.name ?? "",
           username: u?.username,
+          email: u?.email,
           role: u?.role,
           location: locArr,
           rights: u?.rights ?? [],
@@ -150,7 +161,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const { username: newUsername, password } = parsedSelf.data
+    const { username: newUsername, email: newEmail, password } = parsedSelf.data
 
     const duplicate = await User.findOne({
       username: newUsername.toLowerCase(),
@@ -158,6 +169,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     })
     if (duplicate) {
       return NextResponse.json({ error: "Username already exists" }, { status: 409 })
+    }
+
+    if (newEmail) {
+      const emailDuplicate = await User.findOne({
+        email: newEmail.toLowerCase(),
+        _id: { $ne: id },
+      })
+      if (emailDuplicate) {
+        return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+      }
+      existing.email = newEmail.toLowerCase()
     }
 
     existing.username = newUsername.toLowerCase()
@@ -173,6 +195,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         id: u?._id,
         name: u?.name ?? "",
         username: u?.username,
+        email: u?.email,
         role: u?.role,
         location: locArr,
         rights: u?.rights ?? [],

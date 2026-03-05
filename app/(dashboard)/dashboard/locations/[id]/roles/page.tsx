@@ -28,7 +28,7 @@ type LocationData = {
 export default function LocationRolesPage() {
   const params = useParams()
   const router = useRouter()
-  const locationId = params.id as string
+  const locationId = params?.id as string
 
   const [location, setLocation] = useState<LocationData | null>(null)
   const [roles, setRoles] = useState<RoleData[]>([])

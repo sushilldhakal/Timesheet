@@ -26,7 +26,7 @@ export function Breadcrumbs() {
     }, [pathname, clearBreadcrumbs]);
 
     // Generate breadcrumbs from pathname if not set manually
-    const pathSegments = pathname.split('/').filter(Boolean);
+    const pathSegments = pathname?.split('/').filter(Boolean) || [];
 
     const defaultBreadcrumbs = pathSegments
         .map((segment, index) => {

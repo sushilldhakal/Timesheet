@@ -14,8 +14,8 @@ export interface ConflictInfo {
  * Check if two events overlap
  */
 export function hasOverlap(event1: IEvent, event2: IEvent): boolean {
-  if (event1._id === event2._id) return false
-  if (event1.user?._id !== event2.user?._id) return false
+  if (event1.id === event2.id) return false
+  if (event1.user?.id !== event2.user?.id) return false
 
   const start1 = parseISO(event1.startDate)
   const end1 = parseISO(event1.endDate)
@@ -33,7 +33,7 @@ export function getOverlappingEvents(
   allEvents: IEvent[]
 ): IEvent[] {
   return allEvents.filter(
-    (e) => e.user?._id === event.user?._id && hasOverlap(event, e) && e._id !== event._id
+    (e) => e.user?.id === event.user?.id && hasOverlap(event, e) && e.id !== event.id
   )
 }
 
@@ -47,7 +47,7 @@ export function calculateDailyHours(
 ): number {
   return allEvents
     .filter((event) => {
-      if (event.user?._id !== userId) return false
+      if (event.user?.id !== userId) return false
       const eventDate = parseISO(event.startDate)
       return isSameDay(eventDate, date)
     })
@@ -72,7 +72,7 @@ export function calculateWeeklyHours(
 
   return allEvents
     .filter((event) => {
-      if (event.user?._id !== userId) return false
+      if (event.user?.id !== userId) return false
       const eventDate = parseISO(event.startDate)
       return eventDate >= weekStart && eventDate < weekEnd
     })
@@ -111,7 +111,7 @@ export function detectConflicts(
 
   // Check daily hours
   if (constraints?.maxDailyHours) {
-    const dailyHours = calculateDailyHours(event.user?._id || "", parseISO(event.startDate), allEvents)
+    const dailyHours = calculateDailyHours(event.user?.id || "", parseISO(event.startDate), allEvents)
     const eventDuration = differenceInMinutes(
       parseISO(event.endDate),
       parseISO(event.startDate)
@@ -130,7 +130,7 @@ export function detectConflicts(
     const weekStart = new Date(parseISO(event.startDate))
     weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1) // Monday
     
-    const weeklyHours = calculateWeeklyHours(event.user?._id || "", weekStart, allEvents)
+    const weeklyHours = calculateWeeklyHours(event.user?.id || "", weekStart, allEvents)
     const eventDuration = differenceInMinutes(
       parseISO(event.endDate),
       parseISO(event.startDate)

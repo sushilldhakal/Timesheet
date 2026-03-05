@@ -8,6 +8,7 @@ export const employeeCreateSchema = z.object({
   location: z.array(z.string().trim()).default([]),
   email: z.string().trim().optional().default(""),
   phone: z.string().trim().optional().default(""),
+  homeAddress: z.string().trim().optional().default(""),
   dob: z.string().trim().optional().default(""),
   comment: z.string().trim().optional().default(""),
   img: z.string().optional().default(""),
@@ -15,6 +16,8 @@ export const employeeCreateSchema = z.object({
   standardHoursPerWeek: z.number().min(0).max(168).nullable().optional(),
   awardId: z.string().optional(),
   awardLevel: z.string().trim().optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
+  sendSetupEmail: z.boolean().optional().default(false),
 })
 
 const stringArray = z.union([z.string(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v.map((s) => String(s).trim()).filter(Boolean) : v ? [String(v).trim()] : []))
@@ -27,6 +30,7 @@ export const employeeUpdateSchema = z.object({
   location: stringArray.optional(),
   email: z.string().trim().optional(),
   phone: z.string().trim().optional(),
+  homeAddress: z.string().trim().optional(),
   dob: z.string().trim().optional(),
   comment: z.string().trim().optional(),
   img: z.string().optional(),

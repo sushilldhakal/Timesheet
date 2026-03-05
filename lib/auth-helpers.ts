@@ -98,6 +98,8 @@ export function getTokenFromRequest(request: Request): string | undefined {
 // ============================================================================
 // EMPLOYEE AUTHENTICATION (employee-auth.ts replacement)
 // ============================================================================
+// Employee Authentication (Kiosk - Short Session)
+// ============================================================================
 
 const EMPLOYEE_COOKIE = "employee_session"
 const EMPLOYEE_MAX_AGE = 60 * 5 // 5 minutes
@@ -112,6 +114,59 @@ export async function createEmployeeToken(payload: Omit<EmployeeAuthPayload, "ty
     .setIssuedAt()
     .setExpirationTime(`${EMPLOYEE_MAX_AGE}s`)
     .sign(getSecret())
+}
+
+// ============================================================================
+// Employee Web Authentication (Long Session)
+// ============================================================================
+
+const EMPLOYEE_WEB_COOKIE = "employee_web_session"
+const EMPLOYEE_WEB_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
+
+export async function createEmployeeWebToken(payload: Omit<EmployeeAuthPayload, "type">): Promise<string> {
+  return new SignJWT({
+    pin: payload.pin,
+    type: "employee",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(payload.sub)
+    .setIssuedAt()
+    .setExpirationTime(`${EMPLOYEE_WEB_MAX_AGE}s`)
+    .sign(getSecret())
+}
+
+export function getEmployeeWebCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: EMPLOYEE_WEB_MAX_AGE,
+  }
+}
+
+export async function setEmployeeWebCookie(token: string): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.set(EMPLOYEE_WEB_COOKIE, token, getEmployeeWebCookieOptions())
+}
+
+export async function clearEmployeeWebCookie(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.delete(EMPLOYEE_WEB_COOKIE)
+}
+
+export async function getEmployeeFromWebCookie(): Promise<EmployeeAuthPayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(EMPLOYEE_WEB_COOKIE)?.value
+  if (!token) return null
+  return verifyEmployeeToken(token)
+}
+
+export function getEmployeeWebTokenFromRequest(request: Request): string | undefined {
+  const cookieHeader = request.headers.get("cookie")
+  if (!cookieHeader) return undefined
+  const match = cookieHeader.match(new RegExp(`${EMPLOYEE_WEB_COOKIE}=([^;]+)`))
+  return match?.[1]
 }
 
 export async function verifyEmployeeToken(token: string): Promise<EmployeeAuthPayload | null> {
@@ -152,6 +207,15 @@ export async function clearEmployeeCookie(): Promise<void> {
 
 export async function getEmployeeFromCookie(): Promise<EmployeeAuthPayload | null> {
   const cookieStore = await cookies()
+  
+  // Check web session first (longer duration)
+  const webToken = cookieStore.get(EMPLOYEE_WEB_COOKIE)?.value
+  if (webToken) {
+    const auth = await verifyEmployeeToken(webToken)
+    if (auth) return auth
+  }
+  
+  // Fall back to kiosk session (short duration)
   const token = cookieStore.get(EMPLOYEE_COOKIE)?.value
   if (!token) return null
   return verifyEmployeeToken(token)

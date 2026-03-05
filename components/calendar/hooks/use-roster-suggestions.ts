@@ -74,7 +74,7 @@ export function useRosterSuggestions(
                 const hasConflict = events.some((event) => {
                   const eventStart = parseISO(event.startDate)
                   const eventEnd = parseISO(event.endDate)
-                  return event.user?._id === user._id && isSameDay(eventStart, currentDate) && eventStart < nextHour && eventEnd > checkTime
+                  return event.user?.id === user.id && isSameDay(eventStart, currentDate) && eventStart < nextHour && eventEnd > checkTime
                 })
                 return !hasConflict
               }),
@@ -99,7 +99,7 @@ export function useRosterSuggestions(
 
       users.forEach((user) => {
         const userEvents = events.filter(
-          (e) => e.user?._id === user._id && parseISO(e.startDate) >= weekStart && parseISO(e.startDate) <= weekEnd
+          (e) => e.user?.id === user.id && parseISO(e.startDate) >= weekStart && parseISO(e.startDate) <= weekEnd
         )
 
         const weeklyHours = userEvents.reduce((total, event) => {
@@ -139,7 +139,7 @@ export function useRosterSuggestions(
       return available
         .map((user) => {
           const userHours = events
-            .filter((e) => e.user?._id === user._id && isSameDay(parseISO(e.startDate), gap.date))
+            .filter((e) => e.user?.id === user.id && isSameDay(parseISO(e.startDate), gap.date))
             .reduce((total, event) => {
               const start = parseISO(event.startDate)
               const end = parseISO(event.endDate)
@@ -162,8 +162,8 @@ export function useRosterSuggestions(
     return {
       totalShifts: events.length,
       totalStaff: users.length,
-      scheduledStaff: Array.from(new Set(events.map((e) => e.user?._id))).length,
-      unscheduledStaff: users.filter((u) => !events.some((e) => e.user?._id === u._id)).length,
+      scheduledStaff: Array.from(new Set(events.map((e) => e.user?.id))).length,
+      unscheduledStaff: users.filter((u) => !events.some((e) => e.user?.id === u.id)).length,
     }
   }, [events, users])
 

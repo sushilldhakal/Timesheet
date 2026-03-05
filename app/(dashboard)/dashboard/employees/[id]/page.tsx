@@ -215,7 +215,7 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function EmployeeDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const id = params.id as string
+  const id = params?.id as string
   const [employee, setEmployee] = useState<EmployeeRow | null>(null)
   const [awardId, setAwardId] = useState<string | null>(null)
   const [awardLevel, setAwardLevel] = useState<string | null>(null)

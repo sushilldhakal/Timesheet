@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== "" ? [String(v).trim()] : []
 
-async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
+async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; homeAddress?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
   // Get unique location IDs from active role assignments
   const locationIds = Array.from(new Set(roleAssignments.map(ra => ra.locationId.toString())))
   
@@ -97,6 +97,7 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
     pin: e.pin ?? "",
     email: e.email ?? "",
     phone: e.phone ?? "",
+    homeAddress: e.homeAddress ?? "",
     img: e.img ?? "",
     dob: e.dob ?? "",
     employmentType: e.employmentType,
@@ -223,6 +224,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (data.location !== undefined) updates.location = arr(data.location)
     if (data.email !== undefined) updates.email = (data.email ?? "").toString().trim()
     if (data.phone !== undefined) updates.phone = (data.phone ?? "").toString().trim()
+    if (data.homeAddress !== undefined) updates.homeAddress = (data.homeAddress ?? "").toString().trim()
     if (data.dob !== undefined) updates.dob = (data.dob ?? "").toString().trim()
     if (data.comment !== undefined) updates.comment = (data.comment ?? "").toString().trim()
     if (data.img !== undefined) updates.img = (data.img ?? "").toString().trim()
@@ -355,8 +357,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     updates.updatedAt = new Date()
+    console.log('[Employee Update] Updates object:', JSON.stringify(updates, null, 2))
     await Employee.updateOne(empFilter, { $set: updates })
     const updated = await Employee.findById(id).lean()
+    console.log('[Employee Update] Updated employee homeAddress:', updated?.homeAddress)
     
     // Fetch role assignments
     const roleAssignments = await EmployeeRoleAssignment.find({

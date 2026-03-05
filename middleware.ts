@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getTokenFromRequest, verifyAuthToken } from "@/lib/auth"
-import { getEmployeeTokenFromRequest, verifyEmployeeToken } from "@/lib/employee-auth"
+import { getEmployeeTokenFromRequest, getEmployeeWebTokenFromRequest, verifyEmployeeToken } from "@/lib/employee-auth"
 import { getDeviceTokenFromRequest, verifyDeviceToken } from "@/lib/device-auth"
 import { logDeviceTokenFailure, logStaffSessionFailure } from "@/lib/auth-logger"
 
-const PUBLIC_PATHS = ["/", "/login"]
-const AUTH_PATHS = ["/login"]
+const PUBLIC_PATHS = ["/", "/forgot-password", "/reset-password", "/setup-password", "/pin"]
+const AUTH_PATHS = ["/"]
 const EMPLOYEE_CLOCK_PATH = "/clock"
-const DEVICE_REQUIRED_PATHS = ["/", "/clock"] // Only these paths require device registration
+const STAFF_DASHBOARD_PATHS = ["/staff"]
+const DEVICE_REQUIRED_PATHS = ["/pin", "/clock"] // Only these paths require device registration
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => p === pathname || pathname.startsWith(p + "/"))
@@ -20,6 +21,10 @@ function isAuthPath(pathname: string) {
 
 function isEmployeeClockPath(pathname: string) {
   return pathname === EMPLOYEE_CLOCK_PATH || pathname.startsWith(EMPLOYEE_CLOCK_PATH + "/")
+}
+
+function isStaffDashboardPath(pathname: string) {
+  return STAFF_DASHBOARD_PATHS.some((p) => pathname.startsWith(p + "/") || pathname === p)
 }
 
 function requiresDeviceToken(pathname: string) {
@@ -35,9 +40,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Allow registration page to load without device token
-  const isRegistrationPage = pathname === "/" && request.nextUrl.searchParams.has("register")
-  const isDisabledPage = pathname === "/" && request.nextUrl.searchParams.has("disabled")
-  const isRevokedPage = pathname === "/" && request.nextUrl.searchParams.has("revoked")
+  const isRegistrationPage = pathname === "/pin" && request.nextUrl.searchParams.has("register")
+  const isDisabledPage = pathname === "/pin" && request.nextUrl.searchParams.has("disabled")
+  const isRevokedPage = pathname === "/pin" && request.nextUrl.searchParams.has("revoked")
   
   if (isRegistrationPage || isDisabledPage || isRevokedPage) {
     return NextResponse.next()
@@ -45,6 +50,29 @@ export async function middleware(request: NextRequest) {
 
   // Skip device token validation for paths that don't require it (login, dashboard, etc.)
   if (!requiresDeviceToken(pathname)) {
+    // Handle staff dashboard routes - require employee web session
+    if (isStaffDashboardPath(pathname)) {
+      const empWebToken = getEmployeeWebTokenFromRequest(request)
+      let empAuth = null
+      if (empWebToken) {
+        try {
+          empAuth = await verifyEmployeeToken(empWebToken)
+        } catch {
+          empAuth = null
+        }
+      }
+
+      if (!empAuth) {
+        const loginUrl = new URL("/", request.url)
+        loginUrl.searchParams.set("redirect", pathname)
+        return NextResponse.redirect(loginUrl)
+      }
+
+      const response = NextResponse.next()
+      response.headers.set("x-employee-id", empAuth.sub)
+      return response
+    }
+
     // Continue with normal auth flow for non-device pages
     const token = getTokenFromRequest(request)
     let auth = null
@@ -62,7 +90,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!isPublic(pathname) && !isAuthenticated) {
-      const loginUrl = new URL("/login", request.url)
+      const loginUrl = new URL("/", request.url)
       loginUrl.searchParams.set("redirect", pathname)
       return NextResponse.redirect(loginUrl)
     }
@@ -102,7 +130,7 @@ export async function middleware(request: NextRequest) {
     } else {
       logDeviceTokenFailure(undefined, "Invalid device token")
     }
-    return NextResponse.redirect(new URL("/?register=true", request.url))
+    return NextResponse.redirect(new URL("/pin?register=true", request.url))
   }
 
   const token = getTokenFromRequest(request)
@@ -134,7 +162,7 @@ export async function middleware(request: NextRequest) {
       } else {
         logStaffSessionFailure(deviceAuth.sub, undefined, "Invalid or expired staff session")
       }
-      return NextResponse.redirect(new URL("/", request.url))
+      return NextResponse.redirect(new URL("/pin", request.url))
     }
     const response = NextResponse.next()
     response.headers.set("x-employee-id", empAuth.sub)
@@ -147,7 +175,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!isPublic(pathname) && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url)
+    const loginUrl = new URL("/", request.url)
     loginUrl.searchParams.set("redirect", pathname)
     return NextResponse.redirect(loginUrl)
   }

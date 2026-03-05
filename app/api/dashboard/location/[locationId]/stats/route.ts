@@ -17,7 +17,7 @@ const { ObjectId } = mongoose.Types
 
 export async function GET(
   request: Request,
-  { params }: { params: { locationId: string } }
+  { params }: { params: Promise<{ locationId: string }> }
 ) {
   try {
     // 1. Authentication
@@ -29,8 +29,8 @@ export async function GET(
       )
     }
 
-    // 2. Validate ObjectId format
-    const { locationId } = params
+    // 2. Await params and validate ObjectId format
+    const { locationId } = await params
     if (!ObjectId.isValid(locationId)) {
       return NextResponse.json(
         { 

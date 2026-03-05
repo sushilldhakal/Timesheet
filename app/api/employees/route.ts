@@ -5,9 +5,13 @@ import { connectDB, Employee } from "@/lib/db"
 import { employeeCreateSchema } from "@/lib/validation/employee"
 import { sendEmail } from "@/lib/mail/sendEmail"
 import { generateOnboardingEmail } from "@/lib/mail/templates/employee-onboarding"
+import { generateOnboardingWithPasswordEmail } from "@/lib/mail/templates/employee-onboarding-with-password"
+import { generateOnboardingSetupLinkEmail } from "@/lib/mail/templates/employee-onboarding-setup-link"
 import { syncEmployeePhotoFromPunches } from "@/lib/utils/employee-photo-sync"
+import { generateTokenWithExpiry } from "@/lib/utils/auth-tokens"
+import { checkEmailExists } from "@/lib/utils/email-validator"
 
-/** GET /api/employees?search=...&limit=50&offset=0&location=... - List employees with search and pagination */
+/** GET /api/employees?search=...&limit=50&offset=0&location=...&role=...&employer=... - List employees with search and pagination */
 export async function GET(request: NextRequest) {
   const ctx = await getAuthWithUserLocations()
   if (!ctx) {
@@ -17,12 +21,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const search = searchParams.get("search")?.trim() ?? ""
   const locationFilter = searchParams.get("location")?.trim() ?? ""
+  const roleFilter = searchParams.get("role")?.trim() ?? ""
+  const employerFilter = searchParams.get("employer")?.trim() ?? ""
   const limitParam = searchParams.get("limit")
   const offsetParam = searchParams.get("offset")
   const sortByParam = searchParams.get("sortBy")?.trim() ?? "name"
   const orderParam = searchParams.get("order")?.trim().toLowerCase() ?? "asc"
   const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 1000) : 50
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0
+  
+  // Parse multiple filter values (comma-separated)
+  const locationFilters = locationFilter ? locationFilter.split(',').map(s => s.trim()).filter(Boolean) : []
+  const roleFilters = roleFilter ? roleFilter.split(',').map(s => s.trim()).filter(Boolean) : []
+  const employerFilters = employerFilter ? employerFilter.split(',').map(s => s.trim()).filter(Boolean) : []
   
   // Validate sortBy to prevent injection
   const validSortFields = ["name", "pin", "email", "phone", "createdAt", "employer", "location"]
@@ -43,9 +54,51 @@ export async function GET(request: NextRequest) {
       andConditions.push({ _id: { $in: roleFilteredEmployeeIds } })
     }
 
-    // Add location filter if provided
-    if (locationFilter) {
-      andConditions.push({ location: locationFilter })
+    // Add location filters if provided
+    if (locationFilters.length > 0) {
+      andConditions.push({ location: { $in: locationFilters } })
+    }
+
+    // Add employer filters if provided
+    if (employerFilters.length > 0) {
+      andConditions.push({ employer: { $in: employerFilters } })
+    }
+
+    // Add role filters if provided - need to check role assignments
+    let roleFilteredIds: string[] | null = null
+    if (roleFilters.length > 0) {
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const { Category } = await import("@/lib/db")
+      
+      // Find role categories by name
+      const roleCategories = await Category.find({
+        name: { $in: roleFilters },
+        type: "role"
+      }).lean()
+      
+      if (roleCategories.length > 0) {
+        const roleIds = roleCategories.map(r => r._id)
+        
+        // Find employees with these roles
+        const roleAssignments = await EmployeeRoleAssignment.find({
+          roleId: { $in: roleIds },
+          isActive: true
+        }).distinct('employeeId')
+        
+        roleFilteredIds = roleAssignments.map(id => id.toString())
+        
+        if (roleFilteredIds.length > 0) {
+          andConditions.push({ _id: { $in: roleFilteredIds.map(id => new mongoose.Types.ObjectId(id)) } })
+        } else {
+          // No employees found with these roles - return empty result
+          return NextResponse.json({
+            employees: [],
+            total: 0,
+            limit,
+            offset,
+          })
+        }
+      }
     }
 
     const filter: Record<string, unknown> = {}
@@ -210,6 +263,7 @@ export async function GET(request: NextRequest) {
         locations: uniqueLocations, // Detailed location structure
         email: e.email ?? "",
         phone: e.phone ?? "",
+        homeAddress: e.homeAddress ?? "",
         dob: e.dob ?? "",
         comment: e.comment ?? "",
         img: e.img ?? "",
@@ -257,6 +311,17 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
+    // Check email uniqueness if email provided
+    if (data.email) {
+      const emailCheck = await checkEmailExists(data.email)
+      if (emailCheck.exists) {
+        return NextResponse.json(
+          { error: "Email already in use" },
+          { status: 409 }
+        )
+      }
+    }
+
     const existing = await Employee.findOne({ pin: data.pin.trim() })
     if (existing) {
       return NextResponse.json(
@@ -265,14 +330,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const employee = await Employee.create({
+    // Prepare employee data
+    const employeeData: any = {
       name: data.name.trim(),
       pin: data.pin.trim(),
-      // Note: role field is deprecated - use EmployeeRoleAssignment API instead
       employer: data.employer ?? [],
       location: data.location ?? [],
       email: data.email ?? "",
       phone: data.phone ?? "",
+      homeAddress: data.homeAddress ?? "",
       dob: data.dob ?? "",
       comment: data.comment ?? "",
       img: data.img ?? "",
@@ -280,7 +346,24 @@ export async function POST(request: NextRequest) {
       standardHoursPerWeek: data.standardHoursPerWeek ?? null,
       awardId: data.awardId ? new mongoose.Types.ObjectId(data.awardId) : null,
       awardLevel: data.awardLevel ?? null,
-    })
+    }
+
+    // Handle password setup
+    let setupToken: string | undefined
+    if (data.password) {
+      // Admin set password - employee must change on first login
+      employeeData.password = data.password
+      employeeData.passwordSetByAdmin = true
+      employeeData.requirePasswordChange = true
+    } else if (data.sendSetupEmail && data.email) {
+      // Generate setup token for email link
+      const tokenData = generateTokenWithExpiry(24) // 24 hours
+      setupToken = tokenData.token // Store raw token for email
+      employeeData.passwordSetupToken = tokenData.hashedToken
+      employeeData.passwordSetupExpiry = tokenData.expiry
+    }
+
+    const employee = await Employee.create(employeeData)
 
     // Create role assignments if roles and locations are provided
     const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
@@ -358,14 +441,41 @@ export async function POST(request: NextRequest) {
           new Set(roleAssignments.map((a: any) => a.locationId?.name).filter(Boolean))
         )
 
-        const emailContent = generateOnboardingEmail({
-          name: employee.name,
-          pin: employee.pin,
-          email: employee.email,
-          phone: employee.phone || "Not provided",
-          roles: roles.length > 0 ? roles : undefined,
-          locations: locations.length > 0 ? locations : undefined,
-        })
+        let emailContent
+        
+        if (data.password) {
+          // Admin set password - send welcome email with password info
+          emailContent = generateOnboardingWithPasswordEmail({
+            name: employee.name,
+            pin: employee.pin,
+            email: employee.email,
+            phone: employee.phone || "Not provided",
+            roles: roles.length > 0 ? roles : undefined,
+            locations: locations.length > 0 ? locations : undefined,
+          })
+        } else if (data.sendSetupEmail && setupToken) {
+          // Send setup link email
+          const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/setup-password?token=${setupToken}`
+          emailContent = generateOnboardingSetupLinkEmail({
+            name: employee.name,
+            pin: employee.pin,
+            email: employee.email,
+            phone: employee.phone || "Not provided",
+            roles: roles.length > 0 ? roles : undefined,
+            locations: locations.length > 0 ? locations : undefined,
+            setupUrl,
+          })
+        } else {
+          // No password setup - send basic onboarding email
+          emailContent = generateOnboardingEmail({
+            name: employee.name,
+            pin: employee.pin,
+            email: employee.email,
+            phone: employee.phone || "Not provided",
+            roles: roles.length > 0 ? roles : undefined,
+            locations: locations.length > 0 ? locations : undefined,
+          })
+        }
 
         await sendEmail({
           to: employee.email,

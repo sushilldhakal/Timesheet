@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Shield, MapPin, Briefcase, CheckCircle2 } from "lucide-react"
-import { RIGHT_LABELS } from "@/lib/config/rights"
+import { RIGHT_LABELS, type Right } from "@/lib/config/rights"
 
 export default function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
@@ -162,7 +162,7 @@ export default function ProfilePage() {
                   {user.rights.map((right) => (
                     <Badge key={right} variant="secondary" className="flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      {RIGHT_LABELS[right] || right}
+                      {RIGHT_LABELS[right as Right] || right}
                     </Badge>
                   ))}
                 </div>

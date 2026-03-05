@@ -20,7 +20,12 @@ export function formatDate(date: Date | string | null | undefined): string {
   const d = typeof date === "string" ? new Date(date) : date
   if (isNaN(d.getTime())) return ""
   
-  return format(d, DATE_FORMAT)
+  try {
+    return format(d, DATE_FORMAT)
+  } catch (error) {
+    console.error("Date formatting error:", error, "Date:", date, "Format:", DATE_FORMAT)
+    return String(date) // Fallback to string representation
+  }
 }
 
 /**

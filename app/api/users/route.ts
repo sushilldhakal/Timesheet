@@ -25,6 +25,7 @@ export async function GET() {
       id: u._id,
       name: u.name ?? "",
       username: u.username,
+      email: u.email ?? "",
       role: u.role,
       location: Array.isArray(u.location) ? u.location : u.location ? [String(u.location)] : [],
       rights: u.rights ?? [],
@@ -62,24 +63,61 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, username, password, role, location, rights, managedRoles } = parsed.data
+    const { name, username, email, password, role, location, rights, managedRoles, employeeId } = parsed.data
     console.log('[POST /api/users] Parsed data - managedRoles:', managedRoles)
 
     await connectDB()
 
-    const existing = await User.findOne({ username: username.toLowerCase() })
-    if (existing) {
+    // Check for existing username
+    const existingUser = await User.findOne({ username: username.toLowerCase() })
+    if (existingUser) {
       return NextResponse.json({ error: "Username already exists" }, { status: 409 })
     }
+
+    // Check for existing email
+    const existingEmail = await User.findOne({ email: email.toLowerCase() })
+    if (existingEmail) {
+      return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+    }
+
+    let userPassword = password
+
+    // If promoting from staff, verify employee exists and copy their password
+    if (employeeId) {
+      const { Employee } = await import("@/lib/db")
+      const employee = await Employee.findById(employeeId).select("+password")
+      if (!employee) {
+        return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+      }
+      if (employee.email?.toLowerCase() !== email.toLowerCase()) {
+        return NextResponse.json({ error: "Email must match employee email" }, { status: 400 })
+      }
+      if (!employee.password) {
+        return NextResponse.json({ error: "Employee must have a password set to be promoted" }, { status: 400 })
+      }
+      
+      // Copy the employee's hashed password directly
+      userPassword = employee.password
+    }
+
+    // Validate that we have a password (either provided or copied from employee)
+    if (!userPassword) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 })
+    }
+
+    const now = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
 
     const user = await User.create({
       name: name.trim(),
       username: username.toLowerCase(),
-      password,
+      email: email.toLowerCase(),
+      password: userPassword, // This will be hashed by the pre-save hook if it's not already hashed
       role: role ?? "user",
       location: location ?? [],
       rights: rights ?? [],
       managedRoles: managedRoles ?? [],
+      createdAt: now,
+      updatedAt: now,
     })
 
     console.log('[POST /api/users] Created user with managedRoles:', user.managedRoles)
@@ -89,6 +127,7 @@ export async function POST(request: NextRequest) {
         id: user._id,
         name: user.name,
         username: user.username,
+        email: user.email,
         role: user.role,
         location: user.location ?? [],
         rights: user.rights ?? [],

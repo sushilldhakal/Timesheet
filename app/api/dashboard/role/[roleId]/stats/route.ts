@@ -17,7 +17,7 @@ const { ObjectId } = mongoose.Types
 
 export async function GET(
   request: Request,
-  { params }: { params: { roleId: string } }
+  { params }: { params: Promise<{ roleId: string }> }
 ) {
   try {
     // 1. Authentication
@@ -29,8 +29,8 @@ export async function GET(
       )
     }
 
-    // 2. Validate ObjectId format
-    const { roleId } = params
+    // 2. Await params and validate ObjectId format
+    const { roleId } = await params
     if (!ObjectId.isValid(roleId)) {
       return NextResponse.json(
         { 

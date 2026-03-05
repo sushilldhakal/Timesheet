@@ -38,10 +38,11 @@ env.txt
 
 # vercel
 .vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
 scripts/
 
+skills-lock.json
+package-lock.json

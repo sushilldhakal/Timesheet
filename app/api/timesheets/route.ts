@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
   const employeeIds = searchParams.getAll("employeeId").map((s) => s.trim()).filter(Boolean)
   const employers = searchParams.getAll("employer").map((s) => s.trim()).filter(Boolean)
   const locations = searchParams.getAll("location").map((s) => s.trim()).filter(Boolean)
+  const roles = searchParams.getAll("role").map((s) => s.trim()).filter(Boolean)
   const limitParam = searchParams.get("limit")
   const offsetParam = searchParams.get("offset")
   const sortByParam = searchParams.get("sortBy")?.trim() ?? "date"
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
     if (employeeIds.length > 0) {
       const emps = await Employee.find({ _id: { $in: employeeIds } }).lean()
       for (const emp of emps) {
-        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; role?: string[]; location?: string[]; comment?: string }
+        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; location?: string[]; comment?: string }
         const locFilter = employeeLocationFilter(ctx.userLocations)
         if (Object.keys(locFilter).length > 0) {
           const empLocs = Array.isArray(e.location) ? e.location : []
@@ -161,12 +162,29 @@ export async function GET(request: NextRequest) {
           const inLocation = empLocs.some((loc) => userLocs.includes(String(loc).trim()))
           if (!inLocation) continue
         }
+        // Fetch role assignments for this employee
+        const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+        const { Category } = await import("@/lib/db")
+        const roleAssignments = await EmployeeRoleAssignment.find({
+          employeeId: e._id,
+          isActive: true,
+        }).populate("roleId", "name").lean()
+        
+        const roleNames = roleAssignments.map((assignment: any) => assignment.roleId?.name).filter(Boolean)
+        
+        // Apply role filtering if specified
+        if (roles.length > 0) {
+          const hasMatchingRole = roleNames.some(roleName => roles.includes(roleName))
+          if (!hasMatchingRole) continue
+        }
+        
         pins.push(e.pin)
+        
         employeeMap.set(e.pin, {
           id: String(e._id),
           name: e.name ?? "",
           employer: Array.isArray(e.employer) ? e.employer.join(", ") : "",
-          role: Array.isArray(e.role) ? e.role.join(", ") : "",
+          role: roleNames.join(", "),
           location: Array.isArray(e.location) ? e.location.join(", ") : "",
           comment: e.comment ?? "",
         })
@@ -189,13 +207,45 @@ export async function GET(request: NextRequest) {
       if (andConditions.length > 0) filter.$and = andConditions
       const employees = await Employee.find(filter).lean()
       pins = employees.map((e) => (e as { pin: string }).pin)
+      
+      // Fetch role assignments for all employees
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const { Category } = await import("@/lib/db")
+      const employeeIds = employees.map((e) => (e as { _id: unknown })._id)
+      const roleAssignments = await EmployeeRoleAssignment.find({
+        employeeId: { $in: employeeIds },
+        isActive: true,
+      }).populate("roleId", "name").lean()
+      
+      // Group role assignments by employee ID
+      const rolesByEmployee = new Map<string, string[]>()
+      for (const assignment of roleAssignments) {
+        const empId = String((assignment as any).employeeId)
+        const roleName = (assignment as any).roleId?.name
+        if (roleName) {
+          if (!rolesByEmployee.has(empId)) {
+            rolesByEmployee.set(empId, [])
+          }
+          rolesByEmployee.get(empId)!.push(roleName)
+        }
+      }
+      
       for (const emp of employees) {
-        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; role?: string[]; location?: string[]; comment?: string }
+        const e = emp as { _id: unknown; pin: string; name?: string; employer?: string[]; location?: string[]; comment?: string }
+        const empId = String(e._id)
+        const roleNames = rolesByEmployee.get(empId) || []
+        
+        // Apply role filtering if specified
+        if (roles.length > 0) {
+          const hasMatchingRole = roleNames.some(roleName => roles.includes(roleName))
+          if (!hasMatchingRole) continue
+        }
+        
         employeeMap.set(e.pin, {
           id: String(e._id),
           name: e.name ?? "",
           employer: Array.isArray(e.employer) ? e.employer.join(", ") : "",
-          role: Array.isArray(e.role) ? e.role.join(", ") : "",
+          role: roleNames.join(", "),
           location: Array.isArray(e.location) ? e.location.join(", ") : "",
           comment: e.comment ?? "",
         })
@@ -225,7 +275,8 @@ export async function GET(request: NextRequest) {
       const meta = employeeMap.get(pin)
 
       // Format date for display using configured format
-      const date = formatDateDisplay(shiftDate)
+      // Use UTC date to avoid timezone shifting
+      const date = formatDateDisplay(new Date(shiftDate.getUTCFullYear(), shiftDate.getUTCMonth(), shiftDate.getUTCDate()))
 
       const clockIn = formatTimeString(shift.clockIn?.time)
       const breakIn = formatTimeString(shift.breakIn?.time)

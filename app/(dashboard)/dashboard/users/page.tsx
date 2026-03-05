@@ -15,6 +15,7 @@ export type UserRow = {
   id: string
   name: string
   username: string
+  email?: string
   role: "admin" | "user"
   location: string[]
   rights: string[]

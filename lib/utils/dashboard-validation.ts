@@ -80,11 +80,15 @@ export async function validateLocationRolePairs(
   }))
   
   const enablements = await LocationRoleEnablement.find({
-    $or: orConditions,
-    effectiveFrom: { $lte: effectiveDate },
-    $or: [
-      { effectiveTo: null },
-      { effectiveTo: { $gte: effectiveDate } }
+    $and: [
+      { $or: orConditions },
+      { effectiveFrom: { $lte: effectiveDate } },
+      {
+        $or: [
+          { effectiveTo: null },
+          { effectiveTo: { $gte: effectiveDate } }
+        ]
+      }
     ]
   }).lean()
   

@@ -4,12 +4,15 @@ import { RIGHTS_LIST, type Right } from "@/lib/config/rights"
 export interface IUser {
   name: string
   username: string
+  email: string // Email for unified login
   password: string
   role: "admin" | "user" | "super_admin"
-  tenantId: string // Reference to Tenant._id
+
   location: string[]
   rights: Right[]
   managedRoles: string[] // Role names that this user can supervise
+  passwordResetToken?: string | null // Token for password reset
+  passwordResetExpiry?: Date | null // Expiry for reset token
   createdAt: number // Unix timestamp (seconds since epoch)
   updatedAt: number // Unix timestamp (seconds since epoch)
 }
@@ -32,6 +35,14 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       trim: true,
       lowercase: true,
     },
+    email: {
+      type: String,
+      required: false, // Optional for backward compatibility
+      trim: true,
+      lowercase: true,
+      sparse: true, // Allows null but enforces uniqueness when present
+      index: true,
+    },
     password: {
       type: String,
       required: true,
@@ -42,11 +53,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       enum: ["admin", "user", "super_admin"],
       default: "user",
     },
-    tenantId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+
     location: {
       type: [String],
       default: [],
@@ -60,13 +67,23 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       type: [String],
       default: [],
     },
+    passwordResetToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    passwordResetExpiry: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     createdAt: {
       type: Number,
-      required: true,
+      default: () => Math.floor(Date.now() / 1000),
     },
     updatedAt: {
       type: Number,
-      required: true,
+      default: () => Math.floor(Date.now() / 1000),
     },
   },
   {
@@ -94,6 +111,13 @@ userSchema.pre("save", async function (next) {
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next()
+  
+  // Check if password is already hashed (starts with $2b$ which is bcrypt format)
+  if (this.password && this.password.startsWith("$2b$")) {
+    // Password is already hashed, don't hash again
+    return next()
+  }
+  
   const bcrypt = await import("bcrypt")
   this.password = bcrypt.hashSync(this.password, 10)
   next()

@@ -25,7 +25,7 @@ export function LoginForm({
 }: React.ComponentProps<"div">) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get("redirect") ?? "/dashboard"
+  const redirect = searchParams?.get("redirect") ?? "/dashboard"
 
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")

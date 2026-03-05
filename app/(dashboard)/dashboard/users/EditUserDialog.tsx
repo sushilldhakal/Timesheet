@@ -16,7 +16,7 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
+
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { RIGHTS_LIST, RIGHT_LABELS, type Right } from "@/lib/config/rights"
 import { CATEGORY_TYPES } from "@/lib/config/category-types"
@@ -39,13 +39,14 @@ export function EditUserDialog({
 }: Props) {
   const [name, setName] = useState(user.name)
   const [username, setUsername] = useState(user.username)
+  const [email, setEmail] = useState(user.email || "")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<"admin" | "user">(user.role)
   const [location, setLocation] = useState<string[]>(user.location ?? [])
   const [rights, setRights] = useState<Right[]>(
     (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
   )
   const [managedRoles, setManagedRoles] = useState<string[]>([])
+  const [linkedEmployee, setLinkedEmployee] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([])
@@ -58,7 +59,9 @@ export function EditUserDialog({
         fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`).then((res) => res.ok ? res.json() : { categories: [] }),
         fetch(`/api/categories?type=${CATEGORY_TYPES.ROLE}`).then((res) => res.ok ? res.json() : { categories: [] }),
         fetch(`/api/users/${user.id}`).then((res) => res.ok ? res.json() : { user: {} }),
-      ]).then(([locationData, roleData, userData]) => {
+        // Try to find linked employee by email
+        fetch(`/api/employees?limit=1000`).then((res) => res.ok ? res.json() : { employees: [] }),
+      ]).then(([locationData, roleData, userData, employeeData]) => {
         const locOpts = (locationData.categories ?? []).map((c: { id: string; name: string }) => ({
           value: c.name,
           label: c.name,
@@ -66,12 +69,18 @@ export function EditUserDialog({
         setLocationOptions(locOpts)
         setAllRoles(roleData.categories ?? [])
         setManagedRoles(userData.user?.managedRoles ?? [])
+        
+        // Find linked employee by email
+        const employee = (employeeData.employees ?? []).find((emp: any) => 
+          emp.email && emp.email.toLowerCase() === user.email?.toLowerCase()
+        )
+        setLinkedEmployee(employee)
       }).catch(() => {
         setLocationOptions([])
         setAllRoles([])
       })
     }
-  }, [open, user.id])
+  }, [open, user.id, user.email])
 
   // Filter roles based on selected locations
   useEffect(() => {
@@ -93,8 +102,8 @@ export function EditUserDialog({
     if (open && user) {
       setName(user.name)
       setUsername(user.username)
+      setEmail(user.email || "")
       setPassword("")
-      setRole(user.role)
       setLocation(user.location ?? [])
       setRights(
         (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
@@ -104,6 +113,18 @@ export function EditUserDialog({
     }
   }, [open, user])
 
+  const syncFromEmployee = () => {
+    if (linkedEmployee) {
+      // Sync locations
+      const employeeLocationNames = linkedEmployee.locations?.map((loc: any) => loc.name) || []
+      setLocation(employeeLocationNames)
+      
+      // Sync managed roles from employee's current roles
+      const employeeRoleNames = linkedEmployee.roles?.map((role: any) => role.role.name) || []
+      setManagedRoles(employeeRoleNames)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -112,13 +133,14 @@ export function EditUserDialog({
       const body = isSelf
         ? {
             username: username.trim().toLowerCase(),
+            email: email.trim().toLowerCase(),
             ...(password ? { password } : {}),
           }
         : {
             name: name.trim() || username.trim(),
             username: username.trim().toLowerCase(),
+            email: email.trim().toLowerCase(),
             ...(password ? { password } : {}),
-            role,
             location,
             rights,
             managedRoles,
@@ -153,6 +175,30 @@ export function EditUserDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
+            {!isSelf && linkedEmployee && (
+              <Field>
+                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      Linked Employee: {linkedEmployee.name}
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      Roles: {linkedEmployee.roles?.map((r: any) => r.role.name).join(", ") || "None"} | 
+                      Locations: {linkedEmployee.locations?.map((l: any) => l.name).join(", ") || "None"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={syncFromEmployee}
+                    className="ml-3"
+                  >
+                    Sync from Employee
+                  </Button>
+                </div>
+              </Field>
+            )}
             {!isSelf && (
               <Field>
                 <FieldLabel htmlFor="edit-name">Name</FieldLabel>
@@ -175,6 +221,17 @@ export function EditUserDialog({
               />
             </Field>
             <Field>
+              <FieldLabel htmlFor="edit-email">Email *</FieldLabel>
+              <Input
+                id="edit-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@example.com"
+                required
+              />
+            </Field>
+            <Field>
               <FieldLabel htmlFor="edit-password">
                 {isSelf ? "New Password" : "Password"}
               </FieldLabel>
@@ -189,18 +246,7 @@ export function EditUserDialog({
             </Field>
             {!isSelf && (
               <>
-                <Field>
-                  <FieldLabel htmlFor="edit-role">Role</FieldLabel>
-                  <select
-                    id="edit-role"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as "admin" | "user")}
-                    className="flex h-8 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm"
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </Field>
+               
                 <Field>
                   <FieldLabel htmlFor="edit-location">Locations *</FieldLabel>
                   <MultiSelect
@@ -212,7 +258,9 @@ export function EditUserDialog({
                     resetOnDefaultValueChange
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Select locations to enable role selection
+                    {linkedEmployee 
+                      ? "Select locations or use 'Sync from Employee' to match employee's current locations" 
+                      : "Select locations to enable role selection"}
                   </p>
                 </Field>
                 <Field>
@@ -232,7 +280,9 @@ export function EditUserDialog({
                     />
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    User can manage timesheets and rosters for staff in these roles
+                    {linkedEmployee 
+                      ? "User can manage timesheets and rosters for staff in these roles. Use 'Sync from Employee' to match employee's current roles." 
+                      : "User can manage timesheets and rosters for staff in these roles"}
                   </p>
                 </Field>
                 <Field>

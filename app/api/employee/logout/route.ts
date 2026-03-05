@@ -1,8 +1,25 @@
-import { NextResponse } from "next/server"
-import { clearEmployeeCookie } from "@/lib/auth-helpers"
+/**
+ * Employee Logout API
+ * 
+ * Clears employee web session cookie
+ */
 
-/** POST /api/employee/logout - Clear employee session */
+import { NextResponse } from "next/server"
+import { clearEmployeeWebCookie } from "@/lib/employee-auth"
+
 export async function POST() {
-  await clearEmployeeCookie()
-  return NextResponse.json({ success: true })
+  try {
+    await clearEmployeeWebCookie()
+
+    return NextResponse.json({
+      success: true,
+      message: "Logged out successfully",
+    })
+  } catch (err) {
+    console.error("[api/employee/logout]", err)
+    return NextResponse.json(
+      { error: "Logout failed" },
+      { status: 500 }
+    )
+  }
 }

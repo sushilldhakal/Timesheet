@@ -14,13 +14,13 @@ export function DeviceRegistrationDialog() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const isRevoked = searchParams.get("revoked") === "true"
-  const isDisabled = searchParams.get("disabled") === "true"
-  const showRegister = searchParams.get("register") === "true"
+  const isRevoked = searchParams?.get("revoked") === "true"
+  const isDisabled = searchParams?.get("disabled") === "true"
+  const showRegister = searchParams?.get("register") === "true"
 
   // Only show on home page (/) and clock page (/clock)
   const allowedPaths = ["/", "/clock"]
-  const isAllowedPath = allowedPaths.includes(pathname)
+  const isAllowedPath = pathname ? allowedPaths.includes(pathname) : false
 
   // Don't render if:
   // 1. None of the query params are present, OR

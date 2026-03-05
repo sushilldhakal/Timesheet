@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const now = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
+
     await User.create({
       name: "Administrator",
       username: username.toLowerCase(),
@@ -33,6 +35,8 @@ export async function POST(request: NextRequest) {
       role: "admin",
       location: [],
       rights: [],
+      createdAt: now,
+      updatedAt: now,
     })
 
     setAdminExistsCache(true)

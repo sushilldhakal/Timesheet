@@ -68,7 +68,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
             navigationItems.forEach((item) => {
                 if (item.children) {
                     const hasActiveChild = item.children.some(
-                        (child) => child.href && (pathname === child.href || pathname.startsWith(child.href + '/'))
+                        (child) => child.href && pathname && (pathname === child.href || pathname.startsWith(child.href + '/'))
                     );
                     if (hasActiveChild && !next.includes(item.label)) {
                         next.push(item.label);
@@ -95,7 +95,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
         const isActive = item.href 
             ? (item.href === '/dashboard' 
                 ? pathname === '/dashboard' 
-                : pathname === item.href || pathname.startsWith(item.href + '/'))
+                : pathname && (pathname === item.href || pathname.startsWith(item.href + '/')))
             : false;
             
         const showLabels = forceExpand || !isCollapsed;
@@ -158,8 +158,8 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                                     {item.children!.map((child) => {
                                         if (!child.href) return null;
                                         const ChildIcon = child.icon;
-                                        const isChildActive =
-                                            pathname === child.href || pathname.startsWith(child.href + '/');
+                                        const isChildActive = pathname && (
+                                            pathname === child.href || pathname.startsWith(child.href + '/'));
                                         return (
                                             <Tooltip key={child.href}>
                                                 <TooltipTrigger asChild>

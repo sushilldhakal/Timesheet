@@ -34,6 +34,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [location, setLocation] = useState<string[]>([])
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const [homeAddress, setHomeAddress] = useState("")
   const [dob, setDob] = useState("")
   const [comment, setComment] = useState("")
   const [img, setImg] = useState("")
@@ -41,6 +42,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [standardHours, setStandardHours] = useState<number | null>(null)
   const [awardId, setAwardId] = useState<string>("")
   const [awardLevel, setAwardLevel] = useState<string>("")
+  const [password, setPassword] = useState("")
+  const [sendSetupEmail, setSendSetupEmail] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
@@ -85,6 +88,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     setLocation([])
     setEmail("")
     setPhone("")
+    setHomeAddress("")
     setDob("")
     setComment("")
     setImg("")
@@ -92,6 +96,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     setStandardHours(null)
     setAwardId("")
     setAwardLevel("")
+    setPassword("")
+    setSendSetupEmail(true)
     setError(null)
   }
 
@@ -246,6 +252,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
           location,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
+          homeAddress: homeAddress.trim() || undefined,
           dob: dob.trim() || undefined,
           comment: comment.trim() || undefined,
           img: img || undefined,
@@ -253,6 +260,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
           standardHoursPerWeek: standardHours,
           awardId: awardId || undefined,
           awardLevel: awardLevel || undefined,
+          password: password.trim() || undefined,
+          sendSetupEmail: !password.trim() && sendSetupEmail, // Only send if no password provided
         }),
       })
       const data = await res.json()
@@ -370,6 +379,15 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Phone number (last 4 digits → PIN)"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="add-emp-home-address">Home Address</FieldLabel>
+                <Input
+                  id="add-emp-home-address"
+                  value={homeAddress}
+                  onChange={(e) => setHomeAddress(e.target.value)}
+                  placeholder="Home address (optional)"
                 />
               </Field>
             </div>
@@ -508,6 +526,47 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                   ))}
                 </select>
               </Field>
+            </div>
+            <div className="border-t pt-4 mt-2">
+              <h3 className="text-sm font-medium mb-3">Web Access Setup</h3>
+              <div className="grid grid-cols-1 gap-4">
+                <Field>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id="add-emp-send-setup"
+                      checked={sendSetupEmail}
+                      onChange={(e) => {
+                        setSendSetupEmail(e.target.checked)
+                        if (e.target.checked) setPassword("")
+                      }}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <FieldLabel htmlFor="add-emp-send-setup" className="mb-0 cursor-pointer">
+                      Send password setup email
+                    </FieldLabel>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-6">
+                    Employee will receive an email with a link to set their own password (expires in 24 hours)
+                  </p>
+                </Field>
+                {!sendSetupEmail && (
+                  <Field>
+                    <FieldLabel htmlFor="add-emp-password">Initial Password</FieldLabel>
+                    <Input
+                      id="add-emp-password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      minLength={8}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Employee will be required to change this password on first login
+                    </p>
+                  </Field>
+                )}
+              </div>
             </div>
             {error && <FieldError>{error}</FieldError>}
           </FieldGroup>

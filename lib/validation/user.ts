@@ -9,17 +9,20 @@ const rightsSchema = z.array(z.enum(RIGHTS_LIST as [string, ...string[]]))
 export const userCreateSchema = z.object({
   name: z.string().min(1, "Name required").max(200).trim(),
   username: z.string().min(1, "Username required").max(100).trim().toLowerCase(),
-  password: z.string().min(6, "Password at least 6 characters").max(128),
+  email: z.string().email("Invalid email format").trim().toLowerCase(),
+  password: z.string().min(6, "Password at least 6 characters").max(128).optional(), // Optional when promoting from staff
   role: userRoleEnum.optional().default("user"),
   location: z.array(z.string().trim()).default([]),
   rights: rightsSchema.optional().default([]),
   managedRoles: z.array(z.string().trim()).optional().default([]),
+  employeeId: z.string().optional(), // For promoting from staff
 })
 
 /** Admin updates user - full fields, all optional except at least one */
 export const userAdminUpdateSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
   username: z.string().min(1).max(100).trim().toLowerCase().optional(),
+  email: z.string().email("Invalid email format").trim().toLowerCase().optional(),
   password: z.string().min(6).max(128).optional(),
   role: userRoleEnum.optional(),
   location: z.array(z.string().trim()).optional(),
@@ -27,9 +30,10 @@ export const userAdminUpdateSchema = z.object({
   managedRoles: z.array(z.string().trim()).optional(),
 })
 
-/** User updates own profile - username and password only */
+/** User updates own profile - username, email and password only */
 export const userSelfUpdateSchema = z.object({
   username: z.string().min(1, "Username required").max(100).trim().toLowerCase(),
+  email: z.string().email("Invalid email format").trim().toLowerCase().optional(),
   password: z.string().min(6, "Password at least 6 characters").optional(),
 })
 

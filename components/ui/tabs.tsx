@@ -15,7 +15,8 @@ function Tabs({
       data-slot="tabs"
       data-orientation={orientation}
       className={cn(
-        "gap-2 group/tabs flex data-horizontal:flex-col",
+        "gap-2 group/tabs flex",
+        orientation === "horizontal" ? "flex-col" : "flex-row",
         className
       )}
       {...props}
@@ -96,7 +97,7 @@ const TabsList = React.forwardRef<
   }, [updateIndicator])
 
   return (
-    <div className="relative" ref={tabsListRef}>
+    <div className="relative flow-root" ref={tabsListRef}>
       <TabsPrimitive.List
         ref={ref}
         data-slot="tabs-list"

@@ -32,13 +32,17 @@ export function DataTablePagination<TData>({
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select
-            value={`${table.getState().pagination.pageSize}`}
+            value={table.getState().pagination.pageSize >= table.getFilteredRowModel().rows.length ? "all" : `${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
-              table.setPageSize(Number(value))
+              if (value === "all") {
+                table.setPageSize(table.getFilteredRowModel().rows.length || 1000)
+              } else {
+                table.setPageSize(Number(value))
+              }
             }}
           >
             <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
               {[10, 20, 25, 30, 40, 50].map((pageSize) => (
@@ -46,6 +50,7 @@ export function DataTablePagination<TData>({
                   {pageSize}
                 </SelectItem>
               ))}
+              <SelectItem value="all">All</SelectItem>
             </SelectContent>
           </Select>
         </div>
