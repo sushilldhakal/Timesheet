@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSearchParams, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -13,6 +13,7 @@ type Location = {
 }
 
 export function DeviceRegistrationDialog() {
+  // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [loading, setLoading] = useState(false)
@@ -20,34 +21,15 @@ export function DeviceRegistrationDialog() {
   const [locations, setLocations] = useState<Location[]>([])
   const [loadingLocations, setLoadingLocations] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
-  const isRevoked = searchParams?.get("revoked") === "true"
-  const isDisabled = searchParams?.get("disabled") === "true"
-  const showRegister = searchParams?.get("register") === "true"
-
-  // Only show on pin page (/pin) and clock page (/clock)
-  const allowedPaths = ["/pin", "/clock"]
-  const isAllowedPath = pathname ? allowedPaths.includes(pathname) : false
-
-  // Don't render if:
-  // 1. None of the query params are present, OR
-  // 2. Current path is not in the allowed paths (dashboard, login, etc.)
-  if (!isAllowedPath || (!showRegister && !isRevoked && !isDisabled)) {
-    return null
-  }
-
-  // Fetch locations when dialog opens
+  // Fix hydration mismatch by only rendering after mount
   useEffect(() => {
-    if (showRegister || isRevoked) {
-      // Add a small delay to avoid conflicts with PIN page location requests
-      const timer = setTimeout(() => {
-        fetchLocations()
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-  }, [showRegister, isRevoked])
+    setMounted(true)
+  }, [])
 
-  const fetchLocations = async (isRetry = false) => {
+  // Define fetchLocations with useCallback to avoid dependency issues
+  const fetchLocations = useCallback(async (isRetry = false) => {
     setLoadingLocations(true)
     if (!isRetry) {
       setError("") // Clear any previous errors only on initial load
@@ -58,7 +40,8 @@ export function DeviceRegistrationDialog() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
       
-      const response = await fetch("/api/categories?type=location", {
+      // Use public endpoint that doesn't require authentication
+      const response = await fetch("/api/public/locations", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -72,24 +55,20 @@ export function DeviceRegistrationDialog() {
       
       if (response.ok) {
         const data = await response.json()
-        const locationList = data.categories || []
+        const locationList = data.locations || []
         setLocations(locationList)
         setRetryCount(0) // Reset retry count on success
         
         // If no locations found, show a helpful message
         if (locationList.length === 0) {
-          setError("No work locations found in database. Please create locations in the admin dashboard first.")
+          setError("No work locations found. Please create locations in the admin dashboard first.")
         }
       } else {
         // Handle different HTTP status codes
-        if (response.status === 401) {
-          setError("Authentication required to load work locations. Please refresh the page and try again.")
-        } else if (response.status === 403) {
-          setError("Access denied. Unable to load work locations from database.")
-        } else if (response.status === 404) {
+        if (response.status === 404) {
           setError("Work locations service not found. Please contact support.")
         } else {
-          setError(`Failed to load work locations from database (Error ${response.status}). Please try again.`)
+          setError(`Failed to load work locations (Error ${response.status}). Please try again.`)
         }
       }
     } catch (err) {
@@ -101,16 +80,53 @@ export function DeviceRegistrationDialog() {
       } else if (err instanceof TypeError && err.message.includes("fetch")) {
         setError("Network error while loading work locations. Please check your internet connection and try again.")
       } else {
-        setError("Unable to load work locations from database. Please refresh the page and try again.")
+        setError("Unable to load work locations. Please refresh the page and try again.")
       }
     } finally {
       setLoadingLocations(false)
     }
-  }
+  }, [])
 
-  const handleRetryLocations = () => {
+  const handleRetryLocations = useCallback(() => {
     setRetryCount(prev => prev + 1)
     fetchLocations(true)
+  }, [fetchLocations])
+
+  // Fetch locations when dialog opens using public endpoint
+  useEffect(() => {
+    if (!mounted) return // Don't run until mounted
+    
+    const isRevoked = searchParams?.get("revoked") === "true"
+    const showRegister = searchParams?.get("register") === "true"
+    
+    if (showRegister || isRevoked) {
+      // Add a small delay to avoid conflicts with PIN page location requests
+      const timer = setTimeout(() => {
+        fetchLocations()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [mounted, searchParams, fetchLocations]) // Include dependencies
+
+  // NOW we can do conditional logic after all hooks are defined
+  const isRevoked = searchParams?.get("revoked") === "true"
+  const isDisabled = searchParams?.get("disabled") === "true"
+  const showRegister = searchParams?.get("register") === "true"
+
+  // Only show on pin page (/pin) and clock page (/clock)
+  const allowedPaths = ["/pin", "/clock"]
+  const isAllowedPath = pathname ? allowedPaths.includes(pathname) : false
+
+  // Don't render until mounted (prevents hydration mismatch)
+  if (!mounted) {
+    return null
+  }
+
+  // Don't render if:
+  // 1. None of the query params are present, OR
+  // 2. Current path is not in the allowed paths (dashboard, login, etc.)
+  if (!isAllowedPath || (!showRegister && !isRevoked && !isDisabled)) {
+    return null
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -120,24 +136,18 @@ export function DeviceRegistrationDialog() {
 
     const formData = new FormData(e.currentTarget as HTMLFormElement)
     const selectedLocationId = formData.get("locationId") as string
-    const manualLocationName = formData.get("manualLocationName") as string
     
-    let locationName = ""
-    let locationAddress = ""
-    
-    if (selectedLocationId && locations.length > 0) {
-      // Use selected location from dropdown
-      const selectedLocation = locations.find(loc => (loc._id || loc.id) === selectedLocationId)
-      locationName = selectedLocation?.name || ""
-      locationAddress = selectedLocation?.address || ""
-    } else if (manualLocationName) {
-      // Use manually entered location
-      locationName = manualLocationName.trim()
-      locationAddress = ""
+    if (!selectedLocationId) {
+      setError("Please select a location from the dropdown.")
+      return
     }
     
+    // Find the selected location to get its name
+    const selectedLocation = locations.find(loc => (loc._id || loc.id) === selectedLocationId)
+    const locationName = selectedLocation?.name || ""
+    
     if (!locationName) {
-      setError("Please select or enter a location name.")
+      setError("Invalid location selection. Please try again.")
       return
     }
     
@@ -145,7 +155,7 @@ export function DeviceRegistrationDialog() {
       email: formData.get("email"),
       password: formData.get("password"),
       locationName,
-      locationAddress,
+      locationAddress: "", // No address for basic location info
     }
 
     try {
@@ -297,6 +307,7 @@ export function DeviceRegistrationDialog() {
                   (Not GPS location)
                 </span>
               </div>
+              
               {loadingLocations ? (
                 <div className="w-full border rounded-md px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -322,46 +333,27 @@ export function DeviceRegistrationDialog() {
                   {locations.map((location) => (
                     <option key={location._id || location.id} value={location._id || location.id}>
                       {location.name}
-                      {location.address && ` - ${location.address}`}
                     </option>
                   ))}
                 </select>
               ) : (
                 <div className="space-y-3">
-                  {/* Fallback manual input */}
-                  <input
-                    id="manualLocationName"
-                    name="manualLocationName"
-                    type="text"
-                    placeholder="Enter work location name (e.g., Main Office, Store #1)"
-                    required
-                    className={cn(
-                      "w-full border rounded-md px-3 py-2",
-                      "bg-white dark:bg-gray-700",
-                      "border-gray-300 dark:border-gray-600",
-                      "text-gray-900 dark:text-white",
-                      "placeholder-gray-400 dark:placeholder-gray-500",
-                      "focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    )}
-                  />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Unable to load work locations from database. Please enter manually.
-                    </p>
-                    {error.includes("load locations") && (
-                      <button
-                        type="button"
-                        onClick={handleRetryLocations}
-                        disabled={loadingLocations}
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Retry {retryCount > 0 && `(${retryCount})`}
-                      </button>
-                    )}
+                  <div className="w-full border rounded-md px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                    No locations available
                   </div>
+                  {error.includes("load") && (
+                    <button
+                      type="button"
+                      onClick={handleRetryLocations}
+                      disabled={loadingLocations}
+                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Retry loading locations {retryCount > 0 && `(${retryCount})`}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
