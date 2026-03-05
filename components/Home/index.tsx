@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "@/lib/utils/toast"
-import { logger } from "@/lib/utils/logger"
 import { DeviceRegistrationDialog } from "@/components/DeviceRegistrationDialog"
 
 function formatTime12hr(date: Date) {

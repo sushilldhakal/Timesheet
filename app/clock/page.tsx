@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useFaceDetection } from "@/lib/hooks/UserFaceDetection"
 import { logger } from "@/lib/utils/logger"
+import { DeviceRegistrationDialog } from "@/components/DeviceRegistrationDialog"
 import dynamic from "next/dynamic"
 
 // Dynamically import Confetti to avoid SSR issues
@@ -518,6 +519,9 @@ console.log("clockLoading",clockLoading)
   
   return (
     <div className={cn("min-h-dvh flex flex-col", HOME_BG)}>
+      {/* Device Registration Dialog - conditionally rendered based on query params */}
+      <DeviceRegistrationDialog />
+      
       {/* Birthday Confetti - only renders on their birthday */}
       {isBirthday && (
         <Confetti

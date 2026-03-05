@@ -7,7 +7,7 @@ import { logDeviceRegistrationFailure } from "@/lib/auth-logger"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password, adminPin, locationName, locationAddress } = body
+    const { email, password, locationName, locationAddress } = body
 
     // Validate location name is provided
     if (!locationName || typeof locationName !== "string" || !locationName.trim()) {
@@ -20,28 +20,41 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
-    // Authenticate admin using email+password OR adminPin
+    // Authenticate admin using email+password
     let adminUser = null
 
     if (email && password) {
-      // Email + password authentication (treating email as username)
+      // Email + password authentication
       const normalizedInput = email.trim().toLowerCase()
       const bcrypt = await import("bcrypt")
       
-      // Try to find user by username (the email input is actually the username)
-      adminUser = await User.findOne({ username: normalizedInput })
+      // Try to find user by email or username
+      adminUser = await User.findOne({ 
+        $or: [
+          { email: normalizedInput },
+          { username: normalizedInput }
+        ]
+      })
         .select("+password")
         .lean()
 
       if (process.env.NODE_ENV === "development") {
         console.log("[device/register] Looking for user:", normalizedInput)
         console.log("[device/register] User found:", !!adminUser)
+        if (adminUser) {
+          console.log("[device/register] User details:", {
+            id: adminUser._id,
+            email: adminUser.email,
+            username: adminUser.username,
+            role: adminUser.role
+          })
+        }
       }
 
       if (!adminUser || !adminUser.password) {
-        logDeviceRegistrationFailure("Invalid credentials - user not found", { username: normalizedInput })
+        logDeviceRegistrationFailure("Invalid credentials - user not found", { email: normalizedInput })
         return NextResponse.json(
-          { error: "Invalid credentials" },
+          { error: "Invalid email or password. Please check your credentials." },
           { status: 401 }
         )
       }
@@ -54,18 +67,26 @@ export async function POST(request: NextRequest) {
       }
 
       if (!passwordMatch) {
-        logDeviceRegistrationFailure("Invalid password", { username: normalizedInput })
+        logDeviceRegistrationFailure("Invalid password", { email: normalizedInput })
         return NextResponse.json(
-          { error: "Invalid credentials" },
+          { error: "Invalid email or password. Please check your credentials." },
           { status: 401 }
         )
       }
 
       // Verify user is admin or super_admin
       if (!isAdminOrSuperAdmin(adminUser.role)) {
-        logDeviceRegistrationFailure("Insufficient permissions", { username: normalizedInput, role: adminUser.role })
+        if (process.env.NODE_ENV === "development") {
+          console.log("[device/register] User role check failed:", {
+            userRole: adminUser.role,
+            isAdmin: adminUser.role === "admin",
+            isSuperAdmin: adminUser.role === "super_admin",
+            isAdminOrSuperAdmin: isAdminOrSuperAdmin(adminUser.role)
+          })
+        }
+        logDeviceRegistrationFailure("Insufficient permissions", { email: normalizedInput, role: adminUser.role })
         return NextResponse.json(
-          { error: "Insufficient permissions" },
+          { error: "Access denied. Only administrators can register devices. Please use an admin account." },
           { status: 403 }
         )
       }
