@@ -9,7 +9,26 @@
 
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
-import type { AuthPayload, EmployeeAuthPayload, DeviceAuthPayload } from "./auth-better"
+
+// Type definitions for compatibility
+export type AuthPayload = {
+  sub: string
+  username: string
+  role: "admin" | "user" | "super_admin"
+  location?: string
+}
+
+export type EmployeeAuthPayload = {
+  sub: string
+  pin: string
+  type: "employee"
+}
+
+export type DeviceAuthPayload = {
+  sub: string
+  location: string
+  type: "device"
+}
 
 // ============================================================================
 // ADMIN/USER AUTHENTICATION (auth.ts replacement)

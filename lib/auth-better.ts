@@ -1,10 +1,13 @@
 /**
  * Better Auth Configuration
  * 
- * This replaces the manual JWT handling in auth.ts, employee-auth.ts, and device-auth.ts
- * while keeping the exact same authentication flows and cookie names.
+ * TEMPORARILY DISABLED due to package version conflicts.
+ * This will replace the manual JWT handling in auth.ts, employee-auth.ts, and device-auth.ts
+ * when better-auth package compatibility issues are resolved.
  */
 
+// Commented out to avoid deployment issues
+/*
 import { betterAuth } from "better-auth"
 import { mongodbAdapter } from "better-auth/adapters/mongodb"
 import { MongoClient } from "mongodb"
@@ -100,6 +103,7 @@ export const auth = betterAuth({
     "/sign-out",
   ],
 })
+*/
 
 // Export types for compatibility with existing code
 export type AuthPayload = {
