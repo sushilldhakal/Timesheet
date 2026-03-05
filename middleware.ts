@@ -2,14 +2,13 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getTokenFromRequest, verifyAuthToken } from "@/lib/auth"
 import { getEmployeeTokenFromRequest, getEmployeeWebTokenFromRequest, verifyEmployeeToken } from "@/lib/employee-auth"
-import { getDeviceTokenFromRequest, verifyDeviceToken } from "@/lib/device-auth"
-import { logDeviceTokenFailure, logStaffSessionFailure } from "@/lib/auth-logger"
+import { logStaffSessionFailure } from "@/lib/auth-logger"
 
 const PUBLIC_PATHS = ["/", "/forgot-password", "/reset-password", "/setup-password", "/pin"]
 const AUTH_PATHS = ["/"]
 const EMPLOYEE_CLOCK_PATH = "/clock"
 const STAFF_DASHBOARD_PATHS = ["/staff"]
-const DEVICE_REQUIRED_PATHS = ["/pin", "/clock"] // Only these paths require device registration
+const DEVICE_REQUIRED_PATHS: string[] = [] // Device authorization now handled by DeviceGuard component
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => p === pathname || pathname.startsWith(p + "/"))
@@ -27,10 +26,6 @@ function isStaffDashboardPath(pathname: string) {
   return STAFF_DASHBOARD_PATHS.some((p) => pathname.startsWith(p + "/") || pathname === p)
 }
 
-function requiresDeviceToken(pathname: string) {
-  return DEVICE_REQUIRED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -39,100 +34,32 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Allow registration page to load without device token
-  const isRegistrationPage = pathname === "/pin" && request.nextUrl.searchParams.has("register")
-  const isDisabledPage = pathname === "/pin" && request.nextUrl.searchParams.has("disabled")
-  const isRevokedPage = pathname === "/pin" && request.nextUrl.searchParams.has("revoked")
-  
-  if (isRegistrationPage || isDisabledPage || isRevokedPage) {
-    return NextResponse.next()
-  }
-
-  // Skip device token validation for paths that don't require it (login, dashboard, etc.)
-  if (!requiresDeviceToken(pathname)) {
-    // Handle staff dashboard routes - require employee web session
-    if (isStaffDashboardPath(pathname)) {
-      const empWebToken = getEmployeeWebTokenFromRequest(request)
-      let empAuth = null
-      if (empWebToken) {
-        try {
-          empAuth = await verifyEmployeeToken(empWebToken)
-        } catch {
-          empAuth = null
-        }
-      }
-
-      if (!empAuth) {
-        const loginUrl = new URL("/", request.url)
-        loginUrl.searchParams.set("redirect", pathname)
-        return NextResponse.redirect(loginUrl)
-      }
-
-      const response = NextResponse.next()
-      response.headers.set("x-employee-id", empAuth.sub)
-      return response
-    }
-
-    // Continue with normal auth flow for non-device pages
-    const token = getTokenFromRequest(request)
-    let auth = null
-    if (token) {
+  // Skip device token validation - now handled by DeviceGuard component
+  // Continue with normal auth flow
+  // Handle staff dashboard routes - require employee web session
+  if (isStaffDashboardPath(pathname)) {
+    const empWebToken = getEmployeeWebTokenFromRequest(request)
+    let empAuth = null
+    if (empWebToken) {
       try {
-        auth = await verifyAuthToken(token)
+        empAuth = await verifyEmployeeToken(empWebToken)
       } catch {
-        auth = null
+        empAuth = null
       }
     }
-    const isAuthenticated = !!auth
 
-    if (isAuthPath(pathname) && isAuthenticated) {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
-    }
-
-    if (!isPublic(pathname) && !isAuthenticated) {
+    if (!empAuth) {
       const loginUrl = new URL("/", request.url)
       loginUrl.searchParams.set("redirect", pathname)
       return NextResponse.redirect(loginUrl)
     }
 
     const response = NextResponse.next()
-    response.headers.set("x-user-role", auth?.role ?? "")
+    response.headers.set("x-employee-id", empAuth.sub)
     return response
   }
 
-  // Layer 1: Device Token Validation (only for device-required paths)
-  const deviceToken = getDeviceTokenFromRequest(request)
-  let deviceAuth = null
-
-  if (deviceToken) {
-    try {
-      deviceAuth = await verifyDeviceToken(deviceToken)
-
-      if (deviceAuth) {
-        // Device status validation is deferred to API routes
-        // The token is valid, but we'll check device status in the API layer
-        // This avoids database access in Edge Runtime middleware
-        
-        // Note: Device status checks (revoked, disabled) are handled by:
-        // 1. API routes that need device context
-        // 2. Client-side checks that call validation endpoints
-      }
-    } catch {
-      deviceAuth = null
-      logDeviceTokenFailure(undefined, "Token verification failed")
-    }
-  }
-
-  // If no valid device token, redirect to registration
-  if (!deviceAuth) {
-    if (!deviceToken) {
-      logDeviceTokenFailure(undefined, "Missing device token")
-    } else {
-      logDeviceTokenFailure(undefined, "Invalid device token")
-    }
-    return NextResponse.redirect(new URL("/pin?register=true", request.url))
-  }
-
+  // Continue with normal auth flow
   const token = getTokenFromRequest(request)
   let auth = null
   if (token) {
@@ -153,38 +80,24 @@ export async function middleware(request: NextRequest) {
         empAuth = await verifyEmployeeToken(empToken)
       } catch {
         empAuth = null
-        logStaffSessionFailure(deviceAuth.sub, undefined, "Token verification failed")
+        logStaffSessionFailure("", undefined, "Token verification failed")
       }
     }
     if (!empAuth) {
       if (!empToken) {
-        logStaffSessionFailure(deviceAuth.sub, undefined, "Missing staff session")
+        logStaffSessionFailure("", undefined, "Missing staff session")
       } else {
-        logStaffSessionFailure(deviceAuth.sub, undefined, "Invalid or expired staff session")
+        logStaffSessionFailure("", undefined, "Invalid or expired staff session")
       }
       return NextResponse.redirect(new URL("/pin", request.url))
     }
     const response = NextResponse.next()
     response.headers.set("x-employee-id", empAuth.sub)
-    response.headers.set("x-device-id", deviceAuth.sub)
     return response
-  }
-
-  if (isAuthPath(pathname) && isAuthenticated) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
-  if (!isPublic(pathname) && !isAuthenticated) {
-    const loginUrl = new URL("/", request.url)
-    loginUrl.searchParams.set("redirect", pathname)
-    return NextResponse.redirect(loginUrl)
   }
 
   const response = NextResponse.next()
   response.headers.set("x-user-role", auth?.role ?? "")
-  if (deviceAuth) {
-    response.headers.set("x-device-id", deviceAuth.sub)
-  }
   return response
 }
 

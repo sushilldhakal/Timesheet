@@ -11,6 +11,7 @@ import {
   Calendar,
   Cloud,
   Mail,
+  Tablet,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/types/dashboard';
 
@@ -71,6 +72,7 @@ export const baseNavigationItems: NavigationItem[] = [
     icon: Settings,
     adminOnly: true,
     children: [
+      { href: '/dashboard/devices', label: 'Device Management', icon: Tablet, adminOnly: true },
       { href: '/dashboard/Setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
       { href: '/dashboard/Setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },
     ],

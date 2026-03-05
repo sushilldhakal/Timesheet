@@ -5,6 +5,7 @@ import "./globals.css";
 import { SetupGuard } from "@/components/Setup";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
@@ -40,14 +41,16 @@ export default async function RootLayout({
         <meta name="theme-color" content="#2563eb" />
       </head>
       <body className="antialiased min-h-screen font-sans">
-        <ThemeProvider initialTheme={theme}>
-          <TooltipProvider>
-            <SetupGuard>{children}</SetupGuard>
-            <ServiceWorkerRegistration />
-            <InstallPrompt />
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider initialTheme={theme}>
+            <TooltipProvider>
+              <SetupGuard>{children}</SetupGuard>
+              <ServiceWorkerRegistration />
+              <InstallPrompt />
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

@@ -160,14 +160,20 @@ export async function POST(request: NextRequest) {
     // Check if today is employee's birthday
     const isBirthday = checkIfBirthday(employee.dob)
 
-    const today = format(new Date(), "dd-MM-yyyy", { locale: enUS })
-    const shift = await DailyShift.findOne({ pin: employee.pin, date: today }).lean()
+    // Get today's shift data - use Date object for proper MongoDB querying
+    const now = new Date()
+    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0))
+    
+    const shift = await DailyShift.findOne({ 
+      pin: employee.pin, 
+      date: todayStart 
+    }).lean()
 
     const punches = {
-      clockIn: shift?.clockIn?.time || "",
-      breakIn: shift?.breakIn?.time || "",
-      breakOut: shift?.breakOut?.time || "",
-      clockOut: shift?.clockOut?.time || "",
+      clockIn: shift?.clockIn?.time ? format(new Date(shift.clockIn.time), "h:mm:ss a", { locale: enUS }) : "",
+      breakIn: shift?.breakIn?.time ? format(new Date(shift.breakIn.time), "h:mm:ss a", { locale: enUS }) : "",
+      breakOut: shift?.breakOut?.time ? format(new Date(shift.breakOut.time), "h:mm:ss a", { locale: enUS }) : "",
+      clockOut: shift?.clockOut?.time ? format(new Date(shift.clockOut.time), "h:mm:ss a", { locale: enUS }) : "",
     }
 
     return NextResponse.json({

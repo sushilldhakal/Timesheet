@@ -6,11 +6,11 @@
 
 import { NextResponse } from "next/server"
 import { connectDB, Employee } from "@/lib/db"
-import { getEmployeeFromWebCookie } from "@/lib/employee-auth"
+import { getEmployeeFromCookie } from "@/lib/auth-helpers"
 
 export async function GET() {
   try {
-    const employeeAuth = await getEmployeeFromWebCookie()
+    const employeeAuth = await getEmployeeFromCookie()
 
     if (!employeeAuth) {
       return NextResponse.json(

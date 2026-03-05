@@ -1,18 +1,20 @@
 "use client"
 
+import { DeviceGuard } from "@/components/device/device-guard"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { useRouter } from "next/navigation"
 import Webcam from "react-webcam"
-import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check } from "lucide-react"
+import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check, Wifi, WifiOff, Upload, Clock } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useFaceDetection } from "@/lib/hooks/UserFaceDetection"
 import { logger } from "@/lib/utils/logger"
-import { DeviceRegistrationDialog } from "@/components/DeviceRegistrationDialog"
+import { useEnhancedClock } from "@/lib/hooks/use-enhanced-clock"
+import { OfflineStatus } from "@/components/clock/offline-status"
 import dynamic from "next/dynamic"
 
 // Dynamically import Confetti to avoid SSR issues
@@ -129,6 +131,14 @@ function FaceStatusBadge({ status }: { status: string }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ClockPage() {
+  return (
+    <DeviceGuard>
+      <ClockPageContent />
+    </DeviceGuard>
+  )
+}
+
+function ClockPageContent() {
   const router = useRouter()
   const webcamRef = useRef<Webcam>(null)
   const idleLogoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -191,6 +201,54 @@ export default function ClockPage() {
   const faceDetected = faceStatus === "ready"
   const noPhoto = modelsLoaded && !faceDetected
 
+  // ── Enhanced Clock Hook ────────────────────────────────────────────────────
+  const {
+    loading: enhancedLoading,
+    success: enhancedSuccess,
+    isOnline,
+    syncQueue,
+    handleClockAction: enhancedClockAction,
+    syncPunches,
+    pendingCount,
+    hasOfflineData,
+  } = useEnhancedClock({
+    employeeId: employee?.id || "",
+    location,
+    getLatestBlob,
+    resetFace,
+    noPhoto,
+    onSuccess: (type, message) => {
+      const now = new Date()
+      const labels: Record<string, string> = {
+        in: "Clocked In",
+        break: "On Break",
+        endBreak: "Break End",
+        out: "Clocked Out",
+      }
+      
+      setTimeEntries((prev) => [...prev, { 
+        type, 
+        time: format(now, "EEEE, MMMM d, yyyy h:mm:ss a", { locale: enUS }), 
+        label: labels[type] 
+      }])
+      setMessage({ type: "success", text: message })
+      setClockSuccess(true)
+      
+      // Wait 2 seconds to show success animation, then log out
+      setTimeout(() => {
+        handleLogout()
+      }, 2000)
+    },
+    onError: (error) => {
+      setMessage({ type: "error", text: error })
+      setClockSuccess(false)
+    },
+  })
+
+  // Use enhanced loading state
+  const actualClockLoading = clockLoading || enhancedLoading
+  const actualClockSuccess = clockSuccess || enhancedSuccess
+
   // ── Clock tick (every 60s — display is HH:MM only) ─────────────────────────
   useEffect(() => {
     const updateTime = () => {
@@ -204,22 +262,35 @@ export default function ClockPage() {
 
   // ── Load employee from session or API ──────────────────────────────────────
   useEffect(() => {
+    logger.log("[ClockPage] Loading employee from session or API")
     const cached = typeof window !== "undefined" ? sessionStorage.getItem("clock_employee") : null
     
     if (cached) {
+      logger.log("[ClockPage] Found cached session data")
       try {
         const data = JSON.parse(cached)
+        logger.log("[ClockPage] Parsed session data:", { 
+          hasEmployee: !!data.employee, 
+          employeeName: data.employee?.name,
+          hasLocation: !!data.location,
+          location: data.location,
+          offline: data.offline 
+        })
        
         const emp = data.employee ?? data
         const punches = data.punches ?? null
         const storedLocation = data.location ?? null
         
         // Redirect to PIN page if location is missing (e.g., after refresh)
-        if (!storedLocation || !storedLocation.lat || !storedLocation.lng) {
+        // Allow offline mode with fallback location
+        if (!storedLocation || (!storedLocation.lat && !storedLocation.lng && !data.offline)) {
+          logger.error("[ClockPage] ❌ Location validation failed:", { storedLocation, offline: data.offline })
           try { sessionStorage.removeItem("clock_employee") } catch {}
-          router.replace("/")
+          router.replace("/pin")
           return
         }
+        
+        logger.log("[ClockPage] ✅ Location validation passed, setting employee data")
         
         setEmployee({ 
           id: emp.id, 
@@ -242,18 +313,21 @@ export default function ClockPage() {
         // Use stored location from login
         setLocation(storedLocation)
         setPermissionsReady(true)
+        logger.log("[ClockPage] ✅ Employee data set successfully")
         return
       } catch (err) {
         logger.error("[ClockPage] ❌ Error parsing session data:", err)
         try { sessionStorage.removeItem("clock_employee") } catch {}
-        router.replace("/")
+        router.replace("/pin")
         return
       }
     }
 
     // No cached session - check if user has valid cookie
+    logger.log("[ClockPage] No cached session, checking employee cookie")
     fetch("/api/employee/me")
       .then(async (res) => {
+        logger.log("[ClockPage] Employee API response:", { status: res.status, ok: res.ok })
         if (!res.ok) throw new Error("Unauthorized")
         
         // Check if response is JSON or HTML (redirect)
@@ -268,13 +342,13 @@ export default function ClockPage() {
         // User has valid cookie but no session storage
         // This means they refreshed or lost session - redirect to PIN page for fresh location
         logger.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
-        router.replace("/")
+        router.replace("/pin")
       })
       .catch((err) => {
         // No valid cookie - redirect to PIN page
         logger.error("[ClockPage] ❌ API error:", err)
         try { sessionStorage.removeItem("clock_employee") } catch {}
-        router.replace("/")
+        router.replace("/pin")
       })
   }, [router])
 
@@ -338,7 +412,7 @@ export default function ClockPage() {
     }
     
     fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
-    router.replace("/")
+    router.replace("/pin")
   }, [router])
 
   // ── Idle logout — 30s with countdown warning ───────────────────────────────
@@ -367,103 +441,11 @@ console.log("clockLoading",clockLoading)
     setClockLoading(true)
     setClockSuccess(false)
     setMessage(null)
-  console.log("punch in done")
-    console.log("clockLoading",clockLoading)
-
-    const now = new Date()
-    const localDate = format(now, "dd-MM-yyyy", { locale: enUS })
-    const localTime = format(now, "EEEE, MMMM d, yyyy h:mm:ss a", { locale: enUS })
-    const latLng = location ? { lat: String(location.lat), lng: String(location.lng) } : null
-
-    try {
-      const blob = await getLatestBlob()
-      resetFace()
-      let imageUrl = ""
-
-      if (blob) {
-        const formData = new FormData()
-        formData.append("file", blob, "clock.jpg")
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 8000)
-        try {
-          const uploadRes = await fetch("/api/employee/upload/image", {
-            method: "POST",
-            body: formData,
-            signal: controller.signal,
-          })
-          clearTimeout(timeout)
     
-           if (uploadRes.ok) {
-      const uploadData = await uploadRes.json()
-      imageUrl = uploadData.url ?? ""
-      
-      if (!imageUrl) {
-        logger.warn("[ClockPage] ⚠️ Upload succeeded but no URL returned")
-      } else {
-        logger.log("[ClockPage] ✅ Image uploaded:", imageUrl)
-      }
-    } else {
-      const errorText = await uploadRes.text()
-      logger.error("[ClockPage] ❌ Upload failed:", uploadRes.status, errorText)
-    }
-  } catch (err: unknown) {
-    clearTimeout(timeout)
-    logger.error("[ClockPage] ❌ Upload exception:", err)
-    if (err instanceof Error && err.name === 'AbortError') {
-      logger.error("[ClockPage] Upload timed out after 8s")
-    }
-  }
-} else {
-  logger.warn("[ClockPage] No blob available to upload")
-}
-
-      const res = await fetch("/api/employee/clock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          imageUrl,
-          date: localDate,
-          time: localTime,
-          lat: latLng?.lat,
-          lng: latLng?.lng,
-          // Flag entry if punched without a detected face — manager can follow up
-          noPhoto: noPhoto,   // true when face not detected
-        }),
-      })
-      
-      // Check if response is JSON
-      const contentType = res.headers.get("content-type")
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Session expired - please log in again")
-      }
-      
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Failed")
-
-      const labels: Record<string, string> = {
-        in: "Clocked In",
-        break: "On Break",
-        endBreak: "Break End",
-        out: "Clocked Out",
-      }
-      
-      // Show success state
-      setClockLoading(false)
-      setClockSuccess(true)
-      
-      setTimeEntries((prev) => [...prev, { type, time: localTime, label: labels[type] }])
-      setMessage({ type: "success", text: `${labels[type]} at ${format(now, "h:mm:ss a", { locale: enUS })}` })
-
-      // Wait 2 seconds to show success animation, then log out
-      setTimeout(() => {
-        handleLogout()
-      }, 2000)
-    } catch (err) {
-      setClockLoading(false)
-      setClockSuccess(false)
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" })
-    }
+    // Use the enhanced clock action
+    await enhancedClockAction(type)
+    
+    setClockLoading(false)
   }
 
   // ── Derive punch state ─────────────────────────────────────────────────────
@@ -519,9 +501,6 @@ console.log("clockLoading",clockLoading)
   
   return (
     <div className={cn("min-h-dvh flex flex-col", HOME_BG)}>
-      {/* Device Registration Dialog - conditionally rendered based on query params */}
-      <DeviceRegistrationDialog />
-      
       {/* Birthday Confetti - only renders on their birthday */}
       {isBirthday && (
         <Confetti
@@ -545,6 +524,17 @@ console.log("clockLoading",clockLoading)
           <p className="text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-center text-white w-full">
             {currentTime}
           </p>
+          
+          {/* Offline/Online Status & Sync Queue - only show when offline or has pending data */}
+          {(!isOnline || hasOfflineData) && (
+            <OfflineStatus
+              isOnline={isOnline}
+              pendingCount={pendingCount}
+              hasOfflineData={hasOfflineData}
+              onSyncNow={syncPunches}
+              className="absolute top-4 right-4"
+            />
+          )}
         </div>
       </div>
 
@@ -590,9 +580,25 @@ console.log("clockLoading",clockLoading)
                 <div className="text-white [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">
                   <p className="font-bold text-lg [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">{employee.name}</p>
                   <p className="text-sm font-bold text-white/80 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">{employee.role || "—"}</p>
-                  {employee.detectedLocation && (
-                    <p className="text-xs font-bold text-white/70 mt-1 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">📍 {employee.detectedLocation}</p>
-                  )}
+                  {/* Display location based on current online/offline status */}
+                  {(() => {
+                    // If currently offline, show "Offline Mode"
+                    if (!isOnline) {
+                      return (
+                        <p className="text-xs font-bold text-white/70 mt-1 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">📍 Offline Mode</p>
+                      )
+                    }
+                    
+                    // If online, show the detected location (but not if it's "Offline Mode")
+                    if (employee.detectedLocation && employee.detectedLocation !== "Offline Mode") {
+                      return (
+                        <p className="text-xs font-bold text-white/70 mt-1 [text-shadow:0_0_2px_rgba(0,0,0,0.9),0_1px_3px_rgba(0,0,0,0.9)]">📍 {employee.detectedLocation}</p>
+                      )
+                    }
+                    
+                    // If online but no valid location, don't show anything
+                    return null
+                  })()}
                   {/* Face status */}
                   <div className="mt-2 pointer-events-none">
                     <FaceStatusBadge status={faceStatus} />
@@ -712,7 +718,7 @@ console.log("clockLoading",clockLoading)
                       activeTab === "break" && "left-[50%] border-b-warning",
                       (activeTab === "break" && isBreakTabDisabled) && "opacity-50",
                       activeTab === "end" && "left-[83.333%] border-b-danger",
-                      (clockLoading || clockSuccess) && "opacity-0 invisible",
+                      (actualClockLoading || actualClockSuccess) && "opacity-0 invisible",
                       (activeTab === "end" && isClockOutDisabled) && "opacity-50",
                     )}
                     style={{ transform: "translateX(-50%)" }}
@@ -723,17 +729,17 @@ console.log("clockLoading",clockLoading)
                 <TabsContent value="start" className="mt-2">
                   <Button
                     onClick={() => handleClockAction("in")}
-                    disabled={clockLoading || clockSuccess || isClockInTabDisabled}
+                    disabled={actualClockLoading || actualClockSuccess || isClockInTabDisabled}
                     className={cn(
                       "clock-in-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
-                      clockLoading || clockSuccess 
+                      actualClockLoading || actualClockSuccess 
                         ? "w-16 h-16 mx-auto" 
                         : "w-full h-16 text-2xl"
                     )}
                   >
-                    {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-                    {clockSuccess && <Check className="h-6 w-6" />}
-                    {!clockLoading && !clockSuccess && "CLOCK IN"}
+                    {actualClockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                    {actualClockSuccess && <Check className="h-6 w-6" />}
+                    {!actualClockLoading && !actualClockSuccess && "CLOCK IN"}
                   </Button>
                 </TabsContent>
 
@@ -742,32 +748,32 @@ console.log("clockLoading",clockLoading)
                   {isOnBreak ? (
                     <Button
                       onClick={() => handleClockAction("endBreak")}
-                      disabled={clockLoading || clockSuccess}
+                      disabled={actualClockLoading || actualClockSuccess}
                       className={cn(
                         "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
-                        clockLoading || clockSuccess 
+                        actualClockLoading || actualClockSuccess 
                           ? "w-16 h-16 mx-auto" 
                           : "w-full h-16 text-2xl"
                       )}
                     >
-                      {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-                      {clockSuccess && <Check className="h-6 w-6" />}
-                      {!clockLoading && !clockSuccess && "END BREAK"}
+                      {actualClockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                      {actualClockSuccess && <Check className="h-6 w-6" />}
+                      {!actualClockLoading && !actualClockSuccess && "END BREAK"}
                     </Button>
                   ) : (
                     <Button
                       onClick={() => handleClockAction("break")}
-                      disabled={clockLoading || clockSuccess}
+                      disabled={actualClockLoading || actualClockSuccess}
                       className={cn(
                         "break-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
-                        clockLoading || clockSuccess 
+                        actualClockLoading || actualClockSuccess 
                           ? "w-16 h-16 mx-auto" 
                           : "w-full h-16 text-2xl"
                       )}
                     >
-                      {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-                      {clockSuccess && <Check className="h-6 w-6" />}
-                      {!clockLoading && !clockSuccess && "START BREAK"}
+                      {actualClockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                      {actualClockSuccess && <Check className="h-6 w-6" />}
+                      {!actualClockLoading && !actualClockSuccess && "START BREAK"}
                     </Button>
                   )}
                 </TabsContent>
@@ -776,17 +782,17 @@ console.log("clockLoading",clockLoading)
                 <TabsContent value="end" className="mt-2">
                   <Button
                     onClick={() => handleClockAction("out")}
-                    disabled={clockLoading || clockSuccess || isClockOutDisabled}
+                    disabled={actualClockLoading || actualClockSuccess || isClockOutDisabled}
                     className={cn(
                       "clock-out-btn justify-center flex font-bold rounded-full text-white shadow-lg transition-all duration-300",
-                      clockLoading || clockSuccess 
+                      actualClockLoading || actualClockSuccess 
                         ? "w-16 h-16 mx-auto" 
                         : "w-full h-16 text-2xl"
                     )}
                   >
-                    {clockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
-                    {clockSuccess && <Check className="h-6 w-6" />}
-                    {!clockLoading && !clockSuccess && "CLOCK OUT"}
+                    {actualClockLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+                    {actualClockSuccess && <Check className="h-6 w-6" />}
+                    {!actualClockLoading && !actualClockSuccess && "CLOCK OUT"}
                   </Button>
                 </TabsContent>
 
@@ -815,7 +821,7 @@ console.log("clockLoading",clockLoading)
                     {faceStatus === "too_far" ? (
                       <span className="text-warning">Move closer to the camera for a photo</span>
                     ) : (
-                      <span className="text-white/40">No face detected — you can still Punch in </span>
+                      <span className="text-white/40"> </span>
                     )}
                   </p>
                 )}

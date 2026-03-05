@@ -1,9 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { toast } from "@/lib/utils/toast"
-import { DeviceRegistrationDialog } from "@/components/DeviceRegistrationDialog"
+import { useOfflinePinValidation } from "@/lib/hooks/use-offline-pin-validation"
 
 function formatTime12hr(date: Date) {
   return date.toLocaleTimeString("en-US", {
@@ -19,15 +17,13 @@ import { HOME_BG } from "@/lib/constants"
 
 const PIN_LENGTH = 4
 
-type Status = "idle" | "verifying" | "error" | "success"
-
 export function Home() {
-  const router = useRouter()
   const [pin, setPin] = useState("")
-  const [status, setStatus] = useState<Status>("idle")
-  const [errorMessage, setErrorMessage] = useState("")
   const [time12, setTime12] = useState(() => formatTime12hr(new Date()))
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+
+  // Use offline-capable PIN validation
+  const { status, errorMessage, isOnline, verifyPin } = useOfflinePinValidation()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -47,7 +43,7 @@ export function Home() {
           })
         },
         (error) => {
-          toast.error("Location access denied or unavailable:")
+          console.warn("Location access denied or unavailable:", error)
           // Continue without location - backend will handle accordingly
         },
         {
@@ -59,88 +55,20 @@ export function Home() {
     }
   }, [])
 
-  const verifyPin = useCallback(async (enteredPin: string) => {
-    setStatus("verifying")
-    setErrorMessage("")
-
-    try {
-      const payload: { pin: string; lat?: number; lng?: number } = { pin: enteredPin }
+  // Auto-clear PIN after error timeout
+  useEffect(() => {
+    if (status === "error") {
+      const timer = setTimeout(() => {
+        setPin("")
+      }, 2000) // Clear PIN after 2 seconds of showing error
       
-      // Add location if available
-      if (userLocation) {
-        payload.lat = userLocation.lat
-        payload.lng = userLocation.lng
-      }
-
-      const res = await fetch("/api/employee/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-
-      if (res.ok) {
-        try {
-          sessionStorage.setItem("clock_employee", JSON.stringify({
-            employee: data.employee,
-            punches: data.punches ?? { clockIn: "", breakIn: "", breakOut: "", clockOut: "" },
-            location: userLocation, // Store the verified location coordinates
-            isBirthday: data.isBirthday ?? false, // Store birthday flag
-            detectedLocation: data.detectedLocation, // Store which location they're at
-          }))
-        } catch {}
-        
-        // Show warning toast if outside geofence but soft mode enabled
-        if (data.geofenceWarning) {
-          toast.warning({
-            title: "Location Warning",
-            description: "You are outside the designated work location. Your manager will be notified.",
-            duration: 6000,
-          })
-        }
-        
-        // Show success state for 1.5 seconds before navigating
-        setStatus("success")
-        setTimeout(() => {
-          router.replace("/clock")
-        }, 1500)
-        return
-      }
-
-      // Handle geofence violation
-      if (res.status === 403 && data.geofenceViolation) {
-        setStatus("error")
-        setErrorMessage(data.error)
-        toast.error({
-          title: "Location Error",
-          description: data.error,
-          duration: 6000,
-        })
-        setTimeout(() => {
-          setPin("")
-          setStatus("idle")
-          setErrorMessage("")
-        }, 4000)
-        return
-      }
-
-      setStatus("error")
-      setErrorMessage(data.error ?? "Invalid PIN. Please try again.")
-      setTimeout(() => {
-        setPin("")
-        setStatus("idle")
-        setErrorMessage("")
-      }, 800)
-    } catch {
-      setStatus("error")
-      setErrorMessage("Network error. Please try again.")
-      setTimeout(() => {
-        setPin("")
-        setStatus("idle")
-        setErrorMessage("")
-      }, 800)
+      return () => clearTimeout(timer)
     }
-  }, [router, userLocation])
+  }, [status])
+
+  const verifyPinCallback = useCallback(async (enteredPin: string) => {
+    await verifyPin(enteredPin, userLocation || undefined)
+  }, [verifyPin, userLocation])
 
   const handleKeyPress = useCallback(
     (key: string) => {
@@ -154,10 +82,10 @@ export function Home() {
       setPin(newPin)
 
       if (newPin.length === PIN_LENGTH) {
-        verifyPin(newPin)
+        verifyPinCallback(newPin)
       }
     },
-    [pin, status, verifyPin]
+    [pin, status, verifyPinCallback]
   )
 
   const handleDelete = useCallback(() => {
@@ -165,48 +93,15 @@ export function Home() {
     setPin((prev) => prev.slice(0, -1))
   }, [status])
 
+  const handleClear = useCallback(() => {
+    if (status !== "idle") return
+    setPin("")
+  }, [status])
+
   if (status === "success") {
     return (
-      <>
-        {/* Device Registration Dialog - conditionally rendered based on query params */}
-        <DeviceRegistrationDialog />
-
-        <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
-                {time12}
-              </h1>
-              <p className="text-sm text-white/70">
-                Enter your PIN
-              </p>
-            </div>
-
-            {/* PIN Display - Success State */}
-            <div className="mt-4">
-              <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
-            </div>
-
-            {/* Success message */}
-            <div className="h-6">
-              <p className="text-sm text-emerald-400 font-medium animate-in fade-in duration-200">
-                ✓ Verified! Loading...
-              </p>
-            </div>
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  return (
-    <>
-      {/* Device Registration Dialog - conditionally rendered based on query params */}
-      <DeviceRegistrationDialog />
-
       <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
         <div className="flex flex-col items-center gap-6">
-        
           <div className="flex flex-col items-center gap-2">
             <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
               {time12}
@@ -216,33 +111,73 @@ export function Home() {
             </p>
           </div>
 
-          {/* PIN Display */}
+          {/* PIN Display - Success State */}
           <div className="mt-4">
             <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
           </div>
 
-          {/* Status messages */}
+          {/* Success message */}
           <div className="h-6">
-            {status === "verifying" && (
-              <p className="animate-pulse text-sm text-white/90">Verifying...</p>
-            )}
-            {status === "error" && errorMessage && (
-              <p className={cn("text-sm text-red-400 animate-in fade-in duration-200")}>
-                {errorMessage}
-              </p>
+            <p className="text-sm text-emerald-400 font-medium animate-in fade-in duration-200">
+              ✓ Verified! Loading...
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
+      <div className="flex flex-col items-center gap-6">
+      
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
+            {time12}
+          </h1>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-white/70">
+              Enter your PIN
+            </p>
+            {/* Offline indicator */}
+            {!isOnline && (
+              <div className="flex items-center gap-1 text-xs text-orange-400">
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728m0 0L12 12m-6.364 6.364L12 12m6.364-6.364L12 12" />
+                </svg>
+                Offline
+              </div>
             )}
           </div>
         </div>
 
-        {/* Numpad */}
-        <div className="w-full max-w-lg">
-          <Numpad
-            onKeyPress={handleKeyPress}
-            onDelete={handleDelete}
-            disabled={status === "verifying" || status === "error"}
-          />
+        {/* PIN Display */}
+        <div className="mt-4">
+          <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
+        </div>
+
+        {/* Status messages */}
+        <div className="h-6">
+          {status === "verifying" && (
+            <p className="animate-pulse text-sm text-white/90">Verifying...</p>
+          )}
+          {status === "error" && errorMessage && (
+            <p className={cn("text-sm text-red-400 animate-in fade-in duration-200")}>
+              {errorMessage}
+            </p>
+          )}
         </div>
       </div>
-    </>
+
+      {/* Numpad */}
+      <div className="w-full max-w-lg">
+        <Numpad
+          onKeyPress={handleKeyPress}
+          onDelete={handleDelete}
+          onClear={handleClear}
+          disabled={status === "verifying" || status === "error"}
+        />
+      </div>
+    </div>
   )
 }

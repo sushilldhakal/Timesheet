@@ -16,6 +16,11 @@ const clockBodySchema = z.object({
   time: z.string().optional(),
   lat: z.string().optional(),
   lng: z.string().optional(),
+  noPhoto: z.boolean().optional(),
+  offline: z.boolean().optional(),
+  offlineTimestamp: z.string().optional(),
+  // For offline sync: specify which employee the punch belongs to
+  employeePin: z.string().optional(),
 })
 
 /** POST /api/employee/clock - Clock in/out/break. Requires employee session. */
@@ -35,23 +40,67 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { type, imageUrl: clientImageUrl, date: clientDate, time: clientTime, lat, lng } = parsed.data
+    const { 
+      type, 
+      imageUrl: clientImageUrl, 
+      date: clientDate, 
+      time: clientTime, 
+      lat, 
+      lng,
+      noPhoto,
+      offline,
+      offlineTimestamp,
+      employeePin
+    } = parsed.data
 
     await connectDB()
-    const employee = await Employee.findById(auth.sub).lean()
-    if (!employee) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+    
+    // For offline sync, use the provided employeePin to find the original employee
+    let employee
+    if (offline && employeePin) {
+      employee = await Employee.findOne({ pin: employeePin }).lean()
+      if (!employee) {
+        return NextResponse.json({ error: "Employee not found for offline sync" }, { status: 404 })
+      }
+      logger.log(`[api/employee/clock] Processing offline sync for employee ${employee.name} (PIN: ${employee.pin})`)
+    } else {
+      // Normal operation: use session cookie
+      employee = await Employee.findById(auth.sub).lean()
+      if (!employee) {
+        return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+      }
     }
+
+    // Get employee's current role assignments for caching
+    const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+    const roleAssignments = await EmployeeRoleAssignment.find({
+      employeeId: employee._id,
+      isActive: true,
+    })
+      .populate("roleId", "name")
+      .lean()
+    
+    const roles = roleAssignments.map((assignment: any) => assignment.roleId?.name).filter(Boolean)
+    const displayRole = roles[0] || ""
 
     // Get device context from headers (set by middleware)
     const deviceId = request.headers.get("x-device-id") || ""
     let deviceLocation = ""
     
-    // Fetch device location from database if deviceId is available
+    // Update device usage tracking
     if (deviceId) {
       const device = await Device.findOne({ deviceId }).lean()
       if (device) {
         deviceLocation = device.locationName
+        
+        // Update device activity and usage (fire and forget)
+        Device.findByIdAndUpdate(device._id, {
+          lastActivity: new Date(),
+          lastUsedBy: employee._id,
+          $inc: { totalPunches: 1 }
+        }).catch(err => {
+          logger.error("[api/employee/clock] Failed to update device activity:", err)
+        })
       }
     }
 
@@ -59,7 +108,9 @@ export async function POST(request: NextRequest) {
     const latStr = (lat && String(lat).trim()) || ""
     const lngStr = (lng && String(lng).trim()) || ""
     const where = latStr && lngStr ? `${latStr},${lngStr}` : ""
-    let flag = !imageUrl || !latStr || !lngStr
+    
+    // Flag logic: missing image, location, or explicitly marked as noPhoto
+    let flag = !imageUrl || !latStr || !lngStr || (noPhoto === true)
     let detectedLocationName = ""
 
     // Geofence check for all punch types — detect location and enforce on clock-in only
@@ -150,10 +201,16 @@ export async function POST(request: NextRequest) {
       clientDate && clientDate.trim()
         ? clientDate.trim()
         : format(now, "dd-MM-yyyy", { locale: enUS })
-    const timeStr =
-      clientTime && clientTime.trim()
-        ? clientTime.trim()
-        : now.toISOString()
+    
+    // For offline punches, use the original offline timestamp if provided
+    let timeStr: string
+    if (offline && offlineTimestamp) {
+      timeStr = offlineTimestamp
+    } else if (clientTime && clientTime.trim()) {
+      timeStr = clientTime.trim()
+    } else {
+      timeStr = now.toISOString()
+    }
 
     // Convert dateStr to Date object for MongoDB storage
     // dateStr is in format "dd-MM-yyyy", convert to Date at start of day UTC
@@ -167,6 +224,11 @@ export async function POST(request: NextRequest) {
       lng: lngStr ? parseFloat(lngStr) : undefined,
       image: imageUrl,
       flag,
+    }
+
+    // Log offline punch processing
+    if (offline) {
+      logger.log(`[api/employee/clock] Processing offline punch: ${type} for employee ${employee.pin} at ${timeStr}`)
     }
 
     // Handle different clock types using upsert pattern
@@ -246,8 +308,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Invalidate employee session after successful clock operation
-    await invalidateEmployeeSession()
+    // Note: Session remains active for multiple clock operations
+    // Session will expire naturally or can be manually logged out
 
     return NextResponse.json({
       success: true,
@@ -258,6 +320,18 @@ export async function POST(request: NextRequest) {
       lng: lngStr,
       where,
       flag,
+      offline: offline || false,
+      detectedLocation: detectedLocationName,
+      deviceLocation,
+      syncedAt: offline ? new Date().toISOString() : undefined,
+      // Include employee data for client-side caching
+      employee: {
+        id: employee._id.toString(),
+        pin: employee.pin,
+        name: employee.name,
+        role: displayRole,
+        location: Array.isArray(employee.location) ? employee.location.join(", ") : (employee.location || ""),
+      },
     })
   } catch (err) {
     logger.error("[api/employee/clock]", err)
