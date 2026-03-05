@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { S3Client, HeadBucketCommand } from "@aws-sdk/client-s3"
 import { connectDB } from "@/lib/db"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB, Category } from "@/lib/db"
 import { categoryCreateSchema } from "@/lib/validation/category"
 import { isValidCategoryType } from "@/lib/config/category-types"

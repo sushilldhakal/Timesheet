@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB, Device } from "@/lib/db"
 import mongoose from "mongoose"
 import { logDeviceRevocation, logDeviceDisabled } from "@/lib/auth-logger"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User, Device } from "@/lib/db"
-import { createDeviceToken, getDeviceCookieOptions } from "@/lib/device-auth"
+import { createDeviceToken, getDeviceCookieOptions } from "@/lib/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { logDeviceRegistrationFailure } from "@/lib/auth-logger"
 

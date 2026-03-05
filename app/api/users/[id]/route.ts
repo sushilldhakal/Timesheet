@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { Right } from "@/lib/config/rights"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB, User } from "@/lib/db"
 import { userIdParamSchema } from "@/lib/validation/user"
 import { userAdminUpdateSchema, userSelfUpdateSchema } from "@/lib/validation/user"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
-import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/employee-auth"
+import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/auth-helpers"
 import { connectDB, Employee, DailyShift, Category, Device } from "@/lib/db"
 import { isWithinGeofence } from "@/lib/utils/geofence"
 import { logger } from "@/lib/utils/logger"

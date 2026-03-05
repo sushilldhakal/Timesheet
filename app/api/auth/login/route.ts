@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User } from "@/lib/db"
-import { createAuthToken, setAuthCookie } from "@/lib/auth"
+import { createAuthToken, setAuthCookie } from "@/lib/auth-helpers"
 import { adminLoginSchema } from "@/lib/validation/user"
 
 export async function POST(request: NextRequest) {

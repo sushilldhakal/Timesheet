@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
-import { getEmployeeFromCookie } from "@/lib/employee-auth"
+import { getEmployeeFromCookie } from "@/lib/auth-helpers"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getEmployeeFromCookie } from "@/lib/employee-auth"
+import { getEmployeeFromCookie } from "@/lib/auth-helpers"
 import { uploadFile } from "@/lib/storage"
 
 /** POST /api/employee/upload/image - Upload image to configured storage. Returns { url }. Requires employee session. */

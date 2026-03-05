@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB, User } from "@/lib/db"
 import { userCreateSchema } from "@/lib/validation/user"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"

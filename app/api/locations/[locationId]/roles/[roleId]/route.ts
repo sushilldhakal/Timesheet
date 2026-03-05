@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB } from "@/lib/db"
 import { RoleEnablementManager, RoleEnablementError } from "@/lib/managers/role-enablement-manager"
 import { LocationRoleEnablement } from "@/lib/db/schemas/location-role-enablement"

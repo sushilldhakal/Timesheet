@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, subDays } from "date-fns"
-import { getAuthFromCookie } from "@/lib/auth"
+import { getAuthFromCookie } from "@/lib/auth-helpers"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 export type FlagIssueType = "no_image" | "no_location" | "no_image_no_location"
