@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,8 @@ export function UsersTable({
   onEdit,
   onDelete,
 }: Props) {
+  const [sortBy, setSortBy] = useState<string | null>("name")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const columns = useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
@@ -165,6 +167,13 @@ export function UsersTable({
       searchPlaceholder="Search users..."
       getRowId={(row) => row.id}
       emptyMessage="No users yet. Click Add User to create one."
+      sortBy={sortBy}
+      sortOrder={sortOrder}
+      onSortChange={(columnId: string, order: "asc" | "desc") => {
+        setSortBy(columnId)
+        setSortOrder(order)
+      }}
+      sortableColumnIds={["name", "username", "role"]}
     />
   )
 }

@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== "" ? [String(v).trim()] : []
 
-async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; homeAddress?: string; dob?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
+async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; homeAddress?: string; dob?: string; gender?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
   // Get unique location IDs from active role assignments
   const locationIds = Array.from(new Set(roleAssignments.map(ra => ra.locationId.toString())))
   
@@ -25,6 +25,7 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
   const locationData = locations.map(loc => ({
     id: loc._id.toString(),
     name: loc.name,
+    color: loc.color,
     address: loc.address || "",
     lat: loc.lat,
     lng: loc.lng,
@@ -79,6 +80,7 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
       location: location || {
         id: ra.locationId,
         name: ra.locationName,
+        color: undefined,
         address: "",
         lat: undefined,
         lng: undefined,
@@ -100,6 +102,7 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
     homeAddress: e.homeAddress ?? "",
     img: e.img ?? "",
     dob: e.dob ?? "",
+    gender: e.gender ?? "",
     employmentType: e.employmentType,
     standardHoursPerWeek: e.standardHoursPerWeek ?? undefined,
     comment: e.comment ?? "",
@@ -211,6 +214,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const data = parsedUpdate.data
     const updates: Record<string, unknown> = {}
+    
+    console.log('[Employee Update] Received data:', {
+      gender: data.gender,
+      homeAddress: data.homeAddress,
+    })
+    
     if (data.name !== undefined) updates.name = data.name.trim()
     if (data.pin !== undefined) {
       const dup = await Employee.findOne({ pin: data.pin.trim(), _id: { $ne: id } })
@@ -226,6 +235,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (data.phone !== undefined) updates.phone = (data.phone ?? "").toString().trim()
     if (data.homeAddress !== undefined) updates.homeAddress = (data.homeAddress ?? "").toString().trim()
     if (data.dob !== undefined) updates.dob = (data.dob ?? "").toString().trim()
+    if (data.gender !== undefined) updates.gender = (data.gender ?? "").toString().trim()
     if (data.comment !== undefined) updates.comment = (data.comment ?? "").toString().trim()
     if (data.img !== undefined) updates.img = (data.img ?? "").toString().trim()
     if (data.standardHoursPerWeek !== undefined) updates.standardHoursPerWeek = data.standardHoursPerWeek
@@ -234,6 +244,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updates.awardId = data.awardId ? new mongoose.Types.ObjectId(data.awardId) : null
     }
     if (data.awardLevel !== undefined) updates.awardLevel = data.awardLevel || null
+    
+    console.log('[Employee Update] Updates object:', {
+      gender: updates.gender,
+      homeAddress: updates.homeAddress,
+    })
 
     // Update role assignments if role or location changed
     if (data.role !== undefined || data.location !== undefined) {
@@ -358,9 +373,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     updates.updatedAt = new Date()
     console.log('[Employee Update] Updates object:', JSON.stringify(updates, null, 2))
-    await Employee.updateOne(empFilter, { $set: updates })
-    const updated = await Employee.findById(id).lean()
-    console.log('[Employee Update] Updated employee homeAddress:', updated?.homeAddress)
+    
+    // Use findByIdAndUpdate to ensure the update is applied
+    const updated = await Employee.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean()
+    
+    console.log('[Employee Update] After update - gender:', updated?.gender, 'homeAddress:', updated?.homeAddress)
     
     // Fetch role assignments
     const roleAssignments = await EmployeeRoleAssignment.find({

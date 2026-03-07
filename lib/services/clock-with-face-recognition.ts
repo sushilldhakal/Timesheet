@@ -61,22 +61,49 @@ export async function processFaceRecognition(
   console.log('[FaceRecog] photoUrl:', photoUrl)
   console.log('[FaceRecog] locationId:', locationId)
 
-  // If no face data provided, skip face recognition
-  if (!faceDescriptor || !isValidDescriptor(faceDescriptor)) {
-    console.log('[FaceRecog] Invalid or missing descriptor, skipping')
-    return {
-      enrolled: false,
-      matched: false,
-      alertCreated: false,
-    }
-  }
-
   try {
     // Fetch existing face profile
     const existingProfile = await StaffFaceProfile.findOne({
       employeeId,
       isActive: true,
     })
+
+    // Check if employee has an enrolled face profile
+    const hasEnrolledProfile = !!existingProfile
+
+    // If no face data provided but employee has enrolled profile → ALERT (camera covered/face hidden)
+    if (hasEnrolledProfile && (!faceDescriptor || !isValidDescriptor(faceDescriptor))) {
+      console.log('[FaceRecog] Employee has enrolled profile but no valid face detected - creating alert')
+      
+      const alert = await BuddyPunchAlert.create({
+        employeeId,
+        punchType,
+        punchTime,
+        matchScore: 0, // Zero score indicates no face was detected
+        capturedPhotoUrl: photoUrl || null,
+        enrolledPhotoUrl: existingProfile.enrolledPhotoUrl,
+        locationId,
+        status: "pending",
+      })
+
+      return {
+        enrolled: true,
+        matched: false,
+        score: 0,
+        alertCreated: true,
+        alertId: alert._id.toString(),
+      }
+    }
+
+    // If no face data and no profile → skip (first time user, will auto-enroll next time)
+    if (!faceDescriptor || !isValidDescriptor(faceDescriptor)) {
+      console.log('[FaceRecog] No face descriptor and no enrolled profile - skipping')
+      return {
+        enrolled: false,
+        matched: false,
+        alertCreated: false,
+      }
+    }
 
     // No profile exists → auto-enroll
     if (!existingProfile) {

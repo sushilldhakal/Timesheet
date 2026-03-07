@@ -33,7 +33,7 @@ export interface ICategory {
   closingHour?: number
   /** Location type only: working days (0=Sunday, 6=Saturday) */
   workingDays?: number[]
-  /** Role and Employer type only: color for visual identification */
+  /** Role, Employer, and Location type: color for visual identification */
   color?: string
   /** Role type only: default schedule template for quick employee setup */
   defaultScheduleTemplate?: IDefaultScheduleTemplate

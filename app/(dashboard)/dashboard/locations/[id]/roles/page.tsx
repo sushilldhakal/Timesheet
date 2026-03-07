@@ -42,7 +42,7 @@ function LocationRolesPage() {
 
   const location = locationQuery.data?.category
   const allRoles = allRolesQuery.data?.categories || []
-  const roles = locationRolesQuery.data?.data || []
+  const roles = locationRolesQuery.data?.data?.roles || []
   const loading = locationQuery.isLoading || allRolesQuery.isLoading || locationRolesQuery.isLoading
   const error = locationQuery.error?.message || allRolesQuery.error?.message || locationRolesQuery.error?.message
 

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Award, Calendar, DollarSign, Pencil, History, ChevronDown, ChevronRight } from 'lucide-react';
+import { Award, Pencil, History, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,10 +23,10 @@ import {
 import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { useAwards, useAward } from '@/lib/queries/awards';
-import { useEmployeeAwardHistory, useAwardEmployee } from '@/lib/queries/employees';
+import { useAwards } from '@/lib/queries/awards';
+import { useEmployee, useEmployeeAwardHistory, useAwardEmployee } from '@/lib/queries/employees';
 
-interface AssignAwardCardProps {
+interface EmployeeAwardCardProps {
   employeeId: string;
   currentAwardId?: string | null;
   currentAwardLevel?: string | null;
@@ -34,35 +34,13 @@ interface AssignAwardCardProps {
   onUpdate: () => void;
 }
 
-interface Award {
-  _id: string;
-  name: string;
-  levels: {
-    label: string;
-    conditions: {
-      employmentType: string;
-    }[];
-  }[];
-}
-
-interface PayCondition {
-  awardId: string;
-  awardName: string;
-  awardLevel: string;
-  employmentType: string;
-  effectiveFrom: string;
-  effectiveTo: string | null;
-  overridingRate: number | null;
-  isActive: boolean;
-}
-
-export default function AssignAwardCard({
+export default function EmployeeAwardCard({
   employeeId,
   currentAwardId,
   currentAwardLevel,
   currentEmploymentType,
   onUpdate,
-}: AssignAwardCardProps) {
+}: EmployeeAwardCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedAwardId, setSelectedAwardId] = useState<string>('');
   const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -73,16 +51,27 @@ export default function AssignAwardCard({
   const [overridingRate, setOverridingRate] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [standardHours, setStandardHours] = useState<number | null>(null);
 
   // TanStack Query hooks
-  const { data: awardsData, isLoading: awardsLoading } = useAwards();
-  const { data: currentAwardData } = useAward(currentAwardId || '');
-  const { data: historyData, isLoading: historyLoading } = useEmployeeAwardHistory(employeeId);
-  const assignAwardMutation = useAwardEmployee();
+  const awardsQuery = useAwards();
+  const employeeQuery = useEmployee(employeeId);
+  const historyQuery = useEmployeeAwardHistory(employeeId);
+  const awardEmployeeMutation = useAwardEmployee();
 
-  const awards = awardsData?.awards || [];
-  const currentAwardName = (currentAwardData?.success && currentAwardData?.data?.name) || '';
-  const history = historyData?.history || [];
+  const awards = awardsQuery.data?.awards || [];
+  const history = historyQuery.data?.history || [];
+
+  // Get current award name
+  const currentAwardName = currentAwardId 
+    ? awards.find(award => award._id === currentAwardId)?.name || 'Unknown Award'
+    : null;
+
+  useEffect(() => {
+    if (employeeQuery.data?.employee) {
+      setStandardHours(employeeQuery.data.employee.standardHoursPerWeek ?? null);
+    }
+  }, [employeeQuery.data]);
 
   const selectedAward = awards.find((a) => a._id === selectedAwardId);
   const selectedLevelData = selectedAward?.levels.find((l: any) => l.label === selectedLevel);
@@ -107,8 +96,8 @@ export default function AssignAwardCard({
       return;
     }
 
-    assignAwardMutation.mutate(
-      {
+    try {
+      await awardEmployeeMutation.mutateAsync({
         id: employeeId,
         data: {
           awardId: selectedAwardId,
@@ -116,21 +105,15 @@ export default function AssignAwardCard({
           employmentType: selectedEmploymentType,
           effectiveFrom: effectiveFrom,
           overridingRate: overridingRate ? parseFloat(overridingRate) : undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success('Award assigned successfully');
-          setDialogOpen(false);
-          onUpdate();
-        },
-        onError: (err: any) => {
-          const errorMessage = err.message || 'Failed to assign award';
-          setError(errorMessage);
-          toast.error(errorMessage);
-        },
-      }
-    );
+        }
+      });
+
+      toast.success('Award assigned successfully');
+      setDialogOpen(false);
+      onUpdate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign award');
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -145,31 +128,40 @@ export default function AssignAwardCard({
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Award className="h-5 w-5" />
               Award Assignment
             </CardTitle>
-            <CardDescription className="mt-1.5">
+            <CardDescription>
               Current employment conditions and award history
             </CardDescription>
           </div>
-          <Button onClick={handleOpenDialog} size="sm">
-            <Pencil className="h-4 w-4 mr-2" />
-            {currentAwardId ? 'Change Award' : 'Assign Award'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {history.length > 0 && (
+              <Button onClick={() => setShowHistory(true)} size="sm" variant="ghost">
+                <History className="h-3.5 w-3.5 mr-2" />
+                View History
+              </Button>
+            )}
+            <Button onClick={handleOpenDialog} size="sm" variant="outline">
+              <Pencil className="h-3.5 w-3.5 mr-2" />
+              {currentAwardId ? 'Change' : 'Assign'}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="space-y-4">
           {currentAwardId ? (
             <div className="space-y-4">
               {/* Current Assignment */}
               <div className="border rounded-lg p-4 bg-primary/5">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs font-medium text-primary">CURRENTLY ACTIVE</span>
+                  <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-xs font-medium text-success">CURRENTLY ACTIVE</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Award</p>
                     <p className="text-sm font-medium">{currentAwardName || 'Loading...'}</p>
@@ -182,74 +174,17 @@ export default function AssignAwardCard({
                     <p className="text-xs text-muted-foreground mb-1">Employment Type</p>
                     <p className="text-sm font-medium">{currentEmploymentType || '—'}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Standard Hours/Week</p>
+                    <p className="text-sm font-medium">{standardHours !== null ? `${standardHours} hrs` : '—'}</p>
+                  </div>
                 </div>
               </div>
-
-              {/* History Section */}
-              {history.length > 0 && (
-                <div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="mb-2 -ml-2"
-                  >
-                    {showHistory ? (
-                      <ChevronDown className="h-4 w-4 mr-2" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 mr-2" />
-                    )}
-                    <History className="h-4 w-4 mr-2" />
-                    Award History ({history.length})
-                  </Button>
-
-                  {showHistory && (
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="text-left p-3 font-medium">Award</th>
-                            <th className="text-left p-3 font-medium">Level</th>
-                            <th className="text-left p-3 font-medium">Employment Type</th>
-                            <th className="text-left p-3 font-medium">Period</th>
-                            <th className="text-right p-3 font-medium">Override Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {history.map((condition, index) => (
-                            <tr
-                              key={index}
-                              className={`border-t ${condition.isActive ? 'bg-primary/5' : ''}`}
-                            >
-                              <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                  {condition.isActive && (
-                                    <div className="h-2 w-2 rounded-full bg-primary" />
-                                  )}
-                                  {condition.awardName}
-                                </div>
-                              </td>
-                              <td className="p-3">{condition.awardLevel}</td>
-                              <td className="p-3">{condition.employmentType}</td>
-                              <td className="p-3 text-muted-foreground">
-                                {formatDate(condition.effectiveFrom)} → {formatDate(condition.effectiveTo)}
-                              </td>
-                              <td className="p-3 text-right">
-                                {condition.overridingRate ? `$${condition.overridingRate.toFixed(2)}` : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Award className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">No award assigned yet</p>
+            <div className="text-center py-6 border rounded-lg bg-muted/20">
+              <Award className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">No award assigned yet</p>
               <Button onClick={handleOpenDialog} variant="outline" size="sm">
                 Assign Award
               </Button>
@@ -283,7 +218,7 @@ export default function AssignAwardCard({
                     <SelectValue placeholder="Select an award" />
                   </SelectTrigger>
                   <SelectContent>
-                    {awards.map((award) => (
+                    {awards.map((award: any) => (
                       <SelectItem key={award._id} value={award._id}>
                         {award.name}
                       </SelectItem>
@@ -306,7 +241,7 @@ export default function AssignAwardCard({
                       <SelectValue placeholder="Select a level" />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedAward.levels.map((level) => (
+                      {selectedAward.levels.map((level: any) => (
                         <SelectItem key={level.label} value={level.label}>
                           {level.label}
                         </SelectItem>
@@ -376,15 +311,70 @@ export default function AssignAwardCard({
                 type="button"
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
-                disabled={assignAwardMutation.isPending}
+                disabled={awardEmployeeMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={assignAwardMutation.isPending}>
-                {assignAwardMutation.isPending ? 'Assigning...' : 'Assign Award'}
+              <Button type="submit" disabled={awardEmployeeMutation.isPending}>
+                {awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Award Assignment History
+            </DialogTitle>
+            <DialogDescription>
+              Complete history of award assignments for this employee
+            </DialogDescription>
+          </DialogHeader>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left p-3 font-medium text-xs">Award</th>
+                    <th className="text-left p-3 font-medium text-xs">Level</th>
+                    <th className="text-left p-3 font-medium text-xs">Employment Type</th>
+                    <th className="text-left p-3 font-medium text-xs">Period</th>
+                    <th className="text-right p-3 font-medium text-xs">Override Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((condition: any, index: number) => (
+                    <tr
+                      key={index}
+                      className={`border-t ${condition.isActive ? 'bg-primary/5' : ''}`}
+                    >
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          {condition.isActive && (
+                            <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                          )}
+                          <span className="text-sm">{condition.awardName}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-sm">{condition.awardLevel}</td>
+                      <td className="p-3 text-sm">{condition.employmentType}</td>
+                      <td className="p-3 text-sm text-muted-foreground">
+                        {formatDate(condition.effectiveFrom)} → {formatDate(condition.effectiveTo)}
+                      </td>
+                      <td className="p-3 text-sm text-right">
+                        {condition.overridingRate ? `${condition.overridingRate.toFixed(2)}` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

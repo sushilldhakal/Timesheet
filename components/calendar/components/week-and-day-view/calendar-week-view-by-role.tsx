@@ -49,8 +49,8 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
       const allRolesMap = new Map<string, IRole>();
       
       locationRoleQueries.forEach(query => {
-        if (query.data?.data) {
-          query.data.data.forEach((r: any) => {
+        if (query.data?.data?.roles) {
+          query.data.data.roles.forEach((r: any) => {
             if (!allRolesMap.has(r.roleId)) {
               allRolesMap.set(r.roleId, {
                 _id: r.roleId,

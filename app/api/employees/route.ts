@@ -273,6 +273,7 @@ export async function GET(request: NextRequest) {
         phone: e.phone ?? "",
         homeAddress: e.homeAddress ?? "",
         dob: e.dob ?? "",
+        gender: e.gender ?? "",
         comment: e.comment ?? "",
         img: e.img ?? "",
         createdAt: e.createdAt,
@@ -352,6 +353,7 @@ export async function POST(request: NextRequest) {
       phone: data.phone ?? "",
       homeAddress: data.homeAddress ?? "",
       dob: data.dob ?? "",
+      gender: data.gender ?? "",
       comment: data.comment ?? "",
       img: data.img ?? "",
       employmentType: data.employmentType ?? null,
@@ -359,6 +361,11 @@ export async function POST(request: NextRequest) {
       awardId: data.awardId ? new mongoose.Types.ObjectId(data.awardId) : null,
       awardLevel: data.awardLevel ?? null,
     }
+    
+    console.log('[Employee Create] Employee data:', {
+      gender: employeeData.gender,
+      homeAddress: employeeData.homeAddress,
+    })
 
     // Handle password setup
     let setupToken: string | undefined
@@ -553,7 +560,9 @@ export async function POST(request: NextRequest) {
         location: employee.location ?? [],
         email: employee.email,
         phone: employee.phone,
+        homeAddress: employee.homeAddress,
         dob: employee.dob,
+        gender: employee.gender,
         comment: employee.comment,
         img: employee.img,
         employmentType: employee.employmentType,

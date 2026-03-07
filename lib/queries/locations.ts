@@ -8,14 +8,10 @@ export const locationKeys = {
 }
 
 // Get roles for a location
- /** export
- * Get roles for a location
- * @returns UseQueryResult<{ data: LocationRole[] }> - Access roles via .data?.data
- */
-export function useLocationRoles(locationId: string) {
+export function useLocationRoles(locationId: string | null) {
   return useQuery({
-    queryKey: locationKeys.roles(locationId),
-    queryFn: () => locationsApi.getLocationRoles(locationId),
+    queryKey: locationKeys.roles(locationId || ''),
+    queryFn: () => locationsApi.getLocationRoles(locationId!),
     enabled: !!locationId,
     staleTime: 2 * 60 * 1000, // 2 minutes
   })

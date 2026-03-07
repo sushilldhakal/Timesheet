@@ -135,6 +135,7 @@ export async function GET(
         roleColor: roleData.color,
         locationId: locationData._id.toString(),
         locationName: locationData.name,
+        locationColor: locationData.color,
         validFrom: assignment.validFrom,
         validTo: assignment.validTo,
         isActive: assignment.isActive,

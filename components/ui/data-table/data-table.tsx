@@ -63,6 +63,9 @@ interface ClientDataTableProps<TData, TValue> extends BaseDataTableProps<TData, 
   searchKey?: string
   searchPlaceholder?: string
   initialPageSize?: number
+  showSearch?: boolean
+  searchValue?: string
+  onSearchChange?: (value: string) => void
 }
 
 // Server-side data table (pagination, sorting, filtering on server)
@@ -113,15 +116,26 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
   }
 
   const clientProps = props as ClientDataTableProps<TData, TValue>
-  const { searchKey, searchPlaceholder = "Search...", initialPageSize = 25 } = clientProps
+  const { 
+    searchKey, 
+    searchPlaceholder = "Search...", 
+    initialPageSize = 25,
+    showSearch = false,
+    searchValue: controlledSearchValue,
+    onSearchChange: controlledOnSearchChange,
+  } = clientProps
 
   // Client-side state
   const [clientSorting, setClientSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [clientColumnVisibility, setClientColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
-  const [globalFilter, setGlobalFilter] = React.useState("")
+  const [internalSearchValue, setInternalSearchValue] = React.useState("")
   const [clientExpanded, setClientExpanded] = React.useState<ExpandedState>({})
+
+  // Use controlled or internal search state
+  const searchValue = controlledSearchValue !== undefined ? controlledSearchValue : internalSearchValue
+  const onSearchChange = controlledOnSearchChange || setInternalSearchValue
 
   // Determine if we're using controlled or uncontrolled state
   const hasControlledVisibility = columnVisibility !== undefined && onColumnVisibilityChange !== undefined
@@ -141,7 +155,7 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
       sorting: clientSorting,
       columnFilters,
       columnVisibility: visibilityState,
-      globalFilter,
+      globalFilter: searchValue,
       rowSelection,
       ...(hasExpansion ? { expanded: expansionState } : {}),
     },
@@ -155,7 +169,7 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     onSortingChange: setClientSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: onVisibilityChange,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: onSearchChange,
     onExpandedChange: hasExpansion
       ? (updaterOrValue) => {
           const next =
@@ -177,9 +191,20 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
   })
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col">
+      {showSearch && (
+        <div className="flex items-center gap-2 p-4 border-b">
+          <input
+            type="text"
+            placeholder={searchPlaceholder}
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+      )}
       {toolbar && toolbar(table)}
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden border rounded-md">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -252,7 +277,9 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <div className="p-4 border-t">
+        <DataTablePagination table={table} />
+      </div>
     </div>
   )
 }
@@ -364,9 +391,20 @@ function ServerDataTableImpl<TData, TValue>({
   })
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col">
+      {showSearch && (
+        <div className="flex items-center gap-2 p-4 border-b">
+          <input
+            type="text"
+            placeholder={searchPlaceholder}
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+      )}
       {toolbar && toolbar(table)}
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden border rounded-md">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -448,7 +486,8 @@ function ServerDataTableImpl<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <ServerDataTablePagination
+      <div className="p-4 border-t">
+        <ServerDataTablePagination
         table={table}
         totalCount={totalCount}
         pageIndex={pageIndex}
@@ -458,6 +497,7 @@ function ServerDataTableImpl<TData, TValue>({
         onPageSizeChange={onPageSizeChange}
         pageSizeOptions={pageSizeOptions}
       />
+      </div>
     </div>
   )
 }

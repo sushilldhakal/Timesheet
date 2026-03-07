@@ -6,7 +6,7 @@ import { format, parse, isValid } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Pencil, MapPin, ChevronRight, ChevronDown } from "lucide-react"
+import { ArrowLeft, Pencil, MapPin, ChevronRight, ChevronDown, Mail, Phone, Calendar, Home, Clock, MessageSquare, Briefcase, Building2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { ColumnDef, type ExpandedState } from "@tanstack/react-table"
 import { OptimizedImage } from "@/components/ui/optimized-image"
@@ -14,9 +14,11 @@ import { EditEmployeeDialog } from "../EditEmployeeDialog"
 import { EditTimesheetDialog } from "./EditTimesheetDialog"
 import EmployeeProfileCard from "@/components/employees/employee-profile-card"
 import type { Employee } from "@/lib/api/employees"
+import EmployeeAwardCard from "@/components/employees/employee-award-card"
 import AwardHistoryCard from "@/components/employees/award-history-card"
 import EmployeeRoleAssignmentList from "@/components/employees/EmployeeRoleAssignmentList"
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/EmployeeRoleAssignmentDialog"
+import { EmployeeTimesheetViewer } from "@/components/employees/employee-timesheet-viewer"
 import { formatDateLong as formatDateLongUtil } from "@/lib/utils/date-format"
 import { useEmployee, useEmployeeTimesheet } from "@/lib/queries/employees"
 
@@ -222,6 +224,7 @@ function EmployeeDetailPage() {
   const [awardId, setAwardId] = useState<string | null>(null)
   const [awardLevel, setAwardLevel] = useState<string | null>(null)
   const [employmentType, setEmploymentType] = useState<string | null>(null)
+  const [standardHours, setStandardHours] = useState<number | null>(null)
   const [timesheets, setTimesheets] = useState<DailyTimesheetRow[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState("")
@@ -268,13 +271,19 @@ function EmployeeDetailPage() {
         email: e.email ?? "",
         phone: e.phone ?? "",
         dob: e.dob ?? "",
+        homeAddress: e.homeAddress ?? "",
+        gender: e.gender ?? "",
         comment: e.comment ?? "",
         img: e.img ?? "",
+        award: e.award ?? null,
+        employmentType: e.employmentType ?? null,
+        standardHoursPerWeek: e.standardHoursPerWeek ?? null,
       })
       // Set award fields from the award object
       setAwardId((e as any).award?.id ?? null)
       setAwardLevel((e as any).award?.level ?? null)
       setEmploymentType((e as any).employmentType ?? null)
+      setStandardHours((e as any).standardHoursPerWeek ?? null)
     } else if (employeeQuery.error) {
       setEmployee(null)
     }
@@ -283,10 +292,11 @@ function EmployeeDetailPage() {
   useEffect(() => {
     if (timesheetQuery.data) {
       console.log('✅ Timesheets fetched:', {
-        count: timesheetQuery.data.timesheets?.length || 0,
+        count: timesheetQuery.data.data?.length || 0,
+        rawData: timesheetQuery.data,
       })
-      setTimesheets(timesheetQuery.data.timesheets as any ?? [])
-      setTotal(timesheetQuery.data.timesheets?.length ?? 0)
+      setTimesheets(timesheetQuery.data.data as any ?? [])
+      setTotal(timesheetQuery.data.pagination?.total ?? timesheetQuery.data.data?.length ?? 0)
     } else if (timesheetQuery.error) {
       console.error('❌ Failed to fetch timesheets:', timesheetQuery.error)
       setTimesheets([])
@@ -456,100 +466,137 @@ function EmployeeDetailPage() {
       </div>
 
       {/* Employee Details */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Profile Card - 1/3 width */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Profile</CardTitle>
-          </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              {employee.img ? (
+            <div className="flex flex-col items-center gap-3 ">
+              {(employee.img || (timesheets.length > 0 && timesheets[0].clockInImage)) ? (
                 <OptimizedImage
-                  src={employee.img}
+                  src={employee.img || timesheets[0].clockInImage}
                   alt={employee.name}
-                  width={64}
-                  height={64}
-                  className="rounded-full object-cover"
+                  width={96}
+                  height={96}
+                  className="rounded-full object-cover w-24 h-24"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                  <span className="text-lg font-medium text-muted-foreground">
+                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
+                  <span className="text-2xl font-medium text-muted-foreground">
                     {employee.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
               )}
-              <div>
-                <p className="font-medium">{employee.name}</p>
-                <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
+              <div className="text-center space-y-2 w-full">
+                <div>
+                  <p className="font-semibold text-lg">{employee.name}</p>
+                  <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
+                </div>
+
+                {/* Employers */}
+                {employee.employers && employee.employers.length > 0 && (
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="flex items-center gap-1 flex-wrap justify-center">
+                      {employee.employers.map((emp: any, idx: number) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary"
+                        >
+                          {emp.color && (
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: emp.color }}
+                            />
+                          )}
+                          {emp.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            {employee.email && (
-              <div>
-                <p className="text-sm font-medium">Email</p>
-                <p className="text-sm text-muted-foreground">{employee.email}</p>
-              </div>
-            )}
-            {employee.phone && (
-              <div>
-                <p className="text-sm font-medium">Phone</p>
-                <p className="text-sm text-muted-foreground">{employee.phone}</p>
-              </div>
-            )}
+            <div className="space-y-3 pt-2 border-t">
+              {employee.email && (
+                <div className="flex items-start gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Email</p>
+                    <p className="text-sm break-all">{employee.email}</p>
+                  </div>
+                </div>
+              )}
+              {employee.phone && (
+                <div className="flex items-start gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Phone</p>
+                    <p className="text-sm">{employee.phone}</p>
+                  </div>
+                </div>
+              )}
+              {employee.dob && (
+                <div className="flex items-start gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Date of Birth</p>
+                    <p className="text-sm">{formatDateLongUtil(employee.dob) || employee.dob}</p>
+                  </div>
+                </div>
+              )}
+              {(employeeQuery.data?.employee as any)?.homeAddress && (
+                <div className="flex items-start gap-2">
+                  <Home className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Home Address</p>
+                    <p className="text-sm">{(employeeQuery.data?.employee as any).homeAddress}</p>
+                  </div>
+                </div>
+              )}
+              {standardHours !== null && (
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Standard Hours/Week</p>
+                    <p className="text-sm">{standardHours} hrs</p>
+                  </div>
+                </div>
+              )}
+              {employee.comment && employee.comment.trim() && (
+                <div className="flex items-start gap-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Notes</p>
+                    <p className="text-sm text-muted-foreground italic">{employee.comment}</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <EmployeeRoleAssignmentList
-          employeeId={employee.id}
-        />
+        {/* Combined Role & Award Card - 2/3 width */}
+        <div className="lg:col-span-2 space-y-6">
+          <EmployeeRoleAssignmentList
+            employeeId={employee.id}
+            onAdd={() => setRoleAssignmentDialogOpen(true)}
+          />
 
-        <EmployeeProfileCard
-          employeeId={employee.id}
-          employee={employee}
-          onUpdate={refetchEmployee}
-          onEditEmployee={() => {}}
-        />
+          <EmployeeAwardCard
+            employeeId={employee.id}
+            currentAwardId={awardId}
+            currentAwardLevel={awardLevel}
+            currentEmploymentType={employmentType}
+            onUpdate={refetchEmployee}
+          />
+        </div>
       </div>
 
-      <AwardHistoryCard employeeId={employee.id} />
-
       {/* Timesheet */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Timesheet</CardTitle>
-          <CardDescription>
-            Daily punch records and hours worked
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            mode="server"
-            columns={columns}
-            data={timesheets}
-            totalCount={total}
-            loading={tsLoading}
-            searchValue={search}
-            onSearchChange={setSearch}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            onPageChange={setPageIndex}
-            onPageSizeChange={(size) => {
-              setPageSize(size)
-              setPageIndex(0)
-            }}
-            pageSizeOptions={[20, 50, 100, 500]}
-            getRowId={(row) => row.date}
-            emptyMessage="No timesheet entries found."
-            getRowCanExpand={(row: any) => !!(
-              row.original.clockInImage ||
-              row.original.breakInImage ||
-              row.original.breakOutImage ||
-              row.original.clockOutImage
-            )}
-            expanded={expanded}
-            onExpandedChange={setExpanded}
-          />
-        </CardContent>
-      </Card>
+      <EmployeeTimesheetViewer 
+        employeeId={employee.id}
+        employeeName={employee.name}
+      />
 
       {/* Dialogs */}
       <EditEmployeeDialog

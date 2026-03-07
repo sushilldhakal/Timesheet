@@ -8,11 +8,32 @@ import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 import { DndProviderWrapper } from "@/components/calendar/components/dnd/dnd-provider";
 
 import { CalendarHeader } from "@/components/calendar/components/header/calendar-header";
-import { CalendarYearView } from "@/components/calendar/components/year-view/calendar-year-view";
-import { CalendarMonthView } from "@/components/calendar/components/month-view/calendar-month-view";
-import { CalendarAgendaView } from "@/components/calendar/components/agenda-view/calendar-agenda-view";
-import { CalendarDayViewByRole } from "@/components/calendar/components/week-and-day-view/calendar-day-view-by-role";
-import { CalendarWeekViewByRole } from "@/components/calendar/components/week-and-day-view/calendar-week-view-by-role";
+import dynamic from "next/dynamic";
+
+const CalendarYearView = dynamic(() =>
+  import("@/components/calendar/components/year-view/calendar-year-view").then(m => ({ default: m.CalendarYearView })),
+  { ssr: false }
+);
+
+const CalendarMonthView = dynamic(() =>
+  import("@/components/calendar/components/month-view/calendar-month-view").then(m => ({ default: m.CalendarMonthView })),
+  { ssr: false }
+);
+
+const CalendarAgendaView = dynamic(() =>
+  import("@/components/calendar/components/agenda-view/calendar-agenda-view").then(m => ({ default: m.CalendarAgendaView })),
+  { ssr: false }
+);
+
+const CalendarDayViewByRole = dynamic(() =>
+  import("@/components/calendar/components/week-and-day-view/calendar-day-view-by-role").then(m => ({ default: m.CalendarDayViewByRole })),
+  { ssr: false }
+);
+
+const CalendarWeekViewByRole = dynamic(() =>
+  import("@/components/calendar/components/week-and-day-view/calendar-week-view-by-role").then(m => ({ default: m.CalendarWeekViewByRole })),
+  { ssr: false }
+);
 
 export function ClientContainer() {
   const { events, isLoading, error, currentView } = useCalendar();

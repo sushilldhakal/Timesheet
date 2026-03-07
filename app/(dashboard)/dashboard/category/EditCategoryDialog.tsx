@@ -91,8 +91,8 @@ export function EditCategoryDialog({
       setError(null)
 
       // Set enabled roles for locations
-      if (category.type === "location" && locationRolesQuery.data?.data) {
-        setSelectedRoleIds(locationRolesQuery.data.data.map(r => r.roleId))
+      if (category.type === "location" && locationRolesQuery.data?.data?.roles) {
+        setSelectedRoleIds(locationRolesQuery.data.data.roles.map(r => r.roleId))
       }
     }
   }, [open, category, locationRolesQuery.data])
@@ -139,8 +139,8 @@ export function EditCategoryDialog({
       await updateCategoryMutation.mutateAsync({ id: category.id, data: body })
 
       // If location, sync role enablements
-      if (category.type === "location" && locationRolesQuery.data?.data) {
-        const currentRoleIds = locationRolesQuery.data.data.map(r => r.roleId)
+      if (category.type === "location" && locationRolesQuery.data?.data?.roles) {
+        const currentRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
 
         // Determine roles to enable and disable
         const rolesToEnable = selectedRoleIds.filter((id) => !currentRoleIds.includes(id))

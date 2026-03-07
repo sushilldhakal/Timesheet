@@ -597,7 +597,7 @@ export default function TimesheetPage() {
             </div>
             <div className="mt-1">
               View: {view.charAt(0).toUpperCase() + view.slice(1)} | 
-              Generated: {new Date().toLocaleString()}
+              Generated: <span suppressHydrationWarning>{new Date().toLocaleString()}</span>
             </div>
           </div>
         </CardHeader>

@@ -54,9 +54,17 @@ export interface Employee {
   phone: string
   homeAddress: string
   dob: string
+  gender?: string
   comment: string
   img: string
+  employmentType?: string
   standardHoursPerWeek?: number | null
+  award?: {
+    id: string
+    name: string
+    level: string
+    description: string
+  }
   createdAt?: string
   updatedAt?: string
 }
@@ -66,11 +74,20 @@ export interface CreateEmployeeRequest {
   email?: string
   phone?: string
   pin: string
-  role?: string
-  employer?: string
-  location?: string
-  awards?: string[]
+  homeAddress?: string
+  dob?: string
+  gender?: string
+  comment?: string
+  role?: string[]
+  employer?: string[]
+  location?: string[]
+  employmentType?: string
+  standardHoursPerWeek?: number | null
+  awardId?: string
+  awardLevel?: string
   profileImage?: string
+  password?: string
+  sendSetupEmail?: boolean
 }
 
 export interface UpdateEmployeeRequest {
@@ -78,9 +95,17 @@ export interface UpdateEmployeeRequest {
   email?: string
   phone?: string
   pin?: string
-  role?: string
-  employer?: string
-  location?: string
+  dob?: string
+  homeAddress?: string
+  gender?: string
+  comment?: string
+  role?: string[]
+  employer?: string[]
+  location?: string[]
+  employmentType?: string
+  standardHoursPerWeek?: number | null
+  awardId?: string
+  awardLevel?: string
   awards?: string[]
   profileImage?: string
 }
@@ -127,7 +152,13 @@ export interface TimesheetEntry {
 }
 
 export interface EmployeeTimesheetResponse {
-  timesheets: TimesheetEntry[]
+  data: TimesheetEntry[]
+  pagination: {
+    total: number
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
 }
 
 export interface UpdateTimesheetRequest {
@@ -154,7 +185,10 @@ export interface EmployeeAwardHistoryResponse {
 
 export interface AwardEmployeeRequest {
   awardId: string
-  reason?: string
+  awardLevel: string
+  employmentType: string
+  effectiveFrom: string
+  overridingRate?: number
 }
 
 export interface EmployeeRoleAssignment {
@@ -165,6 +199,7 @@ export interface EmployeeRoleAssignment {
   roleColor?: string
   locationId: string
   locationName: string
+  locationColor?: string
   validFrom: string
   validTo: string | null
   isActive: boolean

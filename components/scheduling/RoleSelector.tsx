@@ -53,7 +53,7 @@ export function RoleSelector({
   // TanStack Query hook
   const { data: rolesData, isLoading: loading, error } = useLocationRoles(locationId)
 
-  const roles = rolesData?.data || []
+  const roles = rolesData?.data?.roles || []
   const errorMessage = error ? (error as Error).message : null
 
   const selectedRole = roles.find((role) => role.roleId === value)

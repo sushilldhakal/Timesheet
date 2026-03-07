@@ -5,14 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
+import {
   MapPin, 
   Calendar, 
   Plus, 
   XCircle, 
   Briefcase,
   ChevronDown,
-  ChevronRight 
+  ChevronRight,
+  History
 } from "lucide-react"
 import { toast } from "sonner"
 import { formatDateLong } from "@/lib/utils/date-format"
@@ -35,6 +36,7 @@ interface RoleAssignment {
   roleColor?: string
   locationId: string
   locationName: string
+  locationColor?: string
   validFrom: string
   validTo: string | null
   isActive: boolean
@@ -45,6 +47,7 @@ interface RoleAssignment {
 interface GroupedAssignments {
   locationId: string
   locationName: string
+  locationColor?: string
   active: RoleAssignment[]
   historical: RoleAssignment[]
 }
@@ -60,6 +63,7 @@ export default function EmployeeRoleAssignmentList({
 }: EmployeeRoleAssignmentListProps) {
   const [assignmentToEnd, setAssignmentToEnd] = useState<RoleAssignment | null>(null)
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set())
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
 
   // TanStack Query hooks
   const { data: rolesData, isLoading: loading, error } = useEmployeeRoles(employeeId, { includeInactive: true })
@@ -86,6 +90,7 @@ export default function EmployeeRoleAssignmentList({
         acc.push({
           locationId: assignment.locationId,
           locationName: assignment.locationName,
+          locationColor: assignment.locationColor,
           active: assignment.isActive ? [assignment] : [],
           historical: assignment.isActive ? [] : [assignment],
         })
@@ -102,6 +107,9 @@ export default function EmployeeRoleAssignmentList({
     if (a.active.length === 0 && b.active.length > 0) return 1
     return a.locationName.localeCompare(b.locationName)
   })
+
+  // Count total historical assignments
+  const totalHistorical = groupedAssignments.reduce((sum, group) => sum + group.historical.length, 0)
 
   const handleEndAssignment = async () => {
     if (!assignmentToEnd) return
@@ -174,12 +182,20 @@ export default function EmployeeRoleAssignmentList({
               Employee roles at different locations
             </CardDescription>
           </div>
-          {onAdd && (
-            <Button onClick={onAdd} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Assignment
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {totalHistorical > 0 && (
+              <Button onClick={() => setShowHistoryDialog(true)} size="sm" variant="ghost">
+                <History className="h-4 w-4 mr-2" />
+                View History ({totalHistorical})
+              </Button>
+            )}
+            {onAdd && (
+              <Button onClick={onAdd} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -198,41 +214,34 @@ export default function EmployeeRoleAssignmentList({
             </div>
           ) : (
             <div className="space-y-4">
-              {groupedAssignments.map((group) => (
+              {groupedAssignments
+                .filter(group => group.active.length > 0)
+                .map((group) => (
                 <div
                   key={group.locationId}
                   className="border rounded-lg overflow-hidden"
                 >
-                  {/* Location Header */}
-                  <button
-                    onClick={() => toggleLocation(group.locationId)}
-                    className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
+                  {/* Location Header - Non-clickable */}
+                  <div className="w-full flex items-center justify-between p-4 bg-muted/30">
                     <div className="flex items-center gap-3">
-                      {expandedLocations.has(group.locationId) ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      {group.locationColor && (
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: group.locationColor }}
+                        />
                       )}
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">{group.locationName}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {group.active.length > 0 && (
-                        <Badge variant="default">
-                          {group.active.length} active
-                        </Badge>
-                      )}
-                      {group.historical.length > 0 && (
-                        <Badge variant="outline">
-                          {group.historical.length} historical
-                        </Badge>
-                      )}
+                      <Badge variant="default">
+                        {group.active.length} active
+                      </Badge>
                     </div>
-                  </button>
+                  </div>
 
-                  {/* Assignments List */}
-                  {expandedLocations.has(group.locationId) && (
+                  {/* Assignments List - Always visible */}
+                  {group.active.length > 0 && (
                     <div className="divide-y">
                       {/* Active Assignments */}
                       {group.active.map((assignment) => (
@@ -253,6 +262,7 @@ export default function EmployeeRoleAssignmentList({
                               <div className="flex-1 min-w-0">
                                 {/* Role Name */}
                                 <div className="flex items-center gap-2 mb-1">
+                                  <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
                                   <span className="font-medium">
                                     {assignment.roleName}
                                   </span>
@@ -296,52 +306,6 @@ export default function EmployeeRoleAssignmentList({
                           </div>
                         </div>
                       ))}
-
-                      {/* Historical Assignments */}
-                      {group.historical.map((assignment) => (
-                        <div
-                          key={assignment.id}
-                          className="p-4 bg-muted/20 hover:bg-muted/30 transition-colors opacity-75"
-                        >
-                          <div className="flex items-start gap-3">
-                            {/* Role Color Indicator */}
-                            {assignment.roleColor && (
-                              <div
-                                className="w-3 h-3 rounded-full mt-1 shrink-0 opacity-50"
-                                style={{ backgroundColor: assignment.roleColor }}
-                              />
-                            )}
-
-                            <div className="flex-1 min-w-0">
-                              {/* Role Name */}
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-muted-foreground">
-                                  {assignment.roleName}
-                                </span>
-                                <Badge variant="outline" className="text-xs">
-                                  Expired
-                                </Badge>
-                              </div>
-
-                              {/* Date Range */}
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                                <Calendar className="h-3 w-3" />
-                                <span>
-                                  {formatDate(assignment.validFrom)} →{" "}
-                                  {formatDate(assignment.validTo)}
-                                </span>
-                              </div>
-
-                              {/* Notes */}
-                              {assignment.notes && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  {assignment.notes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   )}
                 </div>
@@ -377,6 +341,78 @@ export default function EmployeeRoleAssignmentList({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteRoleMutation.isPending ? "Ending..." : "End Assignment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* History Dialog */}
+      <AlertDialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <AlertDialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Role Assignment History
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Complete history of expired and ended role assignments
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4">
+            {groupedAssignments.map((group) => 
+              group.historical.length > 0 && (
+                <div key={group.locationId} className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/30 p-3 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{group.locationName}</span>
+                    <Badge variant="outline" className="ml-auto">
+                      {group.historical.length} expired
+                    </Badge>
+                  </div>
+                  <div className="divide-y">
+                    {group.historical.map((assignment) => (
+                      <div key={assignment.id} className="p-4 bg-muted/10">
+                        <div className="flex items-start gap-3">
+                          {assignment.roleColor && (
+                            <div
+                              className="w-3 h-3 rounded-full mt-1 shrink-0 opacity-50"
+                              style={{ backgroundColor: assignment.roleColor }}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-muted-foreground">
+                                {assignment.roleName}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                Expired
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>
+                                {formatDate(assignment.validFrom)} → {formatDate(assignment.validTo)}
+                              </span>
+                            </div>
+                            {assignment.notes && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {assignment.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowHistoryDialog(false)}>
+              Close
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

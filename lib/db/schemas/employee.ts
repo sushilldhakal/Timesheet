@@ -20,6 +20,7 @@ export interface IEmployee {
   phone?: string
   homeAddress?: string
   dob?: string
+  gender?: string
   comment?: string
   img?: string
   // Web login password fields
@@ -70,6 +71,7 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     phone: { type: String, default: "" },
     homeAddress: { type: String, default: "" },
     dob: { type: String, default: "" },
+    gender: { type: String, default: "" },
     comment: { type: String, default: "" },
     img: { type: String, default: "" },
     // Web login password fields

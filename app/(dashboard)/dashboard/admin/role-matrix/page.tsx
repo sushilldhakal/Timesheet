@@ -37,7 +37,7 @@ function RoleMatrixPage() {
           
           // Use the API function directly
           const apiData = await getLocationRoles(locationId)
-          return (apiData.data || []).map((role: any) => ({
+          return (apiData.data?.roles || []).map((role: any) => ({
             _id: `${locationId}-${role.roleId}`,
             locationId: locationId,
             roleId: role.roleId,

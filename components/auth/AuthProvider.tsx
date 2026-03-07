@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
 } from "react"
 import { useRouter } from "next/navigation"
 import { useMe, useLogout } from "@/lib/queries/auth"
@@ -29,8 +30,15 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { data: user, isLoading, refetch } = useMe()
+  const { data: user, isLoading, error, refetch } = useMe()
   const logoutMutation = useLogout()
+
+  // Redirect to home page on 401 error
+  useEffect(() => {
+    if (error && !isLoading) {
+      router.push("/")
+    }
+  }, [error, isLoading, router])
 
   const logout = useCallback(() => {
     logoutMutation.mutate(undefined, {

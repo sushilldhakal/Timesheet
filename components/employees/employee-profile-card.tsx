@@ -158,7 +158,10 @@ export default function EmployeeProfileCard({
         id: employeeId,
         data: {
           awardId: selectedAwardId,
-          reason: `Award level: ${selectedLevel}, Employment type: ${selectedEmploymentType}`,
+          awardLevel: selectedLevel,
+          employmentType: selectedEmploymentType,
+          effectiveFrom: effectiveFrom,
+          overridingRate: overridingRate ? parseFloat(overridingRate) : undefined,
         }
       });
 

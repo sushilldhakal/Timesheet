@@ -13,6 +13,8 @@ export function useSetupStatus() {
     queryKey: setupKeys.status(),
     queryFn: setupApi.fetchSetupStatus,
     staleTime: 0, // Always fresh
+    retry: 1, // Only retry once to avoid long delays
+    retryDelay: 500, // Wait 500ms before retry
   })
 }
 

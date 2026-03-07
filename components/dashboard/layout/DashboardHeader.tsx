@@ -201,7 +201,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                 </>
             )}
 
-            <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+            <CommandDialog className='max-w-3xl' open={searchOpen} onOpenChange={setSearchOpen}>
                 <Command>
                     <CommandInput placeholder="Search or jump to..." />
                     <CommandList>

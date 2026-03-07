@@ -371,7 +371,7 @@ export class RoleAssignmentManager {
 
       const assignments = await EmployeeRoleAssignment.find(query)
         .populate("roleId", "name color type")
-        .populate("locationId", "name type lat lng")
+        .populate("locationId", "name color type lat lng")
         .populate("assignedBy", "name email")
         .sort({ validFrom: -1 })
 

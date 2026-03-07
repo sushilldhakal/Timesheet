@@ -1,11 +1,23 @@
 export interface LocationRole {
   roleId: string
+  roleName: string
+  roleColor?: string
   effectiveFrom: string
   effectiveTo?: string | null
+  isActive: boolean
+  employeeCount: number
 }
 
 export interface LocationRolesResponse {
-  roles: LocationRole[]
+  success: boolean
+  data: {
+    roles: LocationRole[]
+  }
+  metadata?: {
+    count: number
+    locationId: string
+    date: string
+  }
 }
 
 export interface EnableRoleRequest {
@@ -15,7 +27,7 @@ export interface EnableRoleRequest {
 }
 
 // Get roles for a location
-export async function getLocationRoles(locationId: string): Promise<{ data: LocationRole[] }> {
+export async function getLocationRoles(locationId: string): Promise<LocationRolesResponse> {
   const response = await fetch(`/api/locations/${locationId}/roles`, {
     credentials: 'include',
   })

@@ -67,7 +67,7 @@ export async function createUser(data: CreateUserRequest): Promise<ApiResponse<U
 // Update user
 export async function updateUser(id: string, data: UpdateUserRequest): Promise<ApiResponse<User>> {
   const response = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(data),

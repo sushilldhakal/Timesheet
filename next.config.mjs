@@ -12,7 +12,7 @@ const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   turbopack: {},
 
-  serverExternalPackages: ["@vladmandic/human"],
+
 
   async headers() {
     return [
@@ -83,7 +83,7 @@ const nextConfig = {
       // Force the browser ESM build (includes bundled TFJS, no Node deps)
       config.resolve.alias = {
         ...config.resolve.alias,
-        "@vladmandic/human": require.resolve("@vladmandic/human/dist/human.esm.js"),
+        "@vladmandic/human": path.resolve(__dirname, 'node_modules/@vladmandic/human/dist/human.esm.js'),
       };
     }
 
