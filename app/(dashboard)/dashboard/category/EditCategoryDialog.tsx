@@ -23,6 +23,15 @@ import { CATEGORY_TYPE_LABELS } from "@/lib/config/category-types"
 import { parseCoordsFromMapLink } from "@/lib/utils/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
+import { 
+  useCategories, 
+  useUpdateCategory
+} from "@/lib/queries/categories"
+import { 
+  useLocationRoles, 
+  useEnableLocationRole, 
+  useDisableLocationRole 
+} from "@/lib/queries/locations"
 import type { CategoryRow } from "./page"
 
 type Props = {
@@ -53,25 +62,15 @@ export function EditCategoryDialog({
   const [shiftEndHour, setShiftEndHour] = useState<number>(category.defaultScheduleTemplate?.shiftPattern?.endHour ?? 17)
   const [shiftDescription, setShiftDescription] = useState<string>(category.defaultScheduleTemplate?.shiftPattern?.description ?? 'Standard business hours')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
-  const [allRoles, setAllRoles] = useState<Array<{ id: string; name: string; color?: string }>>([])
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    // Fetch all roles for the multi-select
-    const fetchAllRoles = async () => {
-      try {
-        const res = await fetch("/api/categories?type=role")
-        if (res.ok) {
-          const data = await res.json()
-          setAllRoles(data.categories || [])
-        }
-      } catch (err) {
-        console.error("Failed to fetch all roles:", err)
-      }
-    }
-    fetchAllRoles()
-  }, [])
+  const rolesQuery = useCategories()
+  const updateCategoryMutation = useUpdateCategory()
+  const locationRolesQuery = useLocationRoles(category.id)
+  const enableLocationRoleMutation = useEnableLocationRole()
+  const disableLocationRoleMutation = useDisableLocationRole()
+
+  const allRoles = rolesQuery.data?.categories?.filter(c => c.type === 'role') ?? []
 
   useEffect(() => {
     if (open && category) {
@@ -91,25 +90,12 @@ export function EditCategoryDialog({
       setShiftDescription(category.defaultScheduleTemplate?.shiftPattern?.description ?? 'Standard business hours')
       setError(null)
 
-      // Fetch enabled roles for locations
-      if (category.type === "location") {
-        fetchEnabledRoles()
+      // Set enabled roles for locations
+      if (category.type === "location" && locationRolesQuery.data?.data) {
+        setSelectedRoleIds(locationRolesQuery.data.data.map(r => r.roleId))
       }
     }
-  }, [open, category])
-
-  const fetchEnabledRoles = async () => {
-    try {
-      const res = await fetch(`/api/locations/${category.id}/roles`)
-      if (res.ok) {
-        const response = await res.json()
-        const enabledRoles = response.data?.roles || []
-        setSelectedRoleIds(enabledRoles.map((r: any) => r.roleId))
-      }
-    } catch (err) {
-      console.error("Failed to fetch enabled roles:", err)
-    }
-  }
+  }, [open, category, locationRolesQuery.data])
 
   const handleMapLinkChange = (value: string) => {
     setMapLink(value)
@@ -123,7 +109,7 @@ export function EditCategoryDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setLoading(true)
+
     try {
       const body: Record<string, unknown> = { name: name.trim() }
       if (category.type === "location") {
@@ -149,23 +135,12 @@ export function EditCategoryDialog({
           }
         }
       }
-      const res = await fetch(`/api/categories/${category.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to update")
-        return
-      }
+
+      await updateCategoryMutation.mutateAsync({ id: category.id, data: body })
 
       // If location, sync role enablements
-      if (category.type === "location") {
-        // Fetch current enabled roles
-        const currentRes = await fetch(`/api/locations/${category.id}/roles`)
-        const currentData = await currentRes.json()
-        const currentRoleIds = (currentData.data?.roles || []).map((r: any) => r.roleId)
+      if (category.type === "location" && locationRolesQuery.data?.data) {
+        const currentRoleIds = locationRolesQuery.data.data.map(r => r.roleId)
 
         // Determine roles to enable and disable
         const rolesToEnable = selectedRoleIds.filter((id) => !currentRoleIds.includes(id))
@@ -174,14 +149,13 @@ export function EditCategoryDialog({
         // Enable new roles
         await Promise.all(
           rolesToEnable.map((roleId) =>
-            fetch(`/api/locations/${category.id}/roles`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            enableLocationRoleMutation.mutateAsync({
+              locationId: category.id,
+              data: {
                 roleId,
                 effectiveFrom: new Date().toISOString(),
                 effectiveTo: null,
-              }),
+              }
             })
           )
         )
@@ -189,8 +163,9 @@ export function EditCategoryDialog({
         // Disable removed roles
         await Promise.all(
           rolesToDisable.map((roleId: string) =>
-            fetch(`/api/locations/${category.id}/roles/${roleId}`, {
-              method: "DELETE",
+            disableLocationRoleMutation.mutateAsync({
+              locationId: category.id,
+              roleId
             })
           )
         )
@@ -198,14 +173,13 @@ export function EditCategoryDialog({
 
       onOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
 
   const typeLabel = CATEGORY_TYPE_LABELS[category.type]
+  const loading = updateCategoryMutation.isPending || enableLocationRoleMutation.isPending || disableLocationRoleMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -238,7 +212,7 @@ export function EditCategoryDialog({
                     <SelectTrigger id="edit-color" className="w-full">
                       <SelectValue>
                         <div className="flex items-center gap-2">
-                          <div 
+                          <div
                             className="h-5 w-5 rounded border-2 border-gray-300"
                             style={{ backgroundColor: color }}
                           />
@@ -250,7 +224,7 @@ export function EditCategoryDialog({
                       {TAILWIND_COLORS.map((c) => (
                         <SelectItem key={c.value} value={c.value}>
                           <div className="flex items-center gap-2">
-                            <div 
+                            <div
                               className="h-5 w-5 rounded border-2 border-gray-300"
                               style={{ backgroundColor: c.value }}
                             />
@@ -278,7 +252,7 @@ export function EditCategoryDialog({
                         Default working hours for this role (used in roster generation)
                       </p>
                     </Field>
-                    
+
                     <Field>
                       <FieldLabel>Working Days</FieldLabel>
                       <div className="flex flex-wrap gap-2 mt-2">

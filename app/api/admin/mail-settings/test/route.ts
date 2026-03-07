@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB } from "@/lib/db"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 
 export async function POST(req: NextRequest) {

@@ -4,11 +4,21 @@ import { needsAdminSetup } from "@/lib/db/setup"
 export async function GET() {
   try {
     const setupRequired = await needsAdminSetup()
-    return NextResponse.json({ needsSetup: setupRequired })
+    return NextResponse.json({ 
+      success: true,
+      data: {
+        isSetupComplete: !setupRequired,
+        hasAdmin: !setupRequired,
+        databaseConnected: true,
+        requiredSteps: setupRequired ? ['Create admin user'] : [],
+        completedSteps: setupRequired ? [] : ['Create admin user'],
+        needsSetup: setupRequired
+      }
+    })
   } catch (err) {
     console.error("[setup/status]", err)
     return NextResponse.json(
-      { error: "Failed to check setup status" },
+      { success: false, error: "Failed to check setup status" },
       { status: 500 }
     )
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { History, Calendar, Award as AwardIcon } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useEmployeeAwardHistory } from '@/lib/queries/employees';
 
 interface AwardHistoryCardProps {
   employeeId: string;
@@ -30,27 +31,13 @@ interface PayCondition {
 
 export default function AwardHistoryCard({ employeeId }: AwardHistoryCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [history, setHistory] = useState<PayCondition[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  const fetchHistory = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/employees/${employeeId}/award-history`);
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data.history || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch award history:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // TanStack Query hook
+  const { data: historyData, isLoading: loading } = useEmployeeAwardHistory(employeeId);
+  const history = historyData?.history || [];
 
   const handleOpenDialog = () => {
     setDialogOpen(true);
-    fetchHistory();
   };
 
   const formatDate = (dateStr: string | null) => {

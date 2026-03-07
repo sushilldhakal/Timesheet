@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { format } from "date-fns"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 const INACTIVE_DAYS = 100

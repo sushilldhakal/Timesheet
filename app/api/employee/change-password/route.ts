@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, Employee } from "@/lib/db"
-import { getEmployeeFromWebCookie } from "@/lib/employee-auth"
+import { getEmployeeFromWebCookie } from "@/lib/auth/employee-auth"
 import { z } from "zod"
 
 const changePasswordSchema = z.object({

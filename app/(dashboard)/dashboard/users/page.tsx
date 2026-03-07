@@ -10,6 +10,7 @@ import { UsersTable } from "./UsersTable"
 import { AddUserDialog } from "./AddUserDialog"
 import { EditUserDialog } from "./EditUserDialog"
 import { DeleteUserDialog } from "./DeleteUserDialog"
+import { useUsers } from "@/lib/queries/users"
 
 export type UserRow = {
   id: string
@@ -25,37 +26,21 @@ export type UserRow = {
 
 export default function UsersPage() {
   const { user, isHydrated } = useAuth()
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
 
   const userIsAdmin = isAdmin(user?.role ?? null)
 
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch("/api/users")
-      if (res.ok) {
-        const data = await res.json()
-        setUsers(data.users ?? [])
-      } else {
-        setUsers([])
-      }
-    } catch {
-      setUsers([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  // TanStack Query hooks
+  const usersQuery = useUsers()
+  
+  const users = usersQuery.data?.users || []
+  const loading = usersQuery.isLoading
 
-  useEffect(() => {
-    if (isHydrated && userIsAdmin) {
-      fetchUsers()
-    } else {
-      setLoading(false)
-    }
-  }, [isHydrated, userIsAdmin])
+  const fetchUsers = () => {
+    usersQuery.refetch()
+  }
 
   if (!isHydrated) {
     return (

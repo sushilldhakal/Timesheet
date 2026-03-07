@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, parse, isValid, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift, Timesheet } from "@/lib/db"
 import { formatDate as formatDateDisplay } from "@/lib/utils/date-format"
+import { timesheetPostSchema } from "@/lib/validations/timesheet"
 
 function parseTimeToMinutes(t?: string): number {
   if (!t || typeof t !== "string" || !t.trim()) return 0
@@ -402,6 +403,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const parsed = timesheetPostSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", issues: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
     const {
       pin,
       type,
@@ -419,32 +428,7 @@ export async function POST(request: NextRequest) {
       breakSource,
       breakRuleRef,
       scheduleShiftId,
-    } = body
-
-    // Validate required fields
-    if (!pin || !type || !date) {
-      return NextResponse.json(
-        { error: "pin, type, and date are required" },
-        { status: 400 }
-      )
-    }
-
-    // Validate type
-    if (!["in", "out", "break", "endBreak"].includes(type)) {
-      return NextResponse.json(
-        { error: "type must be one of: in, out, break, endBreak" },
-        { status: 400 }
-      )
-    }
-
-    // Validate date format (basic check)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!dateRegex.test(date)) {
-      return NextResponse.json(
-        { error: "Invalid date format. Use YYYY-MM-DD" },
-        { status: 400 }
-      )
-    }
+    } = parsed.data
 
     await connectDB()
 
@@ -474,12 +458,6 @@ export async function POST(request: NextRequest) {
     // Add manual shift ID if provided
     if (scheduleShiftId) {
       const mongoose = await import("mongoose")
-      if (!mongoose.Types.ObjectId.isValid(scheduleShiftId)) {
-        return NextResponse.json(
-          { error: "Invalid scheduleShiftId format" },
-          { status: 400 }
-        )
-      }
       timesheetData.scheduleShiftId = new mongoose.Types.ObjectId(scheduleShiftId)
     }
 

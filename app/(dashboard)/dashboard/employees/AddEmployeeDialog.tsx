@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,10 @@ import { Input } from "@/components/ui/input"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { CATEGORY_TYPES } from "@/lib/config/category-types"
 import { UserCircle, Upload, X, RefreshCw } from "lucide-react"
+import { useCategoriesByType } from "@/lib/queries/categories"
+import { useAwards } from "@/lib/queries/awards"
+import { useCreateEmployee, useGeneratePin, useCheckPin } from "@/lib/queries/employees"
+import { useUploadImage } from "@/lib/queries/upload"
 
 type Props = {
   open: boolean
@@ -45,33 +49,37 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [password, setPassword] = useState("")
   const [sendSetupEmail, setSendSetupEmail] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
-  const [employerOptions, setEmployerOptions] = useState<{ value: string; label: string }[]>([])
-  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([])
-  const [awardOptions, setAwardOptions] = useState<{ value: string; label: string; levels: string[] }[]>([])
   const [availableLevels, setAvailableLevels] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (open) {
-      Promise.all([
-        fetch(`/api/categories?type=${CATEGORY_TYPES.ROLE}`).then((r) => (r.ok ? r.json() : { categories: [] })),
-        fetch(`/api/categories?type=${CATEGORY_TYPES.EMPLOYER}`).then((r) => (r.ok ? r.json() : { categories: [] })),
-        fetch(`/api/categories?type=${CATEGORY_TYPES.LOCATION}`).then((r) => (r.ok ? r.json() : { categories: [] })),
-        fetch('/api/awards').then((r) => (r.ok ? r.json() : { awards: [] })),
-      ]).then(([roleData, employerData, locationData, awardsData]) => {
-        setRoleOptions((roleData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
-        setEmployerOptions((employerData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
-        setLocationOptions((locationData.categories ?? []).map((c: { name: string }) => ({ value: c.name, label: c.name })))
-        setAwardOptions((awardsData.awards ?? []).map((a: any) => ({
-          value: a._id,
-          label: a.name,
-          levels: a.levels?.map((l: any) => l.label) || []
-        })))
-      })
-    }
-  }, [open])
+  const rolesQuery = useCategoriesByType("role")
+  const employersQuery = useCategoriesByType("employer")
+  const locationsQuery = useCategoriesByType("location")
+  const awardsQuery = useAwards()
+  const createEmployeeMutation = useCreateEmployee()
+  const generatePinMutation = useGeneratePin()
+  const checkPinMutation = useCheckPin()
+  const uploadImageMutation = useUploadImage()
+
+  const roleOptions = useMemo(() => 
+    rolesQuery.data?.categories?.map((c) => ({ value: c.name, label: c.name })) || []
+  , [rolesQuery.data?.categories])
+  
+  const employerOptions = useMemo(() => 
+    employersQuery.data?.categories?.map((c) => ({ value: c.name, label: c.name })) || []
+  , [employersQuery.data?.categories])
+  
+  const locationOptions = useMemo(() => 
+    locationsQuery.data?.categories?.map((c) => ({ value: c.name, label: c.name })) || []
+  , [locationsQuery.data?.categories])
+  const awardOptions = useMemo(() => 
+    awardsQuery.data?.awards?.map((a) => ({
+      value: a._id,
+      label: a.name,
+      levels: a.levels?.map((l) => l.label) || []
+    })) || []
+  , [awardsQuery.data?.awards])
 
   // Update available levels when award changes
   useEffect(() => {
@@ -106,65 +114,31 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     onOpenChange(next)
   }
 
-  const [uploading, setUploading] = useState(false)
-  const [generatingPin, setGeneratingPin] = useState(false)
-
-  // When phone has 4+ digits, use last 4 as PIN
-  useEffect(() => {
-    const digits = phone.replace(/\D/g, "")
-    if (digits.length >= 4) {
-      // Try last 4 digits first
-      setPin(digits.slice(-4))
-    }
-  }, [phone])
-
   const handleGeneratePin = async () => {
-    setGeneratingPin(true)
     setError(null)
     try {
-      const res = await fetch("/api/employees/generate-pin")
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Failed to generate PIN")
+      const data = await generatePinMutation.mutateAsync()
       setPin(data.pin)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate PIN")
-    } finally {
-      setGeneratingPin(false)
     }
   }
 
   // Function to find available PIN from phone number
   const findAvailablePin = async (phoneDigits: string): Promise<string | null> => {
     if (phoneDigits.length < 4) return null
-    
+
     // Try different 4-digit combinations from the phone number
-    const attempts = []
-    
-    // Last 4 digits
-    if (phoneDigits.length >= 4) {
-      attempts.push(phoneDigits.slice(-4))
-    }
-    
-    // Second-to-last 4 digits (skip last digit)
-    if (phoneDigits.length >= 5) {
-      attempts.push(phoneDigits.slice(-5, -1))
-    }
-    
-    // Third attempt (skip last 2 digits)
-    if (phoneDigits.length >= 6) {
-      attempts.push(phoneDigits.slice(-6, -2))
-    }
-    
-    // Fourth attempt (skip last 3 digits)
-    if (phoneDigits.length >= 7) {
-      attempts.push(phoneDigits.slice(-7, -3))
-    }
-    
-    // Try each PIN
+    const attempts = [
+      phoneDigits.slice(-4), // Last 4 digits
+      phoneDigits.slice(0, 4), // First 4 digits
+      phoneDigits.slice(-5, -1), // 4 digits before the last
+      phoneDigits.slice(1, 5), // 4 digits starting from second
+    ].filter((pin, index, arr) => arr.indexOf(pin) === index) // Remove duplicates
+
     for (const testPin of attempts) {
       try {
-        const res = await fetch(`/api/employees/check-pin?pin=${testPin}`)
-        const data = await res.json()
+        const data = await checkPinMutation.mutateAsync(testPin)
         if (data.available) {
           return testPin
         }
@@ -172,406 +146,242 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
         // Continue to next attempt
       }
     }
-    
     return null
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith("image/")) {
-      setError("Please select an image file (JPG, PNG, etc.)")
-      return
+  // When phone has 4+ digits, use last 4 as PIN
+  useEffect(() => {
+    if (phone.length >= 4 && !pin) {
+      const phoneDigits = phone.replace(/\D/g, '')
+      if (phoneDigits.length >= 4) {
+        findAvailablePin(phoneDigits).then(availablePin => {
+          if (availablePin) {
+            setPin(availablePin)
+          }
+        })
+      }
     }
-    setError(null)
+  }, [phone, pin])
+
+  const handleImageUpload = async (file: File) => {
     setUploading(true)
+    setError(null)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      const res = await fetch("/api/upload/image", { method: "POST", body: formData })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Upload failed")
+      const data = await uploadImageMutation.mutateAsync(file)
       setImg(data.url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload image")
+      setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setUploading(false)
     }
   }
 
-  const getEffectivePin = () =>
-    phone.replace(/\D/g, "").length >= 4
-      ? phone.replace(/\D/g, "").slice(-4)
-      : pin
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    let finalPin = getEffectivePin()
-    
-    if (finalPin.length < 4) {
-      setError("Enter phone (last 4 digits used as PIN) or click Generate")
-      return
-    }
-    
     setError(null)
-    setLoading(true)
-    
+
     try {
-      // If using phone-derived PIN, check if it's available and find alternative if needed
-      const phoneDigits = phone.replace(/\D/g, "")
-      if (phoneDigits.length >= 4 && finalPin === phoneDigits.slice(-4)) {
-        const availablePin = await findAvailablePin(phoneDigits)
-        if (availablePin) {
-          finalPin = availablePin
-          setPin(availablePin) // Update the displayed PIN
-        } else {
-          // If no phone-based PIN available, generate a random one
+      // If no PIN provided and phone available, try to generate one
+      let finalPin = pin
+      if (!finalPin && phone) {
+        const phoneDigits = phone.replace(/\D/g, '')
+        if (phoneDigits.length >= 4) {
+          finalPin = await findAvailablePin(phoneDigits) || ""
+        }
+
+        // If still no PIN available, generate a random one
+        if (!finalPin) {
           try {
-            const res = await fetch("/api/employees/generate-pin")
-            const data = await res.json()
-            if (res.ok && data.pin) {
-              finalPin = data.pin
-              setPin(data.pin)
-            }
+            const data = await generatePinMutation.mutateAsync()
+            finalPin = data.pin
           } catch {
-            setError("Could not find available PIN from phone number. Please use Generate button.")
-            setLoading(false)
+            setError("Failed to generate PIN")
             return
           }
         }
       }
-      
-      const res = await fetch("/api/employees", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          pin: finalPin,
-          role,
-          employer,
-          location,
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          homeAddress: homeAddress.trim() || undefined,
-          dob: dob.trim() || undefined,
-          comment: comment.trim() || undefined,
-          img: img || undefined,
-          employmentType: employmentType || undefined,
-          standardHoursPerWeek: standardHours,
-          awardId: awardId || undefined,
-          awardLevel: awardLevel || undefined,
-          password: password.trim() || undefined,
-          sendSetupEmail: !password.trim() && sendSetupEmail, // Only send if no password provided
-        }),
+
+      await createEmployeeMutation.mutateAsync({
+        name: name.trim(),
+        pin: finalPin,
+        role: role.length > 0 ? role.join(", ") : undefined,
+        employer: employer.length > 0 ? employer.join(", ") : undefined,
+        location: location.length > 0 ? location.join(", ") : undefined,
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        profileImage: img || undefined,
       })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to create employee")
-        return
-      }
+
       handleOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
 
-  const effectivePin = getEffectivePin()
+  const loading = createEmployeeMutation.isPending || generatePinMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] rounded-lg"  onInteractOutside={(e) => {
-          e.preventDefault();
-        }}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Employee</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="add-employee-name">Name *</FieldLabel>
+              <Input
+                id="add-employee-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. John Smith"
+                required
+              />
+            </Field>
+
             <div className="grid grid-cols-2 gap-4">
               <Field>
-                <FieldLabel>Photo</FieldLabel>
-                <div className="flex items-center gap-4">
-                  <div className="relative h-20 w-20 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
-                    {img ? (
-                      <>
-                        <img src={img} alt="Preview" className="h-full w-full object-cover" decoding="async" />
-                        <button
-                          type="button"
-                          onClick={() => setImg("")}
-                          className="absolute top-0 right-0 p-1 bg-destructive text-destructive-foreground rounded-bl"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <UserCircle className="h-10 w-10 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={uploading}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      {uploading ? "Uploading..." : "Upload"}
-                    </Button>
-                  </div>
+                <FieldLabel htmlFor="add-employee-pin">PIN *</FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="add-employee-pin"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="4-digit PIN"
+                    maxLength={4}
+                    pattern="[0-9]{4}"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleGeneratePin}
+                    disabled={generatePinMutation.isPending}
+                    title="Generate random PIN"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${generatePinMutation.isPending ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
               </Field>
+
               <Field>
-                <div className="flex items-center justify-between gap-2 relative">
-                  <FieldLabel htmlFor="add-emp-pin">PIN (for clock-in) *</FieldLabel>
-                  {phone.replace(/\D/g, "").length >= 4 ? (
-                    <span className="px-2 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground absolute right-1 top-9">
-                      From phone
-                    </span>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
-                      disabled={generatingPin}
-                      onClick={handleGeneratePin}
-                      className="h-7 absolute right-1 top-8"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${generatingPin ? "animate-spin" : ""}`} />
-                      {generatingPin ? "Generating..." : "Generate"}
-                    </Button>
-                  )}
-                </div>
+                <FieldLabel htmlFor="add-employee-phone">Phone</FieldLabel>
                 <Input
-                  id="add-emp-pin"
-                  value={effectivePin}
-                  readOnly
-                  placeholder={phone.replace(/\D/g, "").length >= 4 ? "" : "Click Generate above"}
-                  className="bg-muted mt-1"
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="add-emp-name">Name *</FieldLabel>
-                <Input
-                  id="add-emp-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Full name"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-phone">Phone</FieldLabel>
-                <Input
-                  id="add-emp-phone"
+                  id="add-employee-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number (last 4 digits → PIN)"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-home-address">Home Address</FieldLabel>
-                <Input
-                  id="add-emp-home-address"
-                  value={homeAddress}
-                  onChange={(e) => setHomeAddress(e.target.value)}
-                  placeholder="Home address (optional)"
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Roles</FieldLabel>
-                <MultiSelect
-                  options={roleOptions}
-                  defaultValue={role}
-                  onValueChange={setRole}
-                  placeholder="Select roles..."
-                  variant="secondary"
-                  resetOnDefaultValueChange
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Employers</FieldLabel>
-                <MultiSelect
-                  options={employerOptions}
-                  defaultValue={employer}
-                  onValueChange={setEmployer}
-                  placeholder="Select employers..."
-                  variant="secondary"
-                  resetOnDefaultValueChange
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Locations</FieldLabel>
-                <MultiSelect
-                  options={locationOptions}
-                  defaultValue={location}
-                  onValueChange={setLocation}
-                  placeholder="Select locations..."
-                  variant="secondary"
-                  resetOnDefaultValueChange
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-email">Email</FieldLabel>
-                <Input
-                  id="add-emp-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@example.com"
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="add-emp-dob">Date of Birth</FieldLabel>
-                <Input
-                  id="add-emp-dob"
-                  type="date"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-employment-type">Employment Type</FieldLabel>
-                <select
-                  id="add-emp-employment-type"
-                  value={employmentType}
-                  onChange={(e) => setEmploymentType(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select type...</option>
-                  <option value="Full-time">Full-time</option>
-                  <option value="Part-time">Part-time</option>
-                  <option value="Casual">Casual</option>
-                </select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="add-emp-hours">Standard Hours per Week</FieldLabel>
-                <Input
-                  id="add-emp-hours"
-                  type="number"
-                  min={0}
-                  max={168}
-                  step={0.5}
-                  value={standardHours ?? ""}
-                  onChange={(e) => setStandardHours(e.target.value ? Number(e.target.value) : null)}
-                  placeholder="e.g. 38"
+                  placeholder="e.g. 0412 345 678"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Target working hours (used in roster generation)
+                  PIN will auto-fill from phone digits
                 </p>
               </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-comment">Comment</FieldLabel>
-                <textarea
-                  id="add-emp-comment"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Notes about employee..."
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-                  rows={3}
-                />
-              </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="add-emp-award">Award</FieldLabel>
-                <select
-                  id="add-emp-award"
-                  value={awardId}
-                  onChange={(e) => setAwardId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select award...</option>
-                  {awardOptions.map((award) => (
-                    <option key={award.value} value={award.value}>
-                      {award.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="add-emp-award-level">Award Level</FieldLabel>
-                <select
-                  id="add-emp-award-level"
-                  value={awardLevel}
-                  onChange={(e) => setAwardLevel(e.target.value)}
-                  disabled={!awardId || availableLevels.length === 0}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
-                >
-                  <option value="">Select level...</option>
-                  {availableLevels.map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <div className="border-t pt-4 mt-2">
-              <h3 className="text-sm font-medium mb-3">Web Access Setup</h3>
-              <div className="grid grid-cols-1 gap-4">
-                <Field>
-                  <div className="flex items-center gap-2 mb-2">
-                    <input
-                      type="checkbox"
-                      id="add-emp-send-setup"
-                      checked={sendSetupEmail}
-                      onChange={(e) => {
-                        setSendSetupEmail(e.target.checked)
-                        if (e.target.checked) setPassword("")
-                      }}
-                      className="h-4 w-4 rounded border-gray-300"
+
+            <Field>
+              <FieldLabel htmlFor="add-employee-email">Email</FieldLabel>
+              <Input
+                id="add-employee-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. john@company.com"
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>Role</FieldLabel>
+              <MultiSelect
+                options={roleOptions}
+                onValueChange={setRole}
+                defaultValue={role}
+                placeholder="Select roles..."
+                disabled={loading}
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>Employer</FieldLabel>
+              <MultiSelect
+                options={employerOptions}
+                onValueChange={setEmployer}
+                defaultValue={employer}
+                placeholder="Select employers..."
+                disabled={loading}
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>Location</FieldLabel>
+              <MultiSelect
+                options={locationOptions}
+                onValueChange={setLocation}
+                defaultValue={location}
+                placeholder="Select locations..."
+                disabled={loading}
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>Profile Image</FieldLabel>
+              <div className="flex items-center gap-4">
+                {img ? (
+                  <div className="relative">
+                    <img
+                      src={img}
+                      alt="Profile"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
                     />
-                    <FieldLabel htmlFor="add-emp-send-setup" className="mb-0 cursor-pointer">
-                      Send password setup email
-                    </FieldLabel>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-6 w-6"
+                      onClick={() => setImg("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">
-                    Employee will receive an email with a link to set their own password (expires in 24 hours)
-                  </p>
-                </Field>
-                {!sendSetupEmail && (
-                  <Field>
-                    <FieldLabel htmlFor="add-emp-password">Initial Password</FieldLabel>
-                    <Input
-                      id="add-emp-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimum 8 characters"
-                      minLength={8}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Employee will be required to change this password on first login
-                    </p>
-                  </Field>
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center border-2 border-gray-200">
+                    <UserCircle className="h-8 w-8 text-gray-400" />
+                  </div>
                 )}
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageUpload(file)
+                    }}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="w-full"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? "Uploading..." : "Upload Image"}
+                  </Button>
+                </div>
               </div>
-            </div>
+            </Field>
+
             {error && <FieldError>{error}</FieldError>}
           </FieldGroup>
           <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>

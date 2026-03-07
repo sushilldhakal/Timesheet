@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, ChevronRight, ChevronDown } from "lucide-react";
 import AwardFormDialog from "@/components/awards/award-form-dialog";
 import AwardDetail from "@/components/awards/award-detail";
+import { useAwards, useUpdateAward, useDeleteAward } from "@/lib/queries/awards";
 import { toast } from "sonner";
 
 export type AwardRow = {
@@ -19,8 +20,6 @@ export type AwardRow = {
 };
 
 export default function AwardsPage() {
-  const [awards, setAwards] = useState<AwardRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [editingAward, setEditingAward] = useState<AwardRow | null>(null);
   const [selectedAward, setSelectedAward] = useState<AwardRow | null>(null);
@@ -28,26 +27,13 @@ export default function AwardsPage() {
   const [openAccordions, setOpenAccordions] = useState<Set<string>>(new Set());
   const levelRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const fetchAwards = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/awards");
-      if (res.ok) {
-        const data = await res.json();
-        setAwards(data.awards ?? []);
-      } else {
-        setAwards([]);
-      }
-    } catch {
-      setAwards([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // TanStack Query hooks
+  const awardsQuery = useAwards();
+  const updateAwardMutation = useUpdateAward();
+  const deleteAwardMutation = useDeleteAward();
 
-  useEffect(() => {
-    fetchAwards();
-  }, []);
+  const awards = awardsQuery.data?.awards || [];
+  const loading = awardsQuery.isLoading;
 
   const handleSelectAward = (award: AwardRow) => {
     setSelectedAward(award);
@@ -92,18 +78,9 @@ export default function AwardsPage() {
     if (!confirm("Are you sure you want to delete this award?")) return;
 
     try {
-      const response = await fetch(`/api/awards/${selectedAward._id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || "Failed to delete award");
-      }
-
+      await deleteAwardMutation.mutateAsync(selectedAward._id);
       toast.success("Award deleted successfully");
       setSelectedAward(null);
-      fetchAwards();
     } catch (error: any) {
       console.error("Error deleting award:", error);
       toast.error(error.message || "Failed to delete award");
@@ -114,7 +91,9 @@ export default function AwardsPage() {
     try {
       // Transform the award data to match Mongoose schema
       const transformedAward = {
-        ...updatedAward,
+        name: updatedAward.name,
+        description: updatedAward.description ?? undefined,
+        isActive: updatedAward.isActive,
         levels: updatedAward.levels.map(level => ({
           label: level.label,
           conditions: level.conditions.map((condition: any) => ({
@@ -217,24 +196,12 @@ export default function AwardsPage() {
         })),
       };
 
-      const response = await fetch(`/api/awards/${updatedAward._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transformedAward),
+      await updateAwardMutation.mutateAsync({
+        id: updatedAward._id,
+        data: transformedAward,
       });
 
-      console.log('Sending award data:', JSON.stringify(transformedAward, null, 2));
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Validation error details:', error);
-        const errorMessage = error.details || error.error || "Failed to update award";
-        toast.error(errorMessage);
-        throw new Error(errorMessage);
-      }
-
       toast.success("Award updated successfully");
-      fetchAwards();
       if (selectedAward?._id === updatedAward._id) {
         setSelectedAward(updatedAward);
       }
@@ -247,7 +214,6 @@ export default function AwardsPage() {
   const handleFormClose = () => {
     setAddOpen(false);
     setEditingAward(null);
-    fetchAwards();
   };
 
   useEffect(() => {

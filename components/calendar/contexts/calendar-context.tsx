@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { calculateDateRange, type DateRange } from "@/components/calendar/utils/date-range-calculator";
+import { useCalendarEvents } from "@/lib/queries/calendar";
+import { calendarEventToIEvent } from "@/lib/api/calendar";
 
 import type { Dispatch, SetStateAction } from "react";
 import type { IEvent, IUser } from "@/components/calendar/interfaces";
@@ -25,7 +27,7 @@ interface ICalendarContext {
   dateRange: DateRange;
   isLoading: boolean;
   error: string | null;
-  refetchEvents: () => Promise<void>;
+  refetchEvents: () => void;
   currentView: TCalendarView;
   setCurrentView: (view: TCalendarView) => void;
   selectedLocationId?: string;
@@ -87,11 +89,38 @@ export function CalendarProvider({
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [currentView, setCurrentView] = useState<TCalendarView>(initialView);
 
-  // API integration state
-  const [allEvents, setAllEvents] = useState<IEvent[]>(initialEvents);
-  const [localEvents, setLocalEvents] = useState<IEvent[]>(initialEvents);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Memoize date range to prevent recalculation on every render
+  const dateRange = useMemo(() => {
+    return calculateDateRange(selectedDate, currentView);
+  }, [selectedDate, currentView]);
+
+  // TanStack Query hook for calendar events
+  const { 
+    data: eventsData, 
+    isLoading, 
+    error: queryError, 
+    refetch 
+  } = useCalendarEvents({
+    startDate: dateRange.startDate.toISOString(),
+    endDate: dateRange.endDate.toISOString(),
+    locationId: selectedLocationId,
+  });
+
+  // Transform CalendarEvent[] to IEvent[] if needed
+  const transformedEvents = eventsData?.data 
+    ? eventsData.data.map(calendarEventToIEvent)
+    : initialEvents;
+  const allEvents = transformedEvents;
+  
+  const error = queryError ? (queryError as Error).message : null;
+
+  // Local events state for client-side manipulation
+  const [localEvents, setLocalEvents] = useState<IEvent[]>(allEvents);
+
+  // Update local events when API data changes
+  useEffect(() => {
+    setLocalEvents(allEvents);
+  }, [allEvents]);
 
   // Client-side filter events by selected users
   const filteredEvents = useMemo(() => {
@@ -103,45 +132,8 @@ export function CalendarProvider({
     );
   }, [localEvents, selectedUserIds]);
 
-  // Memoize date range to prevent recalculation on every render
-  const dateRange = useMemo(() => {
-    return calculateDateRange(selectedDate, currentView);
-  }, [selectedDate, currentView]);
-
   // Fetch events from API
   const fetchEvents = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({
-        startDate: dateRange.startDate.toISOString(),
-        endDate: dateRange.endDate.toISOString(),
-      });
-
-      // Add location filter if specified
-      if (selectedLocationId) {
-        params.append('locationId', selectedLocationId);
-      }
-
-      const response = await fetch(`/api/calendar/events?${params.toString()}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch events");
-      }
-
-      const data = await response.json();
-      console.log('Fetched events:', data.events);
-      setAllEvents(data.events || []);
-      setLocalEvents(data.events || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load events";
-      setError(message);
-      console.error("Error fetching calendar events:", err);
-    } finally {
-      setIsLoading(false);
-    }
   }, [dateRange.startDate, dateRange.endDate, selectedLocationId]);
 
   // Fetch events when date range or location changes (NOT when user selection changes)
@@ -175,7 +167,7 @@ export function CalendarProvider({
         dateRange,
         isLoading,
         error,
-        refetchEvents: fetchEvents,
+        refetchEvents: refetch,
         currentView,
         setCurrentView,
         selectedLocationId,

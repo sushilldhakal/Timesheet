@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth-api"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 
 /** GET /api/employees/check-pin?pin=1234 - Check if a PIN is available */

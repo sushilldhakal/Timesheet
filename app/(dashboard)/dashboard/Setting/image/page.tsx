@@ -8,15 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CalendarIcon, Image, Database, Trash2, Cloud, Save, ExternalLink, Info, CheckCircle2, AlertTriangle, Loader2, Calendar as CalendarLog, HardDrive, RefreshCw, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react"
+import { CalendarIcon, Trash2, Cloud, Save, ExternalLink, CheckCircle2, AlertTriangle, Loader2, Calendar as CalendarLog, HardDrive, RefreshCw, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-
 import { useRouter } from "next/navigation"
+import { 
+  useStorageSettings, 
+  useUpdateStorageSettings, 
+  useTestStorageConnection,
+  useStorageStats,
+  useActivityLogs,
+  useCreateActivityLog,
+  useCleanupCloudinary,
+  useCleanupTimesheets
+} from "@/lib/queries/settings"
 
 type StorageProvider = "cloudinary" | "r2"
 
@@ -79,16 +88,10 @@ export default function SettingPage() {
     bucketName: "",
     publicUrl: "",
   })
-  const [storageLoading, setStorageLoading] = useState(false)
-  const [testingConnection, setTestingConnection] = useState(false)
-  const [currentSettings, setCurrentSettings] = useState<StorageSettings | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [activityLogsPage, setActivityLogsPage] = useState(1)
   const [totalLogsPages, setTotalLogsPages] = useState(1)
-  const [loadingLogs, setLoadingLogs] = useState(false)
-  const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
-  const [loadingStats, setLoadingStats] = useState(false)
   
   const [cloudinaryDate, setCloudinaryDate] = useState<Date | undefined>(undefined)
   const [timesheetDate, setTimesheetDate] = useState<Date | undefined>(undefined)
@@ -96,18 +99,64 @@ export default function SettingPage() {
   const [timesheetOpen, setTimesheetOpen] = useState(false)
   const [confirmCloudinary, setConfirmCloudinary] = useState(false)
   const [confirmTimesheet, setConfirmTimesheet] = useState(false)
-  const [cloudinaryLoading, setCloudinaryLoading] = useState(false)
-  const [timesheetLoading, setTimesheetLoading] = useState(false)
 
   const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
 
+  // TanStack Query hooks
+  const storageSettingsQuery = useStorageSettings()
+  const updateStorageSettingsMutation = useUpdateStorageSettings()
+  const testStorageConnectionMutation = useTestStorageConnection()
+  const storageStatsQuery = useStorageStats()
+  const activityLogsQuery = useActivityLogs('storage', activityLogsPage)
+  const createActivityLogMutation = useCreateActivityLog()
+  const cleanupCloudinaryMutation = useCleanupCloudinary()
+  const cleanupTimesheetsMutation = useCleanupTimesheets()
+
+  const currentSettings = storageSettingsQuery.data?.settings || null
+  const storageStats = storageStatsQuery.data?.stats || null
+
+  // Update activity logs when query data changes
   useEffect(() => {
-    if (isAdmin) {
-      fetchStorageSettings()
-      fetchStorageStats()
-      fetchActivityLogs()
+    if (activityLogsQuery.data) {
+      const newLogs = activityLogsQuery.data.logs.map((log: any) => ({
+        id: log._id,
+        action: log.action,
+        timestamp: new Date(log.createdAt),
+        details: log.details,
+        status: log.status,
+      }))
+      
+      setActivityLogs(newLogs)
+      const totalPages = Math.ceil((activityLogsQuery.data.total || 0) / 10)
+      setTotalLogsPages(totalPages)
     }
-  }, [isAdmin])
+  }, [activityLogsQuery.data])
+
+  // Load settings when query data changes
+  useEffect(() => {
+    if (currentSettings) {
+      setStorageProvider(currentSettings.provider)
+      
+      // Always load both provider settings if they exist
+      if (currentSettings.cloudinary) {
+        setCloudinarySettings({
+          cloudName: currentSettings.cloudinary.cloudName,
+          apiKey: currentSettings.cloudinary.apiKey,
+          apiSecret: "", // Keep empty - will use existing if not changed
+        })
+      }
+      
+      if (currentSettings.r2) {
+        setR2Settings({
+          accountId: currentSettings.r2.accountId,
+          accessKeyId: currentSettings.r2.accessKeyId,
+          secretAccessKey: "", // Keep empty - will use existing if not changed
+          bucketName: currentSettings.r2.bucketName,
+          publicUrl: currentSettings.r2.publicUrl,
+        })
+      }
+    }
+  }, [currentSettings])
 
   // Track unsaved changes
   useEffect(() => {
@@ -134,86 +183,6 @@ export default function SettingPage() {
     setHasUnsavedChanges(cloudinaryChanged || r2Changed)
   }, [cloudinarySettings, r2Settings, currentSettings])
 
-  const fetchStorageStats = async () => {
-    setLoadingStats(true)
-    try {
-      // Add cache-busting timestamp
-      const res = await fetch(`/api/admin/storage-stats?t=${Date.now()}`, {
-        cache: 'no-store',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        console.log("Storage stats fetched:", data)
-        setStorageStats(data.stats)
-      }
-    } catch (error) {
-      console.error("Failed to fetch storage stats:", error)
-    } finally {
-      setLoadingStats(false)
-    }
-  }
-
-  const fetchActivityLogs = async (page = 1) => {
-    try {
-      setLoadingLogs(true)
-      const res = await fetch(`/api/admin/activity-logs?category=storage&limit=10&page=${page}`)
-      if (res.ok) {
-        const data = await res.json()
-        const newLogs = data.logs.map((log: any) => ({
-          id: log._id,
-          action: log.action,
-          timestamp: new Date(log.createdAt),
-          details: log.details,
-          status: log.status,
-        }))
-        
-        setActivityLogs(newLogs)
-        setActivityLogsPage(page)
-        // Calculate total pages from total count
-        const totalPages = Math.ceil((data.total || 0) / 10)
-        setTotalLogsPages(totalPages)
-      }
-    } catch (error) {
-      console.error("Failed to fetch activity logs:", error)
-    } finally {
-      setLoadingLogs(false)
-    }
-  }
-
-  const fetchStorageSettings = async () => {
-    try {
-      const res = await fetch("/api/admin/storage-settings")
-      if (res.ok) {
-        const data = await res.json()
-        if (data.settings) {
-          setCurrentSettings(data.settings)
-          setStorageProvider(data.settings.provider)
-          
-          // Always load both provider settings if they exist
-          if (data.settings.cloudinary) {
-            setCloudinarySettings({
-              cloudName: data.settings.cloudinary.cloudName,
-              apiKey: data.settings.cloudinary.apiKey,
-              apiSecret: "", // Keep empty - will use existing if not changed
-            })
-          }
-          
-          if (data.settings.r2) {
-            setR2Settings({
-              accountId: data.settings.r2.accountId,
-              accessKeyId: data.settings.r2.accessKeyId,
-              secretAccessKey: "", // Keep empty - will use existing if not changed
-              bucketName: data.settings.r2.bucketName,
-              publicUrl: data.settings.r2.publicUrl,
-            })
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch storage settings:", error)
-    }
-  }
-
   const addLog = (action: string, details: string, status: ActivityLog["status"]) => {
     const newLog: ActivityLog = {
       id: Date.now().toString(),
@@ -224,19 +193,13 @@ export default function SettingPage() {
     }
     setActivityLogs((prev) => [newLog, ...prev].slice(0, 10))
     
-    // Save to database and refresh logs
-    fetch("/api/admin/activity-logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, details, status, category: "storage" }),
-    })
-      .then(() => {
-        // Refresh logs to get accurate pagination
-        fetchActivityLogs(1)
-      })
-      .catch((error) => {
-        console.error("Failed to save activity log:", error)
-      })
+    // Save to database using mutation
+    createActivityLogMutation.mutate({ action, details, status, category: "storage" })
+  }
+
+  const fetchActivityLogs = (page: number) => {
+    setActivityLogsPage(page)
+    // This will trigger the query to refetch with the new page
   }
 
   const handleStorageProviderChange = async (provider: StorageProvider) => {
@@ -275,21 +238,9 @@ export default function SettingPage() {
           }
         }
         
-        const res = await fetch("/api/admin/storage-settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        
-        if (res.ok) {
-          toast.success(`Switched to ${provider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`)
-          addLog("Provider Switched", `Switched to ${provider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
-          fetchStorageSettings()
-          fetchStorageStats()
-        } else {
-          const data = await res.json()
-          toast.error(data.error || "Failed to switch provider")
-        }
+        await updateStorageSettingsMutation.mutateAsync(body)
+        toast.success(`Switched to ${provider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`)
+        addLog("Provider Switched", `Switched to ${provider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
       } catch (error) {
         toast.error("Failed to switch provider")
       }
@@ -300,7 +251,6 @@ export default function SettingPage() {
   }
 
   const handleTestConnection = async () => {
-    setTestingConnection(true)
     try {
       const credentials = storageProvider === "cloudinary"
         ? {
@@ -326,55 +276,40 @@ export default function SettingPage() {
       if (storageProvider === "cloudinary") {
         if (!credentials.cloudName || !credentials.apiKey) {
           toast.error("Please fill in Cloud Name and API Key")
-          setTestingConnection(false)
           return
         }
         // Check if we have a secret (either new or existing)
         if (!credentials.apiSecret && !currentSettings?.cloudinary?.hasSecret) {
           toast.error("Please enter API Secret")
-          setTestingConnection(false)
           return
         }
       } else {
         if (!credentials.accountId || !credentials.accessKeyId || !credentials.bucketName) {
           toast.error("Please fill in Account ID, Access Key ID, and Bucket Name")
-          setTestingConnection(false)
           return
         }
         // Check if we have a secret (either new or existing)
         if (!credentials.secretAccessKey && !currentSettings?.r2?.hasSecret) {
           toast.error("Please enter Secret Access Key")
-          setTestingConnection(false)
           return
         }
       }
 
-      const res = await fetch("/api/admin/storage-settings/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: storageProvider, credentials }),
+      const result = await testStorageConnectionMutation.mutateAsync({ 
+        provider: storageProvider, 
+        credentials 
       })
 
-      const data = await res.json()
-
-      if (res.ok) {
-        toast.success(data.message || "Connection test successful!")
-        addLog("Connection Test", `Successfully connected to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
-      } else {
-        toast.error(data.error || "Connection test failed")
-        addLog("Connection Test", data.details || "Failed to connect", "error")
-      }
-    } catch (error) {
-      toast.error("Connection test failed")
-      addLog("Connection Test", "Network error", "error")
-    } finally {
-      setTestingConnection(false)
+      const message = result.success ? (result.data as any).message : "Connection test successful!"
+      toast.success(message)
+      addLog("Connection Test", `Successfully connected to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
+    } catch (error: any) {
+      toast.error(error.message || "Connection test failed")
+      addLog("Connection Test", error.message || "Failed to connect", "error")
     }
   }
 
   const handleStorageSave = async () => {
-    setStorageLoading(true)
-    
     try {
       const body: any = { provider: storageProvider }
       
@@ -384,13 +319,11 @@ export default function SettingPage() {
         
         if (isInitialSetup && !cloudinarySettings.apiSecret) {
           toast.error("Please enter API Secret for initial Cloudinary setup")
-          setStorageLoading(false)
           return
         }
         
         if (!cloudinarySettings.cloudName || !cloudinarySettings.apiKey) {
           toast.error("Please fill in Cloud Name and API Key")
-          setStorageLoading(false)
           return
         }
         
@@ -406,13 +339,11 @@ export default function SettingPage() {
         
         if (isInitialSetup && !r2Settings.secretAccessKey) {
           toast.error("Please enter Secret Access Key for initial R2 setup")
-          setStorageLoading(false)
           return
         }
         
         if (!r2Settings.accountId || !r2Settings.accessKeyId || !r2Settings.bucketName) {
           toast.error("Please fill in all required R2 fields")
-          setStorageLoading(false)
           return
         }
         
@@ -426,83 +357,44 @@ export default function SettingPage() {
         }
       }
       
-      const res = await fetch("/api/admin/storage-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      
-      const data = await res.json()
-      
-      if (res.ok) {
-        toast.success(`Switched to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"} successfully!`)
-        addLog("Storage Provider Changed", `Switched to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
-        fetchStorageSettings()
-        fetchStorageStats() // Refresh stats after switching
-      } else {
-        toast.error(data.error || "Failed to save settings")
-        addLog("Save Failed", data.error || "Failed to save settings", "error")
-      }
-    } catch (error) {
-      toast.error("Network error")
-    } finally {
-      setStorageLoading(false)
+      await updateStorageSettingsMutation.mutateAsync(body)
+      toast.success(`Switched to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"} successfully!`)
+      addLog("Storage Provider Changed", `Switched to ${storageProvider === "cloudinary" ? "Cloudinary" : "Cloudflare R2"}`, "success")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save settings")
+      addLog("Save Failed", error.message || "Failed to save settings", "error")
     }
   }
 
   const handleCloudinaryConfirm = async () => {
     if (!cloudinaryDate) return
-    setCloudinaryLoading(true)
     try {
-      const res = await fetch("/api/admin/cleanup/cloudinary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          beforeDate: format(cloudinaryDate, "yyyy-MM-dd"),
-        }),
+      const result = await cleanupCloudinaryMutation.mutateAsync({
+        beforeDate: format(cloudinaryDate, "yyyy-MM-dd"),
       })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(`Deleted ${data.deleted ?? 0} image(s)`)
-        addLog("Images Deleted", `Deleted ${data.deleted ?? 0} images older than ${format(cloudinaryDate, "d MMM yyyy")}`, "success")
-        setCloudinaryDate(undefined)
-        setConfirmCloudinary(false)
-      } else {
-        toast.error(data.error ?? "Failed to delete images")
-        addLog("Delete Failed", data.error ?? "Failed to delete images", "error")
-      }
-    } catch {
-      toast.error("Network error")
-    } finally {
-      setCloudinaryLoading(false)
+      toast.success(`Deleted ${result.deleted ?? 0} image(s)`)
+      addLog("Images Deleted", `Deleted ${result.deleted ?? 0} images older than ${format(cloudinaryDate, "d MMM yyyy")}`, "success")
+      setCloudinaryDate(undefined)
+      setConfirmCloudinary(false)
+    } catch (error: any) {
+      toast.error(error.message ?? "Failed to delete images")
+      addLog("Delete Failed", error.message ?? "Failed to delete images", "error")
     }
   }
 
   const handleTimesheetConfirm = async () => {
     if (!timesheetDate) return
-    setTimesheetLoading(true)
     try {
-      const res = await fetch("/api/admin/cleanup/timesheets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          beforeDate: format(timesheetDate, "yyyy-MM-dd"),
-        }),
+      const result = await cleanupTimesheetsMutation.mutateAsync({
+        beforeDate: format(timesheetDate, "yyyy-MM-dd"),
       })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(`Deleted ${data.deleted ?? 0} timesheet record(s)`)
-        addLog("Timesheet Data Deleted", `Deleted ${data.deleted ?? 0} records older than ${format(timesheetDate, "d MMM yyyy")}`, "success")
-        setTimesheetDate(undefined)
-        setConfirmTimesheet(false)
-      } else {
-        toast.error(data.error ?? "Failed to delete timesheets")
-        addLog("Delete Failed", data.error ?? "Failed to delete timesheets", "error")
-      }
-    } catch {
-      toast.error("Network error")
-    } finally {
-      setTimesheetLoading(false)
+      toast.success(`Deleted ${result.deleted ?? 0} timesheet record(s)`)
+      addLog("Timesheet Data Deleted", `Deleted ${result.deleted ?? 0} records older than ${format(timesheetDate, "d MMM yyyy")}`, "success")
+      setTimesheetDate(undefined)
+      setConfirmTimesheet(false)
+    } catch (error: any) {
+      toast.error(error.message ?? "Failed to delete timesheets")
+      addLog("Delete Failed", error.message ?? "Failed to delete timesheets", "error")
     }
   }
 
@@ -540,7 +432,7 @@ export default function SettingPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/dashboard/Setting")}
+          onClick={() => router.push("/dashboard/setting")}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -745,10 +637,10 @@ export default function SettingPage() {
               <div className="flex gap-3">
                 <Button
                   onClick={handleTestConnection}
-                  disabled={testingConnection}
+                  disabled={testStorageConnectionMutation.isPending}
                   variant="outline"
                 >
-                  {testingConnection ? (
+                  {testStorageConnectionMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Testing...
@@ -759,9 +651,9 @@ export default function SettingPage() {
                 </Button>
                 <Button
                   onClick={handleStorageSave}
-                  disabled={storageLoading || !hasUnsavedChanges}
+                  disabled={updateStorageSettingsMutation.isPending || !hasUnsavedChanges}
                 >
-                  {storageLoading ? (
+                  {updateStorageSettingsMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Saving...
@@ -914,16 +806,16 @@ export default function SettingPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={fetchStorageStats}
-                  disabled={loadingStats}
+                  onClick={() => storageStatsQuery.refetch()}
+                  disabled={storageStatsQuery.isLoading}
                   className="h-8 w-8 p-0"
                 >
-                  <RefreshCw className={cn("h-4 w-4", loadingStats && "animate-spin")} />
+                  <RefreshCw className={cn("h-4 w-4", storageStatsQuery.isLoading && "animate-spin")} />
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {loadingStats ? (
+              {storageStatsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
@@ -1047,7 +939,7 @@ export default function SettingPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {loadingLogs ? (
+              {activityLogsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
@@ -1092,7 +984,7 @@ export default function SettingPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => fetchActivityLogs(activityLogsPage - 1)}
-                            disabled={activityLogsPage === 1 || loadingLogs}
+                            disabled={activityLogsPage === 1 || activityLogsQuery.isLoading}
                             className="h-8"
                           >
                             <ChevronLeft className="w-4 h-4 mr-1" />
@@ -1107,7 +999,7 @@ export default function SettingPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => fetchActivityLogs(activityLogsPage + 1)}
-                            disabled={activityLogsPage === totalLogsPages || loadingLogs}
+                            disabled={activityLogsPage === totalLogsPages || activityLogsQuery.isLoading}
                             className="h-8"
                           >
                             Next
@@ -1135,16 +1027,16 @@ export default function SettingPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cloudinaryLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={cleanupCloudinaryMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 handleCloudinaryConfirm()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={cloudinaryLoading}
+              disabled={cleanupCloudinaryMutation.isPending}
             >
-              {cloudinaryLoading ? "Deleting..." : "Delete Images"}
+              {cleanupCloudinaryMutation.isPending ? "Deleting..." : "Delete Images"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1161,16 +1053,16 @@ export default function SettingPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={timesheetLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={cleanupTimesheetsMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 handleTimesheetConfirm()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={timesheetLoading}
+              disabled={cleanupTimesheetsMutation.isPending}
             >
-              {timesheetLoading ? "Deleting..." : "Delete Data"}
+              {cleanupTimesheetsMutation.isPending ? "Deleting..." : "Delete Data"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

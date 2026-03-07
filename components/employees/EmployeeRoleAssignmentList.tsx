@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useEmployeeRoles, useDeleteEmployeeRole } from "@/lib/queries/employees"
 
 interface RoleAssignment {
   id: string
@@ -57,37 +58,18 @@ export default function EmployeeRoleAssignmentList({
   employeeId,
   onAdd,
 }: EmployeeRoleAssignmentListProps) {
-  const [assignments, setAssignments] = useState<RoleAssignment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [endingAssignment, setEndingAssignment] = useState<string | null>(null)
   const [assignmentToEnd, setAssignmentToEnd] = useState<RoleAssignment | null>(null)
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set())
 
-  // Fetch assignments
-  const fetchAssignments = async () => {
-    setLoading(true)
-    try {
-      const res = await fetch(
-        `/api/employees/${employeeId}/roles?includeInactive=true`
-      )
-      
-      if (!res.ok) {
-        throw new Error("Failed to fetch role assignments")
-      }
+  // TanStack Query hooks
+  const { data: rolesData, isLoading: loading, error } = useEmployeeRoles(employeeId, { includeInactive: true })
+  const deleteRoleMutation = useDeleteEmployeeRole()
 
-      const data = await res.json()
-      setAssignments(data.data?.assignments || [])
-    } catch (err) {
-      console.error("Failed to fetch role assignments:", err)
-      toast.error("Failed to load role assignments")
-    } finally {
-      setLoading(false)
-    }
+  const assignments = rolesData?.data?.assignments || []
+
+  if (error) {
+    toast.error("Failed to load role assignments")
   }
-
-  useEffect(() => {
-    fetchAssignments()
-  }, [employeeId])
 
   // Group assignments by location
   const groupedAssignments: GroupedAssignments[] = assignments.reduce(
@@ -124,29 +106,22 @@ export default function EmployeeRoleAssignmentList({
   const handleEndAssignment = async () => {
     if (!assignmentToEnd) return
 
-    setEndingAssignment(assignmentToEnd.id)
-    try {
-      const res = await fetch(
-        `/api/employees/${employeeId}/roles/${assignmentToEnd.id}`,
-        {
-          method: "DELETE",
-        }
-      )
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error?.message || "Failed to end assignment")
+    deleteRoleMutation.mutate(
+      {
+        employeeId,
+        assignmentId: assignmentToEnd.id,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Role assignment ended successfully")
+          setAssignmentToEnd(null)
+        },
+        onError: (err: any) => {
+          console.error("Failed to end assignment:", err)
+          toast.error(err.message || "Failed to end assignment")
+        },
       }
-
-      toast.success("Role assignment ended successfully")
-      fetchAssignments()
-    } catch (err: any) {
-      console.error("Failed to end assignment:", err)
-      toast.error(err.message || "Failed to end assignment")
-    } finally {
-      setEndingAssignment(null)
-      setAssignmentToEnd(null)
-    }
+    )
   }
 
   const toggleLocation = (locationId: string) => {
@@ -312,7 +287,7 @@ export default function EmployeeRoleAssignmentList({
                               onClick={() => setAssignmentToEnd(assignment)}
                               variant="ghost"
                               size="sm"
-                              disabled={endingAssignment === assignment.id}
+                              disabled={deleteRoleMutation.isPending}
                               className="shrink-0"
                             >
                               <XCircle className="h-4 w-4 mr-2" />
@@ -393,15 +368,15 @@ export default function EmployeeRoleAssignmentList({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!endingAssignment}>
+            <AlertDialogCancel disabled={deleteRoleMutation.isPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleEndAssignment}
-              disabled={!!endingAssignment}
+              disabled={deleteRoleMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {endingAssignment ? "Ending..." : "End Assignment"}
+              {deleteRoleMutation.isPending ? "Ending..." : "End Assignment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

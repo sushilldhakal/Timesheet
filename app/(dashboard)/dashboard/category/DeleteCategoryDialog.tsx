@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CATEGORY_TYPE_LABELS } from "@/lib/config/category-types"
+import { useDeleteCategory } from "@/lib/queries/categories"
 import type { CategoryRow } from "./page"
 
 type Props = {
@@ -27,31 +28,24 @@ export function DeleteCategoryDialog({
   onOpenChange,
   onSuccess,
 }: Props) {
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const deleteCategoryMutation = useDeleteCategory()
 
   const typeLabel = CATEGORY_TYPE_LABELS[category.type]
 
   const handleDelete = async () => {
     setError(null)
-    setLoading(true)
     try {
-      const res = await fetch(`/api/categories/${category.id}`, {
-        method: "DELETE",
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to delete")
-        return
-      }
+      await deleteCategoryMutation.mutateAsync(category.id)
       onOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
+
+  const loading = deleteCategoryMutation.isPending
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

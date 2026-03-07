@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth-api"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { AbsenceManager } from "@/lib/managers/absence-manager"
 import { LeaveType } from "@/lib/db/schemas/leave-record"

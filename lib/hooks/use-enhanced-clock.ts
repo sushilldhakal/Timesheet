@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useCallback } from 'react'
-import { offlineDB, OfflinePunch } from '@/lib/db/offline-db'
+import { offlineDB, OfflinePunch, OfflineEmployee } from '@/lib/db/offline-db'
 import { format } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { logger } from '@/lib/utils/logger'
@@ -12,6 +12,7 @@ type EnhancedClockProps = {
   employeeId: string
   location: { lat: number; lng: number } | null
   getLatestBlob: () => Promise<Blob | null>
+  getLatestDescriptor: () => number[] | null
   resetFace: () => void
   noPhoto: boolean
   onSuccess?: (type: PunchType, message: string) => void
@@ -23,6 +24,7 @@ export function useEnhancedClock({
   employeeId,
   location,
   getLatestBlob,
+  getLatestDescriptor,
   resetFace,
   noPhoto,
   onSuccess,
@@ -297,10 +299,14 @@ export function useEnhancedClock({
     const latLng = location ? { lat: String(location.lat), lng: String(location.lng) } : null
 
     try {
-      // Get face photo
+      // Get face photo and descriptor
       const blob = await getLatestBlob()
+      const descriptor = getLatestDescriptor()
       resetFace()
       let imageUrl = ""
+      
+      // Log descriptor capture for debugging
+      console.log('[EnhancedClock] Face descriptor captured:', descriptor ? `${descriptor.length} floats` : 'none')
 
       // Try to upload image if we have one and are online
       if (blob && isOnline) {
@@ -356,6 +362,38 @@ export function useEnhancedClock({
         lat: latLng?.lat,
         lng: latLng?.lng,
         noPhoto: noPhoto,
+        // Add face descriptor if available
+        faceDescriptor: descriptor ? JSON.stringify(descriptor) : undefined,
+      }
+
+      // Helper to update cached "today punches" for this employee in IndexedDB
+      const updateCachedEmployeePunches = async (
+        employee: OfflineEmployee | undefined | null
+      ) => {
+        if (!employee) return
+        const existing = employee.punches ?? {
+          clockIn: "",
+          breakIn: "",
+          breakOut: "",
+          clockOut: "",
+        }
+        const updated: OfflineEmployee['punches'] = { ...existing }
+
+        if (type === 'in') {
+          updated.clockIn = localTime
+        } else if (type === 'break') {
+          updated.breakIn = localTime
+        } else if (type === 'endBreak') {
+          updated.breakOut = localTime
+        } else if (type === 'out') {
+          updated.clockOut = localTime
+        }
+
+        try {
+          await offlineDB.updateEmployeePunches(employee.id, updated)
+        } catch (err) {
+          logger.warn('[EnhancedClock] Failed to update cached employee punches', err)
+        }
       }
 
       if (isOnline) {
@@ -379,7 +417,7 @@ export function useEnhancedClock({
           // Cache employee data for offline use if provided in response
           if (data.employee) {
             try {
-              const employeeData = {
+              const employeeData: OfflineEmployee = {
                 id: data.employee.id,
                 pin: data.employee.pin,
                 name: data.employee.name,
@@ -388,16 +426,25 @@ export function useEnhancedClock({
                 detectedLocation: data.detectedLocation || "",
                 isBirthday: false, // We don't have birthday info in clock response
                 lastLogin: Date.now(),
-                punches: { clockIn: "", breakIn: "", breakOut: "", clockOut: "" }, // Will be updated by session
+                punches: { clockIn: "", breakIn: "", breakOut: "", clockOut: "" }, // Will be updated below
                 cachedAt: Date.now(),
               }
               
               await offlineDB.cacheEmployee(employeeData)
-              logger.log(`[EnhancedClock] ✅ Cached employee ${employeeData.name} (PIN: ${employeeData.pin}) for offline use`)
+              logger.log(
+                `[EnhancedClock] ✅ Cached employee ${employeeData.name} (PIN: ${employeeData.pin}) for offline use`
+              )
+
+              // Also keep "today punches" in sync for offline PIN login
+              await updateCachedEmployeePunches(employeeData)
             } catch (cacheError) {
               logger.warn("[EnhancedClock] Failed to cache employee data:", cacheError)
               // Don't fail the punch if caching fails
             }
+          } else {
+            // No employee payload in response – still try to update today's punches
+            const existingEmployee = await offlineDB.getEmployee(employeeId)
+            await updateCachedEmployeePunches(existingEmployee)
           }
 
           // Online success
@@ -440,6 +487,10 @@ export function useEnhancedClock({
       }
 
       await offlineDB.savePunch(offlinePunch)
+
+      // Keep cached employee punches up to date in offline DB
+      const cachedEmployee = await offlineDB.getEmployee(employeeId)
+      await updateCachedEmployeePunches(cachedEmployee)
 
       // Update sync queue
       const remaining = await offlineDB.getUnsyncedPunches()

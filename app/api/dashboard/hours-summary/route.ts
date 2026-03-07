@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format, startOfWeek, endOfWeek } from "date-fns"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
 
 /** GET /api/dashboard/hours-summary?startDate=yyyy-MM-dd&endDate=yyyy-MM-dd

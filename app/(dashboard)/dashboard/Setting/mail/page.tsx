@@ -11,6 +11,7 @@ import { Mail, Save, Loader2, AlertTriangle, ArrowLeft, Send, ExternalLink } fro
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useMailSettings, useUpdateMailSettings, useTestMailSettings } from "@/lib/queries/settings"
 
 type MailSettings = {
   fromEmail: string
@@ -29,47 +30,33 @@ export default function MailSettingsPage() {
     hasApiKey: false,
   })
   const [testEmail, setTestEmail] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [testingConnection, setTestingConnection] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchMailSettings()
-    }
-  }, [isAdmin])
+  // TanStack Query hooks
+  const mailSettingsQuery = useMailSettings()
+  const updateMailSettingsMutation = useUpdateMailSettings()
+  const testMailSettingsMutation = useTestMailSettings()
 
-  const fetchMailSettings = async () => {
-    try {
-      const res = await fetch("/api/admin/mail-settings")
-      if (res.ok) {
-        const data = await res.json()
-        if (data.settings) {
-          setSettings({
-            ...data.settings,
-            apiKey: "", // Don't load API key
-          })
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch mail settings:", error)
+  useEffect(() => {
+    if (mailSettingsQuery.data?.settings) {
+      setSettings({
+        ...mailSettingsQuery.data.settings,
+        apiKey: "", // Don't load API key
+      })
     }
-  }
+  }, [mailSettingsQuery.data])
 
   const handleSave = async () => {
-    setLoading(true)
     try {
       if (!settings.fromEmail) {
         toast.error("Please fill in from email")
-        setLoading(false)
         return
       }
 
       if (!settings.hasApiKey && !settings.apiKey) {
         toast.error("Please enter Maileroo API key")
-        setLoading(false)
         return
       }
 
@@ -82,25 +69,11 @@ export default function MailSettingsPage() {
         body.apiKey = settings.apiKey
       }
 
-      const res = await fetch("/api/admin/mail-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        toast.success("Mail settings saved successfully!")
-        setHasUnsavedChanges(false)
-        fetchMailSettings()
-      } else {
-        toast.error(data.error || "Failed to save settings")
-      }
+      await updateMailSettingsMutation.mutateAsync(body)
+      toast.success("Mail settings saved successfully!")
+      setHasUnsavedChanges(false)
     } catch (error) {
-      toast.error("Network error")
-    } finally {
-      setLoading(false)
+      toast.error("Failed to save settings")
     }
   }
 
@@ -110,25 +83,12 @@ export default function MailSettingsPage() {
       return
     }
 
-    setTestingConnection(true)
     try {
-      const res = await fetch("/api/admin/mail-settings/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ testEmail }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        toast.success(data.message || "Test email sent successfully!")
-      } else {
-        toast.error(data.error || "Test failed")
-      }
+      const result = await testMailSettingsMutation.mutateAsync({ testEmail })
+      const message = result.success ? (result.data as any).message : "Test email sent successfully!"
+      toast.success(message)
     } catch (error) {
       toast.error("Test failed")
-    } finally {
-      setTestingConnection(false)
     }
   }
 
@@ -162,7 +122,7 @@ export default function MailSettingsPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/dashboard/Setting")}
+          onClick={() => router.push("/dashboard/setting")}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -265,9 +225,9 @@ export default function MailSettingsPage() {
             <div className="flex gap-3">
               <Button
                 onClick={handleSave}
-                disabled={loading || !hasUnsavedChanges}
+                disabled={updateMailSettingsMutation.isPending || !hasUnsavedChanges}
               >
-                {loading ? (
+                {updateMailSettingsMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
@@ -309,10 +269,10 @@ export default function MailSettingsPage() {
 
             <Button
               onClick={handleTestEmail}
-              disabled={testingConnection || !settings.hasApiKey}
+              disabled={testMailSettingsMutation.isPending || !settings.hasApiKey}
               variant="outline"
             >
-              {testingConnection ? (
+              {testMailSettingsMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Sending...

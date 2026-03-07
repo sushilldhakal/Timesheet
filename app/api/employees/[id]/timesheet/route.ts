@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { parse, isValid } from "date-fns"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
-import { employeeIdParamSchema } from "@/lib/validation/employee"
+import { employeeIdParamSchema } from "@/lib/validations/employee"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -222,18 +222,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const total = rows.length
     const paginatedRows = rows.slice(offset, offset + limit)
-
-    // Log sorting results
-    console.log('🔧 API Sorting:', {
-      sortBy,
-      order,
-      totalRows: total,
-      paginatedCount: paginatedRows.length,
-      firstDate: paginatedRows[0]?.date,
-      lastDate: paginatedRows[paginatedRows.length - 1]?.date,
-      firstDateParsed: paginatedRows[0] ? parseDateForSort(paginatedRows[0].date) : null,
-      lastDateParsed: paginatedRows[paginatedRows.length - 1] ? parseDateForSort(paginatedRows[paginatedRows.length - 1].date) : null,
-    })
 
     return NextResponse.json({
       data: paginatedRows,

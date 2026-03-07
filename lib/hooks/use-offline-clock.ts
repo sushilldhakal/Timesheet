@@ -211,8 +211,6 @@ export function useOfflineClock(employeeId: string) {
       const successCount = results.filter(r => r.success).length
       const failCount = results.filter(r => !r.success).length
       
-      console.log(`Sync completed: ${successCount} successful, ${failCount} failed`)
-      
       // Invalidate queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ['offline-punches'] })
       queryClient.invalidateQueries({ queryKey: ['sync-queue'] })

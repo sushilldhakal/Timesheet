@@ -9,7 +9,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import type { EmployeeRow } from "./page"
+import { useDeleteEmployee } from "@/lib/queries/employees"
+import type { Employee } from "@/lib/api/employees"
+
+type EmployeeRow = Employee
 
 type Props = {
   employee: EmployeeRow
@@ -19,23 +22,19 @@ type Props = {
 }
 
 export function DeleteEmployeeDialog({ employee, open, onOpenChange, onSuccess }: Props) {
-  const [loading, setLoading] = useState(false)
+  const deleteEmployeeMutation = useDeleteEmployee()
 
   const handleDelete = async () => {
-    setLoading(true)
     try {
-      const res = await fetch(`/api/employees/${employee.id}`, { method: "DELETE" })
-      if (!res.ok) {
-        const data = await res.json()
-        alert(data.error ?? "Failed to delete")
-        return
-      }
+      await deleteEmployeeMutation.mutateAsync(employee.id)
       onOpenChange(false)
       onSuccess()
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete")
     }
   }
+
+  const loading = deleteEmployeeMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,7 +49,11 @@ export function DeleteEmployeeDialog({ employee, open, onOpenChange, onSuccess }
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={loading}
+          >
             {loading ? "Deleting..." : "Delete"}
           </Button>
         </DialogFooter>

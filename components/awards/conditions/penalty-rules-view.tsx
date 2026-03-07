@@ -1,6 +1,6 @@
 'use client';
 
-import { PenaltyRule, penaltyRuleSchema } from '@/lib/schemas';
+import { PenaltyRule, penaltyRuleSchema } from '@/lib/validations/awards';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card } from '@/components/ui/card';

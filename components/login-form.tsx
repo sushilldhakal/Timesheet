@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import { useUnifiedLogin } from "@/lib/queries/auth"
 
 export function LoginForm({
   className,
@@ -30,34 +31,25 @@ export function LoginForm({
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  
+  const loginMutation = useUnifiedLogin()
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setLoading(true)
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? "Login failed")
-        setLoading(false)
-        return
+    loginMutation.mutate(
+      { email: username, password },
+      {
+        onSuccess: () => {
+          router.push(redirect)
+          router.refresh()
+        },
+        onError: (error: any) => {
+          setError(error.message ?? "Login failed")
+        }
       }
-
-      router.push(redirect)
-      router.refresh()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
-    }
+    )
   }
 
   return (
@@ -83,7 +75,7 @@ export function LoginForm({
                   required
                   autoComplete="username"
                   autoFocus
-                  disabled={loading}
+                  disabled={loginMutation.isPending}
                 />
               </Field>
               <Field>
@@ -98,7 +90,7 @@ export function LoginForm({
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  disabled={loading}
+                  disabled={loginMutation.isPending}
                 />
               </Field>
               {error && (
@@ -107,8 +99,8 @@ export function LoginForm({
                 </p>
               )}
               <Field>
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? "Signing in…" : "Login"}
+                <Button type="submit" disabled={loginMutation.isPending} className="w-full">
+                  {loginMutation.isPending ? "Signing in…" : "Login"}
                 </Button>
                 <Link
                   href="/"

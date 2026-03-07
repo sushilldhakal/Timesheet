@@ -7,14 +7,35 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { toast } from "sonner"
 import { Lock, ArrowLeft } from "lucide-react"
+import { useMutation } from "@tanstack/react-query"
+import { changePassword } from "@/lib/api/auth"
 
-export default function ChangePasswordPage() {
+function ChangePasswordPage() {
   const router = useRouter()
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const changePasswordMutation = useMutation({
+    mutationFn: changePassword,
+    onSuccess: () => {
+      toast.success("Password changed successfully")
+
+      // Clear form
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+
+      // Redirect back after short delay
+      setTimeout(() => {
+        router.back()
+      }, 1500)
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+    }
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,42 +56,13 @@ export default function ChangePasswordPage() {
       return
     }
 
-    setLoading(true)
-
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || "Failed to change password")
-        return
-      }
-
-      toast.success("Password changed successfully")
-      
-      // Clear form
-      setCurrentPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
-      
-      // Redirect back after short delay
-      setTimeout(() => {
-        router.back()
-      }, 1500)
-    } catch (err) {
-      setError("Network error. Please try again.")
-    } finally {
-      setLoading(false)
-    }
+    changePasswordMutation.mutate({
+      currentPassword,
+      newPassword,
+    })
   }
+
+  const loading = changePasswordMutation.isPending
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
@@ -163,3 +155,5 @@ export default function ChangePasswordPage() {
     </div>
   )
 }
+
+export default ChangePasswordPage

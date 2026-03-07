@@ -59,15 +59,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { InactiveEmployeesTable, type InactiveEmployee } from "@/components/dashboard/InactiveEmployeesTable"
-
-interface DashboardStats {
-  locationDistribution: { name: string; value: number; fill: string }[]
-  attendanceByDay: { day: string; count: number }[]
-  weeklyMonthly: { period: string; totalHours: number; activeEmployees: number; attendanceRate: number }[]
-  roleStaffingByRole: { name: string; count: number; color?: string }[]
-  employerMix: { month: string; [key: string]: number | string }[]
-  employerCategories?: Array<{ name: string; color?: string }>
-}
+import { useDashboardStats, useHoursSummary, useInactiveEmployees, useDeleteEmployee } from "@/lib/queries/dashboard"
 
 interface DailyTimelineData {
   hour: string
@@ -118,107 +110,27 @@ export default function DashboardContent() {
   const [trendPeriod, setTrendPeriod] = React.useState("4w")
   const [timelineDate, setTimelineDate] = React.useState(() => format(new Date(), "yyyy-MM-dd"))
   const [hoursRange, setHoursRange] = React.useState(getDefaultWeek)
-  const [stats, setStats] = React.useState<DashboardStats | null>(null)
-  const [dailyTimeline, setDailyTimeline] = React.useState<DailyTimelineData[]>([])
-  const [hoursSummary, setHoursSummary] = React.useState<{ mostHours: HoursSummaryRow[]; leastHours: HoursSummaryRow[] } | null>(null)
-  const [inactiveEmployees, setInactiveEmployees] = React.useState<InactiveEmployee[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [timelineLoading, setTimelineLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
   const [deleteId, setDeleteId] = React.useState<string | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
 
-  const fetchStats = React.useCallback(async () => {
-    try {
-      // Fetch stats without timeline date dependency - use current date for initial load
-      const initialDate = format(new Date(), "yyyy-MM-dd")
-      const url = `/api/dashboard/stats?timelineDate=${encodeURIComponent(initialDate)}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error("Failed to load stats")
-      const data = await res.json()
-      
-      // Separate daily timeline from other stats
-      const { dailyTimeline: timeline, ...restStats } = data
-      setStats(restStats)
-      setDailyTimeline(timeline || [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load stats")
-    }
-  }, []) // No dependencies - only runs on mount
+  // TanStack Query hooks
+  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats({ timelineDate })
+  const { data: hoursSummaryData, isLoading: hoursLoading } = useHoursSummary(hoursRange)
+  const { data: inactiveData, isLoading: inactiveLoading } = useInactiveEmployees()
+  const deleteEmployeeMutation = useDeleteEmployee()
 
-  const fetchDailyTimeline = React.useCallback(async () => {
-    setTimelineLoading(true)
-    try {
-      const url = `/api/dashboard/stats?timelineDate=${encodeURIComponent(timelineDate)}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error("Failed to load timeline")
-      const data = await res.json()
-      setDailyTimeline(data.dailyTimeline || [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load timeline")
-    } finally {
-      setTimelineLoading(false)
-    }
-  }, [timelineDate])
+  const loading = statsLoading || hoursLoading || inactiveLoading
+  const error = statsError ? (statsError as Error).message : null
 
-  const fetchHoursSummary = React.useCallback(async () => {
-    try {
-      const url = `/api/dashboard/hours-summary?startDate=${encodeURIComponent(hoursRange.startDate)}&endDate=${encodeURIComponent(hoursRange.endDate)}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error("Failed to load hours summary")
-      const data = await res.json()
-      setHoursSummary({ mostHours: data.mostHours ?? [], leastHours: data.leastHours ?? [] })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load hours summary")
-    }
-  }, [hoursRange.startDate, hoursRange.endDate])
-
-  const fetchInactive = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/dashboard/inactive-employees")
-      if (!res.ok) throw new Error("Failed to load inactive employees")
-      const data = await res.json()
-      setInactiveEmployees(data.inactiveEmployees ?? [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load inactive employees")
-    }
-  }, [])
-
-  React.useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    Promise.all([fetchStats(), fetchInactive()]).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [fetchStats, fetchInactive])
-
-  // Separate effect for daily timeline - runs when date changes
-  React.useEffect(() => {
-    fetchDailyTimeline()
-  }, [fetchDailyTimeline])
-
-  React.useEffect(() => {
-    fetchHoursSummary()
-  }, [fetchHoursSummary])
-
-  const handleDeleteEmployee = React.useCallback(async (id: string) => {
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/employees/${id}`, { method: "DELETE" })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? "Delete failed")
+  const handleDeleteEmployee = React.useCallback((id: string) => {
+    deleteEmployeeMutation.mutate(id, {
+      onSuccess: () => {
+        setDeleteId(null)
+      },
+      onError: (error: any) => {
+        console.error('Delete failed:', error.message)
       }
-      setDeleteId(null)
-      setInactiveEmployees((prev) => prev.filter((e) => e.id !== id))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed")
-    } finally {
-      setDeleting(false)
-    }
-  }, [])
+    })
+  }, [deleteEmployeeMutation])
 
   const weeklyData = React.useMemo(() => {
     if (!stats?.weeklyMonthly?.length) return []
@@ -227,6 +139,7 @@ export default function DashboardContent() {
   }, [stats?.weeklyMonthly, trendPeriod])
 
   const processedDailyTimeline = React.useMemo(() => {
+    const dailyTimeline = stats?.dailyTimeline || []
     if (dailyTimeline.length > 0) return dailyTimeline
     return Array.from({ length: 15 }, (_, i) => ({
       hour: `${(i + 6).toString().padStart(2, "0")}:00`,
@@ -235,16 +148,21 @@ export default function DashboardContent() {
       breakOut: 0,
       clockOut: 0,
     }))
-  }, [dailyTimeline])
+  }, [stats?.dailyTimeline])
   
   const dailyTimelineEmpty = processedDailyTimeline.every(
-    (d) => d.clockIn + d.breakIn + d.breakOut + d.clockOut === 0
+    (d: any) => d.clockIn + d.breakIn + d.breakOut + d.clockOut === 0
   )
   const locationDistribution = stats?.locationDistribution ?? []
   const attendanceByDay = stats?.attendanceByDay ?? []
   const roleStaffingByRole = stats?.roleStaffingByRole ?? []
   const employerMix = stats?.employerMix ?? []
   const employerCategories = stats?.employerCategories ?? []
+  const inactiveEmployees = inactiveData?.inactiveEmployees ?? []
+  const hoursSummary = hoursSummaryData ? {
+    mostHours: hoursSummaryData.mostHours ?? [],
+    leastHours: hoursSummaryData.leastHours ?? []
+  } : null
   
   // Dynamic employer mix config based on actual categories from API
   const employerMixConfig = React.useMemo(() => {
@@ -256,19 +174,19 @@ export default function DashboardContent() {
       "hsl(var(--chart-5))"
     ]
     const config: ChartConfig = {}
-    employerCategories.forEach((cat, i) => {
+    employerCategories.forEach((cat: any, i: number) => {
       config[cat.name] = {
         label: cat.name,
         color: cat.color || defaultColors[i % defaultColors.length],
       }
     })
     return config
-  }, [employerCategories, employerMix])
+  }, [employerCategories])
   
   // Dynamic role staffing config based on actual roles with colors
   const roleStaffingConfig = React.useMemo(() => {
     const config: ChartConfig = {}
-    roleStaffingByRole.forEach((role) => {
+    roleStaffingByRole.forEach((role: any) => {
       config[role.name] = {
         label: role.name,
         color: role.color || "hsl(var(--chart-1))",
@@ -300,7 +218,7 @@ export default function DashboardContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
-            <CardTitle>Daily Timeline {timelineLoading && <span className="text-muted-foreground text-xs font-normal ml-2">(loading...)</span>}</CardTitle>
+            <CardTitle>Daily Timeline {statsLoading && <span className="text-muted-foreground text-xs font-normal ml-2">(loading...)</span>}</CardTitle>
             <CardDescription>Punch activity by hour — select a date</CardDescription>
           </div>
           <Popover>
@@ -328,7 +246,7 @@ export default function DashboardContent() {
           <p className="text-muted-foreground mb-2 text-center text-sm">
             By type: Clock in, Break in, Break out, Clock out.
           </p>
-          {!timelineLoading && dailyTimelineEmpty && (
+          {!statsLoading && dailyTimelineEmpty && (
             <p className="text-muted-foreground mb-2 text-center text-sm">No punches recorded for this date.</p>
           )}
           <ChartContainer config={dailyTimelineConfig} className="h-[240px] w-full">
@@ -368,7 +286,7 @@ export default function DashboardContent() {
                   paddingAngle={2}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {(locationDistribution.length ? locationDistribution : [{ name: "No data", value: 1, fill: "hsl(var(--muted-foreground))" }]).map((entry) => (
+                  {(locationDistribution.length ? locationDistribution : [{ name: "No data", value: 1, fill: "hsl(var(--muted-foreground))" }]).map((entry: any, index: number) => (
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
@@ -395,7 +313,7 @@ export default function DashboardContent() {
                 <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={100} />
                 <ChartTooltip content={<ChartTooltipContent indicator="dot" />} cursor={false} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {roleStaffingByRole.map((role, index) => (
+                  {roleStaffingByRole.map((role: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={role.color || "hsl(var(--chart-1))"} />
                   ))}
                 </Bar>
@@ -455,11 +373,11 @@ export default function DashboardContent() {
               <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis yAxisId="left" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis yAxisId="right" orientation="right" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(v) => `${v}%`} />
-              <ChartTooltip
+                  <ChartTooltip
                 content={
                   <ChartTooltipContent
                     indicator="line"
-                    formatter={(value, name, _item, _index, payload) => {
+                    formatter={(value, name, _item, _index, payload: any) => {
                       const row = payload as { activeEmployees?: number } | undefined
                       if (name === "Attendance %" && row?.activeEmployees != null) {
                         return [`${value}% (${row.activeEmployees} staff)`, name]
@@ -490,11 +408,11 @@ export default function DashboardContent() {
           ) : (
             <ChartContainer config={employerMixConfig} className="aspect-auto h-[260px] w-full">
               <AreaChart
-                data={employerMix.length ? employerMix : [{ month: "—", ...Object.fromEntries(employerCategories.map(c => [c.name, 0])) }]}
+                data={employerMix.length ? employerMix : [{ month: "—", ...Object.fromEntries(employerCategories.map((c: any) => [c.name, 0])) }]}
                 margin={{ left: 12, right: 12 }}
               >
                 <defs>
-                  {employerCategories.map((cat) => (
+                  {employerCategories.map((cat: any) => (
                     <linearGradient key={cat.name} id={`fill-${cat.name}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={cat.color || `var(--color-${cat.name})`} stopOpacity={1} />
                       <stop offset="95%" stopColor={cat.color || `var(--color-${cat.name})`} stopOpacity={0.15} />
@@ -505,7 +423,7 @@ export default function DashboardContent() {
                 <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis tickLine={false} axisLine={false} tickMargin={8} />
                 <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-                {employerCategories.map((cat) => (
+                {employerCategories.map((cat: any) => (
                   <Area 
                     key={cat.name}
                     type="monotone" 
@@ -592,7 +510,7 @@ export default function DashboardContent() {
           <InactiveEmployeesTable
             employees={inactiveEmployees}
             onDelete={setDeleteId}
-            deleting={deleting}
+            deleting={deleteEmployeeMutation.isPending}
           />
         </CardContent>
       </Card>
@@ -606,16 +524,16 @@ export default function DashboardContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteEmployeeMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 if (deleteId) handleDeleteEmployee(deleteId)
               }}
-              disabled={deleting}
+              disabled={deleteEmployeeMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleteEmployeeMutation.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

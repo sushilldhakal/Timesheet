@@ -34,3 +34,7 @@ export * from "./oauth-token"
 
 // Multi-tenant support
 export * from "./tenant"
+
+// Face recognition for buddy punch detection
+export * from "./staff-face-profile"
+export * from "./buddy-punch-alert"

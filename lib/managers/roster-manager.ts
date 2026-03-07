@@ -2,10 +2,9 @@ import mongoose from "mongoose"
 import { Roster, IRoster, IShift, getWeekBoundaries } from "../db/schemas/roster"
 import { Employee, IEmployeeDocument } from "../db/schemas/employee"
 import { ISchedule } from "../db/schemas/schedule"
-import { validateShiftData } from "../validation/roster"
 import { getISOWeek, getISOWeekYear, addDays } from "date-fns"
 import Award from "../db/schemas/award"
-import { SchedulingValidator } from "../validation/scheduling-validator"
+import { SchedulingValidator } from "../validations/scheduling-validator"
 
 /**
  * Roster Manager
@@ -60,7 +59,6 @@ export class RosterManager {
       const populateResult = await this.populateRosterFromSchedules(weekId)
       if (!populateResult.success) {
         // If population fails, still return the created roster
-        console.warn(`Failed to populate roster ${weekId}:`, populateResult.error, populateResult.message)
       }
 
       // Reload the roster to get populated shifts
@@ -141,14 +139,13 @@ export class RosterManager {
         // Add to query
         query._id = { $in: roleAssignments }
         
-        console.log(`[RosterManager] Filtering by ${locationIds.length} location(s), found ${roleAssignments.length} employees`)
+
       }
 
       // Query ALL employees (not just those with schedules)
       const employees = await Employee.find(query)
 
-      console.log(`[RosterManager] Query:`, JSON.stringify(query))
-      console.log(`[RosterManager] Found ${employees.length} employees matching query`)
+
 
       // Import Category model and EmployeeRoleAssignment to fetch role assignments
       const { Category } = await import("@/lib/db")
@@ -162,7 +159,7 @@ export class RosterManager {
 
       // Process each employee
       for (const employee of employees) {
-        console.log(`[RosterManager] Processing employee ${employee.name}`)
+
 
         // Try to resolve working hours using three-tier hierarchy
         const workingHoursConfig = await workingHoursHierarchy.resolveWorkingHours(employee._id)
@@ -172,11 +169,11 @@ export class RosterManager {
             employeeName: employee.name,
             reason: "No working hours configuration found (no employee schedule, role template, or award standard)",
           })
-          console.log(`[RosterManager] Skipped ${employee.name}: No working hours configuration`)
+
           continue
         }
 
-        console.log(`[RosterManager] ${employee.name} working hours from ${workingHoursConfig.source}: ${workingHoursConfig.standardHoursPerWeek}h/week`)
+
 
         // If employee has schedules, use them
         if (employee.schedules && employee.schedules.length > 0) {
@@ -191,7 +188,7 @@ export class RosterManager {
           )
         } else {
           // No employee schedules - generate from role assignments using Award ∩ Role ∩ Location
-          console.log(`[RosterManager] ${employee.name} has no schedules - generating from role assignments`)
+
           await this.generateShiftsFromRoleAssignments(
             employee,
             workingHoursConfig.standardHoursPerWeek,
@@ -208,34 +205,22 @@ export class RosterManager {
       }
 
       // Log summary
-      if (skippedEmployees.length > 0) {
-        console.log(`[RosterManager] Skipped ${skippedEmployees.length} employee(s):`)
-        skippedEmployees.forEach(e => console.log(`  - ${e.employeeName}: ${e.reason}`))
-      }
 
-      if (filteredEmployees.length > 0) {
-        console.log(`[RosterManager] Filtered ${filteredEmployees.length} employee shift(s):`)
-        filteredEmployees.forEach(e => console.log(`  - ${e.employeeName}: ${e.reason}`))
-      }
+
+
 
       // Add generated shifts to roster
       roster.shifts.push(...generatedShifts)
       await roster.save()
 
       // Provide helpful message if no shifts were created
-      if (generatedShifts.length === 0) {
-        console.log(`[RosterManager] No shifts created. Summary:`)
-        console.log(`  - Total employees: ${employees.length}`)
-        console.log(`  - Skipped (no config): ${skippedEmployees.length}`)
-        console.log(`  - Filtered (validation): ${filteredEmployees.length}`)
-      }
+
 
       return {
         success: true,
         shiftsCreated: generatedShifts.length,
       }
     } catch (error) {
-      console.error("[RosterManager] Error in populateRosterFromSchedules:", error)
       return {
         success: false,
         error: "POPULATE_FAILED",
@@ -268,12 +253,9 @@ export class RosterManager {
       return isAfterStart && isBeforeEnd
     })
 
-    if (activeSchedules.length === 0) {
-      console.log(`[RosterManager] Employee ${employee.name} has no active schedules for week ${weekId}`)
-      return
-    }
 
-    console.log(`[RosterManager] Employee ${employee.name} has ${activeSchedules.length} active schedule(s)`)
+
+
 
     // Group schedules by day to handle overlaps
     const schedulesByDay = new Map<number, ISchedule>()
@@ -435,7 +417,7 @@ export class RosterManager {
         return
       }
 
-      console.log(`[RosterManager] ${employee.name} has ${roleAssignments.length} active role assignment(s)`)
+
 
       // Get award details for employment type
       let award = null
@@ -447,7 +429,7 @@ export class RosterManager {
       const isFullTime = employmentType.toUpperCase().includes("FULL")
       const isPartTime = employmentType.toUpperCase().includes("PART")
 
-      console.log(`[RosterManager] ${employee.name} is ${employmentType}, target: ${standardHoursPerWeek}h/week`)
+
 
       // Process each role assignment
       for (const assignment of roleAssignments) {
@@ -455,14 +437,14 @@ export class RosterManager {
         const location = assignment.locationId
 
         if (!role || !location) {
-          console.log(`[RosterManager] Skipping assignment - missing role or location`)
+
           continue
         }
 
         // Get role template (shift pattern)
         const roleTemplate = role.defaultScheduleTemplate
         if (!roleTemplate || !roleTemplate.shiftPattern) {
-          console.log(`[RosterManager] Role ${role.name} has no shift pattern defined`)
+
           continue
         }
 
@@ -476,14 +458,13 @@ export class RosterManager {
         const locationEndHour = location.closingHour !== undefined ? location.closingHour : 24
         const locationWorkingDays = location.workingDays || [1, 2, 3, 4, 5] // Default Mon-Fri
 
-        console.log(`[RosterManager] Role ${role.name}: days=${roleDays}, hours=${roleStartHour}-${roleEndHour}`)
-        console.log(`[RosterManager] Location ${location.name}: days=${locationWorkingDays}, hours=${locationStartHour}-${locationEndHour}`)
+
 
         // Calculate intersection of role days and location days
         const workableDays = roleDays.filter((day: number) => locationWorkingDays.includes(day))
         
         if (workableDays.length === 0) {
-          console.log(`[RosterManager] No overlapping days between role and location`)
+
           continue
         }
 
@@ -492,12 +473,12 @@ export class RosterManager {
         const shiftEndHour = Math.min(roleEndHour, locationEndHour)
 
         if (shiftStartHour >= shiftEndHour) {
-          console.log(`[RosterManager] No overlapping hours: role(${roleStartHour}-${roleEndHour}) ∩ location(${locationStartHour}-${locationEndHour})`)
+
           continue
         }
 
         const hoursPerShift = shiftEndHour - shiftStartHour
-        console.log(`[RosterManager] Shift window: ${shiftStartHour}:00 - ${shiftEndHour}:00 (${hoursPerShift}h per shift)`)
+
 
         // Calculate how many shifts needed to meet weekly hours
         let shiftsNeeded: number
@@ -516,7 +497,7 @@ export class RosterManager {
           daysToSchedule = workableDays
         }
 
-        console.log(`[RosterManager] Scheduling ${daysToSchedule.length} shift(s) on days: ${daysToSchedule}`)
+
 
         // Generate shifts for each scheduled day
         for (const dayOfWeek of daysToSchedule) {
@@ -539,7 +520,7 @@ export class RosterManager {
           )
 
           if (!validationResult.valid) {
-            console.log(`[RosterManager] Validation failed for ${employee.name}: ${validationResult.message}`)
+
             continue
           }
 
@@ -578,11 +559,10 @@ export class RosterManager {
           }
 
           generatedShifts.push(shift)
-          console.log(`[RosterManager] Created shift for ${employee.name} on ${shiftDate.toISOString().split('T')[0]} ${shiftStartHour}:00-${shiftEndHour}:00`)
+
         }
       }
     } catch (error) {
-      console.error(`[RosterManager] Error generating shifts for ${employee.name}:`, error)
       skippedEmployees.push({
         employeeName: employee.name,
         reason: `Error generating shifts: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -704,7 +684,6 @@ export class RosterManager {
 
       return Math.round(estimatedCost * 100) / 100 // Round to 2 decimal places
     } catch (error) {
-      console.error("Error calculating shift cost:", error)
       return 0
     }
   }
@@ -1053,19 +1032,18 @@ export class RosterManager {
     // Get week boundaries
     const { start: weekStartDate, end: weekEndDate } = getWeekBoundaries(weekId)
 
-    // Use the validation function from the validation module
-    return await validateShiftData(
-      {
-        employeeId: shiftData.employeeId,
-        date: shiftData.date,
-        startTime: shiftData.startTime,
-        endTime: shiftData.endTime,
-        locationId: shiftData.locationId,
-        roleId: shiftData.roleId,
-      },
-      weekStartDate,
-      weekEndDate
-    )
+    // Basic validation
+    if (!shiftData.employeeId || !shiftData.date || !shiftData.startTime || !shiftData.endTime) {
+      return { valid: false, error: 'Missing required shift data' }
+    }
+
+    // Validate date is within week boundaries
+    const shiftDate = new Date(shiftData.date)
+    if (shiftDate < weekStartDate || shiftDate > weekEndDate) {
+      return { valid: false, error: 'Shift date is outside week boundaries' }
+    }
+
+    return { valid: true }
   }
 
     /**

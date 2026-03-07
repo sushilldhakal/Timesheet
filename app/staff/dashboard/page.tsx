@@ -1,57 +1,45 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Calendar, Clock, User, Settings } from "lucide-react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import { useEmployeeProfile, useEmployeeLogout } from "@/lib/queries/employee-clock"
 
 export default function StaffDashboardPage() {
   const router = useRouter()
-  const [employee, setEmployee] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  
+  const employeeProfileQuery = useEmployeeProfile()
+  const employeeLogoutMutation = useEmployeeLogout()
 
-  useEffect(() => {
-    // Fetch employee session
-    const fetchEmployee = async () => {
-      try {
-        const res = await fetch("/api/employee/me")
-        if (res.ok) {
-          const data = await res.json()
-          setEmployee(data.employee)
-        } else {
-          toast.error("Session expired")
-          router.push("/")
-        }
-      } catch (error) {
-        toast.error("Failed to load profile")
+  const handleLogout = () => {
+    employeeLogoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast.success("Logged out successfully")
         router.push("/")
-      } finally {
-        setIsLoading(false)
+      },
+      onError: () => {
+        toast.error("Logout failed")
       }
-    }
-
-    fetchEmployee()
-  }, [router])
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/employee/logout", { method: "POST" })
-      toast.success("Logged out successfully")
-      router.push("/")
-    } catch (error) {
-      toast.error("Logout failed")
-    }
+    })
   }
 
-  if (isLoading) {
+  if (employeeProfileQuery.isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
+
+  if (employeeProfileQuery.isError) {
+    toast.error("Session expired")
+    router.push("/")
+    return null
+  }
+
+  const employee = employeeProfileQuery.data?.data
 
   return (
     <div className="container mx-auto p-6 space-y-6">

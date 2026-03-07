@@ -129,12 +129,6 @@ class OfflineDatabase extends Dexie {
 
   async debugEmployeeCache(): Promise<void> {
     const employees = await this.getAllCachedEmployees()
-    console.log('=== OFFLINE EMPLOYEE CACHE DEBUG ===')
-    console.log(`Total cached employees: ${employees.length}`)
-    employees.forEach((emp, index) => {
-      console.log(`${index + 1}. ID: ${emp.id}, PIN: ${emp.pin}, Name: ${emp.name}, Cached: ${new Date(emp.cachedAt).toLocaleString()}`)
-    })
-    console.log('=====================================')
   }
 
   async getCachedEmployeePins(): Promise<string[]> {
@@ -190,12 +184,6 @@ class OfflineDatabase extends Dexie {
 
   async debugPunchesForEmployee(employeeId: string): Promise<void> {
     const punches = await this.punches.where('employeeId').equals(employeeId).toArray()
-    logger.log(`=== OFFLINE PUNCHES DEBUG FOR EMPLOYEE ${employeeId} ===`)
-    logger.log(`Total punches: ${punches.length}`)
-    punches.forEach((punch, index) => {
-      logger.log(`${index + 1}. ${punch.id} - ${punch.type} - ${punch.date} - ${punch.synced ? 'SYNCED' : 'UNSYNCED'} - ${punch.timestamp}`)
-    })
-    logger.log('===============================================')
   }
 
   async markPunchSynced(punchId: string): Promise<void> {

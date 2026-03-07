@@ -1,0 +1,54 @@
+import { z } from 'zod'
+import { objectIdSchema, dateStringSchema } from './common'
+
+// Employee login request
+export const employeeLoginSchema = z.object({
+  pin: z.string().min(1, 'PIN is required'),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+})
+
+// Clock action types
+export const clockTypeSchema = z.enum(['in', 'break', 'endBreak', 'out'])
+
+// Clock request
+export const clockRequestSchema = z.object({
+  type: clockTypeSchema,
+  imageUrl: z.string().url().optional(),
+  date: dateStringSchema.optional(),
+  time: z.string().optional(),
+  lat: z.string().optional(),
+  lng: z.string().optional(),
+  noPhoto: z.boolean().optional(),
+  offline: z.boolean().optional(),
+  offlineTimestamp: z.string().datetime().optional(),
+  employeePin: z.string().optional(),
+})
+
+// Change password request
+export const changeEmployeePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password must be less than 128 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one number'),
+})
+
+// Employee timesheet query parameters
+export const employeeTimesheetQuerySchema = z.object({
+  startDate: dateStringSchema.optional(),
+  endDate: dateStringSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+})
+
+// Offline session request
+export const offlineSessionSchema = z.object({
+  employeeId: objectIdSchema,
+  pin: z.string().min(1, 'PIN is required'),
+  offline: z.boolean(),
+})
+
+// File upload validation (handled by multer middleware, but we can validate file types)
+export const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+export const maxFileSize = 10 * 1024 * 1024 // 10MB

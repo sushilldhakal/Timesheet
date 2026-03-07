@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Briefcase, MapPin, UserCircle, Plus, CircleDollarSign } from "lucide-react"
@@ -9,6 +9,7 @@ import {
   CATEGORY_TYPE_LABELS,
   type CategoryType,
 } from "@/lib/config/category-types"
+import { useCategoriesByType } from "@/lib/queries/categories"
 import { CategoriesTable } from "./CategoriesTable"
 import { AddCategoryDialog } from "./AddCategoryDialog"
 import { EditCategoryDialog } from "./EditCategoryDialog"
@@ -52,43 +53,20 @@ const ADD_BUTTON_LABELS: Record<CategoryType, string> = {
   [CATEGORY_TYPES.LOCATION]: "Add Location",
 }
 
-export default function CategoryPage() {
+function CategoryPage() {
   const [activeType, setActiveType] = useState<CategoryType>(CATEGORY_TYPES.ROLE)
-  const [categories, setCategories] = useState<CategoryRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [editCategory, setEditCategory] = useState<CategoryRow | null>(null)
   const [deleteCategory, setDeleteCategory] = useState<CategoryRow | null>(null)
 
-  const fetchCategories = async (type?: CategoryType) => {
-    setLoading(true)
-    try {
-      const url = type
-        ? `/api/categories?type=${encodeURIComponent(type)}`
-        : "/api/categories"
-      // Add cache busting to ensure fresh data
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCategories(data.categories ?? [])
-      } else {
-        setCategories([])
-      }
-    } catch {
-      setCategories([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const categoriesQuery = useCategoriesByType(activeType)
 
-  useEffect(() => {
-    fetchCategories(activeType)
-  }, [activeType])
+  const categories = categoriesQuery.data?.categories ?? []
+  const loading = categoriesQuery.isLoading
+
+  const refetchCategories = () => {
+    categoriesQuery.refetch()
+  }
 
   return (
     <>
@@ -143,7 +121,7 @@ export default function CategoryPage() {
                     setEditCategory(latest || category)
                   }}
                   onDelete={setDeleteCategory}
-                  onRefresh={() => fetchCategories(activeType)}
+                  onRefresh={refetchCategories}
                 />
               )}
             </CardContent>
@@ -157,7 +135,7 @@ export default function CategoryPage() {
         onOpenChange={setAddOpen}
         onSuccess={() => {
           setAddOpen(false)
-          fetchCategories(activeType)
+          refetchCategories()
         }}
       />
 
@@ -169,7 +147,7 @@ export default function CategoryPage() {
           onOpenChange={(open) => !open && setEditCategory(null)}
           onSuccess={() => {
             setEditCategory(null)
-            fetchCategories(activeType)
+            refetchCategories()
           }}
         />
       )}
@@ -181,10 +159,13 @@ export default function CategoryPage() {
           onOpenChange={(open) => !open && setDeleteCategory(null)}
           onSuccess={() => {
             setDeleteCategory(null)
-            fetchCategories(activeType)
+            refetchCategories()
           }}
         />
       )}
     </>
   )
 }
+
+
+export default CategoryPage

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useAuth } from "@/components/auth/AuthProvider"
+import { useAuth } from "@/lib/hooks/useAuth"
 
 const DashboardContent = dynamic(
   () => import("@/components/dashboard/DashboardContent").then((m) => m.default),
@@ -17,7 +17,7 @@ const DashboardContent = dynamic(
 )
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, isHydrated } = useAuth()
 
   return (
     <div className="space-y-6">
@@ -50,7 +50,7 @@ export default function DashboardPage() {
           <h2 className="font-medium">Flagged punches</h2>
           <p className="mt-1 text-sm text-muted-foreground">No image or location (last 30 days)</p>
         </Link>
-        {(user?.role === "admin" || user?.role === "super_admin") && (
+        {isHydrated && (user?.role === "admin" || user?.role === "super_admin") && (
           <Link
             href="/dashboard/users"
             className="rounded-lg border p-4 transition-colors hover:bg-muted/50"

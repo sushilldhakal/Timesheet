@@ -7,16 +7,11 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User, Employee } from "@/lib/db"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
-import { getEmployeeFromWebCookie } from "@/lib/employee-auth"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getEmployeeFromWebCookie } from "@/lib/auth/employee-auth"
 import { sendEmail } from "@/lib/mail/sendEmail"
 import { generatePasswordChangedEmail } from "@/lib/mail/templates/password-changed-confirmation"
-import { z } from "zod"
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "New password must be at least 8 characters"),
-})
+import { changePasswordSchema } from "@/lib/validations/auth"
 
 export async function POST(request: NextRequest) {
   try {

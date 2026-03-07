@@ -18,6 +18,10 @@ import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-na
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
 import { TimesheetWeekView } from "@/components/timesheet/timesheet-week-view"
 import { TimesheetMonthView } from "@/components/timesheet/timesheet-month-view"
+import { useMe } from "@/lib/queries/auth"
+import { useEmployees } from "@/lib/queries/employees"
+import { useCategoriesByType } from "@/lib/queries/categories"
+import { useTimesheets } from "@/lib/queries/timesheets"
 
 interface DashboardTimesheetRow {
   date: string
@@ -118,12 +122,9 @@ export default function TimesheetPage() {
   const [roles, setRoles] = useState<Category[]>([])
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [userPermissions, setUserPermissions] = useState<{locations: string[], managedRoles: string[], role: string} | null>(null)
-  const [timesheets, setTimesheets] = useState<DashboardTimesheetRow[]>([])
-  const [totalWorkingHours, setTotalWorkingHours] = useState("—")
-  const [totalBreakHours, setTotalBreakHours] = useState("—")
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Calculate date range first
   const { startDate, endDate } = useMemo(() => {
     if (useCustomRange && customStartDate && customEndDate) {
       return {
@@ -131,22 +132,54 @@ export default function TimesheetPage() {
         endDate: customEndDate,
       }
     }
-    return getDateRange(view, selectedDate)
+
+    if (view === "day") {
+      return {
+        startDate: format(startOfDay(selectedDate), "yyyy-MM-dd"),
+        endDate: format(endOfDay(selectedDate), "yyyy-MM-dd"),
+      }
+    }
+
+    if (view === "week") {
+      return {
+        startDate: format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        endDate: format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+      }
+    }
+
+    return {
+      startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"),
+      endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd"),
+    }
   }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
 
+  // TanStack Query hooks
+  const userQuery = useMe()
+  const employeesQuery = useEmployees(500)
+  const locationsQuery = useCategoriesByType('location')
+  const rolesQuery = useCategoriesByType('role')
+
+  const timesheetsQuery = useTimesheets({
+    startDate,
+    endDate,
+    employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+    employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
+    locations: selectedLocations.length > 0 ? selectedLocations : undefined,
+    roles: selectedRoles.length > 0 ? selectedRoles : undefined,
+  })
+
+  const timesheets = timesheetsQuery.data?.timesheets || []
+  const totalWorkingHours = timesheetsQuery.data?.totalWorkingHours || "—"
+  const totalBreakHours = timesheetsQuery.data?.totalBreakHours || "—"
+  const loading = timesheetsQuery.isLoading
+
+  // Process employees data
   const fetchFilters = useCallback(async () => {
     try {
-      // First, fetch user permissions to determine filter visibility
-      const [userRes, empRes] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/employees?limit=500")
-      ])
-      
+      // Get user permissions from auth query
       let userPermissions = null
-      if (userRes.ok) {
-        const userData = await userRes.json()
-        // API returns {user: {...}} structure
-        const user = userData.user || userData
+      if (userQuery.data?.user) {
+        const user = userQuery.data.user
         userPermissions = {
           locations: user.location || [],
           managedRoles: user.managedRoles || [],
@@ -155,23 +188,15 @@ export default function TimesheetPage() {
         setUserPermissions(userPermissions)
       }
       
-      if (empRes.ok) {
-        const data = await empRes.json()
-        const employeeData = (data.employees ?? []).map(
-          (e: {
-            _id: string
-            id?: string
-            name: string
-            pin: string
-            employers?: { name: string }[]
-            locations?: { name: string }[]
-            roles?: { role: { name: string } }[]
-          }) => {
+      // Get employees from query
+      if (employeesQuery.data?.employees) {
+        const employeeData = employeesQuery.data.employees.map(
+          (e: any) => {
             // Extract employer names from the 'employers' array
-            const employerNames = e.employers?.map(emp => emp.name).filter(Boolean) || []
+            const employerNames = e.employers?.map((emp: any) => emp.name).filter(Boolean) || []
 
             // Extract location names from the 'locations' array  
-            const locationNames = e.locations?.map(loc => loc.name).filter(Boolean) || []
+            const locationNames = e.locations?.map((loc: any) => loc.name).filter(Boolean) || []
 
             return {
               id: e.id ?? e._id,
@@ -188,7 +213,7 @@ export default function TimesheetPage() {
         const uniqueEmployers = new Set<string>()
         const uniqueRoles = new Set<string>()
 
-        data.employees?.forEach((emp: any) => {
+        employeesQuery.data.employees?.forEach((emp: any) => {
           // Extract employers
           if (emp.employers) {
             emp.employers.forEach((employer: any) => uniqueEmployers.add(employer.name))
@@ -211,34 +236,18 @@ export default function TimesheetPage() {
         let rolesArray: Category[] = []
 
         if (userPermissions?.role === "admin" || userPermissions?.role === "super_admin") {
-          // Admin users: Fetch ALL locations and roles from the system
-          try {
-            const [locationsRes, rolesRes] = await Promise.all([
-              fetch("/api/categories?type=location"),
-              fetch("/api/categories?type=role")
-            ])
-            
-            if (locationsRes.ok) {
-              const locationsData = await locationsRes.json()
-              locationsArray = (locationsData.categories || []).map((loc: any) => ({ 
-                id: loc.id, 
-                name: loc.name, 
-                type: "location" 
-              }))
-            }
-            
-            if (rolesRes.ok) {
-              const rolesData = await rolesRes.json()
-              rolesArray = (rolesData.categories || []).map((role: any) => ({ 
-                id: role.id, 
-                name: role.name, 
-                type: "role" 
-              }))
-            }
-          } catch (error) {
-            console.error("Failed to fetch categories for admin:", error)
-            // Fallback to empty arrays
-          }
+          // Admin users: Use categories from queries
+          locationsArray = locationsQuery.data?.categories?.map((loc: any) => ({ 
+            id: loc.id, 
+            name: loc.name, 
+            type: "location" 
+          })) || []
+          
+          rolesArray = rolesQuery.data?.categories?.map((role: any) => ({ 
+            id: role.id, 
+            name: role.name, 
+            type: "role" 
+          })) || []
         } else {
           // Regular users: Use their assigned permissions
           locationsArray = userPermissions ? 
@@ -256,7 +265,7 @@ export default function TimesheetPage() {
       console.error("Error in fetchFilters:", error)
       setError("Failed to load filters")
     }
-  }, [])
+  }, [userQuery.data, employeesQuery.data, locationsQuery.data, rolesQuery.data])
 
   const filteredEmployees = useMemo(() => {
     if (selectedEmployers.length === 0 && selectedLocations.length === 0 && selectedRoles.length === 0) return employees
@@ -270,43 +279,21 @@ export default function TimesheetPage() {
   }, [employees, selectedEmployers, selectedLocations, selectedRoles])
 
   const fetchTimesheets = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const url = buildTimesheetUrl({
-        startDate,
-        endDate,
-        employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
-        employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
-        locations: selectedLocations.length > 0 ? selectedLocations : undefined,
-        roles: selectedRoles.length > 0 ? selectedRoles : undefined,
-      })
-      const res = await fetch(url)
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? "Failed to load timesheets")
-      }
-      const data = await res.json()
-      setTimesheets(data.timesheets ?? [])
-      setTotalWorkingHours(data.totalWorkingHours ?? "—")
-      setTotalBreakHours(data.totalBreakHours ?? "—")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load timesheets")
-      setTimesheets([])
-      setTotalWorkingHours("—")
-      setTotalBreakHours("—")
-    } finally {
-      setLoading(false)
-    }
-  }, [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocations, selectedRoles])
+    // This is now handled by the useTimesheets hook
+  }, [])
 
   useEffect(() => {
     fetchFilters()
   }, [fetchFilters])
 
+  // Set error from timesheets query
   useEffect(() => {
-    fetchTimesheets()
-  }, [fetchTimesheets])
+    if (timesheetsQuery.error) {
+      setError(timesheetsQuery.error instanceof Error ? timesheetsQuery.error.message : "Failed to load timesheets")
+    } else {
+      setError(null)
+    }
+  }, [timesheetsQuery.error])
 
   useEffect(() => {
     if (selectedEmployeeIds.length > 0 && filteredEmployees.length > 0) {

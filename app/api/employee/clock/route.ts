@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
-import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/auth-helpers"
+import { getEmployeeFromCookie, invalidateEmployeeSession } from "@/lib/auth/auth-helpers"
 import { connectDB, Employee, DailyShift, Category, Device } from "@/lib/db"
 import { isWithinGeofence } from "@/lib/utils/geofence"
 import { logger } from "@/lib/utils/logger"
 import { z } from "zod"
 import { updateComputedFields } from "@/lib/utils/shift-calculations"
 import type { IClockEvent } from "@/lib/db/schemas/daily-shift"
+import { processFaceRecognition } from "@/lib/services/clock-with-face-recognition"
 
 const clockBodySchema = z.object({
   type: z.enum(["in", "out", "break", "endBreak"]),
@@ -21,6 +22,8 @@ const clockBodySchema = z.object({
   offlineTimestamp: z.string().optional(),
   // For offline sync: specify which employee the punch belongs to
   employeePin: z.string().optional(),
+  // Face recognition descriptor
+  faceDescriptor: z.string().optional(),
 })
 
 /** POST /api/employee/clock - Clock in/out/break. Requires employee session. */
@@ -50,8 +53,22 @@ export async function POST(request: NextRequest) {
       noPhoto,
       offline,
       offlineTimestamp,
-      employeePin
+      employeePin,
+      faceDescriptor: faceDescriptorRaw
     } = parsed.data
+
+    // Parse face descriptor if provided
+    let faceDescriptor: number[] | undefined
+    if (faceDescriptorRaw) {
+      try {
+        faceDescriptor = JSON.parse(faceDescriptorRaw)
+        console.log("[api/employee/clock] Face descriptor parsed:", faceDescriptor?.length || 0, "floats")
+      } catch (err) {
+        logger.error("[api/employee/clock] Failed to parse faceDescriptor:", err)
+      }
+    } else {
+      console.log("[api/employee/clock] No faceDescriptor in request body")
+    }
 
     await connectDB()
     
@@ -112,6 +129,7 @@ export async function POST(request: NextRequest) {
     // Flag logic: missing image, location, or explicitly marked as noPhoto
     let flag = !imageUrl || !latStr || !lngStr || (noPhoto === true)
     let detectedLocationName = ""
+    let detectedLocationId = ""
 
     // Geofence check for all punch types — detect location and enforce on clock-in only
     const rawLocationNames = (employee.location ?? []) as string[]
@@ -149,6 +167,7 @@ export async function POST(request: NextRequest) {
           ) {
             withinFence = true
             detectedLocationName = loc.name
+            detectedLocationId = loc._id.toString()
             break
           }
         }
@@ -182,6 +201,7 @@ export async function POST(request: NextRequest) {
               if (distance < minDistance) {
                 minDistance = distance
                 detectedLocationName = loc.name
+                detectedLocationId = loc._id.toString()
               }
             }
           }
@@ -310,6 +330,32 @@ export async function POST(request: NextRequest) {
 
     // Note: Session remains active for multiple clock operations
     // Session will expire naturally or can be manually logged out
+
+    // Process face recognition (fire and forget - don't block response)
+    if (faceDescriptor && imageUrl && detectedLocationId) {
+      console.log("[api/employee/clock] Calling processFaceRecognition with:", {
+        descriptorLength: faceDescriptor.length,
+        hasImageUrl: !!imageUrl,
+        locationId: detectedLocationId
+      })
+      processFaceRecognition({
+        employeeId: employee._id.toString(),
+        punchType: type,
+        punchTime: new Date(timeStr),
+        locationId: detectedLocationId,
+        photoUrl: imageUrl,
+        faceDescriptor,
+        faceQuality: 0.8,
+      }).catch(err => {
+        logger.error("[api/employee/clock] Face recognition failed:", err)
+      })
+    } else {
+      console.log("[api/employee/clock] Skipping face recognition:", {
+        hasFaceDescriptor: !!faceDescriptor,
+        hasImageUrl: !!imageUrl,
+        hasLocationId: !!detectedLocationId
+      })
+    }
 
     return NextResponse.json({
       success: true,

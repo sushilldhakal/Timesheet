@@ -1,15 +1,19 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import { createRequire } from "module";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
-  // Add empty turbopack config to silence the warning
   turbopack: {},
+
+  serverExternalPackages: ["@vladmandic/human"],
+
   async headers() {
     return [
       {
@@ -18,6 +22,8 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
         ],
       },
       {
@@ -34,11 +40,13 @@ const nextConfig = {
           { key: "Service-Worker-Allowed", value: "/" },
         ],
       },
-    ]
+    ];
   },
+
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
   },
+
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
@@ -49,6 +57,7 @@ const nextConfig = {
       { protocol: "http", hostname: "127.0.0.1", pathname: "/**" },
     ],
   },
+
   experimental: {
     optimizePackageImports: [
       "lucide-react",
@@ -59,31 +68,31 @@ const nextConfig = {
       "@radix-ui/react-separator",
     ],
   },
+
   webpack: (config, { dev, isServer, webpack }) => {
-    // Configure for browser-only usage
     if (!isServer) {
-      // Ignore Node.js-specific TensorFlow modules (in case they're referenced)
-      config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /@tensorflow\/tfjs-node/,
-        })
-      );
-      
-      // Fallback for Node.js modules
+
+      // Polyfill Node built-ins that Human/TFJS may reference
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        'fs': false,
-        'path': false,
-        'crypto': false,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+
+      // Force the browser ESM build (includes bundled TFJS, no Node deps)
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@vladmandic/human": require.resolve("@vladmandic/human/dist/human.esm.js"),
       };
     }
-    
+
     if (!dev && !isServer) {
       config.optimization ??= {};
       config.optimization.splitChunks = {
         chunks: "all",
         cacheGroups: {
-          // Framework (React, Next) – keep core small and predictable
+          // React / Next core — tiny, predictable, always cached
           framework: {
             name: "framework",
             test: /[\\/]node_modules[\\/](react|react-dom|scheduler|next)[\\/]/,
@@ -91,14 +100,22 @@ const nextConfig = {
             reuseExistingChunk: true,
             enforce: true,
           },
-          // Charts – already lazy-loaded with dashboard content
+          // Human + bundled TFJS — ~8 MB, isolate so it never pollutes vendor
+          human: {
+            name: "human-ai",
+            test: /[\\/]node_modules[\\/]@vladmandic[\\/]/,
+            priority: 36,
+            reuseExistingChunk: true,
+            enforce: true,
+          },
+          // Charts — lazy-loaded with dashboard
           charts: {
             name: "charts",
             test: /[\\/]node_modules[\\/]recharts[\\/]/,
             priority: 35,
             reuseExistingChunk: true,
           },
-          // UI (Radix, TanStack Table) – loaded when dashboard/forms/tables are used
+          // Radix UI + TanStack Table
           ui: {
             name: "ui",
             test: /[\\/]node_modules[\\/](@radix-ui|radix-ui|@tanstack[\\/]react-table)[\\/]/,
@@ -106,7 +123,7 @@ const nextConfig = {
             minSize: 20000,
             reuseExistingChunk: true,
           },
-          // Forms & validation (Zod) – shared by forms and API validation
+          // Zod
           forms: {
             name: "forms",
             test: /[\\/]node_modules[\\/]zod[\\/]/,
@@ -114,7 +131,7 @@ const nextConfig = {
             minSize: 10000,
             reuseExistingChunk: true,
           },
-          // Date utilities – used by dashboard, timesheet, calendar, APIs
+          // date-fns + react-day-picker
           dates: {
             name: "dates",
             test: /[\\/]node_modules[\\/](date-fns|react-day-picker)[\\/]/,
@@ -122,7 +139,7 @@ const nextConfig = {
             minSize: 20000,
             reuseExistingChunk: true,
           },
-          // Remaining vendor code
+          // Everything else from node_modules
           vendor: {
             name: "vendor",
             test: /[\\/]node_modules[\\/]/,
@@ -130,7 +147,7 @@ const nextConfig = {
             minSize: 0,
             reuseExistingChunk: true,
           },
-          // Shared app code (min 2 chunks)
+          // Shared app code used by 2+ chunks
           common: {
             name: "common",
             minChunks: 2,
@@ -141,6 +158,7 @@ const nextConfig = {
         },
       };
     }
+
     return config;
   },
 };

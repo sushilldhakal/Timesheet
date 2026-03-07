@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { ScheduleManager } from "@/lib/managers/schedule-manager"
 import mongoose from "mongoose"

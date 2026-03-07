@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User, Employee } from "@/lib/db"
-import { createAuthToken, setAuthCookie } from "@/lib/auth-helpers"
+import { createAuthToken, setAuthCookie } from "@/lib/auth/auth-helpers"
 import { z } from "zod"
 
 const loginSchema = z.object({
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         if (passwordMatch) {
           // Check if password change is required
           if (employee.requirePasswordChange) {
-            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/employee-auth")
+            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
             
             const token = await createEmployeeWebToken({
               sub: String(employee._id),
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Employee found - create employee web session
-          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/employee-auth")
+          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
           
           const token = await createEmployeeWebToken({
             sub: String(employee._id),
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       
       if (passwordMatch) {
         if (employee.requirePasswordChange) {
-          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/employee-auth")
+          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
           
           const token = await createEmployeeWebToken({
             sub: String(employee._id),
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/employee-auth")
+        const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
         
         const token = await createEmployeeWebToken({
           sub: String(employee._id),

@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useDeleteUser } from "@/lib/queries/users"
 import type { UserRow } from "./page"
 
 type Props = {
@@ -26,27 +27,22 @@ export function DeleteUserDialog({
   onOpenChange,
   onSuccess,
 }: Props) {
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const deleteUserMutation = useDeleteUser()
 
   const handleDelete = async () => {
     setError(null)
-    setLoading(true)
     try {
-      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to delete user")
-        return
-      }
+      await deleteUserMutation.mutateAsync(user.id)
       onOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
+
+  const loading = deleteUserMutation.isPending
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -54,8 +50,8 @@ export function DeleteUserDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete User</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete <strong>{user.name || user.username}</strong>? This
-            action cannot be undone.
+            Are you sure you want to delete <strong>{user.name}</strong>?
+            This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (

@@ -148,8 +148,6 @@ export function isWorkingHour(day: Date, hour: number, workingHours: TWorkingHou
 }
 
 export function getVisibleHours(visibleHours: TVisibleHours, singleDayEvents: IEvent[], autoExpand: boolean = true) {
-  console.log('getVisibleHours - Input visibleHours:', visibleHours, 'autoExpand:', autoExpand);
-  
   let earliestEventHour = visibleHours.from;
   let latestEventHour = visibleHours.to;
 
@@ -166,8 +164,6 @@ export function getVisibleHours(visibleHours: TVisibleHours, singleDayEvents: IE
   latestEventHour = Math.min(latestEventHour, 24);
 
   const hours = Array.from({ length: latestEventHour - earliestEventHour }, (_, i) => i + earliestEventHour);
-
-  console.log('getVisibleHours - Output:', { hours: hours.length, earliestEventHour, latestEventHour });
 
   return { hours, earliestEventHour, latestEventHour };
 }

@@ -10,16 +10,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ModeToggle } from "@/components/ui/mode-toggle"
 import { toast } from "sonner"
 import { Loader2, Eye, EyeOff, ShieldCheck, Users, ArrowRight, Lock, Mail } from "lucide-react"
+import { useUnifiedLogin } from "@/lib/queries/auth"
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loginAs, setLoginAs] = useState<"staff" | "admin">("staff")
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const unifiedLoginMutation = useUnifiedLogin()
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!email || !password) {
@@ -27,39 +29,29 @@ export default function LoginPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const res = await fetch("/api/auth/unified-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, loginAs }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
-        if (data.requirePasswordChange) {
-          toast.info("Please change your password")
-          // Redirect based on user type
-          if (data.userType === "employee") {
-            router.push("/staff/change-password")
-          } else {
-            router.push("/dashboard/settings/change-password")
+    unifiedLoginMutation.mutate(
+      { email, password, loginAs },
+      {
+        onSuccess: (data) => {
+          if (data.requirePasswordChange) {
+            toast.info("Please change your password")
+            // Redirect based on user type
+            if (data.userType === "employee") {
+              router.push("/staff/change-password")
+            } else {
+              router.push("/dashboard/settings/change-password")
+            }
+            return
           }
-          return
-        }
 
-        toast.success(`Welcome back!`)
-        router.push(data.redirect)
-      } else {
-        toast.error(data.error || "Login failed")
+          toast.success(`Welcome back!`)
+          router.push(data.redirect || '/dashboard')
+        },
+        onError: (error: any) => {
+          toast.error(error.message || "Login failed")
+        }
       }
-    } catch (error) {
-      toast.error("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    )
   }
 
   return (
@@ -170,7 +162,7 @@ export default function LoginPage() {
                         placeholder="admin@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        disabled={isLoading}
+                        disabled={unifiedLoginMutation.isPending}
                         required
                         autoComplete="email"
                         className="pl-10 h-11"
@@ -197,7 +189,7 @@ export default function LoginPage() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        disabled={isLoading}
+                        disabled={unifiedLoginMutation.isPending}
                         required
                         autoComplete="current-password"
                         className="pl-10 pr-10 h-11"
@@ -221,9 +213,9 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full h-11 gap-2"
-                    disabled={isLoading}
+                    disabled={unifiedLoginMutation.isPending}
                   >
-                    {isLoading ? (
+                    {unifiedLoginMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Signing in...
@@ -250,7 +242,7 @@ export default function LoginPage() {
                         placeholder="staff@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        disabled={isLoading}
+                        disabled={unifiedLoginMutation.isPending}
                         required
                         autoComplete="email"
                         className="pl-10 h-11"
@@ -277,7 +269,7 @@ export default function LoginPage() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        disabled={isLoading}
+                        disabled={unifiedLoginMutation.isPending}
                         required
                         autoComplete="current-password"
                         className="pl-10 pr-10 h-11"
@@ -301,9 +293,9 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full h-11 gap-2"
-                    disabled={isLoading}
+                    disabled={unifiedLoginMutation.isPending}
                   >
-                    {isLoading ? (
+                    {unifiedLoginMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Signing in...

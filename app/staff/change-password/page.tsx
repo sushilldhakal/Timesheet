@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useChangeEmployeePassword } from "@/lib/queries/employee-clock"
 
 export default function StaffChangePasswordPage() {
   const router = useRouter()
@@ -17,9 +18,10 @@ export default function StaffChangePasswordPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const changePasswordMutation = useChangeEmployeePassword()
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -37,31 +39,20 @@ export default function StaffChangePasswordPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const res = await fetch("/api/employee/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
-        toast.success("Password changed successfully!")
-        router.push("/staff/dashboard")
-      } else {
-        toast.error(data.error || "Failed to change password")
+    changePasswordMutation.mutate(
+      { currentPassword, newPassword },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Password changed successfully!")
+            router.push("/staff/dashboard")
+          }
+        },
+        onError: (error: any) => {
+          toast.error(typeof error === 'string' ? error : error?.message || "Failed to change password")
+        }
       }
-    } catch (error) {
-      toast.error("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    )
   }
 
   return (
@@ -163,9 +154,9 @@ export default function StaffChangePasswordPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={changePasswordMutation.isPending}
             >
-              {isLoading ? (
+              {changePasswordMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Changing Password...

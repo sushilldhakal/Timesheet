@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { uploadToCloudinary } from "@/lib/cloudinary"
 
 /** POST /api/upload/image - Upload image to Cloudinary. Returns { url } */

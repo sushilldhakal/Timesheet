@@ -8,12 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User, Employee } from "@/lib/db"
 import { hashToken, isTokenValid } from "@/lib/utils/auth-tokens"
-import { z } from "zod"
-
-const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-})
+import { resetPasswordSchema } from "@/lib/validations/auth"
 
 // GET - Verify reset token
 export async function GET(request: NextRequest) {

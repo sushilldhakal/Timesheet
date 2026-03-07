@@ -11,11 +11,7 @@ import { findUserByEmail } from "@/lib/utils/email-validator"
 import { generateTokenWithExpiry } from "@/lib/utils/auth-tokens"
 import { sendEmail } from "@/lib/mail/sendEmail"
 import { generatePasswordResetEmail } from "@/lib/mail/templates/password-reset"
-import { z } from "zod"
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email format"),
-})
+import { forgotPasswordSchema } from "@/lib/validations/auth"
 
 export async function POST(request: NextRequest) {
   try {

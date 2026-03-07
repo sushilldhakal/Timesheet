@@ -28,6 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { useMe } from "@/lib/queries/auth";
+import { useCategories } from "@/lib/queries/categories";
+import { useCreateCalendarEvent } from "@/lib/queries/calendar";
 import { eventSchema } from "@/components/calendar/schemas";
 
 import type { TimeValue } from "react-aria-components";
@@ -49,82 +52,39 @@ export function AddEventDialog({ children, startDate, startTime, locationId, loc
 
   const { isOpen, onClose, onToggle } = useDisclosure();
   
-  const [locations, setLocations] = useState<any[]>([]);
-  const [employers, setEmployers] = useState<any[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [userInfo, setUserInfo] = useState<{
-    location: string[];
-    role: string;
-  } | null>(null);
 
-  // Fetch user info
-  useEffect(() => {
-    async function fetchUserInfo() {
-      try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
-          const userData = data.user || data;
-          
-          setUserInfo({
-            location: userData.location || [],
-            role: userData.role || 'user',
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch user info:', error);
-      }
+  // TanStack Query hooks
+  const userInfoQuery = useMe();
+  const { data: locationsData } = useCategories();
+  const { data: employersData } = useCategories();
+  const createEventMutation = useCreateCalendarEvent();
+
+  const userInfo = userInfoQuery.data?.user ? {
+    location: userInfoQuery.data.user.location || [],
+    role: userInfoQuery.data.user.role || 'user',
+  } : null;
+
+  const locations = locationsData?.categories?.filter((c: any) => c.type === 'location') || [];
+  const employers = employersData?.categories?.filter((c: any) => c.type === 'employer') || [];
+
+  // Filter locations based on user permissions
+  const filteredLocations = useMemo(() => {
+    if (!userInfo || !locations.length) return locations;
+    
+    const isAdmin = userInfo.role === 'admin' || userInfo.role === 'super_admin';
+    
+    // If not admin and has assigned locations, filter to only show those
+    if (!isAdmin && userInfo.location.length > 0) {
+      return locations.filter((loc: any) => 
+        userInfo.location.includes(loc.name)
+      );
     }
+    
+    return locations;
+  }, [userInfo, locations]);
 
-    if (isOpen) {
-      fetchUserInfo();
-    }
-  }, [isOpen]);
-
-  // Fetch categories (locations and employers only - roles are fetched by RoleSelector)
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const [locationsRes, employersRes] = await Promise.all([
-          fetch('/api/categories?type=location'),
-          fetch('/api/categories?type=employer'),
-        ]);
-        
-        if (locationsRes.ok) {
-          const data = await locationsRes.json();
-          let locationList = data.categories || [];
-          
-          // Filter locations based on user role and assigned locations
-          if (userInfo) {
-            const isAdmin = userInfo.role === 'admin' || 
-                           userInfo.role === 'payable' || 
-                           userInfo.role === 'accounts';
-            
-            // If not admin and has assigned locations, filter to only show those
-            if (!isAdmin && userInfo.location.length > 0) {
-              locationList = locationList.filter((loc: any) => 
-                userInfo.location.includes(loc.name)
-              );
-            }
-          }
-          
-          setLocations(locationList);
-        }
-        if (employersRes.ok) {
-          const data = await employersRes.json();
-          setEmployers(data.categories || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    }
-
-    if (isOpen && userInfo) {
-      fetchCategories();
-    }
-  }, [isOpen, userInfo]);
-
-  const form = useForm<TEventFormData>({
+  const form = useForm({
     resolver: zodResolver(eventSchema) as any,
     mode: 'onChange',
     defaultValues: {
@@ -202,7 +162,7 @@ export function AddEventDialog({ children, startDate, startTime, locationId, loc
       }
 
       // Get employer ID (use first employer if available)
-      const employerId = values.employerId || (employers.length > 0 ? employers[0]._id : null);
+      const employerId = values.employerId || (employers.length > 0 ? employers[0].id : null);
 
       if (!employerId) {
         setValidationError('No employer found. Please configure an employer first.');
@@ -224,32 +184,7 @@ export function AddEventDialog({ children, startDate, startTime, locationId, loc
           notes: values.notes || "",
         };
 
-        console.log('Submitting shift payload:', payload);
-
-        const response = await fetch('/api/calendar/events', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('API error response (raw):', errorText);
-          
-          let error;
-          try {
-            error = JSON.parse(errorText);
-          } catch {
-            error = { error: errorText || 'Failed to create shift' };
-          }
-          
-          console.error('API error response (parsed):', error);
-          throw new Error(error.error || 'Failed to create shift');
-        }
-
-        return response.json();
+        return createEventMutation.mutateAsync(payload);
       });
 
       // Wait for all shifts to be created
@@ -347,7 +282,7 @@ export function AddEventDialog({ children, startDate, startTime, locationId, loc
         </DialogHeader>
 
         <Form {...form}>
-          <form id="shift-form" onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+          <form id="shift-form" onSubmit={form.handleSubmit(onSubmit as any)} className="grid gap-4 py-4">
             {/* Validation Error Display */}
             {validationError && (
               <div className="rounded-lg border border-destructive bg-destructive/10 p-3">
@@ -364,9 +299,9 @@ export function AddEventDialog({ children, startDate, startTime, locationId, loc
                   <FormLabel>Location *</FormLabel>
                   <FormControl>
                     <MultiSelect
-                      options={locations.map(location => ({
+                      options={filteredLocations.map(location => ({
                         label: location.name,
-                        value: location._id,
+                        value: location.id,
                       }))}
                       value={field.value ? [field.value] : []}
                       onValueChange={(values) => {

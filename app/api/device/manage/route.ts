@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, Device } from "@/lib/db"
 import mongoose from "mongoose"
-import { logDeviceRevocation, logDeviceDisabled } from "@/lib/auth-logger"
+import { logDeviceRevocation, logDeviceDisabled } from "@/lib/auth/auth-logger"
 import { z } from "zod"
 
 // Generate a random activation code

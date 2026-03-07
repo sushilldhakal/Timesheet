@@ -4,6 +4,6 @@
  */
 
 // @ts-ignore - .mjs file
-export { default } from './human.esm.mjs';
+export { default } from '../public/models/human.esm.mjs';
 // @ts-ignore - .mjs file
-export * from './human.esm.mjs';
+export * from '../public/models/human.esm.mjs';

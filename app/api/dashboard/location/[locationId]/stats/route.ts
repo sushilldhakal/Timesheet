@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAuthWithUserLocations } from '@/lib/auth-api'
+import { getAuthWithUserLocations } from '@/lib/auth/auth-api'
 import { connectDB, Category } from '@/lib/db'
 import { dashboardCache } from '@/lib/utils/dashboard-cache'
 import { 

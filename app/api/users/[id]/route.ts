@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { Right } from "@/lib/config/rights"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, User } from "@/lib/db"
-import { userIdParamSchema } from "@/lib/validation/user"
-import { userAdminUpdateSchema, userSelfUpdateSchema } from "@/lib/validation/user"
+import { userIdParamSchema } from "@/lib/validations/user"
+import { userAdminUpdateSchema, userSelfUpdateSchema } from "@/lib/validations/user"
 import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
 
 type RouteContext = { params: Promise<{ id: string }> }

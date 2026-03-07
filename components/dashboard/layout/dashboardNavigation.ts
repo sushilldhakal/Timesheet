@@ -73,8 +73,8 @@ export const baseNavigationItems: NavigationItem[] = [
     adminOnly: true,
     children: [
       { href: '/dashboard/devices', label: 'Device Management', icon: Tablet, adminOnly: true },
-      { href: '/dashboard/Setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
-      { href: '/dashboard/Setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },
+      { href: '/dashboard/setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
+      { href: '/dashboard/setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },
     ],
   },
   {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import mongoose from "mongoose"
-import { getAuthWithUserLocations, employeeLocationFilter, getFilteredEmployeeIdsByRole } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter, getFilteredEmployeeIdsByRole } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
-import { employeeCreateSchema } from "@/lib/validation/employee"
+import { employeeCreateSchema } from "@/lib/validations/employee"
 import { sendEmail } from "@/lib/mail/sendEmail"
 import { generateOnboardingEmail } from "@/lib/mail/templates/employee-onboarding"
 import { generateOnboardingWithPasswordEmail } from "@/lib/mail/templates/employee-onboarding-with-password"
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
       ])
     )
 
-    // Group assignments by employee ID
+    // Group assignments by employee ID and deduplicate
     const assignmentsByEmployee = new Map()
     for (const assignment of roleAssignments) {
       const empId = assignment.employeeId.toString()
@@ -186,14 +186,22 @@ export async function GET(request: NextRequest) {
       
       // Skip assignments with null locationId or roleId
       if (!assignment.locationId || !assignment.roleId) {
-        console.warn(`Skipping assignment ${assignment._id} with null locationId or roleId`)
+        continue
+      }
+      
+      const assignmentId = assignment._id.toString()
+      const existingAssignments = assignmentsByEmployee.get(empId)
+      
+      // Check if this assignment already exists (prevent duplicates)
+      const isDuplicate = existingAssignments.some((existing: any) => existing.id === assignmentId)
+      if (isDuplicate) {
         continue
       }
       
       const location = locationMap.get((assignment.locationId as any)._id.toString())
       
       assignmentsByEmployee.get(empId).push({
-        id: assignment._id.toString(),
+        id: assignmentId,
         role: {
           id: (assignment.roleId as any)._id.toString(),
           name: (assignment.roleId as any).name,
@@ -249,9 +257,9 @@ export async function GET(request: NextRequest) {
       
       // Background sync photo if missing (non-blocking)
       if (!e.img || e.img === "") {
-        syncEmployeePhotoFromPunches(e.pin).catch(err => 
-          console.error(`[Background photo sync] Failed for ${e.pin}:`, err)
-        );
+        syncEmployeePhotoFromPunches(e.pin).catch(() => {
+          // Silently handle photo sync errors
+        });
       }
       
       return {
@@ -272,14 +280,18 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Deduplicate employees by ID (in case of any database issues)
+    const uniqueEmployees = Array.from(
+      new Map(normalized.map(emp => [emp.id, emp])).values()
+    )
+
     return NextResponse.json({
-      employees: normalized,
+      employees: uniqueEmployees,
       total,
       limit,
       offset,
     })
   } catch (err) {
-    console.error("[api/employees GET]", err)
     return NextResponse.json(
       { error: "Failed to fetch employees" },
       { status: 500 }
@@ -371,9 +383,7 @@ export async function POST(request: NextRequest) {
     
     const createdAssignments = []
     
-    console.log(`[Employee Creation] Processing role assignments for ${employee.name}`)
-    console.log(`[Employee Creation] Roles from request:`, data.role)
-    console.log(`[Employee Creation] Locations from request:`, data.location)
+
     
     if (data.role && data.role.length > 0 && data.location && data.location.length > 0) {
       // Fetch role and location IDs from category names
@@ -382,21 +392,21 @@ export async function POST(request: NextRequest) {
         type: "role"
       }).lean()
       
-      console.log(`[Employee Creation] Found ${roleCategories.length} role categories:`, roleCategories.map(r => ({ id: r._id, name: r.name })))
+
       
       const locationCategories = await Category.find({
         name: { $in: data.location },
         type: "location"
       }).lean()
       
-      console.log(`[Employee Creation] Found ${locationCategories.length} location categories:`, locationCategories.map(l => ({ id: l._id, name: l.name })))
+
       
       // Create role assignments for each role-location combination
       const now = new Date()
       for (const roleCategory of roleCategories) {
         for (const locationCategory of locationCategories) {
           try {
-            console.log(`[Employee Creation] Creating assignment: employeeId=${employee._id}, roleId=${roleCategory._id}, locationId=${locationCategory._id}`)
+
             const assignment = await EmployeeRoleAssignment.create({
               employeeId: employee._id,
               roleId: roleCategory._id,
@@ -409,19 +419,16 @@ export async function POST(request: NextRequest) {
               notes: "Auto-assigned during employee creation",
             })
             createdAssignments.push(assignment)
-            console.log(`[Employee Creation] ✓ Created assignment ID ${assignment._id}: ${roleCategory.name} at ${locationCategory.name}`)
+
           } catch (assignmentError) {
-            console.error(`[Employee Creation] ✗ Failed to create role assignment:`, assignmentError)
             // Continue with other assignments even if one fails
           }
         }
       }
       
-      console.log(`[Employee Creation] Total assignments created: ${createdAssignments.length}`)
+
     } else {
-      console.log(`[Employee Creation] Skipping role assignments - roles or locations missing`)
-      console.log(`[Employee Creation] Has roles: ${!!(data.role && data.role.length > 0)}`)
-      console.log(`[Employee Creation] Has locations: ${!!(data.location && data.location.length > 0)}`)
+
     }
 
     // Send onboarding email if email is provided
@@ -484,15 +491,14 @@ export async function POST(request: NextRequest) {
           plain: emailContent.plain,
         })
 
-        console.log(`[Employee Onboarding] Email sent to ${employee.email}`)
+
       } catch (emailError) {
         // Log error but don't fail the employee creation
-        console.error("[Employee Onboarding] Failed to send email:", emailError)
       }
     }
 
     // Fetch the created role assignments with populated data for response
-    console.log(`[Employee Creation] Fetching role assignments for employee ${employee._id}`)
+
     const populatedAssignments = await EmployeeRoleAssignment.find({
       employeeId: employee._id,
       isActive: true,
@@ -501,16 +507,10 @@ export async function POST(request: NextRequest) {
       .populate("locationId", "name address lat lng radius geofenceMode openingHour closingHour workingDays")
       .lean()
 
-    console.log(`[Employee Creation] Found ${populatedAssignments.length} populated assignments for response`)
+
     
     const formattedAssignments = populatedAssignments.map((a: any) => {
-      console.log(`[Employee Creation] Formatting assignment:`, {
-        id: a._id,
-        roleId: a.roleId?._id,
-        roleName: a.roleId?.name,
-        locationId: a.locationId?._id,
-        locationName: a.locationId?.name
-      })
+
       return {
         id: a._id.toString(),
         role: {
@@ -540,7 +540,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log(`[Employee Creation] Formatted ${formattedAssignments.length} assignments for response`)
+
 
     return NextResponse.json({
       employee: {
@@ -563,7 +563,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err) {
-    console.error("[api/employees POST]", err)
     return NextResponse.json(
       { error: "Failed to create employee" },
       { status: 500 }

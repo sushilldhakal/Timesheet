@@ -22,15 +22,17 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
+import { useGenerateRoster } from "@/lib/queries/rosters";
 import { format, subWeeks } from "date-fns";
 import { toast } from "sonner";
 
 export function RosterActions() {
-  const { selectedDate, selectedLocationId, selectedLocationIds } = useCalendar();
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { selectedDate, selectedLocationId, selectedLocationIds, refetchEvents } = useCalendar();
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["Full-time", "Part-time"]);
   const [error, setError] = useState<string | null>(null);
+
+  const generateRosterMutation = useGenerateRoster();
 
   // Calculate week ID from current date (ISO week format: YYYY-Www)
   const getWeekId = (date: Date): string => {
@@ -43,37 +45,21 @@ export function RosterActions() {
   const previousWeekId = getWeekId(subWeeks(selectedDate, 1));
 
   const handleCopyLastWeek = async () => {
-    setIsGenerating(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/rosters/${currentWeekId}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "copy",
-          copyFromWeekId: previousWeekId,
-        }),
+      await generateRosterMutation.mutateAsync({
+        weekId: currentWeekId,
+        mode: "copy",
+        copyFromWeekId: previousWeekId,
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to copy roster");
-      }
-
-      const data = await response.json();
-      
-      // TODO: Refresh calendar events
-      console.log(`Successfully copied ${data.shiftsCreated} shifts`);
-      
-      // Show success message
-      toast.success(`Successfully copied ${data.shiftsCreated} shifts from last week`);
+      await refetchEvents();
+      toast.success("Successfully copied shifts from last week");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to copy roster";
       setError(message);
       console.error("Copy roster error:", err);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -83,45 +69,31 @@ export function RosterActions() {
       return;
     }
 
-    setIsGenerating(true);
     setError(null);
 
     try {
-      const requestBody: any = {
+      const requestData: any = {
+        weekId: currentWeekId,
         mode: "schedules",
         includeEmploymentTypes: selectedTypes,
       };
 
       // Add location filter if locations are selected
       if (selectedLocationIds && selectedLocationIds.length > 0) {
-        requestBody.locationIds = selectedLocationIds;
+        requestData.locationIds = selectedLocationIds;
       }
 
-      const response = await fetch(`/api/rosters/${currentWeekId}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to generate roster");
-      }
-
-      const data = await response.json();
+      const result = await generateRosterMutation.mutateAsync(requestData);
       
-      // TODO: Refresh calendar events
-      console.log(`Successfully generated ${data.shiftsCreated} shifts`);
+      await refetchEvents();
       
       // Show success message and close dialog
-      toast.success(`Successfully generated ${data.shiftsCreated} shifts from schedules`);
+      toast.success(`Successfully generated ${(result as any)?.shiftsCreated || 0} shifts from schedules`);
       setShowScheduleDialog(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate roster";
       setError(message);
       console.error("Generate roster error:", err);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -143,11 +115,11 @@ export function RosterActions() {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Roster Generation</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleCopyLastWeek} disabled={isGenerating}>
+          <DropdownMenuItem onClick={handleCopyLastWeek} disabled={generateRosterMutation.isPending}>
             <Copy className="h-4 w-4 mr-2" />
             Copy Last Week
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowScheduleDialog(true)} disabled={isGenerating}>
+          <DropdownMenuItem onClick={() => setShowScheduleDialog(true)} disabled={generateRosterMutation.isPending}>
             <Sparkles className="h-4 w-4 mr-2" />
             Fill from Schedules
           </DropdownMenuItem>
@@ -223,11 +195,11 @@ export function RosterActions() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowScheduleDialog(false)} disabled={isGenerating}>
+            <Button variant="outline" onClick={() => setShowScheduleDialog(false)} disabled={generateRosterMutation.isPending}>
               Cancel
             </Button>
-            <Button onClick={handleGenerateFromSchedules} disabled={isGenerating}>
-              {isGenerating ? "Generating..." : "Generate Shifts"}
+            <Button onClick={handleGenerateFromSchedules} disabled={generateRosterMutation.isPending}>
+              {generateRosterMutation.isPending ? "Generating..." : "Generate Shifts"}
             </Button>
           </DialogFooter>
         </DialogContent>

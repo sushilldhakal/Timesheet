@@ -10,13 +10,13 @@ import { Cloud, Mail, Settings } from "lucide-react"
 const settingsTabs = [
   {
     name: "Image Storage",
-    href: "/dashboard/Setting/image",
+    href: "/dashboard/setting/image",
     icon: Cloud,
     description: "Configure cloud storage for employee photos",
   },
   {
     name: "Mail Settings",
-    href: "/dashboard/Setting/mail",
+    href: "/dashboard/setting/mail",
     icon: Mail,
     description: "Configure email notifications and SMTP settings",
   },

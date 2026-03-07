@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth-api"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, Roster } from "@/lib/db"
 import { RosterManager } from "@/lib/managers/roster-manager"
 import { GapIdentifier } from "@/lib/managers/gap-identifier"

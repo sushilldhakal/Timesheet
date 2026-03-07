@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import mongoose from "mongoose"
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth-api"
+import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, Category } from "@/lib/db"
-import { employeeIdParamSchema } from "@/lib/validation/employee"
-import { employeeUpdateSchema } from "@/lib/validation/employee"
+import { employeeIdParamSchema } from "@/lib/validations/employee"
+import { employeeUpdateSchema } from "@/lib/validations/employee"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import Award from "@/lib/db/schemas/award"
 

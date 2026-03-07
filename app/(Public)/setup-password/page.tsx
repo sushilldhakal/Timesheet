@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
+import { useVerifySetupToken, useSetupPassword } from "@/lib/queries/auth"
 
 export default function SetupPasswordPage() {
   const router = useRouter()
@@ -17,43 +18,11 @@ export default function SetupPasswordPage() {
 
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(true)
-  const [tokenValid, setTokenValid] = useState(false)
-  const [employeeInfo, setEmployeeInfo] = useState<{ email: string; name: string; pin: string } | null>(null)
+  
+  const verifyTokenQuery = useVerifySetupToken(token || "")
+  const setupPasswordMutation = useSetupPassword()
 
-  useEffect(() => {
-    if (!token) {
-      toast.error("Invalid setup link")
-      router.push("/")
-      return
-    }
-
-    // Verify token on mount
-    const verifyToken = async () => {
-      try {
-        const res = await fetch(`/api/auth/setup-password?token=${token}`)
-        const data = await res.json()
-
-        if (res.ok && data.valid) {
-          setTokenValid(true)
-          setEmployeeInfo({ email: data.email, name: data.name, pin: data.pin })
-        } else {
-          toast.error(data.error || "Invalid or expired setup link")
-          setTokenValid(false)
-        }
-      } catch (error) {
-        toast.error("Failed to verify setup link")
-        setTokenValid(false)
-      } finally {
-        setIsVerifying(false)
-      }
-    }
-
-    verifyToken()
-  }, [token, router])
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
     if (newPassword.length < 8) {
@@ -66,35 +35,40 @@ export default function SetupPasswordPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const res = await fetch("/api/auth/setup-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
-        toast.success("Password set successfully! Redirecting...")
-        
-        // Auto-login and redirect to staff dashboard
-        setTimeout(() => {
-          router.push(data.redirect)
-        }, 1500)
-      } else {
-        toast.error(data.error || "Failed to set password")
-      }
-    } catch (error) {
-      toast.error("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
+    if (!token) {
+      toast.error("Invalid setup token")
+      return
     }
+
+    setupPasswordMutation.mutate(
+      { token, password: newPassword },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Password set successfully! Redirecting...")
+            
+            // Auto-login and redirect to staff dashboard
+            setTimeout(() => {
+              router.push("/staff/dashboard")
+            }, 1500)
+          }
+        },
+        onError: (error: any) => {
+          toast.error(error.message || "Failed to set password")
+        }
+      }
+    )
   }
 
-  if (isVerifying) {
+  useEffect(() => {
+    if (!token) {
+      toast.error("Invalid setup link")
+      router.push("/")
+      return
+    }
+  }, [token, router])
+
+  if (verifyTokenQuery.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
         <Card className="w-full max-w-md">
@@ -109,7 +83,7 @@ export default function SetupPasswordPage() {
     )
   }
 
-  if (!tokenValid) {
+  if (!verifyTokenQuery.data?.valid || verifyTokenQuery.isError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
         <Card className="w-full max-w-md">
@@ -155,20 +129,16 @@ export default function SetupPasswordPage() {
             Welcome to the Team!
           </CardTitle>
           <CardDescription className="text-center">
-            {employeeInfo && `Hi ${employeeInfo.name}, set up your password to get started`}
+            Set up your password to get started
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {employeeInfo && (
+            {verifyTokenQuery.data && (
               <div className="bg-muted p-4 rounded-lg space-y-2 text-sm">
                 <div>
                   <p className="text-muted-foreground">Email:</p>
-                  <p className="font-medium">{employeeInfo.email}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Your PIN for kiosk clock-in:</p>
-                  <p className="font-mono font-bold text-lg">{employeeInfo.pin}</p>
+                  <p className="font-medium">{verifyTokenQuery.data.email}</p>
                 </div>
               </div>
             )}
@@ -181,7 +151,7 @@ export default function SetupPasswordPage() {
                 placeholder="••••••••"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={setupPasswordMutation.isPending}
                 required
                 minLength={8}
                 autoFocus
@@ -199,7 +169,7 @@ export default function SetupPasswordPage() {
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={setupPasswordMutation.isPending}
                 required
                 minLength={8}
               />
@@ -208,9 +178,9 @@ export default function SetupPasswordPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={setupPasswordMutation.isPending}
             >
-              {isLoading ? (
+              {setupPasswordMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Setting up...

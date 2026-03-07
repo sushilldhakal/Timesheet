@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
+import { useVerifyResetToken, useResetPassword } from "@/lib/queries/auth"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -17,11 +18,10 @@ export default function ResetPasswordPage() {
 
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(true)
-  const [tokenValid, setTokenValid] = useState(false)
-  const [userInfo, setUserInfo] = useState<{ email: string; name: string } | null>(null)
   const [resetSuccess, setResetSuccess] = useState(false)
+  
+  const verifyTokenQuery = useVerifyResetToken(token || "")
+  const resetPasswordMutation = useResetPassword()
 
   useEffect(() => {
     if (!token) {
@@ -29,32 +29,9 @@ export default function ResetPasswordPage() {
       router.push("/")
       return
     }
-
-    // Verify token on mount
-    const verifyToken = async () => {
-      try {
-        const res = await fetch(`/api/auth/reset-password?token=${token}`)
-        const data = await res.json()
-
-        if (res.ok && data.valid) {
-          setTokenValid(true)
-          setUserInfo({ email: data.email, name: data.name })
-        } else {
-          toast.error(data.error || "Invalid or expired reset link")
-          setTokenValid(false)
-        }
-      } catch (error) {
-        toast.error("Failed to verify reset link")
-        setTokenValid(false)
-      } finally {
-        setIsVerifying(false)
-      }
-    }
-
-    verifyToken()
   }, [token, router])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
     if (newPassword.length < 8) {
@@ -67,36 +44,33 @@ export default function ResetPasswordPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
-        setResetSuccess(true)
-        toast.success("Password reset successfully!")
-        
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          router.push("/")
-        }, 2000)
-      } else {
-        toast.error(data.error || "Failed to reset password")
-      }
-    } catch (error) {
-      toast.error("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
+    if (!token) {
+      toast.error("Invalid reset token")
+      return
     }
+
+    resetPasswordMutation.mutate(
+      { token, password: newPassword },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            setResetSuccess(true)
+            toast.success("Password reset successfully!")
+            
+            // Redirect to login after 2 seconds
+            setTimeout(() => {
+              router.push("/")
+            }, 2000)
+          }
+        },
+        onError: (error: any) => {
+          toast.error(error.message || "Failed to reset password")
+        }
+      }
+    )
   }
 
-  if (isVerifying) {
+  if (verifyTokenQuery.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
         <Card className="w-full max-w-md">
@@ -111,7 +85,7 @@ export default function ResetPasswordPage() {
     )
   }
 
-  if (!tokenValid) {
+  if (!verifyTokenQuery.data?.valid || verifyTokenQuery.isError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
         <Card className="w-full max-w-md">
@@ -190,15 +164,15 @@ export default function ResetPasswordPage() {
             Reset Password
           </CardTitle>
           <CardDescription className="text-center">
-            {userInfo && `Hi ${userInfo.name}, enter your new password below`}
+            Enter your new password below
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {userInfo && (
+            {verifyTokenQuery.data && (
               <div className="bg-muted p-3 rounded-lg text-sm">
                 <p className="text-muted-foreground">Resetting password for:</p>
-                <p className="font-medium">{userInfo.email}</p>
+                <p className="font-medium">{verifyTokenQuery.data.email}</p>
               </div>
             )}
 
@@ -210,7 +184,7 @@ export default function ResetPasswordPage() {
                 placeholder="••••••••"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={resetPasswordMutation.isPending}
                 required
                 minLength={8}
                 autoFocus
@@ -228,7 +202,7 @@ export default function ResetPasswordPage() {
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={resetPasswordMutation.isPending}
                 required
                 minLength={8}
               />
@@ -237,9 +211,9 @@ export default function ResetPasswordPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={resetPasswordMutation.isPending}
             >
-              {isLoading ? (
+              {resetPasswordMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Resetting...

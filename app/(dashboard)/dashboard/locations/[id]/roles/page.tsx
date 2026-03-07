@@ -8,6 +8,8 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Users, Calendar } from "lucide-react"
 import { format } from "date-fns"
+import { useCategory, useCategoriesByType } from "@/lib/queries/categories"
+import { useLocationRoles, useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
 
 type RoleData = {
   roleId: string
@@ -25,73 +27,24 @@ type LocationData = {
   type: string
 }
 
-export default function LocationRolesPage() {
+function LocationRolesPage() {
   const params = useParams()
   const router = useRouter()
   const locationId = params?.id as string
 
-  const [location, setLocation] = useState<LocationData | null>(null)
-  const [roles, setRoles] = useState<RoleData[]>([])
-  const [allRoles, setAllRoles] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
 
-  // Fetch location details
-  const fetchLocation = async () => {
-    try {
-      const res = await fetch(`/api/categories/${locationId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setLocation(data.category)
-      } else {
-        setError("Failed to load location")
-      }
-    } catch (err) {
-      setError("Failed to load location")
-    }
-  }
+  const locationQuery = useCategory(locationId)
+  const allRolesQuery = useCategoriesByType("role")
+  const locationRolesQuery = useLocationRoles(locationId)
+  const enableLocationRoleMutation = useEnableLocationRole()
+  const disableLocationRoleMutation = useDisableLocationRole()
 
-  // Fetch all roles (for enabling new ones)
-  const fetchAllRoles = async () => {
-    try {
-      const res = await fetch("/api/categories?type=role")
-      if (res.ok) {
-        const data = await res.json()
-        setAllRoles(data.categories || [])
-      }
-    } catch (err) {
-      console.error("Failed to fetch all roles:", err)
-    }
-  }
-
-  // Fetch enabled roles for this location
-  const fetchRoles = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/locations/${locationId}/roles`)
-      if (res.ok) {
-        const response = await res.json()
-        console.log('Fetched roles:', response.data?.roles)
-        setRoles(response.data?.roles || [])
-      } else {
-        setError("Failed to load roles")
-      }
-    } catch (err) {
-      setError("Failed to load roles")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (locationId) {
-      fetchLocation()
-      fetchAllRoles()
-      fetchRoles()
-    }
-  }, [locationId])
+  const location = locationQuery.data?.category
+  const allRoles = allRolesQuery.data?.categories || []
+  const roles = locationRolesQuery.data?.data || []
+  const loading = locationQuery.isLoading || allRolesQuery.isLoading || locationRolesQuery.isLoading
+  const error = locationQuery.error?.message || allRolesQuery.error?.message || locationRolesQuery.error?.message
 
   // Handle role toggle (enable/disable)
   const handleToggle = async (roleId: string, currentlyEnabled: boolean) => {
@@ -99,40 +52,19 @@ export default function LocationRolesPage() {
     setToggling(roleId)
     try {
       if (currentlyEnabled) {
-        // Disable role
-        const res = await fetch(`/api/locations/${locationId}/roles/${roleId}`, {
-          method: "DELETE",
-        })
-        if (!res.ok) {
-          const data = await res.json()
-          alert(data.error || "Failed to disable role")
-          return
-        }
-        // Wait for the response to be fully processed
-        await res.json()
+        await disableLocationRoleMutation.mutateAsync({ locationId, roleId })
       } else {
-        // Enable role
-        const res = await fetch(`/api/locations/${locationId}/roles`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        await enableLocationRoleMutation.mutateAsync({
+          locationId,
+          data: {
             roleId,
             effectiveFrom: new Date().toISOString(),
             effectiveTo: null,
-          }),
+          }
         })
-        if (!res.ok) {
-          const data = await res.json()
-          alert(data.error || "Failed to enable role")
-          return
-        }
-        // Wait for the response to be fully processed
-        await res.json()
       }
-      // Refresh the list
-      await fetchRoles()
     } catch (err) {
-      alert("An error occurred")
+      alert(err instanceof Error ? err.message : "An error occurred")
     } finally {
       setToggling(null)
     }
@@ -151,7 +83,7 @@ export default function LocationRolesPage() {
       isEnabled: !!enablement,
       effectiveFrom: enablement?.effectiveFrom,
       effectiveTo: enablement?.effectiveTo,
-      employeeCount: enablement?.employeeCount || 0,
+      employeeCount: (enablement as any)?.employeeCount || 0,
     }
   })
 
@@ -255,3 +187,6 @@ export default function LocationRolesPage() {
     </div>
   )
 }
+
+
+export default LocationRolesPage

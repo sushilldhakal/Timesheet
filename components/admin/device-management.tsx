@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,25 +26,8 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { isAdminOrSuperAdmin } from '@/lib/utils/roles'
-
-interface Device {
-  _id: string
-  deviceId?: string
-  deviceName: string
-  locationName: string
-  locationAddress?: string
-  status: 'active' | 'disabled' | 'revoked'
-  registeredBy: { name: string; username: string }
-  registeredAt: string
-  lastActivity: string
-  lastUsedBy?: { name: string }
-  totalPunches: number
-  activationCode?: string
-  activationCodeExpiry?: string
-  revokedBy?: { name: string; username: string }
-  revokedAt?: string
-  revocationReason?: string
-}
+import { useManagedDevices, useCreateManagedDevice, useUpdateManagedDevice } from '@/lib/queries/devices'
+import type { ManagedDevice } from '@/lib/types/devices'
 
 interface CreateDeviceForm {
   deviceName: string
@@ -55,38 +38,19 @@ interface CreateDeviceForm {
 export function DeviceManagement() {
   // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC
   const { userRole, isHydrated } = useAuth()
-  const [devices, setDevices] = useState<Device[]>([])
-  const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [createForm, setCreateForm] = useState<CreateDeviceForm>({
     deviceName: '',
     locationName: '',
     locationAddress: '',
   })
-  const [createLoading, setCreateLoading] = useState(false)
 
-  // Load devices function
-  const loadDevices = async () => {
-    try {
-      const response = await fetch('/api/device/manage')
-      const data = await response.json()
-      
-      if (response.ok) {
-        setDevices(data.devices)
-      } else {
-        toast.error('Failed to load devices')
-      }
-    } catch (error) {
-      toast.error('Failed to load devices')
-    } finally {
-      setLoading(false)
-    }
-  }
+  // TanStack Query hooks
+  const { data: devicesData, isLoading: loading, error, refetch } = useManagedDevices()
+  const createDeviceMutation = useCreateManagedDevice()
+  const updateDeviceMutation = useUpdateManagedDevice()
 
-  // Load devices on mount - useEffect must be declared before any conditional logic
-  useEffect(() => {
-    loadDevices()
-  }, [])
+  const devices = devicesData?.devices || []
 
   // Check admin permissions
   const isAdmin = isAdminOrSuperAdmin(userRole)
@@ -94,60 +58,35 @@ export function DeviceManagement() {
   // Create new device function
   const createDevice = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setCreateLoading(true)
     
     try {
-      const response = await fetch('/api/device/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(createForm),
-      })
+      const result = await createDeviceMutation.mutateAsync(createForm)
       
-      const data = await response.json()
+      toast.success('Device created successfully!')
       
-      if (response.ok) {
-        toast.success('Device created successfully!')
-        
-        // Show activation details
-        toast.success(
-          `Activation Code: ${data.activationCode}`,
-          {
-            description: 'Use this code to activate the tablet',
-            duration: 10000,
-          }
-        )
-        
-        setShowCreateForm(false)
-        setCreateForm({ deviceName: '', locationName: '', locationAddress: '' })
-        loadDevices()
-      } else {
-        toast.error(data.error || 'Failed to create device')
-      }
-    } catch (error) {
-      toast.error('Failed to create device')
-    } finally {
-      setCreateLoading(false)
+      // Show activation details
+      toast.success(
+        `Activation Code: ${result.activationCode}`,
+        {
+          description: 'Use this code to activate the tablet',
+          duration: 10000,
+        }
+      )
+      
+      setShowCreateForm(false)
+      setCreateForm({ deviceName: '', locationName: '', locationAddress: '' })
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to create device')
     }
   }
 
   // Update device status function
   const updateDeviceStatus = async (deviceId: string, action: string, reason?: string) => {
     try {
-      const response = await fetch('/api/device/manage', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId, action, reason }),
-      })
-      
-      if (response.ok) {
-        toast.success(`Device ${action}d successfully`)
-        loadDevices()
-      } else {
-        const data = await response.json()
-        toast.error(data.error || `Failed to ${action} device`)
-      }
-    } catch (error) {
-      toast.error(`Failed to ${action} device`)
+      await updateDeviceMutation.mutateAsync({ deviceId, action, reason })
+      toast.success(`Device ${action}d successfully`)
+    } catch (error: any) {
+      toast.error(error.error || `Failed to ${action} device`)
     }
   }
 
@@ -186,7 +125,7 @@ export function DeviceManagement() {
   }
 
   // Get device status with more details
-  const getDeviceStatusInfo = (device: Device) => {
+  const getDeviceStatusInfo = (device: ManagedDevice) => {
     const now = new Date()
     const lastActivity = new Date(device.lastActivity)
     const hoursSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60)
@@ -251,6 +190,22 @@ export function DeviceManagement() {
     )
   }
 
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <XCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold mb-2 text-red-600">Failed to Load Devices</h3>
+        <p className="text-gray-600 mb-4">
+          {error instanceof Error ? error.message : 'An error occurred while loading devices'}
+        </p>
+        <Button onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -260,7 +215,7 @@ export function DeviceManagement() {
           <p className="text-gray-600">Manage kiosk tablets and their activation</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={loadDevices} disabled={loading}>
+          <Button variant="outline" onClick={() => refetch()} disabled={loading}>
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -311,8 +266,8 @@ export function DeviceManagement() {
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" disabled={createLoading}>
-                {createLoading ? 'Creating...' : 'Create Device'}
+              <Button type="submit" disabled={createDeviceMutation.isPending}>
+                {createDeviceMutation.isPending ? 'Creating...' : 'Create Device'}
               </Button>
               <Button 
                 type="button" 
@@ -420,6 +375,7 @@ export function DeviceManagement() {
                     size="sm"
                     variant="outline"
                     onClick={() => updateDeviceStatus(device._id, 'disable')}
+                    disabled={updateDeviceMutation.isPending}
                   >
                     Disable
                   </Button>
@@ -429,6 +385,7 @@ export function DeviceManagement() {
                     size="sm"
                     variant="outline"
                     onClick={() => updateDeviceStatus(device._id, 'enable')}
+                    disabled={updateDeviceMutation.isPending}
                   >
                     Enable
                   </Button>
@@ -441,6 +398,7 @@ export function DeviceManagement() {
                       const reason = prompt('Reason for revocation (optional):')
                       updateDeviceStatus(device._id, 'revoke', reason || undefined)
                     }}
+                    disabled={updateDeviceMutation.isPending}
                   >
                     Revoke
                   </Button>

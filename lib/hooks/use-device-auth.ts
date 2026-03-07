@@ -219,7 +219,8 @@ export function useDeviceAuth() {
     if (deviceId) {
       checkDeviceAuth()
     }
-  }, [deviceId, checkDeviceAuth])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]) // Only re-run when deviceId changes, not when checkDeviceAuth changes
 
   return {
     ...state,

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { useCreateAdmin } from "@/lib/queries/setup"
 
 type SetupDialogProps = {
   onSuccess: () => void
@@ -14,36 +15,27 @@ export function SetupDialog({ onSuccess }: SetupDialogProps) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  
+  const createAdminMutation = useCreateAdmin()
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault()
       setError(null)
-      setLoading(true)
 
-      try {
-        const res = await fetch("/api/setup/create-admin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
-        })
-        const data = await res.json()
-
-        if (!res.ok) {
-          setError(data.error ?? "Failed to create admin")
-          setLoading(false)
-          return
+      createAdminMutation.mutate(
+        { username, password },
+        {
+          onSuccess: () => {
+            onSuccess()
+          },
+          onError: (error: any) => {
+            setError(error.message ?? "Failed to create admin")
+          }
         }
-
-        onSuccess()
-      } catch {
-        setError("Network error")
-      } finally {
-        setLoading(false)
-      }
+      )
     },
-    [username, password, onSuccess]
+    [username, password, onSuccess, createAdminMutation]
   )
 
   return (
@@ -71,7 +63,7 @@ export function SetupDialog({ onSuccess }: SetupDialogProps) {
               required
               autoComplete="username"
               autoFocus
-              disabled={loading}
+              disabled={createAdminMutation.isPending}
             />
           </div>
           <div className="space-y-2">
@@ -85,7 +77,7 @@ export function SetupDialog({ onSuccess }: SetupDialogProps) {
               required
               minLength={6}
               autoComplete="new-password"
-              disabled={loading}
+              disabled={createAdminMutation.isPending}
             />
           </div>
 
@@ -95,8 +87,8 @@ export function SetupDialog({ onSuccess }: SetupDialogProps) {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating…" : "Create Admin"}
+          <Button type="submit" className="w-full" disabled={createAdminMutation.isPending}>
+            {createAdminMutation.isPending ? "Creating…" : "Create Admin"}
           </Button>
         </form>
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useEmployeeAvailability } from "@/lib/queries/employees"
 
 interface Employee {
   employeeId: string
@@ -51,46 +52,20 @@ export function EmployeeSelector({
   className,
 }: EmployeeSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  // Fetch employees assigned to the role at the location
-  useEffect(() => {
-    if (!roleId || !locationId) {
-      setEmployees([])
-      return
+  // TanStack Query hook
+  const { data: employeesData, isLoading: loading, error } = useEmployeeAvailability(
+    roleId,
+    {
+      date: selectedDate.toISOString(),
+      locationId
     }
+  )
 
-    const fetchEmployees = async () => {
-      setLoading(true)
-      setError(null)
+  const employees = (employeesData as any)?.employees || []
+  const errorMessage = error ? (error as Error).message : null
 
-      try {
-        const dateParam = selectedDate.toISOString()
-        const response = await fetch(
-          `/api/employees/availability?roleId=${roleId}&locationId=${locationId}&date=${dateParam}`
-        )
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch employees")
-        }
-
-        const data = await response.json()
-        setEmployees(data.data?.employees || [])
-      } catch (err) {
-        console.error("Error fetching employees:", err)
-        setError(err instanceof Error ? err.message : "Failed to load employees")
-        setEmployees([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchEmployees()
-  }, [roleId, locationId, selectedDate])
-
-  const selectedEmployee = employees.find((emp) => emp.employeeId === value)
+  const selectedEmployee = employees.find((emp: any) => emp.employeeId === value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -124,7 +99,7 @@ export function EmployeeSelector({
           <CommandInput placeholder="Search employees..." />
           <CommandEmpty>
             {error ? (
-              <div className="text-sm text-destructive p-2">{error}</div>
+              <div className="text-sm text-destructive p-2">{errorMessage}</div>
             ) : employees.length === 0 ? (
               <div className="text-sm text-muted-foreground p-2">
                 No employees available for this role at this location
@@ -134,7 +109,7 @@ export function EmployeeSelector({
             )}
           </CommandEmpty>
           <CommandGroup>
-            {employees.map((employee) => (
+            {employees.map((employee: any) => (
               <CommandItem
                 key={employee.employeeId}
                 value={employee.employeeId}
@@ -152,10 +127,10 @@ export function EmployeeSelector({
                 <span className="flex items-center gap-2">
                   <Avatar className="h-5 w-5">
                     <AvatarFallback className="text-xs">
-                      {employee.employeeName[0]}
+                      {(employee as any).employeeName[0]}
                     </AvatarFallback>
                   </Avatar>
-                  {employee.employeeName}
+                  {(employee as any).employeeName}
                 </span>
               </CommandItem>
             ))}

@@ -80,6 +80,8 @@ interface MultiSelectOption {
     label: string;
     /** The unique value associated with the option. */
     value: string;
+    /** Optional unique identifier for React keys (fallback to value if not provided) */
+    id?: string;
     /** Optional icon component to display alongside the option. */
     icon?: React.ComponentType<{ className?: string }>;
     /** Whether this option is disabled */
@@ -912,7 +914,11 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                         
                                                         return (
                                                             <div
-                                                                key={value}
+                                                                key={
+                                                                    option?.id
+                                                                        ? `${option.id}-${index}`
+                                                                        : `selected-${value}-${index}`
+                                                                }
                                                                 className="relative group"
                                                                 style={{ zIndex: selectedValues.length - index }}
                                                             >
@@ -1002,7 +1008,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                             }>
                                         {selectedValues
                                             .slice(0, responsiveSettings.maxCount)
-                                            .map((value) => {
+                                            .map((value, index) => {
                                                 const option = getOptionByValue(value);
                                                 const IconComponent = option?.icon;
                                                 const customStyle = option?.style;
@@ -1023,7 +1029,11 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                 
                                                 return (
                                                     <Badge
-                                                        key={value}
+                                                        key={
+                                                            option?.id
+                                                                ? `${option.id}-${index}`
+                                                                : `option-${value}-${index}`
+                                                        }
                                                         title={option.label}
                                                         className={cn(
                                                             getBadgeAnimationClass(),
@@ -1258,7 +1268,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                 );
                                                 return (
                                                     <CommandItem
-                                                        key={option.value}
+                                                        key={option?.id || `grouped-${option.value}`}
                                                         onSelect={() => toggleOption(option.value)}
                                                         role="option"
                                                         aria-selected={isSelected}
@@ -1298,7 +1308,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                             const isSelected = selectedValues.includes(option.value);
                                             return (
                                                 <CommandItem
-                                                    key={option.value}
+                                                    key={option?.id || `ungrouped-${option.value}`}
                                                     onSelect={() => toggleOption(option.value)}
                                                     role="option"
                                                     aria-selected={isSelected}

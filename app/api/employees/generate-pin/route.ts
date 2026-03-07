@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth-api"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 
 /** GET /api/employees/generate-pin - Returns a unique random 4-digit PIN for clock-in */

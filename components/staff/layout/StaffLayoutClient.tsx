@@ -7,39 +7,29 @@ import { StaffHeader } from "./StaffHeader"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useEmployeeProfile, useEmployeeLogout } from "@/lib/queries/employee-clock"
 
 export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const [employee, setEmployee] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  useEffect(() => {
-    const fetchEmployee = async () => {
-      try {
-        const res = await fetch("/api/employee/me")
-        if (res.ok) {
-          const data = await res.json()
-          setEmployee(data.employee)
-        } else {
-          toast.error("Session expired")
-          router.push("/")
-        }
-      } catch (error) {
-        toast.error("Failed to load profile")
-        router.push("/")
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // TanStack Query hooks
+  const { data: profileData, isLoading, error } = useEmployeeProfile()
+  const logoutMutation = useEmployeeLogout()
 
-    fetchEmployee()
-  }, [router])
+  const employee = profileData?.data
+
+  useEffect(() => {
+    if (error && !isLoading) {
+      toast.error("Session expired")
+      router.push("/")
+    }
+  }, [error, isLoading, router])
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/employee/logout", { method: "POST" })
+      await logoutMutation.mutateAsync()
       toast.success("Logged out successfully")
       router.push("/")
     } catch (error) {

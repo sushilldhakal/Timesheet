@@ -14,14 +14,16 @@ import {
 import { Input } from "@/components/ui/input"
 import { Shield, MapPin, Briefcase, CheckCircle2 } from "lucide-react"
 import { RIGHT_LABELS, type Right } from "@/lib/config/rights"
+import { useUpdateUser } from "@/lib/queries/users"
 
-export default function ProfilePage() {
+function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
+
+  const updateUserMutation = useUpdateUser()
 
   useEffect(() => {
     if (user) {
@@ -41,32 +43,23 @@ export default function ProfilePage() {
     e.preventDefault()
     setError(null)
     setSuccess(false)
-    setLoading(true)
+
     try {
       const body: { username: string; password?: string } = {
         username: username.trim().toLowerCase(),
       }
       if (password) body.password = password
 
-      const res = await fetch(`/api/users/${user.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to update profile")
-        return
-      }
+      await updateUserMutation.mutateAsync({ id: user.id, data: body })
       setPassword("")
       setSuccess(true)
       refetch()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
+
+  const loading = updateUserMutation.isPending
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -196,8 +189,8 @@ export default function ProfilePage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {user.role === "admin" || user.role === "super_admin" 
-                  ? "Access to all locations" 
+                {user.role === "admin" || user.role === "super_admin"
+                  ? "Access to all locations"
                   : "No locations assigned"}
               </p>
             )}
@@ -225,8 +218,8 @@ export default function ProfilePage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {user.role === "admin" || user.role === "super_admin" 
-                  ? "Access to all roles" 
+                {user.role === "admin" || user.role === "super_admin"
+                  ? "Access to all roles"
                   : "No roles assigned"}
               </p>
             )}
@@ -246,3 +239,5 @@ export default function ProfilePage() {
     </div>
   )
 }
+
+export default ProfilePage

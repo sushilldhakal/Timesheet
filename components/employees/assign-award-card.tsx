@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,8 @@ import {
 import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useAwards, useAward } from '@/lib/queries/awards';
+import { useEmployeeAwardHistory, useAwardEmployee } from '@/lib/queries/employees';
 
 interface AssignAwardCardProps {
   employeeId: string;
@@ -62,7 +64,6 @@ export default function AssignAwardCard({
   onUpdate,
 }: AssignAwardCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [awards, setAwards] = useState<Award[]>([]);
   const [selectedAwardId, setSelectedAwardId] = useState<string>('');
   const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<string>('');
@@ -70,74 +71,22 @@ export default function AssignAwardCard({
     new Date().toISOString().split('T')[0]
   );
   const [overridingRate, setOverridingRate] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentAwardName, setCurrentAwardName] = useState<string>('');
-  const [history, setHistory] = useState<PayCondition[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Fetch awards
-  useEffect(() => {
-    const fetchAwards = async () => {
-      try {
-        const res = await fetch('/api/awards');
-        if (res.ok) {
-          const data = await res.json();
-          setAwards(data.awards || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch awards:', err);
-      }
-    };
-    fetchAwards();
-  }, []);
+  // TanStack Query hooks
+  const { data: awardsData, isLoading: awardsLoading } = useAwards();
+  const { data: currentAwardData } = useAward(currentAwardId || '');
+  const { data: historyData, isLoading: historyLoading } = useEmployeeAwardHistory(employeeId);
+  const assignAwardMutation = useAwardEmployee();
 
-  // Fetch current award name
-  useEffect(() => {
-    const fetchCurrentAward = async () => {
-      if (!currentAwardId) {
-        setCurrentAwardName('');
-        return;
-      }
-      try {
-        const res = await fetch(`/api/awards/${currentAwardId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentAwardName(data.name || '');
-        }
-      } catch (err) {
-        console.error('Failed to fetch current award:', err);
-      }
-    };
-    fetchCurrentAward();
-  }, [currentAwardId]);
-
-  // Fetch award history
-  const fetchHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      const res = await fetch(`/api/employees/${employeeId}/award-history`);
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data.history || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch award history:', err);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (currentAwardId) {
-      fetchHistory();
-    }
-  }, [currentAwardId, employeeId]);
+  const awards = awardsData?.awards || [];
+  const currentAwardName = (currentAwardData?.success && currentAwardData?.data?.name) || '';
+  const history = historyData?.history || [];
 
   const selectedAward = awards.find((a) => a._id === selectedAwardId);
-  const selectedLevelData = selectedAward?.levels.find((l) => l.label === selectedLevel);
-  const employmentTypes = selectedLevelData?.conditions.map((c) => c.employmentType) || [];
+  const selectedLevelData = selectedAward?.levels.find((l: any) => l.label === selectedLevel);
+  const employmentTypes = selectedLevelData?.conditions.map((c: any) => c.employmentType) || [];
 
   const handleOpenDialog = () => {
     setSelectedAwardId(currentAwardId || '');
@@ -158,36 +107,27 @@ export default function AssignAwardCard({
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/employees/${employeeId}/award`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    assignAwardMutation.mutate(
+      {
+        id: employeeId,
+        data: {
           awardId: selectedAwardId,
-          awardLevel: selectedLevel,
-          employmentType: selectedEmploymentType,
-          effectiveFrom,
-          overridingRate: overridingRate ? parseFloat(overridingRate) : null,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to assign award');
+          reason: `Award level: ${selectedLevel}, Employment type: ${selectedEmploymentType}`,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Award assigned successfully');
+          setDialogOpen(false);
+          onUpdate();
+        },
+        onError: (err: any) => {
+          const errorMessage = err.message || 'Failed to assign award';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        },
       }
-
-      toast.success('Award assigned successfully');
-      setDialogOpen(false);
-      onUpdate();
-      fetchHistory();
-    } catch (err: any) {
-      setError(err.message || 'Failed to assign award');
-      toast.error(err.message || 'Failed to assign award');
-    } finally {
-      setLoading(false);
-    }
+    );
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -384,7 +324,7 @@ export default function AssignAwardCard({
                       <SelectValue placeholder="Select employment type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {employmentTypes.map((type) => (
+                      {employmentTypes.map((type: any) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -433,12 +373,12 @@ export default function AssignAwardCard({
                 type="button"
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
-                disabled={loading}
+                disabled={assignAwardMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Assigning...' : 'Assign Award'}
+              <Button type="submit" disabled={assignAwardMutation.isPending}>
+                {assignAwardMutation.isPending ? 'Assigning...' : 'Assign Award'}
               </Button>
             </DialogFooter>
           </form>

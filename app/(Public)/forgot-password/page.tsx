@@ -8,13 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { Loader2, ArrowLeft, Mail } from "lucide-react"
+import { useForgotPassword } from "@/lib/queries/auth"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  
+  const forgotPasswordMutation = useForgotPassword()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!email) {
@@ -22,28 +24,18 @@ export default function ForgotPasswordPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        setEmailSent(true)
-        toast.success("Check your email for reset instructions")
-      } else {
-        toast.error(data.error || "Failed to send reset email")
+    forgotPasswordMutation.mutate(
+      { email },
+      {
+        onSuccess: () => {
+          setEmailSent(true)
+          toast.success("Check your email for reset instructions")
+        },
+        onError: (error: any) => {
+          toast.error(error.message || "Failed to send reset email")
+        }
       }
-    } catch (error) {
-      toast.error("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    )
   }
 
   if (emailSent) {
@@ -121,7 +113,7 @@ export default function ForgotPasswordPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+                disabled={forgotPasswordMutation.isPending}
                 required
                 autoComplete="email"
                 autoFocus
@@ -131,9 +123,9 @@ export default function ForgotPasswordPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={forgotPasswordMutation.isPending}
             >
-              {isLoading ? (
+              {forgotPasswordMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Sending...

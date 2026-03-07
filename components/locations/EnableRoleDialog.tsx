@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/form"
 import { toast } from "@/lib/utils/toast"
 import { Calendar, CheckCircle2 } from "lucide-react"
+import { useEnableLocationRole } from "@/lib/queries/locations"
 
 // Validation schema
 const enableRoleSchema = z.object({
@@ -68,8 +69,10 @@ export function EnableRoleDialog({
   roleColor,
   onSuccess,
 }: EnableRoleDialogProps) {
-  const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+
+  // TanStack Query hook
+  const enableRoleMutation = useEnableLocationRole()
 
   const form = useForm<EnableRoleFormData>({
     resolver: zodResolver(enableRoleSchema),
@@ -79,67 +82,56 @@ export function EnableRoleDialog({
     },
   })
 
-  const onSubmit = async (data: EnableRoleFormData) => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/locations/${locationId}/roles`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+  const onSubmit = (data: EnableRoleFormData) => {
+    enableRoleMutation.mutate(
+      {
+        locationId,
+        data: {
           roleId,
           effectiveFrom: data.effectiveFrom.toISOString(),
           effectiveTo: data.effectiveTo?.toISOString() || null,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        // Handle specific error cases
-        if (result.code === "ALREADY_ENABLED") {
-          toast.error({
-            title: "Role Already Enabled",
-            description: result.message || "This role is already enabled at this location with overlapping dates.",
-          })
-        } else {
-          toast.error({
-            title: "Failed to Enable Role",
-            description: result.message || "An error occurred while enabling the role.",
-          })
-        }
-        return
+        },
+      },
+      {
+        onSuccess: () => {
+          // Show success state
+          setShowSuccess(true)
+          
+          // Wait a moment to show the success message
+          setTimeout(() => {
+            setShowSuccess(false)
+            form.reset()
+            onOpenChange(false)
+            onSuccess?.()
+            
+            toast.success({
+              title: "Role Enabled",
+              description: `${roleName} has been enabled at ${locationName}.`,
+            })
+          }, 1500)
+        },
+        onError: (error: any) => {
+          const result = error.response?.data || error
+          
+          // Handle specific error cases
+          if (result.code === "ALREADY_ENABLED") {
+            toast.error({
+              title: "Role Already Enabled",
+              description: result.message || "This role is already enabled at this location with overlapping dates.",
+            })
+          } else {
+            toast.error({
+              title: "Failed to Enable Role",
+              description: result.message || "An error occurred while enabling the role.",
+            })
+          }
+        },
       }
-
-      // Show success state
-      setShowSuccess(true)
-      
-      // Wait a moment to show the success message
-      setTimeout(() => {
-        setShowSuccess(false)
-        form.reset()
-        onOpenChange(false)
-        onSuccess?.()
-        
-        toast.success({
-          title: "Role Enabled",
-          description: `${roleName} has been enabled at ${locationName}.`,
-        })
-      }, 1500)
-    } catch (error) {
-      console.error("Error enabling role:", error)
-      toast.error({
-        title: "Network Error",
-        description: "Failed to connect to the server. Please try again.",
-      })
-    } finally {
-      setLoading(false)
-    }
+    )
   }
 
   const handleClose = () => {
-    if (!loading && !showSuccess) {
+    if (!enableRoleMutation.isPending && !showSuccess) {
       form.reset()
       onOpenChange(false)
     }
@@ -241,12 +233,12 @@ export function EnableRoleDialog({
                     type="button"
                     variant="outline"
                     onClick={handleClose}
-                    disabled={loading}
+                    disabled={enableRoleMutation.isPending}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
-                    {loading ? "Enabling..." : "Enable Role"}
+                  <Button type="submit" disabled={enableRoleMutation.isPending}>
+                    {enableRoleMutation.isPending ? "Enabling..." : "Enable Role"}
                   </Button>
                 </DialogFooter>
               </form>

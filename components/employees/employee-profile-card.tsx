@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,8 @@ import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { OptimizedImage } from '@/components/ui/optimized-image';
+import { useAwards } from '@/lib/queries/awards';
+import { useEmployee, useEmployeeAwardHistory, useAwardEmployee } from '@/lib/queries/employees';
 
 interface EmployeeProfileCardProps {
   employeeId: string;
@@ -97,7 +99,6 @@ export default function EmployeeProfileCard({
   onEditEmployee,
 }: EmployeeProfileCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [awards, setAwards] = useState<Award[]>([]);
   const [selectedAwardId, setSelectedAwardId] = useState<string>('');
   const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<string>('');
@@ -105,85 +106,33 @@ export default function EmployeeProfileCard({
     new Date().toISOString().split('T')[0]
   );
   const [overridingRate, setOverridingRate] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentAwardName, setCurrentAwardName] = useState<string>('');
-  const [history, setHistory] = useState<PayCondition[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [standardHours, setStandardHours] = useState<number | null>(null);
 
-  // Fetch awards
-  useEffect(() => {
-    const fetchAwards = async () => {
-      try {
-        const res = await fetch('/api/awards');
-        if (res.ok) {
-          const data = await res.json();
-          setAwards(data.awards || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch awards:', err);
-      }
-    };
-    fetchAwards();
-  }, []);
+  // TanStack Query hooks
+  const awardsQuery = useAwards();
+  const employeeQuery = useEmployee(employeeId);
+  const historyQuery = useEmployeeAwardHistory(employeeId);
+  const awardEmployeeMutation = useAwardEmployee();
 
-  // Fetch current award name
-  useEffect(() => {
-    const fetchCurrentAward = async () => {
-      if (!currentAwardId) {
-        setCurrentAwardName('');
-        return;
-      }
-      try {
-        const res = await fetch(`/api/awards/${currentAwardId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentAwardName(data.name || '');
-        }
-      } catch (err) {
-        console.error('Failed to fetch current award:', err);
-      }
-    };
-    fetchCurrentAward();
-  }, [currentAwardId]);
+  const awards = awardsQuery.data?.awards || [];
+  const history = historyQuery.data?.history || [];
 
-  // Fetch award history
-  const fetchHistory = async () => {
-    try {
-      const res = await fetch(`/api/employees/${employeeId}/award-history`);
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data.history || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch award history:', err);
+  // Get current award name
+  const currentAwardName = currentAwardId 
+    ? awards.find(award => award._id === currentAwardId)?.name || 'Unknown Award'
+    : null;
+
+  useEffect(() => {
+    if (employeeQuery.data?.employee) {
+      setStandardHours(employeeQuery.data.employee.standardHoursPerWeek ?? null);
     }
-  };
-
-  useEffect(() => {
-    if (currentAwardId) {
-      fetchHistory();
-    }
-    
-    // Fetch standardHoursPerWeek
-    const fetchStandardHours = async () => {
-      try {
-        const res = await fetch(`/api/employees/${employeeId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setStandardHours(data.employee?.standardHoursPerWeek ?? null);
-        }
-      } catch (err) {
-        console.error('Failed to fetch standard hours:', err);
-      }
-    };
-    fetchStandardHours();
-  }, [currentAwardId, employeeId]);
+  }, [employeeQuery.data]);
 
   const selectedAward = awards.find((a) => a._id === selectedAwardId);
-  const selectedLevelData = selectedAward?.levels.find((l) => l.label === selectedLevel);
-  const employmentTypes = selectedLevelData?.conditions.map((c) => c.employmentType) || [];
+  const selectedLevelData = selectedAward?.levels.find((l: any) => l.label === selectedLevel);
+  const employmentTypes = selectedLevelData?.conditions.map((c: any) => c.employmentType) || [];
 
   const handleOpenDialog = () => {
     setSelectedAwardId(currentAwardId || '');
@@ -204,37 +153,24 @@ export default function EmployeeProfileCard({
       return;
     }
 
-    setLoading(true);
     try {
-      const res = await fetch(`/api/employees/${employeeId}/award`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await awardEmployeeMutation.mutateAsync({
+        id: employeeId,
+        data: {
           awardId: selectedAwardId,
-          awardLevel: selectedLevel,
-          employmentType: selectedEmploymentType,
-          effectiveFrom,
-          overridingRate: overridingRate ? parseFloat(overridingRate) : null,
-        }),
+          reason: `Award level: ${selectedLevel}, Employment type: ${selectedEmploymentType}`,
+        }
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to assign award');
-      }
 
       toast.success('Award assigned successfully');
       setDialogOpen(false);
       onUpdate();
-      fetchHistory();
-    } catch (err: any) {
-      setError(err.message || 'Failed to assign award');
-      toast.error(err.message || 'Failed to assign award');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign award');
     }
   };
+
+  const loading = awardEmployeeMutation.isPending;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Present';
@@ -536,7 +472,7 @@ export default function EmployeeProfileCard({
                       <SelectValue placeholder="Select employment type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {employmentTypes.map((type) => (
+                      {employmentTypes.map((type: any) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -585,12 +521,12 @@ export default function EmployeeProfileCard({
                 type="button"
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
-                disabled={loading}
+                disabled={awardEmployeeMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Assigning...' : 'Assign Award'}
+              <Button type="submit" disabled={awardEmployeeMutation.isPending}>
+                {awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
               </Button>
             </DialogFooter>
           </form>

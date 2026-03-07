@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User } from "@/lib/db"
-import { createAuthToken, setAuthCookie } from "@/lib/auth-helpers"
-import { adminLoginSchema } from "@/lib/validation/user"
+import { createAuthToken, setAuthCookie } from "@/lib/auth/auth-helpers"
+import { loginSchema } from "@/lib/validations/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const parsed = adminLoginSchema.safeParse(body)
+    const parsed = loginSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid username or password" },

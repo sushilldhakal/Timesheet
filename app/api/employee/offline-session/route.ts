@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createEmployeeToken, setEmployeeCookie } from "@/lib/auth-helpers"
+import { createEmployeeToken, setEmployeeCookie } from "@/lib/auth/auth-helpers"
 import { logger } from "@/lib/utils/logger"
 
 /**

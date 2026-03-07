@@ -4,10 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
 } from "react"
 import { useRouter } from "next/navigation"
+import { useMe, useLogout } from "@/lib/queries/auth"
 
 export type AuthUser = {
   id: string
@@ -22,46 +21,28 @@ export type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null
   isLoading: boolean
-  logout: () => Promise<void>
-  refetch: () => Promise<void>
+  logout: () => void
+  refetch: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const { data: user, isLoading, refetch } = useMe()
+  const logoutMutation = useLogout()
 
-  const refetch = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me")
-      if (res.ok) {
-        const data = await res.json()
-        setUser(data.user)
-      } else {
-        setUser(null)
+  const logout = useCallback(() => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        router.push("/")
+        router.refresh()
       }
-    } catch {
-      setUser(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    refetch()
-  }, [refetch])
-
-  const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST" })
-    setUser(null)
-    router.push("/")
-    router.refresh()
-  }, [router])
+    })
+  }, [logoutMutation, router])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, logout, refetch }}>
+    <AuthContext.Provider value={{ user: user?.user || null, isLoading, logout, refetch }}>
       {children}
     </AuthContext.Provider>
   )

@@ -8,12 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, Employee } from "@/lib/db"
 import { hashToken, isTokenValid } from "@/lib/utils/auth-tokens"
-import { z } from "zod"
-
-const setupPasswordSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-})
+import { setupPasswordSchema } from "@/lib/validations/auth"
 
 // GET - Verify setup token
 export async function GET(request: NextRequest) {
@@ -118,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-login after setup
-    const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/employee-auth")
+    const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
     
     const authToken = await createEmployeeWebToken({
       sub: String(employee._id),

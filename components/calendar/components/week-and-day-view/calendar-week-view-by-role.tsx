@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { startOfWeek, addDays, format, parseISO, isSameDay } from "date-fns";
 
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
+import { useCategories, useCategoriesByType } from "@/lib/queries/categories";
+import { useLocationRoles } from "@/lib/queries/locations";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -28,73 +30,63 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
   const { selectedDate, selectedLocationIds } = useCalendar();
   const [roles, setRoles] = useState<IRole[]>([]);
   const [expandedRoles, setExpandedRoles] = useState<Record<string, boolean>>({});
-  const [isLoading, setIsLoading] = useState(true);
 
   const weekStart = startOfWeek(selectedDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  // TanStack Query hooks
+  const allRolesQuery = useCategoriesByType('role');
+  
+  // Get location roles for each selected location
+  const locationRoleQueries = (selectedLocationIds || []).map(locationId => 
+    useLocationRoles(locationId)
+  );
+
   // Fetch roles from API based on selected locations
   useEffect(() => {
-    async function fetchRoles() {
-      try {
-        setIsLoading(true);
-        
-        // If locations are selected, fetch roles for those locations
-        if (selectedLocationIds && selectedLocationIds.length > 0) {
-          // Fetch roles for each location and combine them
-          const allRolesMap = new Map<string, IRole>();
-          
-          for (const locationId of selectedLocationIds) {
-            const response = await fetch(`/api/locations/${locationId}/roles`);
-            if (response.ok) {
-              const data = await response.json();
-              const locationRoles = data.data?.roles || [];
-              
-              // Add roles to map (using roleId as key to avoid duplicates)
-              locationRoles.forEach((r: any) => {
-                if (!allRolesMap.has(r.roleId)) {
-                  allRolesMap.set(r.roleId, {
-                    _id: r.roleId,
-                    name: r.roleName,
-                    color: r.roleColor,
-                  });
-                }
+    if (selectedLocationIds && selectedLocationIds.length > 0) {
+      // Combine roles from all location queries
+      const allRolesMap = new Map<string, IRole>();
+      
+      locationRoleQueries.forEach(query => {
+        if (query.data?.data) {
+          query.data.data.forEach((r: any) => {
+            if (!allRolesMap.has(r.roleId)) {
+              allRolesMap.set(r.roleId, {
+                _id: r.roleId,
+                name: r.roleName,
+                color: r.roleColor,
               });
             }
-          }
-          
-          const uniqueRoles = Array.from(allRolesMap.values());
-          setRoles(uniqueRoles);
-          
-          // Expand all roles by default
-          const initialExpanded: Record<string, boolean> = {};
-          uniqueRoles.forEach((r: IRole) => {
-            initialExpanded[r._id] = true;
           });
-          setExpandedRoles(initialExpanded);
-        } else {
-          // No location selected - fetch all roles
-          const response = await fetch('/api/categories?type=role');
-          if (response.ok) {
-            const data = await response.json();
-            setRoles(data.categories || []);
-            // Expand all roles by default
-            const initialExpanded: Record<string, boolean> = {};
-            data.categories.forEach((r: IRole) => {
-              initialExpanded[r._id] = true;
-            });
-            setExpandedRoles(initialExpanded);
-          }
         }
-      } catch (error) {
-        console.error('Failed to fetch roles:', error);
-      } finally {
-        setIsLoading(false);
-      }
+      });
+      
+      const uniqueRoles = Array.from(allRolesMap.values());
+      setRoles(uniqueRoles);
+      
+      // Expand all roles by default
+      const initialExpanded: Record<string, boolean> = {};
+      uniqueRoles.forEach((r: IRole) => {
+        initialExpanded[r._id] = true;
+      });
+      setExpandedRoles(initialExpanded);
+    } else if (allRolesQuery.data?.categories) {
+      // No location selected - use all roles
+      const rolesData = allRolesQuery.data.categories.map(cat => ({
+        _id: cat.id,
+        name: cat.name,
+        color: cat.color,
+      }));
+      setRoles(rolesData);
+      // Expand all roles by default
+      const initialExpanded: Record<string, boolean> = {};
+      rolesData.forEach((r: IRole) => {
+        initialExpanded[r._id] = true;
+      });
+      setExpandedRoles(initialExpanded);
     }
-
-    fetchRoles();
-  }, [selectedLocationIds]);
+  }, [selectedLocationIds, allRolesQuery.data, ...locationRoleQueries.map(q => q.data)]);
 
   const toggleRole = (roleId: string) => {
     setExpandedRoles(prev => ({
@@ -123,6 +115,8 @@ export function CalendarWeekViewByRole({ singleDayEvents, multiDayEvents }: IPro
       return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
     }, 0);
   };
+
+  const isLoading = allRolesQuery.isLoading || locationRoleQueries.some(q => q.isLoading);
 
   if (isLoading) {
     return (

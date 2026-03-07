@@ -40,6 +40,11 @@ export interface FaceDetectionResult {
    * Returns null if webcam unavailable.
    */
   getLatestBlob: () => Promise<Blob | null>
+  /**
+   * Returns the face descriptor (embedding) captured at the same time as the blob.
+   * Returns null if no face was detected or embedding not available.
+   */
+  getLatestDescriptor: () => number[] | null
   /** Clear captured blob + restart detection — call after each clock action */
   reset: () => void
 }
@@ -67,6 +72,8 @@ export function useFaceDetection(
 
   // The ONE blob captured the first time face is stable — never overwritten
   const capturedBlob   = useRef<Blob | null>(null)
+  // The face descriptor captured at the same time as the blob
+  const capturedDescriptor = useRef<number[] | null>(null)
   // Stops capture loop once we have our blob
   const hasCaptured    = useRef(false)
 
@@ -77,7 +84,7 @@ export function useFaceDetection(
   const captureOnce = useCallback((): Promise<Blob | null> =>
     new Promise((resolve) => {
       const video = webcamRef.current?.video as HTMLVideoElement | undefined
-      console.log("[FaceDetection] captureOnce — video:", !!video)
+
       if (!video || video.readyState < 2) return resolve(null)
 
       const sourceWidth = video.videoWidth
@@ -142,9 +149,9 @@ export function useFaceDetection(
               minConfidence: minScore,
               return: true
             },
+            description: { enabled: true }, // Generate face embeddings for recognition
             mesh: { enabled: false },
             iris: { enabled: false },
-            description: { enabled: false },
             emotion: { enabled: false },
             antispoof: { enabled: false },
             liveness: { enabled: false }
@@ -169,7 +176,6 @@ export function useFaceDetection(
           humanRef.current = human
           setModelsLoaded(true)
           setStatus("no_face")
-          console.log("[FaceDetection] Models loaded successfully")
         }
       } catch (err) {
         console.error("[FaceDetection] Human library load failed:", err)
@@ -260,22 +266,25 @@ export function useFaceDetection(
           hasCaptured.current = true
           setStatus("ready")
 
-          console.log("[FaceDetection] Stable face reached — attempting capture")
-
-          const blob = await captureOnce()
-          console.log("[FaceDetection] captureOnce result:", blob ? `Blob ${blob.size} bytes` : "NULL — canvas returned nothing")
-          if (blob) {
-            capturedBlob.current = blob
-            console.log("[FaceDetection] ✅ Blob saved to capturedBlob.current")
-          } else {
-            console.warn("[FaceDetection] ❌ Blob was null — webcam canvas not ready?")
-          }
-
           // Stop detection loop — job done, no more CPU/memory usage
           stopLoop()
 
           // Clear the canvas overlay — no need to keep drawing the box
           ctx.clearRect(0, 0, vw, vh)
+
+          // Capture the photo blob
+          captureOnce().then(blob => { 
+            capturedBlob.current = blob 
+          })
+
+          // Capture the face descriptor from the embedding
+          const embedding = result.face?.[0]?.embedding
+          if (embedding) {
+            capturedDescriptor.current = Array.from(embedding)
+            console.log('[FaceDetection] Captured descriptor:', capturedDescriptor.current.length, 'floats')
+          } else {
+            console.warn('[FaceDetection] No embedding found in face result')
+          }
         }
       } catch (err) {
         // Silently handle per-frame errors on mobile
@@ -308,9 +317,13 @@ export function useFaceDetection(
     return captureOnce()
   }, [captureOnce])
 
+  // ── Public: get the captured descriptor ───────────────────────────────────
+  const getLatestDescriptor = useCallback(() => capturedDescriptor.current, [])
+
   // ── Reset for next staff member ────────────────────────────────────────────
   const reset = useCallback(() => {
     capturedBlob.current = null
+    capturedDescriptor.current = null
     hasCaptured.current  = false
     stableFrames.current = 0
     setStatus("no_face")
@@ -323,7 +336,7 @@ export function useFaceDetection(
     }
   }, [])
 
-  return { status, modelsLoaded, canvasRef, getLatestBlob, reset }
+  return { status, modelsLoaded, canvasRef, getLatestBlob, getLatestDescriptor, reset }
 }
 
 // ─── Draw corner brackets ─────────────────────────────────────────────────────

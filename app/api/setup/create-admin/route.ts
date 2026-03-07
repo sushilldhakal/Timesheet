@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { connectDB, User } from "@/lib/db"
 import { setAdminExistsCache } from "@/lib/db/setup"
-import { adminCreateSchema } from "@/lib/validation/user"
+import { adminCreateSchema } from "@/lib/validations/user"
 
 export async function POST(request: NextRequest) {
   try {

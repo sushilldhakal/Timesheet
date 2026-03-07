@@ -120,6 +120,66 @@ A modern staff workforce management app with kiosk-style time clock — built wi
 
 ---
 
+## 🏗️ API Architecture
+
+```
+lib/
+├── validations/  ← Zod schemas (server + client)
+├── types/        ← TypeScript types from Zod
+├── api/          ← Raw fetch functions only
+├── queries/      ← TanStack Query hooks only
+└── openapi/spec.json   ← OpenAPI 3.0 specification
+```
+
+### Strict Rules
+- `lib/api/` = fetch calls only, never hooks
+- `lib/queries/` = hooks only, never fetch
+- `lib/validations/` = all schemas, never inline
+- `credentials: 'include'` on all fetch calls
+- `.safeParse()` always, never `.parse()`
+- `gcTime` not `cacheTime` (TanStack Query v5)
+
+### Adding a New Endpoint
+1. **Schema** → `lib/validations/domain.ts`
+2. **Type** → `lib/types/domain.ts`
+3. **Fetch** → `lib/api/domain.ts`
+4. **Hook** → `lib/queries/useDomain.ts`
+5. **Route** → `app/api/domain/route.ts`
+6. **Docs** → `lib/openapi/spec.json`
+7. **Export** → update all `index.ts` files
+
+---
+
+## 🏗️ API Architecture
+
+```
+lib/
+├── validations/  ← Zod schemas (server + client)
+├── types/        ← TypeScript types from Zod
+├── api/          ← Raw fetch functions only
+├── queries/      ← TanStack Query hooks only
+└── openapi/spec.json   ← OpenAPI 3.0 specification
+```
+
+### Strict Rules
+- `lib/api/` = fetch calls only, never hooks
+- `lib/queries/` = hooks only, never fetch
+- `lib/validations/` = all schemas, never inline
+- `credentials: 'include'` on all fetch calls
+- `.safeParse()` always, never `.parse()`
+- `gcTime` not `cacheTime` (TanStack Query v5)
+
+### Adding a New Endpoint
+1. **Schema** → `lib/validations/domain.ts`
+2. **Type** → `lib/types/domain.ts`
+3. **Fetch** → `lib/api/domain.ts`
+4. **Hook** → `lib/queries/useDomain.ts`
+5. **Route** → `app/api/domain/route.ts`
+6. **Docs** → `lib/openapi/spec.json`
+7. **Export** → update all `index.ts` files
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
@@ -135,6 +195,12 @@ A modern staff workforce management app with kiosk-style time clock — built wi
 | Validation | Zod |
 | Date Handling | date-fns |
 | Deployment | Vercel |
+| API State | TanStack Query v5 |
+| API Docs | Scalar (OpenAPI 3.0) |
+| Validation | Zod (centralized schemas) |
+| API State | TanStack Query v5 |
+| API Docs | Scalar (OpenAPI 3.0) |
+| Validation | Zod (centralized schemas) |
 
 ---
 
@@ -229,94 +295,196 @@ Registered kiosk devices with two-layer authentication.
 
 ## 🔌 API Endpoints
 
-All endpoints live under `/app/api/` and require authentication via JWT session tokens.
+All endpoints live under `/app/api/` and require authentication via JWT session tokens. **96 endpoints** documented with full OpenAPI 3.0 specification.
 
-### Authentication
+### Authentication (Admin/User)
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| POST | `/api/auth/login` | Admin/user login | Public |
-| POST | `/api/auth/logout` | Admin/user logout | Required |
-| GET | `/api/auth/me` | Get current admin/user | Required |
+| POST | `/api/auth/login` | Admin/user login with username/password | Public |
+| POST | `/api/auth/logout` | Admin/user logout and session termination | Required |
+| GET | `/api/auth/me` | Get current authenticated user profile | Required |
+| POST | `/api/auth/change-password` | Change user password | Required |
+| POST | `/api/auth/forgot-password` | Request password reset email | Public |
+| POST | `/api/auth/reset-password` | Reset password with token | Public |
+| POST | `/api/auth/setup-password` | Setup password for new user | Public |
+| POST | `/api/auth/unified-login` | Unified login (username/password or PIN) | Public |
+
+### Employee Authentication & Clock
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
 | POST | `/api/employee/login` | Employee PIN login | Device token |
 | POST | `/api/employee/logout` | Employee logout | Employee token |
-| GET | `/api/employee/me` | Get current employee | Employee token |
+| GET | `/api/employee/me` | Get current employee profile | Employee token |
+| POST | `/api/employee/clock` | Clock in/out/break actions | Employee token |
+| GET | `/api/employee/timesheet` | Get employee's own timesheets | Employee token |
+| POST | `/api/employee/change-password` | Change employee password | Employee token |
+| POST | `/api/employee/offline-session` | Create offline session | Employee token |
+| POST | `/api/employee/upload/image` | Upload employee clock-in photo | Employee token |
 
-### Device Management
+### Users Management
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| POST | `/api/device/register` | Register new device | Admin credentials |
-| GET | `/api/device/manage` | List all devices | Admin |
-| PUT | `/api/device/manage` | Update device status | Admin |
-| DELETE | `/api/device/manage` | Revoke device | Admin |
+| GET | `/api/users` | List all users with pagination | Admin |
+| POST | `/api/users` | Create new user account | Admin |
+| GET | `/api/users/{id}` | Get user details by ID | Admin |
+| PATCH | `/api/users/{id}` | Update user information | Admin |
+| DELETE | `/api/users/{id}` | Delete user account | Admin |
 
-### Employees
+### Employee Management
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/employees` | List all employees | Admin |
-| POST | `/api/employees` | Create employee | Admin |
-| GET | `/api/employees/:id` | Get employee details | Admin |
-| PUT | `/api/employees/:id` | Update employee | Admin |
-| DELETE | `/api/employees/:id` | Delete employee | Admin |
-| POST | `/api/employees/generate-pin` | Generate unique PIN | Admin |
-| GET | `/api/employees/:id/timesheet` | Get employee timesheets | Admin |
+| GET | `/api/employees` | List all employees with filters | Admin |
+| POST | `/api/employees` | Create new employee | Admin |
+| GET | `/api/employees/{id}` | Get employee details | Admin |
+| PATCH | `/api/employees/{id}` | Update employee information | Admin |
+| DELETE | `/api/employees/{id}` | Delete employee | Admin |
+| GET | `/api/employees/{id}/timesheet` | Get employee timesheet entries | Admin |
+| PATCH | `/api/employees/{id}/timesheet` | Update employee timesheet | Admin |
+| GET | `/api/employees/{id}/availability` | Get employee availability | Admin |
+| POST | `/api/employees/{id}/availability` | Set employee availability | Admin |
+| DELETE | `/api/employees/{id}/availability` | Delete employee availability | Admin |
+| GET | `/api/employees/{id}/absences` | Get employee absences | Admin |
+| POST | `/api/employees/{id}/absences` | Create employee absence | Admin |
+| GET | `/api/employees/{id}/conditions` | Get employee conditions | Admin |
+| GET | `/api/employees/{id}/award-history` | Get employee award history | Admin |
+| POST | `/api/employees/{id}/award` | Assign award to employee | Admin |
+| GET | `/api/employees/availability` | Get all employees availability | Admin |
+| GET | `/api/employees/check-pin` | Check if PIN exists | Admin |
+| GET | `/api/employees/generate-pin` | Generate unique PIN | Admin |
+| GET | `/api/employees/sync-photos` | Get photo sync status | Admin |
+| POST | `/api/employees/sync-photos` | Sync employee photos | Admin |
 
-### Time Clock
+### Timesheets & Payroll
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| POST | `/api/employee/clock` | Clock in/out/break | Employee token |
-| GET | `/api/employee/timesheet` | Get own timesheets | Employee token |
-| POST | `/api/employee/upload/image` | Upload clock-in photo | Employee token |
+| GET | `/api/timesheets` | List timesheets with filters | Admin |
+| POST | `/api/timesheets` | Create new timesheet entry | Admin |
+| GET | `/api/timesheets/{id}` | Get timesheet by ID | Admin |
+| PATCH | `/api/timesheets/{id}` | Update timesheet entry | Admin |
+| DELETE | `/api/timesheets/{id}` | Delete timesheet entry | Admin |
+| POST | `/api/timesheets/{id}/link-shift` | Link timesheet to shift | Admin |
+| GET | `/api/timesheets/by-shift/{shiftId}` | Get timesheet by shift ID | Admin |
+| GET | `/api/timesheets/payroll` | Get payroll data | Admin |
 
-### Timesheets
+### Rosters & Shifts
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/timesheets` | List timesheets (filtered) | Admin |
-| PUT | `/api/timesheets` | Update timesheet entry | Admin |
-| DELETE | `/api/timesheets` | Delete timesheet entry | Admin |
+| GET | `/api/rosters` | List all rosters | Admin |
+| GET | `/api/rosters/{weekId}` | Get roster by week ID | Admin |
+| POST | `/api/rosters/{weekId}/generate` | Generate roster for week | Admin |
+| POST | `/api/rosters/{weekId}/publish` | Publish roster | Admin |
+| POST | `/api/rosters/{weekId}/unpublish` | Unpublish roster | Admin |
+| GET | `/api/rosters/{weekId}/shifts` | Get roster shifts | Admin |
+| POST | `/api/rosters/{weekId}/shifts` | Add shift to roster | Admin |
+| PATCH | `/api/rosters/{weekId}/shifts` | Update roster shift | Admin |
+| DELETE | `/api/rosters/{weekId}/shifts` | Delete roster shift | Admin |
+| GET | `/api/rosters/{weekId}/gaps` | Get roster gaps | Admin |
+| POST | `/api/rosters/{weekId}/auto-fill` | Auto-fill roster gaps | Admin |
+| GET | `/api/rosters/{weekId}/validate-compliance` | Validate roster compliance | Admin |
 
-### Users
+### Schedule Templates
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/users` | List all users | Admin |
-| POST | `/api/users` | Create user | Admin |
-| GET | `/api/users/:id` | Get user details | Admin |
-| PUT | `/api/users/:id` | Update user | Admin |
-| DELETE | `/api/users/:id` | Delete user | Admin |
+| GET | `/api/schedules/templates` | Get schedule templates | Admin |
+| POST | `/api/schedules/templates` | Create schedule template | Admin |
+| POST | `/api/schedules/copy-from-template` | Copy schedule from template | Admin |
+| GET | `/api/roles/availability` | Get role availability | Admin |
 
-### Categories
+### Shift Swaps
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/categories` | List categories | Admin |
-| POST | `/api/categories` | Create category | Admin |
-| GET | `/api/categories/:id` | Get category | Admin |
-| PUT | `/api/categories/:id` | Update category | Admin |
-| DELETE | `/api/categories/:id` | Delete category | Admin |
+| GET | `/api/shift-swaps` | Get all shift swap requests | Admin |
+| POST | `/api/shift-swaps` | Create shift swap request | Employee |
+| GET | `/api/shift-swaps/{id}` | Get shift swap by ID | Admin |
+| PATCH | `/api/shift-swaps/{id}` | Update shift swap | Admin |
+| DELETE | `/api/shift-swaps/{id}` | Delete shift swap | Admin |
+| POST | `/api/shift-swaps/{id}/accept` | Accept shift swap request | Employee |
+| POST | `/api/shift-swaps/{id}/approve` | Approve shift swap request | Admin |
+| POST | `/api/shift-swaps/{id}/deny` | Deny shift swap request | Admin |
 
-### Dashboard
+### Categories & Locations
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| GET | `/api/categories` | List all categories | Admin |
+| POST | `/api/categories` | Create new category | Admin |
+| GET | `/api/categories/{id}` | Get category by ID | Admin |
+| PATCH | `/api/categories/{id}` | Update category | Admin |
+| DELETE | `/api/categories/{id}` | Delete category | Admin |
+| GET | `/api/locations/{locationId}/roles` | Get roles for location | Admin |
+| POST | `/api/locations/{locationId}/roles` | Add role to location | Admin |
+| GET | `/api/public/locations` | Get public locations list | Public |
+
+### Dashboard & Analytics
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
 | GET | `/api/dashboard/stats` | Get dashboard statistics | Admin |
 | GET | `/api/dashboard/hours-summary` | Get hours summary | Admin |
 | GET | `/api/dashboard/inactive-employees` | Get inactive employees | Admin |
+| GET | `/api/dashboard/location/{locationId}` | Get location dashboard stats | Admin |
+| GET | `/api/dashboard/role/{roleId}` | Get role dashboard stats | Admin |
+| GET | `/api/analytics/employee-report/{employeeId}` | Get employee analytics report | Admin |
 
-### Flags
+### Awards Management
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| GET | `/api/flags` | List flagged entries | Admin |
-| PUT | `/api/flags` | Update flag status | Admin |
+| GET | `/api/awards` | List all awards | Admin |
+| POST | `/api/awards` | Create new award | Admin |
+| GET | `/api/awards/{id}` | Get award by ID | Admin |
+| PATCH | `/api/awards/{id}` | Update award | Admin |
+| DELETE | `/api/awards/{id}` | Delete award | Admin |
 
-### Setup
+### Device Management
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| POST | `/api/device/register` | Register new device | Admin credentials |
+| GET | `/api/device/manage` | List managed devices | Admin |
+| POST | `/api/device/manage` | Update device settings | Admin |
+| PATCH | `/api/device/manage` | Modify device status | Admin |
+| POST | `/api/devices/activate` | Activate device | Public |
+| POST | `/api/devices/check` | Check device status | Public |
+
+### Admin Utilities
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| GET | `/api/admin/activity-logs` | Get activity logs | Admin |
+| GET | `/api/admin/mail-settings` | Get mail settings | Admin |
+| POST | `/api/admin/mail-settings` | Update mail settings | Admin |
+| POST | `/api/admin/mail-settings/test` | Test mail settings | Admin |
+| GET | `/api/admin/storage-settings` | Get storage settings | Admin |
+| POST | `/api/admin/storage-settings` | Update storage settings | Admin |
+| POST | `/api/admin/storage-settings/test-connection` | Test storage connection | Admin |
+| POST | `/api/admin/storage-settings/reset` | Reset storage settings | Admin |
+| GET | `/api/admin/storage-stats` | Get storage statistics | Admin |
+| POST | `/api/admin/cleanup/cloudinary` | Cleanup Cloudinary images | Admin |
+| POST | `/api/admin/cleanup/timesheets` | Cleanup old timesheets | Admin |
+
+### Calendar & Events
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| GET | `/api/calendar/events` | Get calendar events | Admin |
+
+### File Upload
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| POST | `/api/upload/image` | Upload image to Cloudinary | Admin |
+| GET | `/api/image` | Get image by ID | Public |
+
+### System Setup
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
 | GET | `/api/setup/status` | Check if admin exists | Public |
 | POST | `/api/setup/create-admin` | Create initial admin | Public (one-time) |
 
-### Utilities
+### Feature Flags
 | Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| POST | `/api/upload/image` | Upload image to Cloudinary | Admin |
-| POST | `/api/admin/cleanup/cloudinary` | Cleanup unused images | Admin |
-| POST | `/api/admin/cleanup/timesheets` | Cleanup old timesheets | Admin |
+| GET | `/api/flags` | Get feature flags | Public |
+
+### Cron Jobs
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| GET | `/api/cron/cleanup-cloudinary` | Get cleanup status | Cron secret |
+| POST | `/api/cron/cleanup-cloudinary` | Run Cloudinary cleanup | Cron secret |
 
 ---
 
@@ -358,6 +526,26 @@ The app implements a sophisticated two-layer authentication system:
 - Device fingerprinting and tracking
 - Geofence validation for location-based access
 - Automatic flagging of suspicious entries
+
+---
+
+## 📖 Interactive API Documentation
+
+Full interactive docs with try-it-out at:
+- **UI**: http://localhost:3000/api/docs
+- **JSON**: http://localhost:3000/api/openapi.json
+
+96 endpoints documented with full request/response schemas, examples, and descriptions. Built with Scalar OpenAPI 3.0.
+
+---
+
+## 📖 Interactive API Documentation
+
+Full interactive docs with try-it-out at:
+- **UI**: http://localhost:3000/api/docs
+- **JSON**: http://localhost:3000/api/openapi.json
+
+96 endpoints documented with full request/response schemas, examples, and descriptions. Built with Scalar OpenAPI 3.0.
 
 ---
 

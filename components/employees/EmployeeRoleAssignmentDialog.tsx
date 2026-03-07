@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -33,6 +33,9 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/lib/utils/toast"
 import { CheckCircle2, MapPin, Briefcase, Loader2 } from "lucide-react"
+import { useCategories } from "@/lib/queries/categories"
+import { useRolesAvailability } from "@/lib/queries/roles"
+import { useCreateEmployeeRole } from "@/lib/queries/employees"
 
 // Validation schema
 const assignmentSchema = z.object({
@@ -87,12 +90,7 @@ export function EmployeeRoleAssignmentDialog({
   employeeName,
   onSuccess,
 }: EmployeeRoleAssignmentDialogProps) {
-  const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [locations, setLocations] = useState<Location[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [loadingLocations, setLoadingLocations] = useState(false)
-  const [loadingRoles, setLoadingRoles] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const form = useForm<AssignmentFormData>({
@@ -106,155 +104,91 @@ export function EmployeeRoleAssignmentDialog({
     },
   })
 
+  // TanStack Query hooks
+  const { data: categoriesData, isLoading: loadingLocations } = useCategories()
   const selectedLocationId = form.watch("locationId")
+  const { data: rolesData, isLoading: loadingRoles } = useRolesAvailability({ 
+    locationId: selectedLocationId 
+  })
+  const createRoleMutation = useCreateEmployeeRole()
+
+  const locations = categoriesData?.categories?.filter((cat: any) => cat.type === 'location') || []
+  const roles = rolesData?.roles || []
+
   const selectedRoleId = form.watch("roleId")
 
-  // Fetch all locations
-  useEffect(() => {
-    if (open) {
-      fetchLocations()
-    }
-  }, [open])
-
-  // Fetch roles when location changes
-  useEffect(() => {
-    if (selectedLocationId) {
-      fetchRoles(selectedLocationId)
-      // Reset role selection when location changes
-      form.setValue("roleId", "")
-    } else {
-      setRoles([])
-    }
-  }, [selectedLocationId])
-
-  const fetchLocations = async () => {
-    setLoadingLocations(true)
-    try {
-      const response = await fetch("/api/categories?type=location")
-      if (response.ok) {
-        const data = await response.json()
-        setLocations(data.categories || [])
-      } else {
-        toast.error({
-          title: "Failed to Load Locations",
-          description: "Could not fetch available locations.",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching locations:", error)
-      toast.error({
-        title: "Network Error",
-        description: "Failed to connect to the server.",
-      })
-    } finally {
-      setLoadingLocations(false)
-    }
-  }
-
-  const fetchRoles = async (locationId: string) => {
-    setLoadingRoles(true)
-    setValidationError(null)
-    try {
-      const response = await fetch(
-        `/api/roles/availability?locationId=${locationId}`
-      )
-      if (response.ok) {
-        const data = await response.json()
-        setRoles(data.roles || [])
-      } else {
-        toast.error({
-          title: "Failed to Load Roles",
-          description: "Could not fetch available roles for this location.",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching roles:", error)
-      toast.error({
-        title: "Network Error",
-        description: "Failed to connect to the server.",
-      })
-    } finally {
-      setLoadingRoles(false)
-    }
+  // Reset role selection when location changes
+  const handleLocationChange = (locationId: string) => {
+    form.setValue("locationId", locationId)
+    form.setValue("roleId", "")
   }
 
   const onSubmit = async (data: AssignmentFormData) => {
-    setLoading(true)
     setValidationError(null)
     
-    try {
-      const response = await fetch(`/api/employees/${employeeId}/roles`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+    createRoleMutation.mutate(
+      {
+        employeeId: employeeId,
+        data: {
           roleId: data.roleId,
           locationId: data.locationId,
           validFrom: data.validFrom.toISOString(),
           validTo: data.validTo?.toISOString() || null,
           notes: data.notes || "",
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        // Handle specific error cases
-        if (result.code === "ROLE_NOT_ENABLED") {
-          setValidationError(
-            "This role is not enabled at the selected location. Please enable the role first."
-          )
-        } else if (result.code === "OVERLAPPING_ASSIGNMENT") {
-          setValidationError(
-            "This employee already has an overlapping assignment for this role at this location."
-          )
-        } else if (result.code === "VALIDATION_ERROR") {
-          setValidationError(
-            result.message || "Validation failed. Please check your inputs."
-          )
-        } else {
-          toast.error({
-            title: "Failed to Assign Role",
-            description: result.message || "An error occurred while assigning the role.",
-          })
-        }
-        return
+        },
+      },
+      {
+        onSuccess: () => {
+          // Show success state
+          setShowSuccess(true)
+          
+          // Wait a moment to show the success message
+          setTimeout(() => {
+            setShowSuccess(false)
+            form.reset()
+            onOpenChange(false)
+            onSuccess?.()
+            
+            const selectedLocation = locations.find(
+              (l: any) => (l._id || l.id) === data.locationId
+            )
+            const selectedRole = roles.find((r: any) => r.roleId === data.roleId)
+            
+            toast.success({
+              title: "Role Assigned",
+              description: `${employeeName} has been assigned to ${selectedRole?.roleName || "role"} at ${selectedLocation?.name || "location"}.`,
+            })
+          }, 1500)
+        },
+        onError: (error: any) => {
+          const result = error.response?.data || error
+          
+          // Handle specific error cases
+          if (result.code === "ROLE_NOT_ENABLED") {
+            setValidationError(
+              "This role is not enabled at the selected location. Please enable the role first."
+            )
+          } else if (result.code === "OVERLAPPING_ASSIGNMENT") {
+            setValidationError(
+              "This employee already has an overlapping assignment for this role at this location."
+            )
+          } else if (result.code === "VALIDATION_ERROR") {
+            setValidationError(
+              result.message || "Validation failed. Please check your inputs."
+            )
+          } else {
+            toast.error({
+              title: "Failed to Assign Role",
+              description: result.message || "An error occurred while assigning the role.",
+            })
+          }
+        },
       }
-
-      // Show success state
-      setShowSuccess(true)
-      
-      // Wait a moment to show the success message
-      setTimeout(() => {
-        setShowSuccess(false)
-        form.reset()
-        onOpenChange(false)
-        onSuccess?.()
-        
-        const selectedLocation = locations.find(
-          (l) => (l._id || l.id) === data.locationId
-        )
-        const selectedRole = roles.find((r) => r.roleId === data.roleId)
-        
-        toast.success({
-          title: "Role Assigned",
-          description: `${employeeName} has been assigned to ${selectedRole?.roleName || "role"} at ${selectedLocation?.name || "location"}.`,
-        })
-      }, 1500)
-    } catch (error) {
-      console.error("Error assigning role:", error)
-      toast.error({
-        title: "Network Error",
-        description: "Failed to connect to the server. Please try again.",
-      })
-    } finally {
-      setLoading(false)
-    }
+    )
   }
 
   const handleClose = () => {
-    if (!loading && !showSuccess) {
+    if (!createRoleMutation.isPending && !showSuccess) {
       form.reset()
       setValidationError(null)
       onOpenChange(false)
@@ -262,9 +196,9 @@ export function EmployeeRoleAssignmentDialog({
   }
 
   const selectedLocation = locations.find(
-    (l) => (l._id || l.id) === selectedLocationId
+    (l: any) => (l._id || l.id) === selectedLocationId
   )
-  const selectedRole = roles.find((r) => r.roleId === selectedRoleId)
+  const selectedRole = roles.find((r: any) => r.roleId === selectedRoleId)
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -314,7 +248,7 @@ export function EmployeeRoleAssignmentDialog({
                         <FormControl>
                           <Select
                             value={field.value}
-                            onValueChange={field.onChange}
+                            onValueChange={handleLocationChange}
                             disabled={loadingLocations}
                           >
                             <SelectTrigger className="w-full">
@@ -337,7 +271,7 @@ export function EmployeeRoleAssignmentDialog({
                                   No locations available
                                 </div>
                               ) : (
-                                locations.map((location) => (
+                                locations.map((location: any) => (
                                   <SelectItem
                                     key={location._id || location.id}
                                     value={location._id || location.id || ""}
@@ -406,7 +340,7 @@ export function EmployeeRoleAssignmentDialog({
                                   No roles enabled at this location
                                 </div>
                               ) : (
-                                roles.map((role) => (
+                                roles.map((role: any) => (
                                   <SelectItem key={role.roleId} value={role.roleId}>
                                     <div className="flex items-center gap-2">
                                       {role.roleColor && (
@@ -509,12 +443,12 @@ export function EmployeeRoleAssignmentDialog({
                     type="button"
                     variant="outline"
                     onClick={handleClose}
-                    disabled={loading}
+                    disabled={createRoleMutation.isPending}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading || !selectedLocationId || !selectedRoleId}>
-                    {loading ? (
+                  <Button type="submit" disabled={createRoleMutation.isPending || !selectedLocationId || !selectedRoleId}>
+                    {createRoleMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Assigning...

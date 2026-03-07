@@ -13,11 +13,12 @@ import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
 import { EditTimesheetDialog } from "./EditTimesheetDialog"
 import EmployeeProfileCard from "@/components/employees/employee-profile-card"
-import type { EmployeeRow } from "../page"
+import type { Employee } from "@/lib/api/employees"
 import AwardHistoryCard from "@/components/employees/award-history-card"
 import EmployeeRoleAssignmentList from "@/components/employees/EmployeeRoleAssignmentList"
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/EmployeeRoleAssignmentDialog"
 import { formatDateLong as formatDateLongUtil } from "@/lib/utils/date-format"
+import { useEmployee, useEmployeeTimesheet } from "@/lib/queries/employees"
 
 interface DailyTimesheetRow {
   date: string
@@ -212,18 +213,17 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced
 }
 
-export default function EmployeeDetailPage() {
+function EmployeeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id as string
-  const [employee, setEmployee] = useState<EmployeeRow | null>(null)
+  const [employee, setEmployee] = useState<any>(null)
+  const [isHydrated, setIsHydrated] = useState(false)
   const [awardId, setAwardId] = useState<string | null>(null)
   const [awardLevel, setAwardLevel] = useState<string | null>(null)
   const [employmentType, setEmploymentType] = useState<string | null>(null)
   const [timesheets, setTimesheets] = useState<DailyTimesheetRow[]>([])
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [tsLoading, setTsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(50)
@@ -233,221 +233,76 @@ export default function EmployeeDetailPage() {
   const [expanded, setExpanded] = useState<ExpandedState>({})
   const debouncedSearch = useDebounce(search, 300)
 
-  const fetchEmployee = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/employees/${id}`)
-      if (res.ok) {
-        const data = await res.json()
-        const e = data.employee
-        setEmployee({
-          id: e.id,
-          name: e.name ?? "",
-          pin: e.pin ?? "",
-          roles: e.roles ?? [],
-          employers: e.employers ?? [],
-          locations: e.locations ?? [],
-          hire: e.hire ?? "",
-          site: e.site ?? "",
-          email: e.email ?? "",
-          phone: e.phone ?? "",
-          dob: e.dob ?? "",
-          comment: e.comment ?? "",
-          img: e.img ?? "",
-        })
-        // Set award fields from the award object
-        setAwardId(e.award?.id ?? null)
-        setAwardLevel(e.award?.level ?? null)
-        setEmploymentType(e.employmentType ?? null)
-      } else {
-        setEmployee(null)
-      }
-    } catch {
-      setEmployee(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [id])
+  const employeeQuery = useEmployee(id)
 
-  const fetchTimesheets = useCallback(async () => {
-    setTsLoading(true)
-    try {
-      const limit = pageSize >= 99999 ? 500 : pageSize
-      const offset = pageIndex * (pageSize >= 99999 ? 500 : pageSize)
-      const sp = new URLSearchParams({
-        limit: String(limit),
-        offset: String(offset),
-        sortBy: "date", // Always fetch by date from server
-        order: "desc",  // Always fetch newest first
+  const timesheetParams = new URLSearchParams({
+    limit: String(pageSize >= 99999 ? 500 : pageSize),
+    offset: String(pageIndex * (pageSize >= 99999 ? 500 : pageSize)),
+    sortBy: "date",
+    order: "desc",
+  })
+  if (debouncedSearch) timesheetParams.set("search", debouncedSearch)
+
+  const timesheetQuery = useEmployeeTimesheet(id, timesheetParams)
+
+  const loading = employeeQuery.isLoading
+  const tsLoading = timesheetQuery.isLoading
+
+  // Hydration check
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (employeeQuery.data?.employee) {
+      const e = employeeQuery.data.employee
+      setEmployee({
+        id: e.id,
+        name: e.name ?? "",
+        pin: e.pin ?? "",
+        roles: e.roles ?? [],
+        employers: e.employers ?? [],
+        locations: e.locations ?? [],
+        hire: (e as any).hire ?? "",
+        site: (e as any).site ?? "",
+        email: e.email ?? "",
+        phone: e.phone ?? "",
+        dob: e.dob ?? "",
+        comment: e.comment ?? "",
+        img: e.img ?? "",
       })
-      if (debouncedSearch) sp.set("search", debouncedSearch)
-      
-      console.log('📡 Fetching timesheets (client-side sorting enabled)')
-      
-      const res = await fetch(`/api/employees/${id}/timesheet?${sp}`)
-      if (res.ok) {
-        const data = await res.json()
-        console.log('✅ Timesheets fetched:', {
-          count: data.data?.length || 0,
-          total: data.pagination?.total || 0,
-        })
-        setTimesheets(data.data ?? [])
-        setTotal(data.pagination?.total ?? 0)
-      } else {
-        console.error('❌ Failed to fetch timesheets:', res.status)
-        setTimesheets([])
-        setTotal(0)
-      }
-    } catch (err) {
-      console.error('❌ Error fetching timesheets:', err)
+      // Set award fields from the award object
+      setAwardId((e as any).award?.id ?? null)
+      setAwardLevel((e as any).award?.level ?? null)
+      setEmploymentType((e as any).employmentType ?? null)
+    } else if (employeeQuery.error) {
+      setEmployee(null)
+    }
+  }, [employeeQuery.data, employeeQuery.error])
+
+  useEffect(() => {
+    if (timesheetQuery.data) {
+      console.log('✅ Timesheets fetched:', {
+        count: timesheetQuery.data.timesheets?.length || 0,
+      })
+      setTimesheets(timesheetQuery.data.timesheets as any ?? [])
+      setTotal(timesheetQuery.data.timesheets?.length ?? 0)
+    } else if (timesheetQuery.error) {
+      console.error('❌ Failed to fetch timesheets:', timesheetQuery.error)
       setTimesheets([])
       setTotal(0)
-    } finally {
-      setTsLoading(false)
     }
-  }, [id, debouncedSearch, pageIndex, pageSize])
+  }, [timesheetQuery.data, timesheetQuery.error])
 
-  useEffect(() => {
-    fetchEmployee()
-  }, [fetchEmployee])
+  const refetchEmployee = () => {
+    employeeQuery.refetch()
+  }
 
-  useEffect(() => {
-    fetchTimesheets()
-  }, [fetchTimesheets])
+  const refetchTimesheets = () => {
+    timesheetQuery.refetch()
+  }
 
-  useEffect(() => {
-    setPageIndex(0)
-  }, [debouncedSearch])
-
-  const tsColumns: ColumnDef<DailyTimesheetRow>[] = [
-    {
-      id: "expand",
-      header: () => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={(e) => {
-            e.stopPropagation()
-            const isRecord = expanded && typeof expanded === "object" && !Array.isArray(expanded)
-            const keys = isRecord ? Object.keys(expanded) : []
-            const allExpanded = timesheets.length > 0 && keys.length >= timesheets.length
-            if (allExpanded) setExpanded({})
-            else setExpanded(timesheets.reduce<Record<string, boolean>>((acc, r) => ({ ...acc, [r.date]: true }), {}))
-          }}
-        >
-          {(() => {
-            const isRecord = expanded && typeof expanded === "object" && !Array.isArray(expanded)
-            const keys = isRecord ? Object.keys(expanded) : []
-            return keys.length >= timesheets.length && timesheets.length > 0 ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )
-          })()}
-        </Button>
-      ),
-      cell: ({ row }) =>
-        row.original.clockInImage ||
-        row.original.clockInWhere ||
-        row.original.breakInImage ||
-        row.original.breakInWhere ||
-        row.original.breakOutImage ||
-        row.original.breakOutWhere ||
-        row.original.clockOutImage ||
-        row.original.clockOutWhere ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={(e) => {
-              e.stopPropagation()
-              const id = row.original.date
-              const isRecord = expanded && typeof expanded === "object" && !Array.isArray(expanded)
-              const prev = isRecord ? expanded : {}
-              setExpanded({ ...prev, [id]: !(prev as Record<string, boolean>)[id] })
-            }}
-          >
-            {(() => {
-              const isRecord = expanded && typeof expanded === "object" && !Array.isArray(expanded)
-              const isExpanded = isRecord && (expanded as Record<string, boolean>)[row.original.date]
-              return isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
-            })()}
-          </Button>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        ),
-    },
-    {
-      accessorKey: "date",
-      header: "Date",
-      cell: ({ row }) => formatDateLong(row.original.date),
-      sortingFn: (rowA, rowB) => {
-        const dateA = parseDate(rowA.original.date)
-        const dateB = parseDate(rowB.original.date)
-        if (!dateA || !dateB) return 0
-        return dateA.getTime() - dateB.getTime()
-      },
-    },
-    {
-      accessorKey: "clockIn",
-      header: "Clock In",
-      cell: ({ row }) => <TimeCell time={row.original.clockIn} source={row.original.clockInSource} />,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "breakIn",
-      header: "Break In",
-      cell: ({ row }) => <TimeCell time={row.original.breakIn} source={row.original.breakInSource} />,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "breakOut",
-      header: "Break Out",
-      cell: ({ row }) => <TimeCell time={row.original.breakOut} source={row.original.breakOutSource} />,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "clockOut",
-      header: "Clock Out",
-      cell: ({ row }) => <TimeCell time={row.original.clockOut} source={row.original.clockOutSource} />,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "breakHours",
-      header: "Break Hours",
-      cell: ({ row }) => formatBreakHours(row.original.breakHours),
-      sortingFn: (rowA, rowB) => {
-        return rowA.original.breakMinutes - rowB.original.breakMinutes
-      },
-    },
-    {
-      accessorKey: "totalHours",
-      header: "Total Hours",
-      cell: ({ row }) => formatTotalHours(row.original.totalHours),
-      sortingFn: (rowA, rowB) => {
-        return rowA.original.totalMinutes - rowB.original.totalMinutes
-      },
-    },
-    {
-      id: "actions",
-      header: "Action",
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            setEditTimesheetRow(row.original)
-          }}
-        >
-          <Pencil className="h-4 w-4 mr-1" />
-          Edit
-        </Button>
-      ),
-    },
-  ]
-
-  if (loading) {
+  if (!isHydrated || loading) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
         <p className="text-muted-foreground">Loading employee...</p>
@@ -457,66 +312,223 @@ export default function EmployeeDetailPage() {
 
   if (!employee) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Not Found</CardTitle>
-          <CardDescription>Employee not found.</CardDescription>
-          <Button variant="outline" onClick={() => router.push("/dashboard/employees")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Employees
-          </Button>
-        </CardHeader>
-      </Card>
+      <div className="flex flex-col items-center justify-center min-h-[200px] space-y-4">
+        <p className="text-muted-foreground">Employee not found</p>
+        <Button onClick={() => router.push("/dashboard/employees")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Employees
+        </Button>
+      </div>
     )
   }
 
+  const columns: ColumnDef<DailyTimesheetRow>[] = [
+    {
+      id: "expander",
+      header: "",
+      cell: ({ row }) => {
+        const hasImages = !!(
+          row.original.clockInImage ||
+          row.original.breakInImage ||
+          row.original.breakOutImage ||
+          row.original.clockOutImage
+        )
+        if (!hasImages) return null
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => row.toggleExpanded()}
+          >
+            {row.getIsExpanded() ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        )
+      },
+      enableSorting: false,
+      size: 40,
+    },
+    {
+      accessorKey: "date",
+      header: "Date",
+      cell: ({ row }) => formatDateLong(row.original.date),
+      enableSorting: true,
+      size: 140,
+    },
+    {
+      accessorKey: "clockIn",
+      header: "Clock In",
+      cell: ({ row }) => (
+        <TimeCell time={row.original.clockIn} source={row.original.clockInSource} />
+      ),
+      enableSorting: true,
+      size: 90,
+    },
+    {
+      accessorKey: "breakIn",
+      header: "Break In",
+      cell: ({ row }) => (
+        <TimeCell time={row.original.breakIn} source={row.original.breakInSource} />
+      ),
+      enableSorting: true,
+      size: 90,
+    },
+    {
+      accessorKey: "breakOut",
+      header: "Break Out",
+      cell: ({ row }) => (
+        <TimeCell time={row.original.breakOut} source={row.original.breakOutSource} />
+      ),
+      enableSorting: true,
+      size: 90,
+    },
+    {
+      accessorKey: "clockOut",
+      header: "Clock Out",
+      cell: ({ row }) => (
+        <TimeCell time={row.original.clockOut} source={row.original.clockOutSource} />
+      ),
+      enableSorting: true,
+      size: 90,
+    },
+    {
+      accessorKey: "breakHours",
+      header: "Break",
+      cell: ({ row }) => (
+        <span className="tabular-nums text-muted-foreground">
+          {formatBreakHours(row.original.breakHours)}
+        </span>
+      ),
+      enableSorting: true,
+      size: 80,
+    },
+    {
+      accessorKey: "totalHours",
+      header: "Total",
+      cell: ({ row }) => (
+        <span className="tabular-nums font-medium">
+          {formatTotalHours(row.original.totalHours)}
+        </span>
+      ),
+      enableSorting: true,
+      size: 90,
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditTimesheetRow(row.original)}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      ),
+      enableSorting: false,
+      size: 60,
+    },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col space-y-6 p-4 lg:p-8">
+      {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/employees")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/dashboard/employees")}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-semibold">Employee Details</h1>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">{employee.name}</h1>
+          <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
+        </div>
+        <Button onClick={() => setEditEmployeeOpen(true)}>
+          <Pencil className="h-4 w-4 mr-2" />
+          Edit Employee
+        </Button>
       </div>
 
-      <EmployeeProfileCard
-        employeeId={id}
-        employee={employee}
-        currentAwardId={awardId}
-        currentAwardLevel={awardLevel}
-        currentEmploymentType={employmentType}
-        onUpdate={fetchEmployee}
-        onEditEmployee={() => setEditEmployeeOpen(true)}
-      />
+      {/* Employee Details */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Profile</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              {employee.img ? (
+                <OptimizedImage
+                  src={employee.img}
+                  alt={employee.name}
+                  width={64}
+                  height={64}
+                  className="rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                  <span className="text-lg font-medium text-muted-foreground">
+                    {employee.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div>
+                <p className="font-medium">{employee.name}</p>
+                <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
+              </div>
+            </div>
+            {employee.email && (
+              <div>
+                <p className="text-sm font-medium">Email</p>
+                <p className="text-sm text-muted-foreground">{employee.email}</p>
+              </div>
+            )}
+            {employee.phone && (
+              <div>
+                <p className="text-sm font-medium">Phone</p>
+                <p className="text-sm text-muted-foreground">{employee.phone}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <EmployeeRoleAssignmentList
-        employeeId={id}
-        onAdd={() => setRoleAssignmentDialogOpen(true)}
-      />
+        <EmployeeRoleAssignmentList
+          employeeId={employee.id}
+        />
 
-      {awardId && (
-        <AwardHistoryCard employeeId={id} />
-      )}
+        <EmployeeProfileCard
+          employeeId={employee.id}
+          employee={employee}
+          onUpdate={refetchEmployee}
+          onEditEmployee={() => {}}
+        />
+      </div>
 
+      <AwardHistoryCard employeeId={employee.id} />
+
+      {/* Timesheet */}
       <Card>
         <CardHeader>
           <CardTitle>Timesheet</CardTitle>
           <CardDescription>
-            Daily clock in, break, and clock out. Break/total hours are calculated automatically.{" "}
-            <span className="text-destructive font-medium">Red</span> = time added manually (no punch);{" "}
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Green</span> = edited by admin.
+            Daily punch records and hours worked
           </CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
             mode="server"
-            columns={tsColumns}
+            columns={columns}
             data={timesheets}
             totalCount={total}
             loading={tsLoading}
             searchValue={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search by date..."
             pageIndex={pageIndex}
             pageSize={pageSize}
             onPageChange={setPageIndex}
@@ -524,54 +536,48 @@ export default function EmployeeDetailPage() {
               setPageSize(size)
               setPageIndex(0)
             }}
+            pageSizeOptions={[20, 50, 100, 500]}
             getRowId={(row) => row.date}
-            emptyMessage="No timesheet entries yet."
+            emptyMessage="No timesheet entries found."
+            getRowCanExpand={(row: any) => !!(
+              row.original.clockInImage ||
+              row.original.breakInImage ||
+              row.original.breakOutImage ||
+              row.original.clockOutImage
+            )}
             expanded={expanded}
             onExpandedChange={setExpanded}
-            getRowCanExpand={(row) =>
-              !!(row.clockInImage || row.clockInWhere || row.breakInImage || row.breakInWhere || row.breakOutImage || row.breakOutWhere || row.clockOutImage || row.clockOutWhere)
-            }
-            renderExpandedRow={(row) => renderExpandedRowCells(row)}
           />
         </CardContent>
       </Card>
 
-      {employee && (
-        <EditEmployeeDialog
-          employee={employee}
-          open={editEmployeeOpen}
-          onOpenChange={setEditEmployeeOpen}
-          onSuccess={() => {
-            fetchEmployee()
-          }}
-        />
-      )}
+      {/* Dialogs */}
+      <EditEmployeeDialog
+        employee={employee}
+        open={editEmployeeOpen}
+        onOpenChange={setEditEmployeeOpen}
+        onSuccess={refetchEmployee}
+      />
 
       {editTimesheetRow && (
         <EditTimesheetDialog
-          employeeId={id}
-          row={editTimesheetRow}
+          employeeId={employee.id}
+          timesheet={editTimesheetRow}
           open={!!editTimesheetRow}
           onOpenChange={(open) => !open && setEditTimesheetRow(null)}
-          onSuccess={() => {
-            setEditTimesheetRow(null)
-            fetchTimesheets()
-          }}
+          onSuccess={refetchTimesheets}
         />
       )}
 
-      {employee && (
-        <EmployeeRoleAssignmentDialog
-          open={roleAssignmentDialogOpen}
-          onOpenChange={setRoleAssignmentDialogOpen}
-          employeeId={id}
-          employeeName={employee.name}
-          onSuccess={() => {
-            // The EmployeeRoleAssignmentList component will automatically refresh
-            // when the dialog closes successfully
-          }}
-        />
-      )}
+      <EmployeeRoleAssignmentDialog
+        employeeId={employee.id}
+        employeeName={employee?.name || "Employee"}
+        open={roleAssignmentDialogOpen}
+        onOpenChange={setRoleAssignmentDialogOpen}
+        onSuccess={refetchEmployee}
+      />
     </div>
   )
 }
+
+export default EmployeeDetailPage

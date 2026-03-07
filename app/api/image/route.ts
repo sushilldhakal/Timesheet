@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
-import { getEmployeeFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 
 /** Allowed domains for image proxy – only Cloudinary. Prevents open redirect. */
 const ALLOWED_HOSTS = ["res.cloudinary.com"]

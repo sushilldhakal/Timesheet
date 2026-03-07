@@ -274,10 +274,6 @@ export function useOfflinePinValidation() {
             }
 
             await offlineDB.cacheEmployee(employeeData)
-            
-            // Debug: Verify caching worked
-            console.log(`[PinValidation] Cached employee ${employeeData.name} (PIN: ${employeeData.pin})`)
-            await offlineDB.debugEmployeeCache()
 
             employee = employeeData
             punches = data.punches
@@ -432,15 +428,14 @@ export function useOfflinePinValidation() {
       logger.log(`[PinValidation] Setting success status, will navigate to /clock in 1.5s`)
       
       setTimeout(() => {
-        logger.log(`[PinValidation] Navigating to /clock`)
-        try {
-          // Use window.location for more reliable navigation in offline mode
-          window.location.href = "/clock"
-        } catch (navError) {
-          logger.error("[PinValidation] Navigation error:", navError)
-          // Fallback to router if window.location fails
-          router.replace("/clock")
-        }
+        logger.log(`[PinValidation] Navigating to /clock (client-side)`)
+        // Use client-side navigation to avoid full page reload
+        router.replace("/clock")
+        
+        // Reset status after navigation attempt in case it fails
+        setTimeout(() => {
+          setStatus("idle")
+        }, 500)
       }, 1500)
 
     } catch (error) {

@@ -4,109 +4,32 @@ import { useState, useEffect, useCallback } from "react"
 import { useSearchParams, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-
-type Location = {
-  _id: string
-  id: string
-  name: string
-  address?: string
-}
+import { usePublicLocations, useRegisterDeviceWithAuth } from "@/lib/queries/devices"
+import type { Location } from "@/lib/types/devices"
 
 export function DeviceRegistrationDialog() {
   // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC
   const searchParams = useSearchParams()
   const pathname = usePathname()
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [locations, setLocations] = useState<Location[]>([])
-  const [loadingLocations, setLoadingLocations] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [mounted, setMounted] = useState(false)
+
+  // TanStack Query hooks
+  const { data: locationsData, isLoading: loadingLocations, error: locationsError, refetch: refetchLocations } = usePublicLocations()
+  const registerDeviceMutation = useRegisterDeviceWithAuth()
+
+  const locations = locationsData?.locations || []
 
   // Fix hydration mismatch by only rendering after mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Define fetchLocations with useCallback to avoid dependency issues
-  const fetchLocations = useCallback(async (isRetry = false) => {
-    setLoadingLocations(true)
-    if (!isRetry) {
-      setError("") // Clear any previous errors only on initial load
-    }
-    
-    try {
-      // Add timeout for mobile devices
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-      
-      // Use public endpoint that doesn't require authentication
-      const response = await fetch("/api/public/locations", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // Add cache control for mobile devices
-        cache: "no-cache",
-        signal: controller.signal,
-      })
-      
-      clearTimeout(timeoutId)
-      
-      if (response.ok) {
-        const data = await response.json()
-        const locationList = data.locations || []
-        setLocations(locationList)
-        setRetryCount(0) // Reset retry count on success
-        
-        // If no locations found, show a helpful message
-        if (locationList.length === 0) {
-          setError("No work locations found. Please create locations in the admin dashboard first.")
-        }
-      } else {
-        // Handle different HTTP status codes
-        if (response.status === 404) {
-          setError("Work locations service not found. Please contact support.")
-        } else {
-          setError(`Failed to load work locations (Error ${response.status}). Please try again.`)
-        }
-      }
-    } catch (err) {
-      console.error("[DeviceRegistrationDialog] Location fetch error:", err)
-      
-      // More specific error messages based on error type
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("Request timed out while loading work locations. Please check your connection and try again.")
-      } else if (err instanceof TypeError && err.message.includes("fetch")) {
-        setError("Network error while loading work locations. Please check your internet connection and try again.")
-      } else {
-        setError("Unable to load work locations. Please refresh the page and try again.")
-      }
-    } finally {
-      setLoadingLocations(false)
-    }
-  }, [])
-
   const handleRetryLocations = useCallback(() => {
     setRetryCount(prev => prev + 1)
-    fetchLocations(true)
-  }, [fetchLocations])
-
-  // Fetch locations when dialog opens using public endpoint
-  useEffect(() => {
-    if (!mounted) return // Don't run until mounted
-    
-    const isRevoked = searchParams?.get("revoked") === "true"
-    const showRegister = searchParams?.get("register") === "true"
-    
-    if (showRegister || isRevoked) {
-      // Add a small delay to avoid conflicts with PIN page location requests
-      const timer = setTimeout(() => {
-        fetchLocations()
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-  }, [mounted, searchParams, fetchLocations]) // Include dependencies
+    refetchLocations()
+  }, [refetchLocations])
 
   // NOW we can do conditional logic after all hooks are defined
   const isRevoked = searchParams?.get("revoked") === "true"
@@ -131,7 +54,6 @@ export function DeviceRegistrationDialog() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setError("")
 
     const formData = new FormData(e.currentTarget as HTMLFormElement)
@@ -152,24 +74,14 @@ export function DeviceRegistrationDialog() {
     }
     
     const payload = {
-      email: formData.get("email"),
-      password: formData.get("password"),
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
       locationName,
       locationAddress: "", // No address for basic location info
     }
 
     try {
-      const res = await fetch("/api/device/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || "Registration failed")
-      }
+      await registerDeviceMutation.mutateAsync(payload)
 
       // Success - show success toast and redirect
       toast.success("Device registered successfully!")
@@ -178,8 +90,8 @@ export function DeviceRegistrationDialog() {
       setTimeout(() => {
         window.location.href = pathname || "/pin"
       }, 1000)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Registration failed"
+    } catch (err: any) {
+      const errorMessage = err.error || "Registration failed"
       setError(errorMessage)
       
       // Also show toast for better visibility
@@ -199,8 +111,6 @@ export function DeviceRegistrationDialog() {
           duration: 4000,
         })
       }
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -341,7 +251,7 @@ export function DeviceRegistrationDialog() {
                   <div className="w-full border rounded-md px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                     No locations available
                   </div>
-                  {error.includes("load") && (
+                  {locationsError && (
                     <button
                       type="button"
                       onClick={handleRetryLocations}
@@ -413,7 +323,7 @@ export function DeviceRegistrationDialog() {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={loading || loadingLocations}
+              disabled={registerDeviceMutation.isPending || loadingLocations}
               className={cn(
                 "w-full py-2 px-4 rounded-md font-medium",
                 "bg-blue-600 hover:bg-blue-700",
@@ -423,7 +333,7 @@ export function DeviceRegistrationDialog() {
                 "transition-colors"
               )}
             >
-              {loading ? "Registering..." : "Register Device"}
+              {registerDeviceMutation.isPending ? "Registering..." : "Register Device"}
             </button>
           </form>
         )}

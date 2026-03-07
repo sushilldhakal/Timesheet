@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, Category } from "@/lib/db"
-import { categoryIdParamSchema } from "@/lib/validation/category"
-import { categoryUpdateSchema } from "@/lib/validation/category"
+import { categoryIdParamSchema } from "@/lib/validations/category"
+import { categoryUpdateSchema } from "@/lib/validations/category"
 
 type RouteContext = { params: Promise<{ id: string }> }
 

@@ -1,45 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, Lock } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { useEmployeeProfile } from "@/lib/queries/employee-clock"
 
 export default function StaffProfilePage() {
   const router = useRouter()
-  const [employee, setEmployee] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  
+  const employeeProfileQuery = useEmployeeProfile()
 
-  useEffect(() => {
-    const fetchEmployee = async () => {
-      try {
-        const res = await fetch("/api/employee/me")
-        if (res.ok) {
-          const data = await res.json()
-          setEmployee(data.employee)
-        } else {
-          toast.error("Failed to load profile")
-        }
-      } catch (error) {
-        toast.error("Failed to load profile")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchEmployee()
-  }, [])
-
-  if (isLoading) {
+  if (employeeProfileQuery.isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
+
+  if (employeeProfileQuery.isError) {
+    toast.error("Failed to load profile")
+    return null
+  }
+
+  const employee = employeeProfileQuery.data?.data
 
   return (
     <div className="space-y-6">

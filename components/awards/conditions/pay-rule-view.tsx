@@ -1,6 +1,6 @@
 'use client';
 
-import { PayRule, payRuleSchema } from '@/lib/schemas';
+import { PayRule, payRuleSchema } from '@/lib/validations/awards';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card } from '@/components/ui/card';

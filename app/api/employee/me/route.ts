@@ -6,7 +6,7 @@
 
 import { NextResponse } from "next/server"
 import { connectDB, Employee } from "@/lib/db"
-import { getEmployeeFromCookie } from "@/lib/auth-helpers"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 
 export async function GET() {
   try {

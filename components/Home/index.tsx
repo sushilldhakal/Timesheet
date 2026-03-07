@@ -13,10 +13,9 @@ function formatTime12hr(date: Date) {
 import { PinDisplay } from "@/components/Home/PinDisplay"
 import { Numpad } from "@/components/Home/Numpad"
 import { cn } from "@/lib/utils"
-import { HOME_BG } from "@/lib/constants"
 
 const PIN_LENGTH = 4
-
+const HOME_BG = "min-h-dvh bg-dark"
 export function Home() {
   const [pin, setPin] = useState("")
   const [time12, setTime12] = useState(() => formatTime12hr(new Date()))
@@ -24,6 +23,15 @@ export function Home() {
 
   // Use offline-capable PIN validation
   const { status, errorMessage, isOnline, verifyPin } = useOfflinePinValidation()
+
+  // Clear any stale session data when PIN page loads
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem("clock_employee")
+    } catch (err) {
+      console.warn("Failed to clear session storage:", err)
+    }
+  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {

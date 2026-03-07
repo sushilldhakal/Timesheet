@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from "next/server"
-import { clearEmployeeWebCookie } from "@/lib/employee-auth"
+import { clearEmployeeWebCookie } from "@/lib/auth/employee-auth"
 
 export async function POST() {
   try {

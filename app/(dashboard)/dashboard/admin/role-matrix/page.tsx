@@ -2,70 +2,70 @@
 
 import { useEffect, useState } from "react"
 import { LocationRoleMatrix } from "@/components/locations/LocationRoleMatrix"
-import type { ICategory, ILocationRoleEnablement } from "@/components/locations/LocationRoleMatrix"
+import type { ILocationRoleEnablement } from "@/components/locations/LocationRoleMatrix"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useCategoriesByType } from "@/lib/queries/categories"
+import { useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
+import { getLocationRoles } from "@/lib/api/locations"
 
-export default function RoleMatrixPage() {
+function RoleMatrixPage() {
   const router = useRouter()
-  const [locations, setLocations] = useState<ICategory[]>([])
-  const [roles, setRoles] = useState<ICategory[]>([])
   const [enablements, setEnablements] = useState<ILocationRoleEnablement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch all data
-  const fetchData = async () => {
+  const locationsQuery = useCategoriesByType("location")
+  const rolesQuery = useCategoriesByType("role")
+  const enableLocationRoleMutation = useEnableLocationRole()
+  const disableLocationRoleMutation = useDisableLocationRole()
+
+  const locations = locationsQuery.data?.categories || []
+  const roles = rolesQuery.data?.categories || []
+
+  // Fetch all enablements
+  const fetchEnablements = async () => {
+    if (!locations.length) return
+
     setLoading(true)
     setError(null)
     try {
-      // Fetch locations
-      const locationsRes = await fetch("/api/categories?type=location")
-      if (!locationsRes.ok) throw new Error("Failed to fetch locations")
-      const locationsData = await locationsRes.json()
-
-      // Fetch roles
-      const rolesRes = await fetch("/api/categories?type=role")
-      if (!rolesRes.ok) throw new Error("Failed to fetch roles")
-      const rolesData = await rolesRes.json()
-
-      // Fetch all enablements
-      const enablementsPromises = (locationsData.categories || []).map(
-        async (location: ICategory) => {
-          const res = await fetch(`/api/locations/${location._id || location.id}/roles`)
-          if (res.ok) {
-            const data = await res.json()
-            return (data.roles || []).map((role: any) => ({
-              _id: `${location._id || location.id}-${role.roleId}`,
-              locationId: location._id || location.id,
-              roleId: role.roleId,
-              effectiveFrom: role.effectiveFrom,
-              effectiveTo: role.effectiveTo,
-              isActive: role.isActive,
-              employeeCount: role.employeeCount,
-            }))
-          }
+      const enablementsPromises = locations.map(async (location: any) => {
+        try {
+          const locationId = (location as any)._id || location.id
+          
+          // Use the API function directly
+          const apiData = await getLocationRoles(locationId)
+          return (apiData.data || []).map((role: any) => ({
+            _id: `${locationId}-${role.roleId}`,
+            locationId: locationId,
+            roleId: role.roleId,
+            effectiveFrom: role.effectiveFrom,
+            effectiveTo: role.effectiveTo,
+            isActive: role.isActive,
+            employeeCount: role.employeeCount,
+          }))
+        } catch {
           return []
         }
-      )
+      })
 
       const enablementsArrays = await Promise.all(enablementsPromises)
       const allEnablements = enablementsArrays.flat()
-
-      setLocations(locationsData.categories || [])
-      setRoles(rolesData.categories || [])
       setEnablements(allEnablements)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data")
+      setError(err instanceof Error ? err.message : "Failed to load enablements")
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (locations.length > 0) {
+      fetchEnablements()
+    }
+  }, [locations])
 
   // Handle toggle role at location
   const handleToggle = async (locationId: string, roleId: string) => {
@@ -76,33 +76,20 @@ export default function RoleMatrixPage() {
 
     try {
       if (isEnabled) {
-        // Disable role
-        const res = await fetch(`/api/locations/${locationId}/roles/${roleId}`, {
-          method: "DELETE",
-        })
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || "Failed to disable role")
-        }
+        await disableLocationRoleMutation.mutateAsync({ locationId, roleId })
       } else {
-        // Enable role
-        const res = await fetch(`/api/locations/${locationId}/roles`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        await enableLocationRoleMutation.mutateAsync({
+          locationId,
+          data: {
             roleId,
             effectiveFrom: new Date().toISOString(),
             effectiveTo: null,
-          }),
+          }
         })
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || "Failed to enable role")
-        }
       }
 
-      // Refresh data
-      await fetchData()
+      // Refresh enablements
+      await fetchEnablements()
     } catch (err) {
       alert(err instanceof Error ? err.message : "An error occurred")
       throw err
@@ -114,31 +101,27 @@ export default function RoleMatrixPage() {
     try {
       // Enable role at each location
       const promises = locationIds.map((locationId) =>
-        fetch(`/api/locations/${locationId}/roles`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        enableLocationRoleMutation.mutateAsync({
+          locationId,
+          data: {
             roleId,
             effectiveFrom: new Date().toISOString(),
             effectiveTo: null,
-          }),
+          }
         })
       )
 
-      const results = await Promise.all(promises)
-      const failed = results.filter((r) => !r.ok)
+      await Promise.all(promises)
 
-      if (failed.length > 0) {
-        throw new Error(`Failed to enable role at ${failed.length} location(s)`)
-      }
-
-      // Refresh data
-      await fetchData()
+      // Refresh enablements
+      await fetchEnablements()
     } catch (err) {
       alert(err instanceof Error ? err.message : "An error occurred")
       throw err
     }
   }
+
+  const isLoading = locationsQuery.isLoading || rolesQuery.isLoading || loading
 
   return (
     <div className="flex flex-col space-y-4 p-4 lg:p-8">
@@ -160,14 +143,14 @@ export default function RoleMatrixPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {isLoading ? (
         <div className="py-8 text-center text-muted-foreground">Loading matrix...</div>
       ) : error ? (
         <div className="py-8 text-center text-destructive">{error}</div>
       ) : (
         <LocationRoleMatrix
-          locations={locations}
-          roles={roles}
+          locations={locations as any}
+          roles={roles as any}
           enablements={enablements}
           onToggle={handleToggle}
           onBulkEnable={handleBulkEnable}
@@ -176,3 +159,6 @@ export default function RoleMatrixPage() {
     </div>
   )
 }
+
+
+export default RoleMatrixPage

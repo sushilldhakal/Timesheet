@@ -16,6 +16,7 @@ import { logger } from "@/lib/utils/logger"
 import { useEnhancedClock } from "@/lib/hooks/use-enhanced-clock"
 import { OfflineStatus } from "@/components/clock/offline-status"
 import dynamic from "next/dynamic"
+import { useEmployeeProfile, useEmployeeLogout } from "@/lib/queries/employee-clock"
 
 // Dynamically import Confetti to avoid SSR issues
 const Confetti = dynamic(() => import("react-confetti"), { ssr: false })
@@ -48,14 +49,34 @@ type TodayPunches = {
 function formatTimeDisplay(t?: string): string {
   if (!t || typeof t !== "string" || !t.trim()) return "—"
   const s = t.trim()
-  const colonMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (colonMatch) {
-    const h = parseInt(colonMatch[1], 10)
-    const m = parseInt(colonMatch[2], 10)
-    if (h === 0 && m === 0) return "—"
-    const date = new Date(2000, 0, 1, h, m)
+
+  // Supports:
+  // - "11:03"
+  // - "11:03:45"
+  // - "11:03:45 PM"
+  // - "11:03 PM"
+  const timeMatch = s.match(
+    /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/
+  )
+
+  if (timeMatch) {
+    let h = parseInt(timeMatch[1], 10)
+    const m = parseInt(timeMatch[2], 10)
+    const sec = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0
+    const ampm = timeMatch[4]
+
+    if (h === 0 && m === 0 && sec === 0) return "—"
+
+    if (ampm) {
+      const upper = ampm.toUpperCase()
+      if (upper === "AM" && h === 12) h = 0
+      if (upper === "PM" && h < 12) h += 12
+    }
+
+    const date = new Date(2000, 0, 1, h, m, sec)
     return format(date, "h:mm a", { locale: enUS })
   }
+
   const d = new Date(s)
   if (isNaN(d.getTime())) return "—"
   return format(d, "h:mm a", { locale: enUS })
@@ -157,8 +178,12 @@ function ClockPageContent() {
   const [activeTab, setActiveTab] = useState<"start" | "break" | "end">("start")
   const [isBirthday, setIsBirthday] = useState(false)
 
+  // TanStack Query hooks
+  const employeeProfileQuery = useEmployeeProfile()
+  const employeeLogoutMutation = useEmployeeLogout()
+
   // ── Face detection ─────────────────────────────────────────────────────────
-  const { status: faceStatus, modelsLoaded, canvasRef, getLatestBlob, reset: resetFace } = useFaceDetection(
+  const { status: faceStatus, modelsLoaded, canvasRef, getLatestBlob, getLatestDescriptor, reset: resetFace } = useFaceDetection(
     webcamRef as React.RefObject<Webcam>,
     {
       minScore: 0.65,
@@ -215,6 +240,7 @@ function ClockPageContent() {
     employeeId: employee?.id || "",
     location,
     getLatestBlob,
+    getLatestDescriptor,
     resetFace,
     noPhoto,
     onSuccess: (type, message) => {
@@ -325,32 +351,20 @@ function ClockPageContent() {
 
     // No cached session - check if user has valid cookie
     logger.log("[ClockPage] No cached session, checking employee cookie")
-    fetch("/api/employee/me")
-      .then(async (res) => {
-        logger.log("[ClockPage] Employee API response:", { status: res.status, ok: res.ok })
-        if (!res.ok) throw new Error("Unauthorized")
-        
-        // Check if response is JSON or HTML (redirect)
-        const contentType = res.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Not JSON - likely redirected")
-        }
-        
-        return res.json()
-      })
-      .then((data) => {
-        // User has valid cookie but no session storage
-        // This means they refreshed or lost session - redirect to PIN page for fresh location
-        logger.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
-        router.replace("/pin")
-      })
-      .catch((err) => {
-        // No valid cookie - redirect to PIN page
-        logger.error("[ClockPage] ❌ API error:", err)
-        try { sessionStorage.removeItem("clock_employee") } catch {}
-        router.replace("/pin")
-      })
-  }, [router])
+    
+    // Use TanStack Query to check employee profile
+    if (employeeProfileQuery.data?.data) {
+      // User has valid cookie but no session storage
+      // This means they refreshed or lost session - redirect to PIN page for fresh location
+      logger.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
+      router.replace("/pin")
+    } else if (employeeProfileQuery.isError) {
+      // No valid cookie - redirect to PIN page
+      logger.error("[ClockPage] ❌ API error:", employeeProfileQuery.error)
+      try { sessionStorage.removeItem("clock_employee") } catch {}
+      router.replace("/pin")
+    }
+  }, [router, employeeProfileQuery.data, employeeProfileQuery.isError, employeeProfileQuery.error])
 
   // ── Derive initial active tab from punch state (on mount and when punches load) ─
   useEffect(() => {
@@ -411,9 +425,13 @@ function ClockPageContent() {
       logger.error("[ClockPage] Error clearing session:", err)
     }
     
-    fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
-    router.replace("/pin")
-  }, [router])
+    // Use TanStack Query mutation for logout
+    employeeLogoutMutation.mutate(undefined, {
+      onSettled: () => {
+        router.replace("/pin")
+      }
+    })
+  }, [router, employeeLogoutMutation])
 
   // ── Idle logout — 30s with countdown warning ───────────────────────────────
   useEffect(() => {

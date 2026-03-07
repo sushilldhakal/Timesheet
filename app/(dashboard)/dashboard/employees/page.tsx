@@ -18,6 +18,9 @@ import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-col
 import { DataTableFacetedFilter } from "@/components/ui/data-table/data-table-faceted-filter"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
 import type { FilterConfig } from "@/components/ui/data-table/data-table-toolbar"
+import { useEmployees } from "@/lib/queries/employees"
+import * as employeesApi from "@/lib/api/employees"
+import type { Employee } from "@/lib/api/employees"
 import { AddEmployeeDialog } from "./AddEmployeeDialog"
 import { EditEmployeeDialog } from "./EditEmployeeDialog"
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog"
@@ -113,67 +116,6 @@ function CustomEmployeeToolbar({
   )
 }
 
-export type EmployeeRow = {
-  id: string
-  name: string
-  pin: string
-  roles?: Array<{
-    id: string
-    role: {
-      id: string
-      name: string
-      color?: string
-    }
-    location: {
-      id: string
-      name: string
-      address: string
-      lat?: number
-      lng?: number
-      geofence: {
-        radius: number
-        mode: string
-      }
-      hours: {
-        opening?: number
-        closing?: number
-        workingDays: number[]
-      }
-    }
-    validFrom: string
-    validTo: string | null
-    isActive: boolean
-  }>
-  employers?: Array<{
-    id: string
-    name: string
-    color?: string
-  }>
-  locations?: Array<{
-    id: string
-    name: string
-    address: string
-    lat?: number
-    lng?: number
-    geofence: {
-      radius: number
-      mode: string
-    }
-    hours: {
-      opening?: number
-      closing?: number
-      workingDays: number[]
-    }
-  }>
-  hire: string
-  site: string
-  email: string
-  phone: string
-  dob: string
-  comment: string
-  img: string
-}
-
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -185,7 +127,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function EmployeesPage() {
   const router = useRouter()
-  const [employees, setEmployees] = useState<EmployeeRow[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -194,8 +136,8 @@ export default function EmployeesPage() {
   const [sortBy, setSortBy] = useState<string | null>("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [addOpen, setAddOpen] = useState(false)
-  const [editEmployee, setEditEmployee] = useState<EmployeeRow | null>(null)
-  const [deleteEmployee, setDeleteEmployee] = useState<EmployeeRow | null>(null)
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
+  const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null)
   const [columnVisibility, setColumnVisibility] = useState({})
   const [columnFilters, setColumnFilters] = useState<{ id: string; value: string[] }[]>([])
   const debouncedSearch = useDebounce(search, 300)
@@ -205,32 +147,23 @@ export default function EmployeesPage() {
     try {
       const limit = pageSize >= 99999 ? 10000 : pageSize
       const offset = pageIndex * (pageSize >= 99999 ? 10000 : pageSize)
-      const params = new URLSearchParams({
-        limit: String(limit),
-        offset: String(offset),
-      })
-      if (debouncedSearch) params.set("search", debouncedSearch)
-      if (sortBy) {
-        params.set("sortBy", sortBy)
-        params.set("order", sortOrder)
+      const params = {
+        limit,
+        offset,
+        search: debouncedSearch || undefined,
+        sortBy: sortBy || undefined,
+        order: sortOrder,
+        // Add server-side filters
+        ...Object.fromEntries(
+          columnFilters
+            .filter(filter => filter.value.length > 0)
+            .map(filter => [filter.id, filter.value.join(',')])
+        )
       }
       
-      // Add server-side filters
-      columnFilters.forEach(filter => {
-        if (filter.value.length > 0) {
-          params.set(filter.id, filter.value.join(','))
-        }
-      })
-      
-      const res = await fetch(`/api/employees?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setEmployees(data.employees ?? [])
-        setTotal(data.total ?? 0)
-      } else {
-        setEmployees([])
-        setTotal(0)
-      }
+      const data = await employeesApi.getEmployees(params)
+      setEmployees(data.employees ?? [])
+      setTotal(data.total ?? 0)
     } catch {
       setEmployees([])
       setTotal(0)
@@ -247,7 +180,7 @@ export default function EmployeesPage() {
     setPageIndex(0)
   }, [debouncedSearch, columnFilters])
 
-  const handleRowClick = (row: EmployeeRow) => {
+  const handleRowClick = (row: Employee) => {
     router.push(`/dashboard/employees/${row.id}`)
   }
 
@@ -261,7 +194,7 @@ export default function EmployeesPage() {
   const sortableColumnIds = ["name", "pin", "email", "phone", "employer", "location"]
 
   // Define columns
-  const columns = useMemo<ColumnDef<EmployeeRow>[]>(
+  const columns = useMemo<ColumnDef<Employee>[]>(
     () => [
      
       {
@@ -328,9 +261,9 @@ export default function EmployeesPage() {
             <HoverCard>
               <HoverCardTrigger asChild>
                 <div className="flex items-center gap-1 cursor-pointer">
-                  {displayRoles.map((role) => (
+                  {displayRoles.map((role, index) => (
                     <Badge
-                      key={role.id}
+                      key={`${role.id}-${index}`}
                       variant="secondary"
                       className="flex items-center gap-1"
                     >
@@ -352,9 +285,9 @@ export default function EmployeesPage() {
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold">Role Assignments</h4>
                   <div className="space-y-2">
-                    {activeRoles.map((role) => (
+                    {activeRoles.map((role, index) => (
                       <div
-                        key={role.id}
+                        key={`${role.id}-${index}`}
                         className="flex items-start gap-2 text-sm"
                       >
                         {role.role.color && (
@@ -467,67 +400,64 @@ export default function EmployeesPage() {
   const fetchFilterOptions = useCallback(async () => {
     try {
       // Fetch all employees to get complete filter options (without pagination)
-      const res = await fetch('/api/employees?limit=10000')
-      if (res.ok) {
-        const data = await res.json()
-        const allEmployees = data.employees || []
+      const data = await employeesApi.getEmployees({ limit: 10000 })
+      const allEmployees = data.employees || []
         
-        // Count unique employees per role (not total assignments)
-        const roleCounts = new Map<string, number>()
-        allEmployees.forEach((emp: EmployeeRow) => {
-          const employeeRoles = new Set<string>()
-          emp.roles?.filter((r) => r.isActive).forEach((r) => {
-            employeeRoles.add(r.role.name)
-          })
-          // Count each employee only once per role, even if they have multiple assignments
-          employeeRoles.forEach(roleName => {
-            roleCounts.set(roleName, (roleCounts.get(roleName) || 0) + 1)
-          })
+      // Count unique employees per role (not total assignments)
+      const roleCounts = new Map<string, number>()
+      allEmployees.forEach((emp: Employee) => {
+        const employeeRoles = new Set<string>()
+        emp.roles?.filter((r) => r.isActive).forEach((r) => {
+          employeeRoles.add(r.role.name)
         })
-        const roles = Array.from(roleCounts.entries()).map(([role, count]) => ({ 
-          label: `${role} (${count})`, 
-          value: role,
-          count 
-        }))
-
-        // Count unique employees per employer
-        const employerCounts = new Map<string, number>()
-        allEmployees.forEach((emp: EmployeeRow) => {
-          const employeeEmployers = new Set<string>()
-          emp.employers?.forEach((e) => {
-            employeeEmployers.add(e.name)
-          })
-          // Count each employee only once per employer
-          employeeEmployers.forEach(employerName => {
-            employerCounts.set(employerName, (employerCounts.get(employerName) || 0) + 1)
-          })
+        // Count each employee only once per role, even if they have multiple assignments
+        employeeRoles.forEach(roleName => {
+          roleCounts.set(roleName, (roleCounts.get(roleName) || 0) + 1)
         })
-        const employers = Array.from(employerCounts.entries()).map(([employer, count]) => ({ 
-          label: `${employer} (${count})`, 
-          value: employer,
-          count 
-        }))
+      })
+      const roles = Array.from(roleCounts.entries()).map(([role, count]) => ({ 
+        label: `${role} (${count})`, 
+        value: role,
+        count 
+      }))
 
-        // Count unique employees per location
-        const locationCounts = new Map<string, number>()
-        allEmployees.forEach((emp: EmployeeRow) => {
-          const employeeLocations = new Set<string>()
-          emp.locations?.forEach((l) => {
-            employeeLocations.add(l.name)
-          })
-          // Count each employee only once per location
-          employeeLocations.forEach(locationName => {
-            locationCounts.set(locationName, (locationCounts.get(locationName) || 0) + 1)
-          })
+      // Count unique employees per employer
+      const employerCounts = new Map<string, number>()
+      allEmployees.forEach((emp: Employee) => {
+        const employeeEmployers = new Set<string>()
+        emp.employers?.forEach((e) => {
+          employeeEmployers.add(e.name)
         })
-        const locations = Array.from(locationCounts.entries()).map(([location, count]) => ({ 
-          label: `${location} (${count})`, 
-          value: location,
-          count 
-        }))
+        // Count each employee only once per employer
+        employeeEmployers.forEach(employerName => {
+          employerCounts.set(employerName, (employerCounts.get(employerName) || 0) + 1)
+        })
+      })
+      const employers = Array.from(employerCounts.entries()).map(([employer, count]) => ({ 
+        label: `${employer} (${count})`, 
+        value: employer,
+        count 
+      }))
 
-        setAllFilterOptions({ roles, employers, locations })
-      }
+      // Count unique employees per location
+      const locationCounts = new Map<string, number>()
+      allEmployees.forEach((emp: Employee) => {
+        const employeeLocations = new Set<string>()
+        emp.locations?.forEach((l) => {
+          employeeLocations.add(l.name)
+        })
+        // Count each employee only once per location
+        employeeLocations.forEach(locationName => {
+          locationCounts.set(locationName, (locationCounts.get(locationName) || 0) + 1)
+        })
+      })
+      const locations = Array.from(locationCounts.entries()).map(([location, count]) => ({ 
+        label: `${location} (${count})`, 
+        value: location,
+        count 
+      }))
+
+      setAllFilterOptions({ roles, employers, locations })
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
     }
@@ -632,6 +562,7 @@ export default function EmployeesPage() {
 
       {editEmployee && (
         <EditEmployeeDialog
+          key={`edit-${editEmployee.id}`}
           employee={editEmployee}
           open={!!editEmployee}
           onOpenChange={(open) => !open && setEditEmployee(null)}
@@ -644,6 +575,7 @@ export default function EmployeesPage() {
 
       {deleteEmployee && (
         <DeleteEmployeeDialog
+          key={`delete-${deleteEmployee.id}`}
           employee={deleteEmployee}
           open={!!deleteEmployee}
           onOpenChange={(open) => !open && setDeleteEmployee(null)}

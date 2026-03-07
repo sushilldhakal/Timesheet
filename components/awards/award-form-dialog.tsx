@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useCreateAward, useUpdateAward } from "@/lib/queries/awards";
+import { CreateAwardRequest } from "@/lib/api/awards";
 
 interface Props {
   open: boolean;
@@ -25,7 +27,10 @@ export default function AwardFormDialog({ open, onClose, award }: Props) {
     name: "",
     description: "",
   });
-  const [loading, setLoading] = useState(false);
+
+  // TanStack Query hooks
+  const createAwardMutation = useCreateAward();
+  const updateAwardMutation = useUpdateAward();
 
   useEffect(() => {
     if (award) {
@@ -41,43 +46,47 @@ export default function AwardFormDialog({ open, onClose, award }: Props) {
     }
   }, [award, open]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
-      const url = award ? `/api/awards/${award._id}` : "/api/awards";
-      const method = award ? "PUT" : "POST";
-
-      const payload = award
-        ? { ...award, name: formData.name, description: formData.description || null }
-        : {
-            name: formData.name,
-            description: formData.description || null,
-            isActive: true,
-            levels: [],
-          };
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    if (award) {
+      // Update existing award
+      const payload = { ...award, name: formData.name, description: formData.description || null };
+      updateAwardMutation.mutate(
+        { id: award._id, data: payload },
+        {
+          onSuccess: () => {
+            toast.success("Award updated");
+            onClose();
+          },
+          onError: (error: any) => {
+            console.error("Error updating award:", error);
+            toast.error(error.message || "Failed to update award");
+          },
+        }
+      );
+    } else {
+      // Create new award
+      const payload: CreateAwardRequest = {
+        name: formData.name,
+        description: formData.description || undefined,
+        isActive: true,
+        levels: [],
+      };
+      createAwardMutation.mutate(payload, {
+        onSuccess: () => {
+          toast.success("Award created successfully");
+          onClose();
+        },
+        onError: (error: any) => {
+          console.error("Error creating award:", error);
+          toast.error(error.message || "Failed to create award");
+        },
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to save award");
-      }
-
-      toast.success(award ? "Award updated" : "Award created successfully");
-      onClose();
-    } catch (error: any) {
-      console.error("Error saving award:", error);
-      toast.error(error.message || "Failed to save award");
-    } finally {
-      setLoading(false);
     }
   };
+
+  const isLoading = createAwardMutation.isPending || updateAwardMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -123,8 +132,8 @@ export default function AwardFormDialog({ open, onClose, award }: Props) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : award ? "Update" : "Create"}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Saving..." : award ? "Update" : "Create"}
             </Button>
           </div>
         </form>

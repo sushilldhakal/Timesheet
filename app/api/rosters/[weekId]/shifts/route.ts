@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth-api"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { RosterManager } from "@/lib/managers/roster-manager"
-import { SchedulingValidator } from "@/lib/validation/scheduling-validator"
+import { SchedulingValidator } from "@/lib/validations/scheduling-validator"
 import mongoose from "mongoose"
 import { z } from "zod"
 

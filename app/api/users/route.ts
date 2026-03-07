@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth-helpers"
+import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, User } from "@/lib/db"
-import { userCreateSchema } from "@/lib/validation/user"
+import { userCreateSchema } from "@/lib/validations/user"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 
 /** GET /api/users - List all users (admin only). Excludes super_admin (hidden). */
@@ -74,10 +74,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username already exists" }, { status: 409 })
     }
 
-    // Check for existing email
-    const existingEmail = await User.findOne({ email: email.toLowerCase() })
-    if (existingEmail) {
-      return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+    // Check for existing email if provided
+    if (email) {
+      const existingEmail = await User.findOne({ email: email.toLowerCase() })
+      if (existingEmail) {
+        return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+      }
     }
 
     let userPassword = password
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
       if (!employee) {
         return NextResponse.json({ error: "Employee not found" }, { status: 404 })
       }
-      if (employee.email?.toLowerCase() !== email.toLowerCase()) {
+      if (email && employee.email?.toLowerCase() !== email.toLowerCase()) {
         return NextResponse.json({ error: "Email must match employee email" }, { status: 400 })
       }
       if (!employee.password) {
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
     const user = await User.create({
       name: name.trim(),
       username: username.toLowerCase(),
-      email: email.toLowerCase(),
+      email: email?.toLowerCase() || undefined,
       password: userPassword, // This will be hashed by the pre-save hook if it's not already hashed
       role: role ?? "user",
       location: location ?? [],

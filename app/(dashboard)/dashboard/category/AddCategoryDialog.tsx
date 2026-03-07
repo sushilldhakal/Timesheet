@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,8 @@ import { CATEGORY_TYPE_LABELS, type CategoryType } from "@/lib/config/category-t
 import { parseCoordsFromMapLink } from "@/lib/utils/parseMapLink"
 import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
+import { useCategories, useCreateCategory } from "@/lib/queries/categories"
+import { useEnableLocationRole } from "@/lib/queries/locations"
 
 type Props = {
   type: CategoryType
@@ -52,9 +54,13 @@ export function AddCategoryDialog({
   const [shiftEndHour, setShiftEndHour] = useState(17)
   const [shiftDescription, setShiftDescription] = useState('Standard business hours')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
-  const [allRoles, setAllRoles] = useState<Array<{ id: string; name: string; color?: string }>>([])
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+
+  const rolesQuery = useCategories()
+  const createCategoryMutation = useCreateCategory()
+  const enableLocationRoleMutation = useEnableLocationRole()
+
+  const allRoles = rolesQuery.data?.categories?.filter(c => c.type === 'role') ?? []
 
   const reset = () => {
     setName("")
@@ -75,22 +81,6 @@ export function AddCategoryDialog({
     setError(null)
   }
 
-  // Fetch all roles for the multi-select
-  useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const res = await fetch("/api/categories?type=role")
-        if (res.ok) {
-          const data = await res.json()
-          setAllRoles(data.categories || [])
-        }
-      } catch (err) {
-        console.error("Failed to fetch roles:", err)
-      }
-    }
-    fetchRoles()
-  }, [])
-
   const handleOpenChange = (next: boolean) => {
     if (!next) reset()
     onOpenChange(next)
@@ -108,7 +98,7 @@ export function AddCategoryDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setLoading(true)
+
     try {
       const body: Record<string, unknown> = { name: name.trim(), type }
       if (type === "location") {
@@ -136,30 +126,21 @@ export function AddCategoryDialog({
           }
         }
       }
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to create")
-        return
-      }
+
+      const result = await createCategoryMutation.mutateAsync(body as any)
 
       // If location and roles selected, enable them
-      if (type === "location" && selectedRoleIds.length > 0 && data.category?.id) {
-        const locationId = data.category.id
+      if (type === "location" && selectedRoleIds.length > 0 && result.category?.id) {
+        const locationId = result.category.id
         await Promise.all(
           selectedRoleIds.map((roleId) =>
-            fetch(`/api/locations/${locationId}/roles`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            enableLocationRoleMutation.mutateAsync({
+              locationId,
+              data: {
                 roleId,
                 effectiveFrom: new Date().toISOString(),
                 effectiveTo: null,
-              }),
+              }
             })
           )
         )
@@ -167,14 +148,13 @@ export function AddCategoryDialog({
 
       handleOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Network error")
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error")
     }
   }
 
   const typeLabel = CATEGORY_TYPE_LABELS[type]
+  const loading = createCategoryMutation.isPending || enableLocationRoleMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -208,7 +188,7 @@ export function AddCategoryDialog({
                     <SelectTrigger id="add-color" className="w-full">
                       <SelectValue>
                         <div className="flex items-center gap-2">
-                          <div 
+                          <div
                             className="h-5 w-5 rounded border-2 border-gray-300"
                             style={{ backgroundColor: color }}
                           />
@@ -220,7 +200,7 @@ export function AddCategoryDialog({
                       {TAILWIND_COLORS.map((c) => (
                         <SelectItem key={c.value} value={c.value}>
                           <div className="flex items-center gap-2">
-                            <div 
+                            <div
                               className="h-5 w-5 rounded border-2 border-gray-300"
                               style={{ backgroundColor: c.value }}
                             />
@@ -248,7 +228,7 @@ export function AddCategoryDialog({
                         Default working hours for this role (used in roster generation)
                       </p>
                     </Field>
-                    
+
                     <Field>
                       <FieldLabel>Working Days</FieldLabel>
                       <div className="flex flex-wrap gap-2 mt-2">

@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { useDeleteEmployeeRole } from "@/lib/queries/employees"
 
 interface RoleAssignment {
   id: string
@@ -46,7 +47,9 @@ export function RoleAssignmentCard({
 }: RoleAssignmentCardProps) {
   const [editNotesOpen, setEditNotesOpen] = useState(false)
   const [notes, setNotes] = useState(assignment.notes || "")
-  const [saving, setSaving] = useState(false)
+
+  // TanStack Query hook
+  const updateRoleMutation = useDeleteEmployeeRole()
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Present"
@@ -57,34 +60,24 @@ export function RoleAssignmentCard({
     }
   }
 
-  const handleSaveNotes = async () => {
-    setSaving(true)
-    try {
-      const res = await fetch(
-        `/api/employees/${employeeId}/roles/${assignment.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ notes }),
-        }
-      )
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error?.message || "Failed to update notes")
+  const handleSaveNotes = () => {
+    updateRoleMutation.mutate(
+      {
+        employeeId,
+        assignmentId: assignment.id,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Notes updated successfully")
+          setEditNotesOpen(false)
+          onUpdate?.()
+        },
+        onError: (err: any) => {
+          console.error("Failed to update notes:", err)
+          toast.error(err.message || "Failed to update notes")
+        },
       }
-
-      toast.success("Notes updated successfully")
-      setEditNotesOpen(false)
-      onUpdate?.()
-    } catch (err: any) {
-      console.error("Failed to update notes:", err)
-      toast.error(err.message || "Failed to update notes")
-    } finally {
-      setSaving(false)
-    }
+    )
   }
 
   return (
@@ -216,12 +209,12 @@ export function RoleAssignmentCard({
               type="button"
               variant="outline"
               onClick={() => setEditNotesOpen(false)}
-              disabled={saving}
+              disabled={updateRoleMutation.isPending}
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveNotes} disabled={saving}>
-              {saving ? "Saving..." : "Save Notes"}
+            <Button onClick={handleSaveNotes} disabled={updateRoleMutation.isPending}>
+              {updateRoleMutation.isPending ? "Saving..." : "Save Notes"}
             </Button>
           </DialogFooter>
         </DialogContent>
