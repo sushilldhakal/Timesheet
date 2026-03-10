@@ -37,6 +37,66 @@ export const locationIdParamSchema = z.object({
   id: objectIdSchema,
 })
 
+// Role ID parameter
+export const roleIdParamSchema = z.object({
+  roleId: objectIdSchema,
+})
+
+// Location and role ID parameters
+export const locationRoleParamsSchema = z.object({
+  locationId: objectIdSchema,
+  roleId: objectIdSchema,
+})
+
+// Enable role request
+export const enableRoleSchema = z.object({
+  roleId: z.string().min(1, "Role ID is required"),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveTo: z.string().datetime().nullable().optional(),
+})
+
+// Update role enablement request
+export const updateEnablementSchema = z.object({
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveTo: z.string().datetime().nullable().optional(),
+})
+
+// Role enablement query parameters
+export const roleEnablementQuerySchema = z.object({
+  date: z.string().datetime().optional(),
+  includeInactive: z.coerce.boolean().optional().default(false),
+})
+
+// Role enablement response
+export const roleEnablementSchema = z.object({
+  roleId: z.string(),
+  roleName: z.string(),
+  roleColor: z.string().optional(),
+  effectiveFrom: z.string().datetime(),
+  effectiveTo: z.string().datetime().nullable(),
+  isActive: z.boolean(),
+  employeeCount: z.number().optional(),
+})
+
+// Location roles response
+export const locationRolesResponseSchema = z.object({
+  roles: z.array(roleEnablementSchema),
+})
+
+// Role enablement create/update response
+export const roleEnablementResponseSchema = z.object({
+  enablement: z.object({
+    id: z.string(),
+    locationId: z.string(),
+    roleId: z.string(),
+    roleName: z.string(),
+    roleColor: z.string().optional(),
+    effectiveFrom: z.string().datetime(),
+    effectiveTo: z.string().datetime().nullable(),
+    isActive: z.boolean(),
+  }),
+})
+
 // Location employees query parameters
 export const locationEmployeesQuerySchema = z.object({
   includeInactive: z.coerce.boolean().optional().default(false),

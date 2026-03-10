@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { uploadFile } from "@/lib/storage"
 
-/** POST /api/employee/upload/image - Upload image to configured storage. Returns { url }. Requires employee session. */
+/** 
+ * POST /api/employee/upload/image - Upload image to configured storage. 
+ * Returns { url }. Requires employee session.
+ * 
+ * Note: This route handles multipart/form-data and cannot use createApiRoute
+ * due to the file upload requirements. It maintains the original implementation
+ * but will be documented in the OpenAPI spec manually.
+ */
 export async function POST(request: NextRequest) {
   const auth = await getEmployeeFromCookie()
   if (!auth) {

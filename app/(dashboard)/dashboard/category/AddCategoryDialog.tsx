@@ -20,8 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CATEGORY_TYPE_LABELS, type CategoryType } from "@/lib/config/category-types"
-import { parseCoordsFromMapLink } from "@/lib/utils/parseMapLink"
-import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/colors"
+import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
+import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useCategories, useCreateCategory } from "@/lib/queries/categories"
 import { useEnableLocationRole } from "@/lib/queries/locations"

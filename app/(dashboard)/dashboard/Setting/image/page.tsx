@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { format } from "date-fns"
-import { useAuth } from "@/lib/hooks/useAuth"
+import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Progress } from "@/components/ui/progress"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { 

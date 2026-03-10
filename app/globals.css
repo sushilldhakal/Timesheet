@@ -70,6 +70,15 @@
   --shadow-lg: 1px 1px 16px -2px oklch(0.28 0.09 24.83 / 0.12), 1px 4px 6px -3px oklch(0.28 0.09 24.83 / 0.12);
   --shadow-xl: 1px 1px 16px -2px oklch(0.28 0.09 24.83 / 0.12), 1px 8px 10px -3px oklch(0.28 0.09 24.83 / 0.12);
 
+  /* Layout system variables */
+  --header-height: calc(var(--spacing) * 14);
+  --sidebar-width: calc(var(--spacing) * 72);
+  --sidebar-width-icon: 3rem;
+  --top-spacing: 0;
+
+  /* Fumadocs layout width - default boxed */
+  --fd-layout-width: 1400px;
+
   /* Fonts */
   --font-sans: Poppins, sans-serif;
   --font-serif: Libre Baskerville, serif;
@@ -329,25 +338,80 @@
   .badge-info        { background-color: rgb(var(--brand));   color: #fff; }
 }
 
-  /* Non-working hours styling */
-  .bg-calendar-disabled-hour {
-    background-color: rgba(0, 0, 0, 0.02);
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 10px,
-      rgba(0, 0, 0, 0.04) 10px,
-      rgba(0, 0, 0, 0.04) 20px
-    );
-  }
+/* ─────────────────────────────────────────────
+   FUMADOCS LAYOUT CUSTOMIZATIONS
+───────────────────────────────────────────── */
 
-  .dark .bg-calendar-disabled-hour {
-    background-color: rgba(255, 255, 255, 0.02);
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 10px,
-      rgba(255, 255, 255, 0.04) 10px,
-      rgba(255, 255, 255, 0.04) 20px
-    );
-  }
+/* Notebook layout header styling */
+[data-fd-nav] {
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Header transparency mode */
+[data-transparent="true"] {
+  background: transparent;
+  border-bottom: 1px solid transparent;
+}
+
+/* Hide header when sidebar is collapsed */
+[data-collapsed="true"] [data-fd-nav] {
+  display: none !important;
+}
+
+/* Force header layout structure */
+[data-header-body] {
+  max-width: none !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+}
+
+/* Make our custom nav children container take full width and control layout */
+[data-header-body] > div:first-child {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+/* Position the right side controls after search and before GitHub */
+[data-header-body] > div:last-child {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  order: 10 !important;
+}
+
+/* Ensure GitHub icon stays at the very end */
+[data-header-body] a[aria-label*="GitHub"] {
+  order: 999 !important;
+}
+
+/* Force mobile menu button positioning */
+[data-header-body] button[data-sidebar="trigger"] {
+  order: 998 !important;
+}
+
+/* Move our theme and width toggles to the right side container */
+[data-header-body] > div:first-child > div:last-child {
+  position: absolute !important;
+  right: 3rem !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  z-index: 10 !important;
+}
+
+/* ─────────────────────────────────────────────
+   ENHANCED TOC SLIDING BORDER ANIMATION
+───────────────────────────────────────────── */
+
+/* Smooth scrolling for anchor links */
+html {
+  scroll-behavior: smooth;
+}
+

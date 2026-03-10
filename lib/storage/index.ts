@@ -5,7 +5,7 @@
 
 import { connectDB } from "@/lib/db"
 import { StorageSettings } from "@/lib/db/schemas/storage-settings"
-import { decrypt } from "@/lib/utils/encryption"
+import { decrypt } from "@/lib/utils/storage/encryption"
 
 export type UploadResult = {
   url: string
@@ -136,6 +136,19 @@ export async function deleteFile(publicId: string, provider?: "cloudinary" | "r2
     const { deleteFromR2 } = await import("./r2")
     await deleteFromR2(publicId, config.r2)
   }
+}
+
+/**
+ * Delete files older than a given number of days
+ */
+export async function deleteFilesOlderThanDays(
+  olderThanDays: number,
+  folder?: string
+): Promise<{ deleted: number; errors: number }> {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - olderThanDays)
+  const beforeDate = cutoff.toISOString().slice(0, 10)
+  return deleteFilesOlderThanDate(beforeDate, folder)
 }
 
 /**

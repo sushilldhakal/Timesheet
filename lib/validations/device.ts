@@ -1,27 +1,38 @@
 import { z } from 'zod'
-import { objectIdSchema } from './common'
 
-// Register/activate device request
-export const registerDeviceSchema = z.object({
-  deviceName: z.string().min(1, 'Device name is required').max(100, 'Device name must be less than 100 characters'),
-  locationName: z.string().min(1, 'Location name is required').max(100, 'Location name must be less than 100 characters'),
+// Device activation schema
+export const deviceActivateSchema = z.object({
+  deviceId: z.string().min(1, "Device ID is required"),
+  activationCode: z.string().min(1, "Activation code is required"),
 })
 
-// Update device request
-export const updateDeviceSchema = z.object({
-  deviceName: z.string().min(1, 'Device name is required').max(100, 'Device name must be less than 100 characters').optional(),
-  locationName: z.string().min(1, 'Location name is required').max(100, 'Location name must be less than 100 characters').optional(),
-  isActive: z.boolean().optional(),
+// Device check schema
+export const deviceCheckSchema = z.object({
+  deviceId: z.string().min(1, "Device ID is required"),
 })
 
-// Device query parameters
-export const deviceQuerySchema = z.object({
-  search: z.string().optional(),
-  locationName: z.string().optional(),
-  isActive: z.coerce.boolean().optional(),
+// Device info schema
+export const deviceInfoSchema = z.object({
+  id: z.string(),
+  deviceId: z.string(),
+  deviceName: z.string(),
+  locationName: z.string(),
+  lastActivity: z.string().datetime().optional(),
 })
 
-// Device ID parameter
-export const deviceIdParamSchema = z.object({
-  id: objectIdSchema,
+// Device activation response
+export const deviceActivateResponseSchema = z.object({
+  success: z.boolean(),
+  device: deviceInfoSchema.optional(),
+  error: z.string().optional(),
+  issues: z.any().optional(),
+})
+
+// Device check response
+export const deviceCheckResponseSchema = z.object({
+  authorized: z.boolean(),
+  device: deviceInfoSchema.optional(),
+  error: z.string().optional(),
+  reason: z.string().optional(),
+  issues: z.any().optional(),
 })

@@ -1,159 +1,176 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
 import { ScheduleManager } from "@/lib/managers/schedule-manager"
 import mongoose from "mongoose"
-import { z } from "zod"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  employeeIdParamSchema,
+  scheduleQuerySchema,
+  scheduleCreateSchema,
+  schedulesListResponseSchema,
+  scheduleCreateResponseSchema
+} from "@/lib/validations/employee-schedules"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
-type RouteContext = { params: Promise<{ id: string }> }
-
-// Validation schema for schedule creation/update
-const scheduleSchema = z.object({
-  dayOfWeek: z.array(z.number().int().min(0).max(6)).min(1),
-  startTime: z.string().datetime(),
-  endTime: z.string().datetime(),
-  locationId: z.string().regex(/^[0-9a-fA-F]{24}$/),
-  roleId: z.string().regex(/^[0-9a-fA-F]{24}$/),
-  effectiveFrom: z.string().datetime(),
-  effectiveTo: z.string().datetime().nullable().optional(),
-})
-
-const scheduleUpdateSchema = scheduleSchema.partial()
-
-/** GET /api/employees/[id]/schedules - Get schedules for an employee with optional date filtering */
-export async function GET(request: NextRequest, context: RouteContext) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const id = (await context.params).id
-  
-  // Validate employee ID
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return NextResponse.json({ error: "Invalid employee ID" }, { status: 400 })
-  }
-
-  try {
-    await connectDB()
-    
-    // Check if employee exists and user has access
-    const empFilter: Record<string, unknown> = { _id: id }
-    const locFilter = employeeLocationFilter(ctx.userLocations)
-    if (Object.keys(locFilter).length > 0) {
-      empFilter.$and = [locFilter]
-    }
-    
-    const employee = await Employee.findOne(empFilter).lean()
-    if (!employee) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 })
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/employees/{id}/schedules',
+  summary: 'Get employee schedules',
+  description: 'Get schedules for an employee with optional date filtering',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    query: scheduleQuerySchema
+  },
+  responses: {
+    200: schedulesListResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params, query }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } };
     }
 
-    // Check for date filtering
-    const searchParams = request.nextUrl.searchParams
-    const dateParam = searchParams.get("date")
+    if (!params) {
+      return { status: 400, data: { error: "Employee ID is required" } };
+    }
+
+    const { id } = params!;
     
-    if (dateParam) {
-      // Get active schedules for specific date
-      const date = new Date(dateParam)
-      if (isNaN(date.getTime())) {
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
+    // Validate employee ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return { status: 400, data: { error: "Invalid employee ID" } };
+    }
+
+    try {
+      await connectDB()
+      
+      // Check if employee exists and user has access
+      const empFilter: Record<string, unknown> = { _id: id }
+      const locFilter = employeeLocationFilter(ctx.userLocations)
+      if (Object.keys(locFilter).length > 0) {
+        empFilter.$and = [locFilter]
       }
       
-      const scheduleManager = new ScheduleManager()
-      const result = await scheduleManager.getActiveSchedules(id, date)
-      
-      if (!result.success) {
-        return NextResponse.json(
-          { error: result.error, message: result.message },
-          { status: 500 }
-        )
+      const employee = await Employee.findOne(empFilter).lean()
+      if (!employee) {
+        return { status: 404, data: { error: "Employee not found" } };
       }
+
+      // Check for date filtering
+      const dateParam = query?.date;
       
-      return NextResponse.json({ schedules: result.schedules })
-    } else {
-      // Return all schedules
-      return NextResponse.json({ schedules: employee.schedules || [] })
+      if (dateParam) {
+        // Get active schedules for specific date
+        const date = new Date(dateParam)
+        if (isNaN(date.getTime())) {
+          return { status: 400, data: { error: "Invalid date format" } };
+        }
+        
+        const scheduleManager = new ScheduleManager()
+        const result = await scheduleManager.getActiveSchedules(id, date)
+        
+        if (!result.success) {
+          return { status: 500, data: { error: result.error, message: result.message } };
+        }
+        
+        return { status: 200, data: { schedules: result.schedules } };
+      } else {
+        // Return all schedules
+        return { status: 200, data: { schedules: employee.schedules || [] } };
+      }
+    } catch (err) {
+      console.error("[api/employees/[id]/schedules GET]", err)
+      return { status: 500, data: { error: "Failed to fetch schedules" } };
     }
-  } catch (err) {
-    console.error("[api/employees/[id]/schedules GET]", err)
-    return NextResponse.json({ error: "Failed to fetch schedules" }, { status: 500 })
   }
-}
+});
 
 /** POST /api/employees/[id]/schedules - Create a new schedule for an employee */
-export async function POST(request: NextRequest, context: RouteContext) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employees/{id}/schedules',
+  summary: 'Create employee schedule',
+  description: 'Create a new schedule for an employee',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    body: scheduleCreateSchema
+  },
+  responses: {
+    201: scheduleCreateResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params, body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } };
+    }
+
+    if (!params || !body) {
+      return { status: 400, data: { error: "Employee ID and request body are required" } };
+    }
+
+    const { id } = params!;
+
+    // Validate employee ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return { status: 400, data: { error: "Invalid employee ID" } };
+    }
+
+    try {
+      await connectDB()
+
+      // Check if employee exists and user has access
+      const empFilter: Record<string, unknown> = { _id: id }
+      const locFilter = employeeLocationFilter(ctx.userLocations)
+      if (Object.keys(locFilter).length > 0) {
+        empFilter.$and = [locFilter]
+      }
+
+      const employee = await Employee.findOne(empFilter)
+      if (!employee) {
+        return { status: 404, data: { error: "Employee not found" } };
+      }
+
+      // Create schedule using ScheduleManager
+      const scheduleManager = new ScheduleManager()
+      const scheduleData = {
+        dayOfWeek: body!.dayOfWeek,
+        startTime: new Date(body!.startTime),
+        endTime: new Date(body!.endTime),
+        locationId: new mongoose.Types.ObjectId(body!.locationId),
+        roleId: new mongoose.Types.ObjectId(body!.roleId),
+        effectiveFrom: new Date(body!.effectiveFrom),
+        effectiveTo: body!.effectiveTo ? new Date(body!.effectiveTo) : null,
+      }
+
+      const result = await scheduleManager.createSchedule(id, scheduleData)
+
+      if (!result.success) {
+        return { status: 400, data: { error: result.error, message: result.message } };
+      }
+
+      return { status: 201, data: { schedule: result.schedule } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error"
+      console.error("[api/employees/[id]/schedules POST]", err)
+      return {
+        status: 500,
+        data: {
+          error: "Failed to create schedule",
+          details: process.env.NODE_ENV === "development" ? message : undefined
+        }
+      };
+    }
   }
-
-  const id = (await context.params).id
-  
-  // Validate employee ID
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return NextResponse.json({ error: "Invalid employee ID" }, { status: 400 })
-  }
-
-  try {
-    const body = await request.json()
-    const parsed = scheduleSchema.safeParse(body)
-    
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          issues: parsed.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      )
-    }
-
-    await connectDB()
-    
-    // Check if employee exists and user has access
-    const empFilter: Record<string, unknown> = { _id: id }
-    const locFilter = employeeLocationFilter(ctx.userLocations)
-    if (Object.keys(locFilter).length > 0) {
-      empFilter.$and = [locFilter]
-    }
-    
-    const employee = await Employee.findOne(empFilter)
-    if (!employee) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 })
-    }
-
-    // Create schedule using ScheduleManager
-    const scheduleManager = new ScheduleManager()
-    const scheduleData = {
-      dayOfWeek: parsed.data.dayOfWeek,
-      startTime: new Date(parsed.data.startTime),
-      endTime: new Date(parsed.data.endTime),
-      locationId: new mongoose.Types.ObjectId(parsed.data.locationId),
-      roleId: new mongoose.Types.ObjectId(parsed.data.roleId),
-      effectiveFrom: new Date(parsed.data.effectiveFrom),
-      effectiveTo: parsed.data.effectiveTo ? new Date(parsed.data.effectiveTo) : null,
-    }
-    
-    const result = await scheduleManager.createSchedule(id, scheduleData)
-    
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error, message: result.message },
-        { status: 400 }
-      )
-    }
-    
-    return NextResponse.json({ schedule: result.schedule }, { status: 201 })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/employees/[id]/schedules POST]", err)
-    return NextResponse.json(
-      { 
-        error: "Failed to create schedule", 
-        details: process.env.NODE_ENV === "development" ? message : undefined 
-      },
-      { status: 500 }
-    )
-  }
-}
+});

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useOfflinePinValidation } from "@/lib/hooks/use-offline-pin-validation"
+import { useDeviceAuth } from "@/lib/hooks/use-device-auth"
 
 function formatTime12hr(date: Date) {
   return date.toLocaleTimeString("en-US", {
@@ -10,9 +11,9 @@ function formatTime12hr(date: Date) {
     hour12: true,
   })
 }
-import { PinDisplay } from "@/components/Home/PinDisplay"
-import { Numpad } from "@/components/Home/Numpad"
-import { cn } from "@/lib/utils"
+import { PinDisplay } from "@/components/home/PinDisplay"
+import { Numpad } from "@/components/home/Numpad"
+import { cn } from "@/lib/utils/cn"
 
 const PIN_LENGTH = 4
 const HOME_BG = "min-h-dvh bg-dark"
@@ -23,6 +24,9 @@ export function Home() {
 
   // Use offline-capable PIN validation
   const { status, errorMessage, isOnline, verifyPin } = useOfflinePinValidation()
+  
+  // Get device info
+  const { deviceInfo } = useDeviceAuth()
 
   // Clear any stale session data when PIN page loads
   useEffect(() => {

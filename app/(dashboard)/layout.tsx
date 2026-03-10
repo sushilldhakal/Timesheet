@@ -1,6 +1,6 @@
 import { AuthProvider } from "@/components/auth/AuthProvider"
 import { DashboardLayoutClient } from "@/components/dashboard/layout/DashboardLayoutClient"
-import { LayoutProvider } from "@/provider/LayoutProvider"
+import { LayoutProvider } from "@/components/providers/LayoutProvider"
 
 export default function DashboardLayout({
   children,

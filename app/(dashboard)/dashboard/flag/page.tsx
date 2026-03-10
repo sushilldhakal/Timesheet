@@ -5,8 +5,6 @@ import Link from "next/link"
 import type { ColumnDef } from "@tanstack/react-table"
 import type { VisibilityState } from "@tanstack/react-table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -15,27 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DataTable } from "@/components/ui/data-table/data-table"
-import { ExternalLink, AlertTriangle } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 import { useFlags } from "@/lib/queries/flags"
 import { useBuddyPunchAlerts, useUpdateBuddyPunchAlert, type AlertStatus } from "@/lib/queries/face-recognition"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { FlagIssueType, FlagRow } from "@/lib/types/flags"
 
 import { BuddyPunchAlertCard } from "./BuddyPunchAlertCard"
-
-export type FlagIssueType = "no_image" | "no_location" | "no_image_no_location"
-
-export interface FlagRow {
-  id: string
-  employeeId: string
-  date: string
-  pin: string
-  name: string
-  type: string
-  typeLabel: string
-  hasImage: boolean
-  hasLocation: boolean
-  issueType: FlagIssueType
-}
 
 const FILTER_OPTIONS: { value: "" | FlagIssueType; label: string }[] = [
   { value: "", label: "All flagged" },
@@ -118,6 +102,7 @@ function getColumns(): ColumnDef<FlagRow>[] {
 function FlagPage() {
   const [activeTab, setActiveTab] = useState<"flags" | "buddy-punch">("flags")
   const [filter, setFilter] = useState<"" | FlagIssueType>("")
+  const [buddyPunchStatus, setBuddyPunchStatus] = useState<"pending" | "all" | "confirmed_buddy" | "false_alarm" | "dismissed">("pending")
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(20)
   const [sortBy, setSortBy] = useState<string | null>("date")
@@ -141,7 +126,9 @@ function FlagPage() {
     order: sortOrder,
   })
 
-  const buddyPunchAlertsQuery = useBuddyPunchAlerts({ status: "pending" })
+  const buddyPunchAlertsQuery = useBuddyPunchAlerts({ 
+    status: buddyPunchStatus === "all" ? undefined : buddyPunchStatus 
+  })
   const updateAlert = useUpdateBuddyPunchAlert()
 
   const items = flagsQuery.data?.items ?? []
@@ -150,7 +137,7 @@ function FlagPage() {
   const error = flagsQuery.error?.message ?? null
 
   const alerts = buddyPunchAlertsQuery.data?.alerts ?? []
-  const pendingCount = buddyPunchAlertsQuery.isLoading ? 0 : alerts.length
+  const alertsCount = buddyPunchAlertsQuery.isLoading ? 0 : alerts.length
 
   // Debug logging
   console.log('[FlagPage] Buddy punch alerts query:', {
@@ -177,7 +164,7 @@ function FlagPage() {
             Missing Data{isClient && !loading ? ` (${totalCount})` : ""}
           </TabsTrigger>
           <TabsTrigger value="buddy-punch">
-            Buddy Punch Alerts{isClient && !buddyPunchAlertsQuery.isLoading ? ` (${pendingCount})` : ""}
+            Buddy Punch Alerts{isClient && !buddyPunchAlertsQuery.isLoading ? ` (${alertsCount})` : ""}
           </TabsTrigger>
         </TabsList>
 
@@ -211,8 +198,8 @@ function FlagPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-0 pt-4">
+          <Card className="pt-0">
+            <CardContent className="p-0">
               {error && (
                 <p className="text-destructive px-4 py-2 text-sm">{error}</p>
               )}
@@ -266,7 +253,10 @@ function FlagPage() {
             <CardContent className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
                 <label className="text-muted-foreground block text-xs font-medium">Status</label>
-                <Select defaultValue="pending">
+                <Select 
+                  value={buddyPunchStatus} 
+                  onValueChange={(v) => setBuddyPunchStatus(v as typeof buddyPunchStatus)}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -297,7 +287,9 @@ function FlagPage() {
           ) : alerts.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                No pending buddy punch alerts
+                {buddyPunchStatus === "pending" 
+                  ? "No pending buddy punch alerts" 
+                  : `No ${buddyPunchStatus === "all" ? "" : buddyPunchStatus.replace("_", " ")} alerts found`}
               </CardContent>
             </Card>
           ) : (

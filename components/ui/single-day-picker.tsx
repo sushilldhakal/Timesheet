@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SingleCalendar } from "@/components/ui/single-calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 import type { ButtonHTMLAttributes } from "react";
 

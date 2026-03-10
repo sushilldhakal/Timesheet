@@ -8,6 +8,8 @@ export interface IBuddyPunchAlert extends Document {
   capturedPhotoUrl?: string
   enrolledPhotoUrl?: string
   locationId: mongoose.Types.ObjectId
+  deviceId?: string
+  deviceName?: string
   status: "pending" | "confirmed_buddy" | "dismissed" | "false_alarm"
   reviewedBy?: mongoose.Types.ObjectId
   reviewedAt?: Date
@@ -48,6 +50,12 @@ const BuddyPunchAlertSchema = new Schema<IBuddyPunchAlert>(
       type: Schema.Types.ObjectId,
       ref: "Category",
       required: true,
+    },
+    deviceId: {
+      type: String,
+    },
+    deviceName: {
+      type: String,
     },
     status: {
       type: String,

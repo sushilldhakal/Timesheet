@@ -1,318 +1,252 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB } from "@/lib/db"
 import { RoleAssignmentManager, RoleAssignmentError } from "@/lib/managers/role-assignment-manager"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import { Employee } from "@/lib/db/schemas/employee"
-import { formatSuccess, formatError } from "@/lib/utils/api-response"
+import { formatSuccess, formatError } from "@/lib/utils/api/api-response"
 import mongoose from "mongoose"
-import { z } from "zod"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  employeeIdParamSchema,
+  roleAssignmentQuerySchema,
+  roleAssignmentCreateSchema,
+  roleAssignmentsListResponseSchema,
+  roleAssignmentCreateResponseSchema
+} from "@/lib/validations/employee-roles"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
-// Validation schema for assigning a role
-const assignRoleSchema = z.object({
-  roleId: z
-    .string()
-    .min(1, "Role ID is required")
-    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
-      message: "Invalid role ID format",
-    }),
-  locationId: z
-    .string()
-    .min(1, "Location ID is required")
-    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
-      message: "Invalid location ID format",
-    }),
-  validFrom: z
-    .string()
-    .datetime({ message: "Valid from must be a valid ISO 8601 date" })
-    .optional(),
-  validTo: z
-    .string()
-    .datetime({ message: "Valid to must be a valid ISO 8601 date" })
-    .nullable()
-    .optional(),
-  notes: z.string().max(500, "Notes must be 500 characters or less").optional(),
-})
-  .refine(
-    (data) => {
-      if (data.validFrom && data.validTo) {
-        return new Date(data.validFrom) <= new Date(data.validTo)
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/employees/{id}/roles',
+  summary: 'Get employee role assignments',
+  description: 'Get all role assignments for an employee with optional filtering',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    query: roleAssignmentQuerySchema
+  },
+  responses: {
+    200: roleAssignmentsListResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+    503: errorResponseSchema
+  },
+  handler: async ({ params, query }) => {
+    const auth = await getAuthFromCookie()
+    if (!auth) {
+      return { status: 401, data: formatError("Unauthorized", "AUTH_REQUIRED") };
+    }
+
+    if (!params) {
+      return { status: 400, data: formatError("Employee ID is required", "INVALID_EMPLOYEE_ID") };
+    }
+
+    const { id: employeeId } = params;
+    const locationId = query?.locationId;
+    const dateParam = query?.date;
+    const includeInactive = query?.includeInactive === "true";
+
+    // Validate employeeId
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      return { status: 400, data: formatError("Invalid employee ID", "INVALID_EMPLOYEE_ID") };
+    }
+
+    // Validate locationId if provided
+    if (locationId && !mongoose.Types.ObjectId.isValid(locationId)) {
+      return { status: 400, data: formatError("Invalid location ID", "INVALID_LOCATION_ID") };
+    }
+
+    try {
+      await connectDB()
+
+      // Verify employee exists
+      const employee = await Employee.findById(employeeId)
+      if (!employee) {
+        return { status: 404, data: formatError("Employee not found", "EMPLOYEE_NOT_FOUND") };
       }
-      return true
-    },
-    {
-      message: "Valid from date must be before or equal to valid to date",
-      path: ["validTo"],
-    }
-  )
 
-type RouteContext = { params: Promise<{ id: string }> }
+      const date = dateParam ? new Date(dateParam) : new Date()
+      
+      // Validate date
+      if (isNaN(date.getTime())) {
+        return { status: 400, data: formatError("Invalid date parameter", "INVALID_DATE") };
+      }
 
-/**
- * GET /api/employees/[id]/roles
- * Get all role assignments for an employee
- * 
- * Query Parameters:
- * - locationId: Filter by location (optional)
- * - date: Date to check (default: today)
- * - includeInactive: Include expired assignments (default: false)
- */
-export async function GET(
-  request: NextRequest,
-  context: RouteContext
-) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
-    return NextResponse.json(
-      formatError("Unauthorized", "AUTH_REQUIRED"),
-      { status: 401 }
-    )
-  }
+      const manager = new RoleAssignmentManager()
 
-  const { id: employeeId } = await context.params
-  const { searchParams } = new URL(request.url)
-  const locationId = searchParams.get("locationId")
-  const dateParam = searchParams.get("date")
-  const includeInactive = searchParams.get("includeInactive") === "true"
-
-  // Validate employeeId
-  if (!mongoose.Types.ObjectId.isValid(employeeId)) {
-    return NextResponse.json(
-      formatError("Invalid employee ID", "INVALID_EMPLOYEE_ID"),
-      { status: 400 }
-    )
-  }
-
-  // Validate locationId if provided
-  if (locationId && !mongoose.Types.ObjectId.isValid(locationId)) {
-    return NextResponse.json(
-      formatError("Invalid location ID", "INVALID_LOCATION_ID"),
-      { status: 400 }
-    )
-  }
-
-  try {
-    await connectDB()
-
-    // Verify employee exists
-    const employee = await Employee.findById(employeeId)
-    if (!employee) {
-      return NextResponse.json(
-        formatError("Employee not found", "EMPLOYEE_NOT_FOUND"),
-        { status: 404 }
+      // Get employee's role assignments
+      const assignments = await manager.getEmployeeAssignments(
+        employeeId,
+        locationId || undefined,
+        date,
+        includeInactive
       )
-    }
 
-    const date = dateParam ? new Date(dateParam) : new Date()
-    
-    // Validate date
-    if (isNaN(date.getTime())) {
-      return NextResponse.json(
-        formatError("Invalid date parameter", "INVALID_DATE"),
-        { status: 400 }
-      )
-    }
+      // Format response
+      const formattedAssignments = assignments.map((assignment: any) => {
+        const roleData = assignment.roleId as any
+        const locationData = assignment.locationId as any
 
-    const manager = new RoleAssignmentManager()
-
-    // Get employee's role assignments
-    const assignments = await manager.getEmployeeAssignments(
-      employeeId,
-      locationId || undefined,
-      date,
-      includeInactive
-    )
-
-    // Format response
-    const formattedAssignments = assignments.map((assignment: any) => {
-      const roleData = assignment.roleId as any
-      const locationData = assignment.locationId as any
+        return {
+          id: assignment._id.toString(),
+          roleId: roleData._id.toString(),
+          roleName: roleData.name,
+          roleColor: roleData.color,
+          locationId: locationData._id.toString(),
+          locationName: locationData.name,
+          locationColor: locationData.color,
+          validFrom: assignment.validFrom,
+          validTo: assignment.validTo,
+          isActive: assignment.isActive,
+          notes: assignment.notes,
+          assignedAt: assignment.assignedAt,
+        }
+      })
 
       return {
-        id: assignment._id.toString(),
-        roleId: roleData._id.toString(),
-        roleName: roleData.name,
-        roleColor: roleData.color,
-        locationId: locationData._id.toString(),
-        locationName: locationData.name,
-        locationColor: locationData.color,
-        validFrom: assignment.validFrom,
-        validTo: assignment.validTo,
-        isActive: assignment.isActive,
-        notes: assignment.notes,
-        assignedAt: assignment.assignedAt,
+        status: 200,
+        data: formatSuccess(
+          { assignments: formattedAssignments },
+          {
+            count: formattedAssignments.length,
+            employeeId,
+            date: date.toISOString(),
+          }
+        )
+      };
+    } catch (err) {
+      console.error("[api/employees/[id]/roles GET]", err)
+      
+      // Handle RoleAssignmentError
+      if (err instanceof RoleAssignmentError) {
+        return { status: err.statusCode, data: formatError(err.message, err.code) };
       }
-    })
 
-    return NextResponse.json(
-      formatSuccess(
-        { assignments: formattedAssignments },
-        {
-          count: formattedAssignments.length,
-          employeeId,
-          date: date.toISOString(),
-        }
-      ),
-      { status: 200 }
-    )
-  } catch (err) {
-    console.error("[api/employees/[id]/roles GET]", err)
-    
-    // Handle RoleAssignmentError
-    if (err instanceof RoleAssignmentError) {
-      return NextResponse.json(
-        formatError(err.message, err.code),
-        { status: err.statusCode }
-      )
+      // Handle database connection errors
+      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
+        return {
+          status: 503,
+          data: formatError("Database connection error. Please try again later.", "DATABASE_CONNECTION_ERROR")
+        };
+      }
+
+      return { status: 500, data: formatError("Failed to fetch employee role assignments", "FETCH_FAILED") };
     }
-
-    // Handle database connection errors
-    if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-      return NextResponse.json(
-        formatError("Database connection error. Please try again later.", "DATABASE_CONNECTION_ERROR"),
-        { status: 503 }
-      )
-    }
-
-    return NextResponse.json(
-      formatError("Failed to fetch employee role assignments", "FETCH_FAILED"),
-      { status: 500 }
-    )
   }
-}
+});
 
-/**
- * POST /api/employees/[id]/roles
- * Assign employee to a role at a location
- * 
- * Request Body:
- * - roleId: string (required)
- * - locationId: string (required)
- * - validFrom: string (ISO date, optional, defaults to now)
- * - validTo: string | null (ISO date, optional, null = indefinite)
- * - notes: string (optional)
- */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext
-) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
-    return NextResponse.json(
-      formatError("Unauthorized", "AUTH_REQUIRED"),
-      { status: 401 }
-    )
-  }
-
-  const { id: employeeId } = await context.params
-
-  // Validate employeeId
-  if (!mongoose.Types.ObjectId.isValid(employeeId)) {
-    return NextResponse.json(
-      formatError("Invalid employee ID", "INVALID_EMPLOYEE_ID"),
-      { status: 400 }
-    )
-  }
-
-  try {
-    const body = await request.json()
-    const parsed = assignRoleSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        formatError(
-          "Validation failed",
-          "VALIDATION_ERROR",
-          parsed.error.flatten().fieldErrors
-        ),
-        { status: 400 }
-      )
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employees/{id}/roles',
+  summary: 'Assign role to employee',
+  description: 'Assign employee to a role at a location',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    body: roleAssignmentCreateSchema
+  },
+  responses: {
+    201: roleAssignmentCreateResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    500: errorResponseSchema,
+    503: errorResponseSchema
+  },
+  handler: async ({ params, body }) => {
+    const auth = await getAuthFromCookie()
+    if (!auth) {
+      return { status: 401, data: formatError("Unauthorized", "AUTH_REQUIRED") };
     }
 
-    const { roleId, locationId, validFrom, validTo, notes } = parsed.data
-
-    await connectDB()
-
-    const manager = new RoleAssignmentManager()
-    const assignment = await manager.assignRole({
-      employeeId,
-      roleId,
-      locationId,
-      validFrom: validFrom ? new Date(validFrom) : new Date(),
-      validTo: validTo ? new Date(validTo) : null,
-      userId: auth.sub,
-      notes,
-    }) as any
-
-    // Populate assignment details
-    const populatedAssignment = await EmployeeRoleAssignment.findById(assignment._id)
-      .populate("roleId", "name color type")
-      .populate("locationId", "name type")
-
-    if (!populatedAssignment) {
-      return NextResponse.json(
-        formatError("Failed to retrieve created assignment", "ASSIGNMENT_NOT_FOUND"),
-        { status: 500 }
-      )
+    if (!params || !body) {
+      return { status: 400, data: formatError("Employee ID and request body are required", "INVALID_REQUEST") };
     }
 
-    const roleData = populatedAssignment.roleId as any
-    const locationData = populatedAssignment.locationId as any
+    const { id: employeeId } = params;
 
-    return NextResponse.json(
-      formatSuccess(
-        {
-          assignment: {
-            id: populatedAssignment._id.toString(),
-            employeeId: populatedAssignment.employeeId.toString(),
-            roleId: roleData._id.toString(),
-            roleName: roleData.name,
-            roleColor: roleData.color,
-            locationId: locationData._id.toString(),
-            locationName: locationData.name,
-            validFrom: populatedAssignment.validFrom,
-            validTo: populatedAssignment.validTo,
-            isActive: populatedAssignment.isActive,
-            notes: populatedAssignment.notes,
-            assignedAt: populatedAssignment.assignedAt,
+    // Validate employeeId
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      return { status: 400, data: formatError("Invalid employee ID", "INVALID_EMPLOYEE_ID") };
+    }
+
+    const { roleId, locationId, validFrom, validTo, notes } = body;
+
+    try {
+      await connectDB()
+
+      const manager = new RoleAssignmentManager()
+      const assignment = await manager.assignRole({
+        employeeId,
+        roleId,
+        locationId,
+        validFrom: validFrom ? new Date(validFrom) : new Date(),
+        validTo: validTo ? new Date(validTo) : null,
+        userId: auth.sub,
+        notes,
+      }) as any
+
+      // Populate assignment details
+      const populatedAssignment = await EmployeeRoleAssignment.findById(assignment._id)
+        .populate("roleId", "name color type")
+        .populate("locationId", "name type")
+
+      if (!populatedAssignment) {
+        return { status: 500, data: formatError("Failed to retrieve created assignment", "ASSIGNMENT_NOT_FOUND") };
+      }
+
+      const roleData = populatedAssignment.roleId as any
+      const locationData = populatedAssignment.locationId as any
+
+      return {
+        status: 201,
+        data: formatSuccess(
+          {
+            assignment: {
+              id: populatedAssignment._id.toString(),
+              employeeId: populatedAssignment.employeeId.toString(),
+              roleId: roleData._id.toString(),
+              roleName: roleData.name,
+              roleColor: roleData.color,
+              locationId: locationData._id.toString(),
+              locationName: locationData.name,
+              validFrom: populatedAssignment.validFrom,
+              validTo: populatedAssignment.validTo,
+              isActive: populatedAssignment.isActive,
+              notes: populatedAssignment.notes,
+              assignedAt: populatedAssignment.assignedAt,
+            },
           },
-        },
-        {
-          createdAt: populatedAssignment.assignedAt?.toISOString(),
-        }
-      ),
-      { status: 201 }
-    )
-  } catch (err: any) {
-    console.error("[api/employees/[id]/roles POST]", err)
-    
-    // Handle RoleAssignmentError
-    if (err instanceof RoleAssignmentError) {
-      return NextResponse.json(
-        formatError(err.message, err.code),
-        { status: err.statusCode }
-      )
-    }
+          {
+            createdAt: populatedAssignment.assignedAt?.toISOString(),
+          }
+        )
+      };
+    } catch (err: any) {
+      console.error("[api/employees/[id]/roles POST]", err)
+      
+      // Handle RoleAssignmentError
+      if (err instanceof RoleAssignmentError) {
+        return { status: err.statusCode, data: formatError(err.message, err.code) };
+      }
 
-    // Handle database connection errors
-    if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-      return NextResponse.json(
-        formatError("Database connection error. Please try again later.", "DATABASE_CONNECTION_ERROR"),
-        { status: 503 }
-      )
-    }
+      // Handle database connection errors
+      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
+        return {
+          status: 503,
+          data: formatError("Database connection error. Please try again later.", "DATABASE_CONNECTION_ERROR")
+        };
+      }
 
-    // Handle JSON parsing errors
-    if (err instanceof SyntaxError) {
-      return NextResponse.json(
-        formatError("Invalid JSON in request body", "INVALID_JSON"),
-        { status: 400 }
-      )
-    }
+      // Handle JSON parsing errors
+      if (err instanceof SyntaxError) {
+        return { status: 400, data: formatError("Invalid JSON in request body", "INVALID_JSON") };
+      }
 
-    return NextResponse.json(
-      formatError("Failed to assign role to employee", "ASSIGN_FAILED"),
-      { status: 500 }
-    )
+      return { status: 500, data: formatError("Failed to assign role to employee", "ASSIGN_FAILED") };
+    }
   }
-}
+});

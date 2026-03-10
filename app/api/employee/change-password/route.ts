@@ -1,82 +1,87 @@
-/**
- * Employee Change Password API
- * 
- * Allows employees to change their password
- */
-
-import { NextRequest, NextResponse } from "next/server"
 import { connectDB, Employee } from "@/lib/db"
 import { getEmployeeFromWebCookie } from "@/lib/auth/employee-auth"
-import { z } from "zod"
+import { changeEmployeePasswordSchema } from "@/lib/validations/employee-clock"
+import { successResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
+import { createApiRoute } from "@/lib/api/create-api-route"
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "New password must be at least 8 characters"),
-})
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employee/change-password',
+  summary: 'Change employee password',
+  description: 'Allow authenticated employee to change their password',
+  tags: ['Clock'],
+  security: 'employeeAuth',
+  request: {
+    body: changeEmployeePasswordSchema
+  },
+  responses: {
+    200: successResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ body }) => {
+    try {
+      const employeeAuth = await getEmployeeFromWebCookie();
 
-export async function POST(request: NextRequest) {
-  try {
-    const employeeAuth = await getEmployeeFromWebCookie()
-
-    if (!employeeAuth) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      )
-    }
-
-    const body = await request.json()
-    const parsed = changePasswordSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", issues: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      )
-    }
-
-    const { currentPassword, newPassword } = parsed.data
-
-    await connectDB()
-
-    const employee = await Employee.findById(employeeAuth.sub)
-      .select("+password")
-
-    if (!employee) {
-      return NextResponse.json(
-        { error: "Employee not found" },
-        { status: 404 }
-      )
-    }
-
-    // Verify current password
-    if (employee.password) {
-      const isCurrentPasswordValid = await employee.comparePassword(currentPassword)
-      if (!isCurrentPasswordValid) {
-        return NextResponse.json(
-          { error: "Current password is incorrect" },
-          { status: 400 }
-        )
+      if (!employeeAuth) {
+        return {
+          status: 401,
+          data: { error: "Not authenticated" }
+        };
       }
+
+      if (!body) {
+        return {
+          status: 400,
+          data: { error: "Request body is required" }
+        };
+      }
+
+      const { currentPassword, newPassword } = body;
+
+      await connectDB();
+
+      const employee = await Employee.findById(employeeAuth.sub)
+        .select("+password");
+
+      if (!employee) {
+        return {
+          status: 404,
+          data: { error: "Employee not found" }
+        };
+      }
+
+      // Verify current password
+      if (employee.password) {
+        const isCurrentPasswordValid = await employee.comparePassword(currentPassword);
+        if (!isCurrentPasswordValid) {
+          return {
+            status: 400,
+            data: { error: "Current password is incorrect" }
+          };
+        }
+      }
+
+      // Update password
+      employee.password = newPassword;
+      employee.requirePasswordChange = false;
+      employee.passwordSetByAdmin = false;
+      employee.passwordChangedAt = new Date();
+      
+      await employee.save();
+
+      return {
+        status: 200,
+        data: { message: "Password changed successfully" }
+      };
+    } catch (err) {
+      console.error("[api/employee/change-password]", err);
+      return {
+        status: 500,
+        data: { error: "Failed to change password" }
+      };
     }
-
-    // Update password
-    employee.password = newPassword
-    employee.requirePasswordChange = false
-    employee.passwordSetByAdmin = false
-    employee.passwordChangedAt = new Date()
-    
-    await employee.save()
-
-    return NextResponse.json({
-      success: true,
-      message: "Password changed successfully",
-    })
-  } catch (err) {
-    console.error("[api/employee/change-password]", err)
-    return NextResponse.json(
-      { error: "Failed to change password" },
-      { status: 500 }
-    )
   }
-}
+});

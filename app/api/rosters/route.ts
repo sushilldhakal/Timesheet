@@ -1,84 +1,92 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { RosterManager } from "@/lib/managers/roster-manager"
-import { z } from "zod"
+import { 
+  createRosterSchema,
+  createRosterResponseSchema,
+} from "@/lib/validations/roster"
+import { errorResponseSchema } from "@/lib/validations/auth"
+import { createApiRoute } from "@/lib/api/create-api-route"
 
-// Validation schema for roster creation
-const rosterCreateSchema = z.object({
-  weekId: z.string().regex(/^\d{4}-W\d{2}$/, "Invalid week ID format (expected YYYY-Www)"),
-  autoPopulate: z.boolean().optional().default(true),
-})
-
-/** POST /api/rosters - Create a new roster for a specific week */
-export async function POST(request: NextRequest) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  try {
-    const body = await request.json()
-    const parsed = rosterCreateSchema.safeParse(body)
-    
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          issues: parsed.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      )
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/rosters',
+  summary: 'Create a new roster',
+  description: 'Create a new roster for a specific week with optional auto-population from schedules',
+  tags: ['Rosters'],
+  security: 'adminAuth',
+  request: {
+    body: createRosterSchema,
+  },
+  responses: {
+    201: createRosterResponseSchema,
+    207: createRosterResponseSchema, // Multi-status: roster created but population failed
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return {
+        status: 401,
+        data: { error: "Unauthorized" }
+      }
     }
 
-    await connectDB()
-    
-    const rosterManager = new RosterManager()
-    
-    // Create roster
-    const createResult = await rosterManager.createRoster(parsed.data.weekId)
-    
-    if (!createResult.success) {
-      return NextResponse.json(
-        { error: createResult.error, message: createResult.message },
-        { status: 400 }
-      )
-    }
-    
-    // Auto-populate if requested
-    if (parsed.data.autoPopulate) {
-      const populateResult = await rosterManager.populateRosterFromSchedules(parsed.data.weekId)
+    const { weekId, autoPopulate = true } = body!
+
+    try {
+      await connectDB()
       
-      if (!populateResult.success) {
-        return NextResponse.json(
-          { 
-            error: populateResult.error, 
-            message: populateResult.message,
-            roster: createResult.roster // Return roster even if population failed
-          },
-          { status: 207 } // Multi-status: roster created but population failed
-        )
+      const rosterManager = new RosterManager()
+      
+      // Create roster
+      const createResult = await rosterManager.createRoster(weekId)
+      
+      if (!createResult.success) {
+        return {
+          status: 400,
+          data: { error: createResult.error || "Failed to create roster" }
+        }
       }
       
-      return NextResponse.json(
-        { 
+      // Auto-populate if requested
+      if (autoPopulate) {
+        const populateResult = await rosterManager.populateRosterFromSchedules(weekId)
+        
+        if (!populateResult.success) {
+          return {
+            status: 207, // Multi-status: roster created but population failed
+            data: { 
+              roster: createResult.roster,
+              shiftsGenerated: 0
+            }
+          }
+        }
+        
+        return {
+          status: 201,
+          data: { 
+            roster: createResult.roster,
+            shiftsGenerated: populateResult.shiftsCreated || 0
+          }
+        }
+      }
+      
+      return {
+        status: 201,
+        data: { 
           roster: createResult.roster,
-          shiftsGenerated: populateResult.shiftsCreated 
-        },
-        { status: 201 }
-      )
+          shiftsGenerated: 0
+        }
+      }
+    } catch (err) {
+      console.error("[api/rosters POST]", err)
+      return {
+        status: 500,
+        data: { error: "Failed to create roster" }
+      }
     }
-    
-    return NextResponse.json({ roster: createResult.roster }, { status: 201 })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/rosters POST]", err)
-    return NextResponse.json(
-      { 
-        error: "Failed to create roster", 
-        details: process.env.NODE_ENV === "development" ? message : undefined 
-      },
-      { status: 500 }
-    )
   }
-}
+})

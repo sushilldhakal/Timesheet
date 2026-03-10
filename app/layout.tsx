@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Inter } from "next/font/google";
+import { cn } from "@/lib/utils/cn";
 import "./globals.css";
-import { SetupGuard } from "@/components/Setup";
+import { SetupGuard } from "@/components/setup";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
-import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { THEME_STORAGE_KEY } from "@/lib/utils/theme";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 import { Toaster } from "@/components/ui/sonner";
@@ -34,7 +35,7 @@ export default async function RootLayout({
   const theme = themeCookie === "dark" || themeCookie === "light" ? themeCookie : "light";
 
   return (
-    <html lang="en" className={`${theme} ${inter.variable}`} style={{ colorScheme: theme }}>
+    <html lang="en" className={cn(inter.variable, theme)} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/web-app-manifest-192x192.png" />

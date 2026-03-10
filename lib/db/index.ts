@@ -1,5 +1,4 @@
 import mongoose from "mongoose"
-
 type MongooseInstance = typeof mongoose
 
 const MONGODB_URI = process.env.MONGODB_URI

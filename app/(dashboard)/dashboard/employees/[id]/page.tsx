@@ -16,10 +16,10 @@ import EmployeeProfileCard from "@/components/employees/employee-profile-card"
 import type { Employee } from "@/lib/api/employees"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"
 import AwardHistoryCard from "@/components/employees/award-history-card"
-import EmployeeRoleAssignmentList from "@/components/employees/EmployeeRoleAssignmentList"
-import { EmployeeRoleAssignmentDialog } from "@/components/employees/EmployeeRoleAssignmentDialog"
+import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
+import { EmployeeRoleAssignmentDialog } from "@/components/employees/employee-role-assignment-dialog"
 import { EmployeeTimesheetViewer } from "@/components/employees/employee-timesheet-viewer"
-import { formatDateLong as formatDateLongUtil } from "@/lib/utils/date-format"
+import { formatDateLong as formatDateLongUtil } from "@/lib/utils/format/date-format"
 import { useEmployee, useEmployeeTimesheet } from "@/lib/queries/employees"
 
 interface DailyTimesheetRow {

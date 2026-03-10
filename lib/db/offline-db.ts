@@ -40,6 +40,9 @@ export interface OfflinePunch {
   offline: number // 0 = false, 1 = true
   syncAttempts: number
   lastSyncAttempt?: number
+  // Device information
+  deviceId?: string
+  deviceName?: string
 }
 
 // Sync queue for failed operations
@@ -96,9 +99,9 @@ class OfflineDatabase extends Dexie {
   constructor() {
     super('TimesheetOfflineDB')
     
-    this.version(2).stores({
+    this.version(3).stores({
       employees: 'id, pin, lastLogin, cachedAt',
-      punches: 'id, employeeId, timestamp, synced, createdAt',
+      punches: 'id, employeeId, date, timestamp, synced, createdAt',
       syncQueue: 'id, type, createdAt, attempts',
       locations: 'id, name, cachedAt',
       deviceSettings: 'id, deviceId, lastSync',

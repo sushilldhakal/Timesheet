@@ -4,8 +4,9 @@
 .pnp.js
 .yarn/install-state.gz
 
+# Ignore all .md files except root README.md only
 *.md
-!README.md
+!/README.md
 # testing
 /coverage
 .kiro

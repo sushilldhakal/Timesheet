@@ -22,10 +22,10 @@ export const eventSchema = z
     notes: z.string().optional(),
 
     // Date and time
-    startDate: z.date({ required_error: "Start date is required" }),
-    startTime: z.object({ hour: z.number(), minute: z.number() }, { required_error: "Start time is required" }),
-    endDate: z.date({ required_error: "End date is required" }),
-    endTime: z.object({ hour: z.number(), minute: z.number() }, { required_error: "End time is required" }),
+    startDate: z.date({ message: "Start date is required" }),
+    startTime: z.object({ hour: z.number(), minute: z.number() }, { message: "Start time is required" }),
+    endDate: z.date({ message: "End date is required" }),
+    endTime: z.object({ hour: z.number(), minute: z.number() }, { message: "End time is required" }),
 
     // Break time in minutes
     breakMinutes: z.number().min(0).optional().default(30),
@@ -57,10 +57,10 @@ export const editEventSchema = z
     user: z.string().min(1, { message: "User is required" }),
     title: z.string().optional(),
     description: z.string().optional(),
-    startDate: z.date({ required_error: "Start date is required" }),
-    startTime: z.object({ hour: z.number(), minute: z.number() }, { required_error: "Start time is required" }),
-    endDate: z.date({ required_error: "End date is required" }),
-    endTime: z.object({ hour: z.number(), minute: z.number() }, { required_error: "End time is required" }),
+    startDate: z.date({ message: "Start date is required" }),
+    startTime: z.object({ hour: z.number(), minute: z.number() }, { message: "Start time is required" }),
+    endDate: z.date({ message: "End date is required" }),
+    endTime: z.object({ hour: z.number(), minute: z.number() }, { message: "End time is required" }),
     color: z.enum(["blue", "green", "red", "yellow", "purple", "orange", "gray"]).optional(),
   })
   .refine(

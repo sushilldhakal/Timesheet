@@ -6,7 +6,7 @@ import {
     Package2, ChevronDown, ChevronRight,
     PanelLeftClose, PanelLeft,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/cn';
 import { useState, useMemo, useEffect } from 'react';
 import {
     Tooltip,
@@ -19,10 +19,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { isAdminOrSuperAdmin } from '@/lib/utils/roles';
-import { baseNavigationItems, type NavigationItem } from './dashboardNavigation';
-import type { DashboardSidebarProps } from '@/types/dashboard';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { isAdminOrSuperAdmin } from '@/lib/config/roles';
+import { baseNavigationItems } from './dashboardNavigation';
+import type { NavigationItem } from '@/lib/types/dashboard';
+import type { DashboardSidebarProps } from '@/lib/types/dashboard';
 
 /**
  * Dashboard Sidebar Component

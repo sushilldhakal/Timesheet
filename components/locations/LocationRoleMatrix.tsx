@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Download, Check, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 export interface ICategory {
   _id: string

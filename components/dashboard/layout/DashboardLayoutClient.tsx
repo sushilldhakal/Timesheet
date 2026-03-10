@@ -3,12 +3,12 @@
 import { useEffect, useRef } from 'react';
 import { DashboardSidebar } from './DashboardSidebar';
 import { DashboardHeader } from './DashboardHeader';
-import { BreadcrumbsProvider } from '@/provider/BreadcrumbsProvider';
-import useDashboardStore from '@/lib/store/useDashboardStore';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { useLayout } from '@/provider/LayoutProvider';
-import type { DashboardLayoutClientProps } from '@/types/dashboard';
+import { BreadcrumbsProvider } from '@/components/providers/BreadcrumbsProvider';
+import useDashboardStore from '@/lib/store';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { cn } from '@/lib/utils/cn';
+import { useLayout } from '@/components/providers/LayoutProvider';
+import type { DashboardLayoutClientProps } from '@/lib/types/dashboard';
 
 /**
  * Dashboard Layout Client Component

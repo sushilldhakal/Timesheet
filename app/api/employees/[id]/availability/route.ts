@@ -1,63 +1,94 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { AvailabilityConstraint } from "@/lib/db/schemas/availability-constraint"
 import mongoose from "mongoose"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  employeeIdParamSchema,
+  availabilityQuerySchema,
+  availabilityConstraintCreateSchema,
+  availabilityDeleteQuerySchema,
+  availabilityConstraintsResponseSchema,
+  availabilityConstraintCreateResponseSchema,
+  availabilityDeleteResponseSchema
+} from "@/lib/validations/employee-availability"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
-/**
- * GET /api/employees/[id]/availability?organizationId=...
- * Get availability constraints for an employee
- */
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { id } = await context.params
-  const { searchParams } = new URL(request.url)
-  const organizationId = searchParams.get("organizationId")
-
-  try {
-    await connectDB()
-
-    const query: any = { employeeId: new mongoose.Types.ObjectId(id) }
-    if (organizationId) {
-      query.organizationId = organizationId
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/employees/{id}/availability',
+  summary: 'Get employee availability',
+  description: 'Get availability constraints for an employee',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    query: availabilityQuerySchema
+  },
+  responses: {
+    200: availabilityConstraintsResponseSchema,
+    401: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params, query }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } };
     }
 
-    const constraints = await AvailabilityConstraint.find(query)
+    if (!params) {
+      return { status: 400, data: { error: "Employee ID is required" } };
+    }
 
-    return NextResponse.json({ constraints })
-  } catch (err) {
-    console.error("[api/employees/[id]/availability GET]", err)
-    return NextResponse.json(
-      { error: "Failed to fetch availability constraints" },
-      { status: 500 }
-    )
+    const { id } = params;
+    const organizationId = query?.organizationId;
+
+    try {
+      await connectDB()
+
+      const queryFilter: any = { employeeId: new mongoose.Types.ObjectId(id) }
+      if (organizationId) {
+        queryFilter.organizationId = organizationId
+      }
+
+      const constraints = await AvailabilityConstraint.find(queryFilter)
+
+      return { status: 200, data: { constraints } };
+    } catch (err) {
+      console.error("[api/employees/[id]/availability GET]", err)
+      return { status: 500, data: { error: "Failed to fetch availability constraints" } };
+    }
   }
-}
+});
 
-/**
- * POST /api/employees/[id]/availability
- * Create or update availability constraints
- */
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employees/{id}/availability',
+  summary: 'Create availability constraint',
+  description: 'Create or update availability constraints for an employee',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    body: availabilityConstraintCreateSchema
+  },
+  responses: {
+    201: availabilityConstraintCreateResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params, body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } };
+    }
 
-  const { id } = await context.params
+    if (!params || !body) {
+      return { status: 400, data: { error: "Employee ID and request body are required" } };
+    }
 
-  try {
-    const body = await request.json()
+    const { id } = params;
     const {
       organizationId,
       unavailableDays,
@@ -68,82 +99,75 @@ export async function POST(
       temporaryStartDate,
       temporaryEndDate,
       reason,
-    } = body
+    } = body;
 
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: "organizationId is required" },
-        { status: 400 }
-      )
+    try {
+      await connectDB()
+
+      const constraint = await AvailabilityConstraint.create({
+        employeeId: new mongoose.Types.ObjectId(id),
+        organizationId,
+        unavailableDays: unavailableDays || [],
+        unavailableTimeRanges: unavailableTimeRanges || [],
+        preferredShiftTypes: preferredShiftTypes || [],
+        maxConsecutiveDays: maxConsecutiveDays || null,
+        minRestHours: minRestHours || null,
+        temporaryStartDate: temporaryStartDate ? new Date(temporaryStartDate) : null,
+        temporaryEndDate: temporaryEndDate ? new Date(temporaryEndDate) : null,
+        reason: reason || "",
+      })
+
+      return { status: 201, data: { constraint } };
+    } catch (err) {
+      console.error("[api/employees/[id]/availability POST]", err)
+      return { status: 500, data: { error: "Failed to create availability constraint" } };
+    }
+  }
+});
+
+export const DELETE = createApiRoute({
+  method: 'DELETE',
+  path: '/api/employees/{id}/availability',
+  summary: 'Delete availability constraint',
+  description: 'Delete an availability constraint by constraint ID',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    query: availabilityDeleteQuerySchema
+  },
+  responses: {
+    200: availabilityDeleteResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ query }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } };
     }
 
-    await connectDB()
-
-    const constraint = await AvailabilityConstraint.create({
-      employeeId: new mongoose.Types.ObjectId(id),
-      organizationId,
-      unavailableDays: unavailableDays || [],
-      unavailableTimeRanges: unavailableTimeRanges || [],
-      preferredShiftTypes: preferredShiftTypes || [],
-      maxConsecutiveDays: maxConsecutiveDays || null,
-      minRestHours: minRestHours || null,
-      temporaryStartDate: temporaryStartDate ? new Date(temporaryStartDate) : null,
-      temporaryEndDate: temporaryEndDate ? new Date(temporaryEndDate) : null,
-      reason: reason || "",
-    })
-
-    return NextResponse.json({ constraint }, { status: 201 })
-  } catch (err) {
-    console.error("[api/employees/[id]/availability POST]", err)
-    return NextResponse.json(
-      { error: "Failed to create availability constraint" },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * DELETE /api/employees/[id]/availability?constraintId=...
- * Delete an availability constraint
- */
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  await context.params // Just await to satisfy type, id not used in this handler
-  const { searchParams } = new URL(request.url)
-  const constraintId = searchParams.get("constraintId")
-
-  if (!constraintId) {
-    return NextResponse.json(
-      { error: "constraintId is required" },
-      { status: 400 }
-    )
-  }
-
-  try {
-    await connectDB()
-
-    const result = await AvailabilityConstraint.findByIdAndDelete(constraintId)
-
-    if (!result) {
-      return NextResponse.json(
-        { error: "Constraint not found" },
-        { status: 404 }
-      )
+    if (!query) {
+      return { status: 400, data: { error: "Constraint ID is required" } };
     }
 
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error("[api/employees/[id]/availability DELETE]", err)
-    return NextResponse.json(
-      { error: "Failed to delete availability constraint" },
-      { status: 500 }
-    )
+    const { constraintId } = query;
+
+    try {
+      await connectDB()
+
+      const result = await AvailabilityConstraint.findByIdAndDelete(constraintId)
+
+      if (!result) {
+        return { status: 404, data: { error: "Constraint not found" } };
+      }
+
+      return { status: 200, data: { success: true } };
+    } catch (err) {
+      console.error("[api/employees/[id]/availability DELETE]", err)
+      return { status: 500, data: { error: "Failed to delete availability constraint" } };
+    }
   }
-}
+});

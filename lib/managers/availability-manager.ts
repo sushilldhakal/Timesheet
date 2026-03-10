@@ -7,7 +7,7 @@ export interface ValidationResult {
   violations: string[]
 }
 
-export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL"
+export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT"
 
 /**
  * Availability Manager

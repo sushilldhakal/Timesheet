@@ -6,7 +6,7 @@ import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 import { DraggableEvent } from "@/components/calendar/components/dnd/draggable-event";
 import { EventDetailsDialog } from "@/components/calendar/components/dialogs/event-details-dialog";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 import type { HTMLAttributes, CSSProperties } from "react";
 import type { IEvent } from "@/components/calendar/interfaces";

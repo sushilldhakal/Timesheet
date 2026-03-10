@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { logger } from '@/lib/utils/logger'
-import { getOrCreateDeviceId, updateDeviceInfo } from '@/lib/utils/device-storage'
+import { getOrCreateDeviceId, updateDeviceInfo } from '@/lib/utils/storage/device-storage'
 import { offlineDB } from '@/lib/db/offline-db'
 
 interface DeviceInfo {

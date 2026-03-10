@@ -30,7 +30,7 @@ import { useEnableLocationRole } from "@/lib/queries/locations"
 // Validation schema
 const enableRoleSchema = z.object({
   effectiveFrom: z.date({
-    required_error: "Effective from date is required",
+    message: "Effective from date is required",
   }),
   effectiveTo: z.date().nullable().optional(),
 }).refine(

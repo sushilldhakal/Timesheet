@@ -1,157 +1,182 @@
-import { NextResponse } from "next/server";
 import { connectDB, Employee, Timesheet } from "@/lib/db";
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  employeeSyncRequestSchema,
+  employeeSyncResponseSchema
+} from "@/lib/validations/employee-sync"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
-/**
- * Sync employee photos from their most recent punch records
- * GET /api/employees/sync-photos
- * 
- * This endpoint finds employees without photos and updates them with
- * the most recent photo from their timesheet punch records.
- */
-export async function GET() {
-  try {
-    await connectDB();
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/employees/sync-photos',
+  summary: 'Sync all employee photos',
+  description: 'Sync employee photos from their most recent punch records',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  responses: {
+    200: employeeSyncResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async () => {
+    try {
+      await connectDB();
 
-    // Find employees without photos
-    const employeesWithoutPhotos = await Employee.find({
-      $or: [
-        { img: { $exists: false } },
-        { img: "" },
-        { img: null }
-      ]
-    }).select("_id pin name").lean();
+      // Find employees without photos
+      const employeesWithoutPhotos = await Employee.find({
+        $or: [
+          { img: { $exists: false } },
+          { img: "" },
+          { img: null }
+        ]
+      }).select("_id pin name").lean();
 
-    if (employeesWithoutPhotos.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "All employees already have photos",
-        updated: 0
-      });
+      if (employeesWithoutPhotos.length === 0) {
+        return {
+          status: 200,
+          data: {
+            success: true,
+            message: "All employees already have photos",
+            updated: 0
+          }
+        };
+      }
+
+      const pins = employeesWithoutPhotos.map(e => e.pin);
+      let updatedCount = 0;
+
+      // For each employee, find their most recent punch with an image
+      for (const employee of employeesWithoutPhotos) {
+        const recentPunchWithImage = await Timesheet.findOne({
+          pin: employee.pin,
+          image: { $exists: true, $ne: "" }
+        })
+          .sort({ date: -1, time: -1 })
+          .select("image")
+          .lean();
+
+        if (recentPunchWithImage?.image) {
+          await Employee.updateOne(
+            { _id: employee._id },
+            { $set: { img: recentPunchWithImage.image } }
+          );
+          updatedCount++;
+        }
+      }
+
+      return {
+        status: 200,
+        data: {
+          success: true,
+          message: `Successfully synced photos for ${updatedCount} employees`,
+          total: employeesWithoutPhotos.length,
+          updated: updatedCount,
+          skipped: employeesWithoutPhotos.length - updatedCount
+        }
+      };
+
+    } catch (error) {
+      console.error("[api/employees/sync-photos] Error:", error);
+      return {
+        status: 500,
+        data: { 
+          success: false,
+          message: "Failed to sync employee photos"
+        }
+      };
     }
+  }
+});
 
-    const pins = employeesWithoutPhotos.map(e => e.pin);
-    let updatedCount = 0;
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employees/sync-photos',
+  summary: 'Sync specific employee photo',
+  description: 'Sync photo for a specific employee',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    body: employeeSyncRequestSchema
+  },
+  responses: {
+    200: employeeSyncResponseSchema,
+    400: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ body }) => {
+    try {
+      if (!body) {
+        return { status: 400, data: { success: false, message: "Request body is required" } };
+      }
 
-    // For each employee, find their most recent punch with an image
-    for (const employee of employeesWithoutPhotos) {
+      const { pin, employeeId } = body!;
+
+      await connectDB();
+
+      // Find the employee
+      const query = pin ? { pin } : { _id: employeeId };
+      const employee = await Employee.findOne(query).select("_id pin name img").lean();
+
+      if (!employee) {
+        return { status: 404, data: { success: false, message: "Employee not found" } };
+      }
+
+      // Find most recent punch with image
       const recentPunchWithImage = await Timesheet.findOne({
         pin: employee.pin,
         image: { $exists: true, $ne: "" }
       })
         .sort({ date: -1, time: -1 })
-        .select("image")
+        .select("image date time")
         .lean();
 
-      if (recentPunchWithImage?.image) {
-        await Employee.updateOne(
-          { _id: employee._id },
-          { $set: { img: recentPunchWithImage.image } }
-        );
-        updatedCount++;
+      if (!recentPunchWithImage?.image) {
+        return {
+          status: 200,
+          data: {
+            success: false,
+            message: "No punch records with images found for this employee",
+            employee: {
+              id: employee._id.toString(),
+              name: employee.name,
+              pin: employee.pin
+            }
+          }
+        };
       }
-    }
 
-    return NextResponse.json({
-      success: true,
-      message: `Successfully synced photos for ${updatedCount} employees`,
-      total: employeesWithoutPhotos.length,
-      updated: updatedCount,
-      skipped: employeesWithoutPhotos.length - updatedCount
-    });
-
-  } catch (error) {
-    console.error("[api/employees/sync-photos] Error:", error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: "Failed to sync employee photos",
-        details: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * Sync photo for a specific employee
- * POST /api/employees/sync-photos
- * Body: { pin: string } or { employeeId: string }
- */
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { pin, employeeId } = body;
-
-    if (!pin && !employeeId) {
-      return NextResponse.json(
-        { error: "Either pin or employeeId is required" },
-        { status: 400 }
+      // Update employee photo
+      await Employee.updateOne(
+        { _id: employee._id },
+        { $set: { img: recentPunchWithImage.image } }
       );
-    }
 
-    await connectDB();
-
-    // Find the employee
-    const query = pin ? { pin } : { _id: employeeId };
-    const employee = await Employee.findOne(query).select("_id pin name img").lean();
-
-    if (!employee) {
-      return NextResponse.json(
-        { error: "Employee not found" },
-        { status: 404 }
-      );
-    }
-
-    // Find most recent punch with image
-    const recentPunchWithImage = await Timesheet.findOne({
-      pin: employee.pin,
-      image: { $exists: true, $ne: "" }
-    })
-      .sort({ date: -1, time: -1 })
-      .select("image date time")
-      .lean();
-
-    if (!recentPunchWithImage?.image) {
-      return NextResponse.json({
-        success: false,
-        message: "No punch records with images found for this employee",
-        employee: {
-          id: employee._id,
-          name: employee.name,
-          pin: employee.pin
+      return {
+        status: 200,
+        data: {
+          success: true,
+          message: "Employee photo synced successfully",
+          employee: {
+            id: employee._id.toString(),
+            name: employee.name,
+            pin: employee.pin,
+            previousPhoto: employee.img,
+            newPhoto: recentPunchWithImage.image,
+            photoDate: recentPunchWithImage.date,
+            photoTime: recentPunchWithImage.time
+          }
         }
-      });
+      };
+
+    } catch (error) {
+      console.error("[api/employees/sync-photos POST] Error:", error);
+      return {
+        status: 500,
+        data: { 
+          success: false,
+          message: "Failed to sync employee photo"
+        }
+      };
     }
-
-    // Update employee photo
-    await Employee.updateOne(
-      { _id: employee._id },
-      { $set: { img: recentPunchWithImage.image } }
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: "Employee photo synced successfully",
-      employee: {
-        id: employee._id,
-        name: employee.name,
-        pin: employee.pin,
-        previousPhoto: employee.img,
-        newPhoto: recentPunchWithImage.image,
-        photoDate: recentPunchWithImage.date,
-        photoTime: recentPunchWithImage.time
-      }
-    });
-
-  } catch (error) {
-    console.error("[api/employees/sync-photos POST] Error:", error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: "Failed to sync employee photo",
-        details: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
   }
-}
+});

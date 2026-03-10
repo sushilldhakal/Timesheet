@@ -6,7 +6,7 @@ import { MoreVertical, Trash2, Repeat } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { differenceInMinutes } from "date-fns";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 

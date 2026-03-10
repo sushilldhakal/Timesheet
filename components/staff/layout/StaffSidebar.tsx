@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Package2, Home, Clock, Calendar, User, Lock, PanelLeft, PanelLeftClose } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 import {
   Tooltip,
   TooltipContent,

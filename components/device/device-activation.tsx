@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils/cn'
 import { Loader2, Tablet, Wifi, AlertCircle } from 'lucide-react'
 
 interface DeviceActivationProps {

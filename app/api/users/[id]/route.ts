@@ -1,249 +1,307 @@
-import { NextRequest, NextResponse } from "next/server"
 import type { Right } from "@/lib/config/rights"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, User } from "@/lib/db"
-import { userIdParamSchema } from "@/lib/validations/user"
-import { userAdminUpdateSchema, userSelfUpdateSchema } from "@/lib/validations/user"
+import { 
+  userIdParamSchema, 
+  userAdminUpdateSchema, 
+  userSelfUpdateSchema,
+  singleUserResponseSchema,
+  userUpdateResponseSchema,
+  userDeleteResponseSchema,
+} from "@/lib/validations/user"
+import { errorResponseSchema } from "@/lib/validations/auth"
 import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
-
-type RouteContext = { params: Promise<{ id: string }> }
+import { createApiRoute } from "@/lib/api/create-api-route"
 
 /** GET /api/users/[id] - Get single user (admin or self) */
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { id } = await context.params
-  const parsed = userIdParamSchema.safeParse({ id })
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
-  }
-
-  // User can only get their own profile unless admin/super_admin
-  if (!isAdminOrSuperAdmin(auth.role) && auth.sub !== id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  try {
-    await connectDB()
-    const user = await User.findById(id).select("-password").lean()
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/users/{id}',
+  summary: 'Get single user',
+  description: 'Get single user (admin or self)',
+  tags: ['users'],
+  security: 'adminAuth',
+  request: {
+    params: userIdParamSchema
+  },
+  responses: {
+    200: singleUserResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params }) => {
+    const auth = await getAuthFromCookie()
+    if (!auth) {
+      return { status: 401, data: { error: "Unauthorized" } }
     }
 
-    // Hide super_admin from admin (not from super_admin)
-    if (user.role === "super_admin" && !isSuperAdmin(auth.role)) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    const { id } = params!
+
+    // User can only get their own profile unless admin/super_admin
+    if (!isAdminOrSuperAdmin(auth.role) && auth.sub !== id) {
+      return { status: 403, data: { error: "Forbidden" } }
     }
 
-    const location = Array.isArray(user.location) ? user.location : user.location ? [String(user.location)] : []
+    try {
+      await connectDB()
+      const user = await User.findById(id).select("-password").lean()
 
-    return NextResponse.json({
-      user: {
-        id: user._id,
-        name: user.name ?? "",
-        username: user.username,
-        role: user.role,
-        location,
-        rights: user.rights ?? [],
-        managedRoles: user.managedRoles ?? [],
-        createdAt: user.createdAt,
-      },
-    })
-  } catch (err) {
-    console.error("[api/users/[id] GET]", err)
-    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 })
+      if (!user) {
+        return { status: 404, data: { error: "User not found" } }
+      }
+
+      // Hide super_admin from admin (not from super_admin)
+      if (user.role === "super_admin" && !isSuperAdmin(auth.role)) {
+        return { status: 404, data: { error: "User not found" } }
+      }
+
+      const location = Array.isArray(user.location) ? user.location : user.location ? [String(user.location)] : []
+
+      return {
+        status: 200,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name ?? "",
+            username: user.username,
+            role: user.role,
+            location,
+            rights: user.rights ?? [],
+            managedRoles: user.managedRoles ?? [],
+            createdAt: user.createdAt,
+          },
+        }
+      }
+    } catch (err) {
+      console.error("[api/users/[id] GET]", err)
+      return { status: 500, data: { error: "Failed to fetch user" } }
+    }
   }
-}
+});
 
 /** PATCH /api/users/[id] - Update user */
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const id = (await context.params).id
-  const parsed = userIdParamSchema.safeParse({ id })
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
-  }
-
-  const isSelf = auth.sub === id
-  const isAdminOrSuper = isAdminOrSuperAdmin(auth.role)
-
-  if (!isAdminOrSuper && !isSelf) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  try {
-    const body = await request.json()
-
-    await connectDB()
-    const existing = await User.findById(id).select("+password")
-    if (!existing) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+export const PATCH = createApiRoute({
+  method: 'PATCH',
+  path: '/api/users/{id}',
+  summary: 'Update user',
+  description: 'Update user (admin or self)',
+  tags: ['users'],
+  security: 'adminAuth',
+  request: {
+    params: userIdParamSchema,
+    body: userAdminUpdateSchema.or(userSelfUpdateSchema)
+  },
+  responses: {
+    200: userUpdateResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ body, params }) => {
+    const auth = await getAuthFromCookie()
+    if (!auth) {
+      return { status: 401, data: { error: "Unauthorized" } }
     }
 
-    // Admin/super_admin cannot modify super_admin users
-    if (existing.role === "super_admin" && !isSuperAdmin(auth.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const { id } = params!
+    const isSelf = auth.sub === id
+    const isAdminOrSuper = isAdminOrSuperAdmin(auth.role)
+
+    if (!isAdminOrSuper && !isSelf) {
+      return { status: 403, data: { error: "Forbidden" } }
     }
 
-    if (isAdminOrSuper) {
-      // Admin: full update
-      const parsedUpdate = userAdminUpdateSchema.safeParse(body)
-      if (!parsedUpdate.success) {
-        return NextResponse.json(
-          { error: "Validation failed", issues: parsedUpdate.error.flatten().fieldErrors },
-          { status: 400 }
-        )
+    try {
+      await connectDB()
+      const existing = await User.findById(id).select("+password")
+      if (!existing) {
+        return { status: 404, data: { error: "User not found" } }
       }
 
-      const { name, username, email, password, role, location, rights, managedRoles } = parsedUpdate.data
+      // Admin/super_admin cannot modify super_admin users
+      if (existing.role === "super_admin" && !isSuperAdmin(auth.role)) {
+        return { status: 403, data: { error: "Forbidden" } }
+      }
 
-      if (username !== undefined) {
-        const duplicate = await User.findOne({
-          username: username.toLowerCase(),
+      if (isAdminOrSuper) {
+        // Admin: full update
+        const parsedUpdate = userAdminUpdateSchema.safeParse(body)
+        if (!parsedUpdate.success) {
+          return {
+            status: 400,
+            data: { error: "Validation failed", issues: parsedUpdate.error.flatten().fieldErrors }
+          }
+        }
+
+        const { name, username, email, password, role, location, rights, managedRoles } = parsedUpdate.data
+
+        if (username !== undefined) {
+          const duplicate = await User.findOne({
+            username: username.toLowerCase(),
+            _id: { $ne: id },
+          })
+          if (duplicate) {
+            return { status: 409, data: { error: "Username already exists" } }
+          }
+          existing.username = username.toLowerCase()
+        }
+        if (email !== undefined) {
+          const duplicate = await User.findOne({
+            email: email.toLowerCase(),
+            _id: { $ne: id },
+          })
+          if (duplicate) {
+            return { status: 409, data: { error: "Email already exists" } }
+          }
+          existing.email = email.toLowerCase()
+        }
+        if (name !== undefined) existing.name = name.trim()
+        if (password) existing.password = password
+        if (role !== undefined) existing.role = role
+        if (location !== undefined) existing.location = location
+        if (rights !== undefined) existing.rights = rights as Right[]
+        if (managedRoles !== undefined) existing.managedRoles = managedRoles
+
+        await existing.save()
+
+        const u = await User.findById(id).select("-password").lean()
+        const loc = u?.location
+        const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : []
+
+        return {
+          status: 200,
+          data: {
+            user: {
+              id: u?._id,
+              name: u?.name ?? "",
+              username: u?.username,
+              email: u?.email,
+              role: u?.role,
+              location: locArr,
+              rights: u?.rights ?? [],
+              managedRoles: u?.managedRoles ?? [],
+            },
+          }
+        }
+      }
+
+      // User: self-update (username and password only)
+      const parsedSelf = userSelfUpdateSchema.safeParse(body)
+      if (!parsedSelf.success) {
+        return {
+          status: 400,
+          data: { error: "Validation failed", issues: parsedSelf.error.flatten().fieldErrors }
+        }
+      }
+
+      const { username: newUsername, email: newEmail, password } = parsedSelf.data
+
+      const duplicate = await User.findOne({
+        username: newUsername.toLowerCase(),
+        _id: { $ne: id },
+      })
+      if (duplicate) {
+        return { status: 409, data: { error: "Username already exists" } }
+      }
+
+      if (newEmail) {
+        const emailDuplicate = await User.findOne({
+          email: newEmail.toLowerCase(),
           _id: { $ne: id },
         })
-        if (duplicate) {
-          return NextResponse.json({ error: "Username already exists" }, { status: 409 })
+        if (emailDuplicate) {
+          return { status: 409, data: { error: "Email already exists" } }
         }
-        existing.username = username.toLowerCase()
+        existing.email = newEmail.toLowerCase()
       }
-      if (email !== undefined) {
-        const duplicate = await User.findOne({
-          email: email.toLowerCase(),
-          _id: { $ne: id },
-        })
-        if (duplicate) {
-          return NextResponse.json({ error: "Email already exists" }, { status: 409 })
-        }
-        existing.email = email.toLowerCase()
-      }
-      if (name !== undefined) existing.name = name.trim()
+
+      existing.username = newUsername.toLowerCase()
       if (password) existing.password = password
-      if (role !== undefined) existing.role = role
-      if (location !== undefined) existing.location = location
-      if (rights !== undefined) existing.rights = rights as Right[]
-      if (managedRoles !== undefined) existing.managedRoles = managedRoles
-
       await existing.save()
 
       const u = await User.findById(id).select("-password").lean()
       const loc = u?.location
       const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : []
 
-      return NextResponse.json({
-        user: {
-          id: u?._id,
-          name: u?.name ?? "",
-          username: u?.username,
-          email: u?.email,
-          role: u?.role,
-          location: locArr,
-          rights: u?.rights ?? [],
-          managedRoles: u?.managedRoles ?? [],
-        },
-      })
-    }
-
-    // User: self-update (username and password only)
-    const parsedSelf = userSelfUpdateSchema.safeParse(body)
-    if (!parsedSelf.success) {
-      return NextResponse.json(
-        { error: "Validation failed", issues: parsedSelf.error.flatten().fieldErrors },
-        { status: 400 }
-      )
-    }
-
-    const { username: newUsername, email: newEmail, password } = parsedSelf.data
-
-    const duplicate = await User.findOne({
-      username: newUsername.toLowerCase(),
-      _id: { $ne: id },
-    })
-    if (duplicate) {
-      return NextResponse.json({ error: "Username already exists" }, { status: 409 })
-    }
-
-    if (newEmail) {
-      const emailDuplicate = await User.findOne({
-        email: newEmail.toLowerCase(),
-        _id: { $ne: id },
-      })
-      if (emailDuplicate) {
-        return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+      return {
+        status: 200,
+        data: {
+          user: {
+            id: u?._id,
+            name: u?.name ?? "",
+            username: u?.username,
+            email: u?.email,
+            role: u?.role,
+            location: locArr,
+            rights: u?.rights ?? [],
+          },
+        }
       }
-      existing.email = newEmail.toLowerCase()
+    } catch (err) {
+      console.error("[api/users/[id] PATCH]", err)
+      return { status: 500, data: { error: "Failed to update user" } }
     }
-
-    existing.username = newUsername.toLowerCase()
-    if (password) existing.password = password
-    await existing.save()
-
-    const u = await User.findById(id).select("-password").lean()
-    const loc = u?.location
-    const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : []
-
-    return NextResponse.json({
-      user: {
-        id: u?._id,
-        name: u?.name ?? "",
-        username: u?.username,
-        email: u?.email,
-        role: u?.role,
-        location: locArr,
-        rights: u?.rights ?? [],
-      },
-    })
-  } catch (err) {
-    console.error("[api/users/[id] PATCH]", err)
-    return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
   }
-}
+});
 
 /** DELETE /api/users/[id] - Delete user (admin only) */
-export async function DELETE(_request: NextRequest, context: RouteContext) {
-  const auth = await getAuthFromCookie()
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-  if (!isAdminOrSuperAdmin(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  const id = (await context.params).id
-  const parsed = userIdParamSchema.safeParse({ id })
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
-  }
-
-  // Prevent admin from deleting themselves
-  if (auth.sub === id) {
-    return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 })
-  }
-
-  try {
-    await connectDB()
-    const target = await User.findById(id).select("role").lean()
-    if (!target) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+export const DELETE = createApiRoute({
+  method: 'DELETE',
+  path: '/api/users/{id}',
+  summary: 'Delete user',
+  description: 'Delete user (admin only)',
+  tags: ['users'],
+  security: 'adminAuth',
+  request: {
+    params: userIdParamSchema
+  },
+  responses: {
+    200: userDeleteResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ params }) => {
+    const auth = await getAuthFromCookie()
+    if (!auth) {
+      return { status: 401, data: { error: "Unauthorized" } }
     }
-    if (target.role === "super_admin" && !isSuperAdmin(auth.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    if (!isAdminOrSuperAdmin(auth.role)) {
+      return { status: 403, data: { error: "Forbidden" } }
     }
-    const deleted = await User.findByIdAndDelete(id)
-    if (!deleted) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+
+    const { id } = params!
+
+    // Prevent admin from deleting themselves
+    if (auth.sub === id) {
+      return { status: 400, data: { error: "Cannot delete your own account" } }
     }
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error("[api/users/[id] DELETE]", err)
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 })
+
+    try {
+      await connectDB()
+      const target = await User.findById(id).select("role").lean()
+      if (!target) {
+        return { status: 404, data: { error: "User not found" } }
+      }
+      if (target.role === "super_admin" && !isSuperAdmin(auth.role)) {
+        return { status: 403, data: { error: "Forbidden" } }
+      }
+      const deleted = await User.findByIdAndDelete(id)
+      if (!deleted) {
+        return { status: 404, data: { error: "User not found" } }
+      }
+      return { status: 200, data: { success: true } }
+    } catch (err) {
+      console.error("[api/users/[id] DELETE]", err)
+      return { status: 500, data: { error: "Failed to delete user" } }
+    }
   }
-}
+});

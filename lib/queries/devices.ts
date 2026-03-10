@@ -118,6 +118,18 @@ export function useUpdateManagedDevice() {
   })
 }
 
+// Delete managed device (admin only)
+export function useDeleteManagedDevice() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: devicesApi.deleteManagedDevice,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: deviceKeys.managed() })
+    },
+  })
+}
+
 // Register device with authentication
 export function useRegisterDeviceWithAuth() {
   return useMutation({

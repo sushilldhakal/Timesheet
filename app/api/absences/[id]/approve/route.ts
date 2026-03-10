@@ -1,63 +1,77 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { AbsenceManager } from "@/lib/managers/absence-manager"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  absenceIdParamSchema, 
+  approveAbsenceSchema,
+  approveAbsenceResponseSchema, 
+} from "@/lib/validations/absences"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
 /**
  * PATCH /api/absences/[id]/approve
  * Approve a leave record
  */
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const PATCH = createApiRoute({
+  method: 'PATCH',
+  path: '/api/absences/{id}/approve',
+  summary: 'Approve absence request',
+  description: 'Approve a leave record and get affected shifts',
+  tags: ['Absences'],
+  security: 'adminAuth',
+  request: {
+    params: absenceIdParamSchema,
+    body: approveAbsenceSchema,
+  },
+  responses: {
+    200: approveAbsenceResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params, body }) => {
+    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
+    const { connectDB } = await import("@/lib/db")
+    const { AbsenceManager } = await import("@/lib/managers/absence-manager")
 
-  const { id } = await context.params
-
-  try {
-    const body = await request.json()
-    const { approverId } = body
-
-    if (!approverId) {
-      return NextResponse.json(
-        { error: "approverId is required" },
-        { status: 400 }
-      )
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } }
     }
 
-    await connectDB()
-    const absenceManager = new AbsenceManager()
-    const leaveRecord = await absenceManager.approveLeaveRecord(id, approverId)
+    const { id } = params!
+    const { approverId } = body!
 
-    // Get affected shifts
-    const affectedShifts = await absenceManager.identifyReplacementNeeds(id)
+    try {
+      await connectDB()
+      const absenceManager = new AbsenceManager()
+      const leaveRecord = await absenceManager.approveLeaveRecord(id, approverId)
 
-    return NextResponse.json({
-      leaveRecord,
-      affectedShifts: affectedShifts.map((shift) => ({
-        shiftId: shift._id.toString(),
-        date: shift.date,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-      })),
-    })
-  } catch (err: any) {
-    console.error("[api/absences/[id]/approve PATCH]", err)
+      // Get affected shifts
+      const affectedShifts = await absenceManager.identifyReplacementNeeds(id)
 
-    if (err.message?.includes("not found")) {
-      return NextResponse.json(
-        { error: err.message },
-        { status: 404 }
-      )
+      return {
+        status: 200,
+        data: {
+          leaveRecord,
+          affectedShifts: affectedShifts.map((shift) => ({
+            shiftId: shift._id.toString(),
+            date: shift.date,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+          })),
+        }
+      }
+    } catch (err: any) {
+      console.error("[api/absences/[id]/approve PATCH]", err)
+
+      if (err.message?.includes("not found")) {
+        return { status: 404, data: { error: err.message } }
+      }
+
+      return {
+        status: 500,
+        data: { error: "Failed to approve leave record" }
+      }
     }
-
-    return NextResponse.json(
-      { error: "Failed to approve leave record" },
-      { status: 500 }
-    )
   }
-}
+})

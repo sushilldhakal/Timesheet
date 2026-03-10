@@ -9,6 +9,17 @@ import {
   authResponseSchema 
 } from "@/lib/validations/auth"
 
+/** Authenticated user (admin/staff) from session */
+export type AuthUser = {
+  id: string
+  name?: string
+  username: string
+  role: "admin" | "user" | "super_admin"
+  location?: string[]
+  rights?: string[]
+  managedRoles?: string[]
+}
+
 export type LoginRequest = z.infer<typeof loginSchema>
 export type PinLoginRequest = z.infer<typeof pinLoginSchema>
 export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>

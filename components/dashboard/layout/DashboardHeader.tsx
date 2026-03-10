@@ -12,9 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { getUserEmail, getUserRole } from '@/lib/utils/auth';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { useLayout } from '@/provider/LayoutProvider';
+import { getUserEmail, getUserRole } from '@/lib/utils/auth/auth';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { useLayout } from '@/components/providers/LayoutProvider';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Breadcrumbs } from './Breadcrumbs';
 import {
@@ -27,9 +27,9 @@ import {
     CommandItem,
 } from '@/components/ui/command';
 import { useEffect, useMemo, useState } from 'react';
-import { isAdminOrSuperAdmin } from '@/lib/utils/roles';
+import { isAdminOrSuperAdmin } from '@/lib/config/roles';
 import { baseNavigationItems, getFlatNavigationForSearch } from './dashboardNavigation';
-import type { DashboardHeaderProps } from '@/types/dashboard';
+import type { DashboardHeaderProps } from '@/lib/types/dashboard';
 
 
 export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderProps) {

@@ -1,72 +1,85 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { TimesheetManager } from "@/lib/managers/timesheet-manager"
 import mongoose from "mongoose"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { z } from "zod"
+
+// Validation schemas
+const timesheetIdParamSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid timesheet ID format")
+})
+
+const linkShiftRequestSchema = z.object({
+  shiftId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid shift ID format")
+})
+
+const linkShiftResponseSchema = z.object({
+  success: z.boolean(),
+  timesheet: z.any()
+})
+
+const errorResponseSchema = z.object({
+  error: z.string(),
+  message: z.string().optional()
+})
 
 /**
  * PUT /api/timesheets/:id/link-shift
  * Manually link a timesheet to a roster shift
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const PUT = createApiRoute({
+  method: 'PUT',
+  path: '/api/timesheets/{id}/link-shift',
+  summary: 'Link timesheet to shift',
+  description: 'Manually link a timesheet to a roster shift',
+  tags: ['timesheets'],
+  security: 'adminAuth',
+  request: {
+    params: timesheetIdParamSchema,
+    body: linkShiftRequestSchema
+  },
+  responses: {
+    200: linkShiftResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema
+  },
+  handler: async ({ body, params }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } }
+    }
+
+    try {
+      const { id } = params!
+      const { shiftId } = body!
+
+      await connectDB()
+
+      const manager = new TimesheetManager()
+      const result = await manager.linkTimesheetToShift(id, shiftId)
+
+      if (!result.success) {
+        const statusCode = result.error === "TIMESHEET_NOT_FOUND" ? 404 :
+                           result.error === "INVALID_SHIFT_REF" ? 400 : 500
+        return {
+          status: statusCode,
+          data: { error: result.error, message: result.message }
+        }
+      }
+
+      return {
+        status: 200,
+        data: {
+          success: true,
+          timesheet: result.timesheet,
+        }
+      }
+    } catch (err) {
+      console.error("[api/timesheets/:id/link-shift PUT]", err)
+      return { status: 500, data: { error: "Failed to link timesheet to shift" } }
+    }
   }
-
-  try {
-    const { id } = await params
-    const body = await request.json()
-    const { shiftId } = body
-
-    if (!shiftId) {
-      return NextResponse.json(
-        { error: "shiftId is required" },
-        { status: 400 }
-      )
-    }
-
-    // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json(
-        { error: "Invalid timesheet ID format" },
-        { status: 400 }
-      )
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(shiftId)) {
-      return NextResponse.json(
-        { error: "Invalid shift ID format" },
-        { status: 400 }
-      )
-    }
-
-    await connectDB()
-
-    const manager = new TimesheetManager()
-    const result = await manager.linkTimesheetToShift(id, shiftId)
-
-    if (!result.success) {
-      const statusCode = result.error === "TIMESHEET_NOT_FOUND" ? 404 :
-                         result.error === "INVALID_SHIFT_REF" ? 400 : 500
-      return NextResponse.json(
-        { error: result.error, message: result.message },
-        { status: statusCode }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      timesheet: result.timesheet,
-    })
-  } catch (err) {
-    console.error("[api/timesheets/:id/link-shift PUT]", err)
-    return NextResponse.json(
-      { error: "Failed to link timesheet to shift" },
-      { status: 500 }
-    )
-  }
-}
+});

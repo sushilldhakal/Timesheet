@@ -15,6 +15,8 @@ type EnhancedClockProps = {
   getLatestDescriptor: () => number[] | null
   resetFace: () => void
   noPhoto: boolean
+  deviceId?: string
+  deviceName?: string
   onSuccess?: (type: PunchType, message: string) => void
   onError?: (error: string) => void
   onSyncComplete?: (syncedCount: number) => void
@@ -27,6 +29,8 @@ export function useEnhancedClock({
   getLatestDescriptor,
   resetFace,
   noPhoto,
+  deviceId,
+  deviceName,
   onSuccess,
   onError,
   onSyncComplete,
@@ -160,6 +164,8 @@ export function useEnhancedClock({
             offline: true,
             offlineTimestamp: punch.timestamp,
             employeePin: originalEmployee.pin, // Include original employee's PIN
+            deviceId: punch.deviceId,
+            deviceName: punch.deviceName,
           }),
         })
 
@@ -364,6 +370,9 @@ export function useEnhancedClock({
         noPhoto: noPhoto,
         // Add face descriptor if available
         faceDescriptor: descriptor ? JSON.stringify(descriptor) : undefined,
+        // Add device info
+        deviceId,
+        deviceName,
       }
 
       // Helper to update cached "today punches" for this employee in IndexedDB
@@ -484,6 +493,8 @@ export function useEnhancedClock({
         createdAt: Date.now(),
         offline: 1, // 1 = true
         syncAttempts: 0,
+        deviceId,
+        deviceName,
       }
 
       await offlineDB.savePunch(offlinePunch)

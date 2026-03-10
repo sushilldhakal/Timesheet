@@ -4,7 +4,7 @@ import { useDrag } from "react-dnd";
 import { useRef, useEffect } from "react";
 import { getEmptyImage } from "react-dnd-html5-backend";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 import type { IEvent } from "@/components/calendar/interfaces";
 

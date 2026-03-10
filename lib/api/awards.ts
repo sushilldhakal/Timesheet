@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/lib/utils/api-response'
+import { ApiResponse } from '@/lib/utils/api/api-response'
 
 const BASE_URL = '/api/awards'
 

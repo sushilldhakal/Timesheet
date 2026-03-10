@@ -2,25 +2,44 @@ import { NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { getStorageConfig } from "@/lib/storage"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import {
+  storageStatsResponseSchema,
+} from "@/lib/validations/admin"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
-/** GET /api/admin/storage-stats - Get storage usage statistics */
-export async function GET() {
-  try {
+const getStorageStats = createApiRoute({
+  method: 'GET',
+  path: '/api/admin/storage-stats',
+  summary: 'Get storage usage statistics',
+  description: 'Get storage usage statistics from the active storage provider (Cloudinary or R2)',
+  tags: ['Admin'],
+  security: 'adminAuth',
+  responses: {
+    200: storageStatsResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async () => {
     const auth = await getAuthFromCookie()
     if (!auth) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return { status: 401, data: { error: "Unauthorized" } }
     }
     if (!isAdminOrSuperAdmin(auth.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return { status: 403, data: { error: "Forbidden" } }
     }
 
     const config = await getStorageConfig()
     
     if (!config) {
-      return NextResponse.json({ 
-        provider: null,
-        stats: null 
-      })
+      return { 
+        status: 200,
+        data: { 
+          provider: null,
+          stats: null 
+        }
+      }
     }
 
     let stats = null
@@ -113,12 +132,14 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      provider: config.provider,
-      stats,
-    })
-  } catch (error) {
-    console.error("[GET /api/admin/storage-stats]", error)
-    return NextResponse.json({ error: "Failed to fetch storage stats" }, { status: 500 })
+    return {
+      status: 200,
+      data: {
+        provider: config.provider,
+        stats,
+      }
+    }
   }
-}
+})
+
+export const GET = getStorageStats

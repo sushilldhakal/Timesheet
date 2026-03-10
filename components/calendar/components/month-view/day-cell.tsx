@@ -8,7 +8,7 @@ import { EventBullet } from "@/components/calendar/components/month-view/event-b
 import { DroppableDayCell } from "@/components/calendar/components/dnd/droppable-day-cell";
 import { MonthEventBadge } from "@/components/calendar/components/month-view/month-event-badge";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { getMonthCellEvents } from "@/components/calendar/helpers";
 
 import type { ICalendarCell, IEvent } from "@/components/calendar/interfaces";

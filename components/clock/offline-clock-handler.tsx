@@ -5,7 +5,7 @@ import { useOfflineClock, PunchType } from '@/lib/hooks/use-offline-clock'
 import { toast } from 'sonner'
 import { Wifi, WifiOff, Upload, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils/cn'
 
 type OfflineClockHandlerProps = {
   employeeId: string

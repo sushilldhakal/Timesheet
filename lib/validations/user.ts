@@ -23,13 +23,39 @@ export const userUpdateSchema = z.object({
 
 export const userResponseSchema = z.object({
   id: z.string(),
+  name: z.string(),
   username: z.string(),
+  email: z.string(),
   role: z.enum(["admin", "user", "super_admin"]),
-  location: z.string().optional(),
-  rights: z.array(z.string()).optional(),
-  managedRoles: z.array(z.string()).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  location: z.array(z.string()),
+  rights: z.array(z.string()),
+  managedRoles: z.array(z.string()),
+  createdAt: z.number().optional(),
+})
+
+// Users list response
+export const usersListResponseSchema = z.object({
+  users: z.array(userResponseSchema),
+})
+
+// User creation response
+export const userCreateResponseSchema = z.object({
+  user: userResponseSchema,
+})
+
+// Single user response
+export const singleUserResponseSchema = z.object({
+  user: userResponseSchema,
+})
+
+// User update response
+export const userUpdateResponseSchema = z.object({
+  user: userResponseSchema,
+})
+
+// User deletion response
+export const userDeleteResponseSchema = z.object({
+  success: z.boolean(),
 })
 
 export const adminCreateSchema = z.object({

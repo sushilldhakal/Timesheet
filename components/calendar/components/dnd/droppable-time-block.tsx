@@ -5,7 +5,7 @@ import { parseISO, differenceInMilliseconds } from "date-fns";
 
 import { useUpdateEvent } from "@/components/calendar/hooks/use-update-event";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { ItemTypes } from "@/components/calendar/components/dnd/draggable-event";
 
 import type { IEvent } from "@/components/calendar/interfaces";

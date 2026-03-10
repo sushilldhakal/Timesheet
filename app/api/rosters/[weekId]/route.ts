@@ -1,112 +1,139 @@
-import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB } from "@/lib/db"
 import { RosterManager } from "@/lib/managers/roster-manager"
+import { 
+  weekIdParamSchema,
+  rosterResponseSchema,
+} from "@/lib/validations/roster"
+import { successResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { z } from "zod"
 
-type RouteContext = { params: Promise<{ weekId: string }> }
-
-/** GET /api/rosters/[weekId] - Get roster for a specific week */
-export async function GET(request: NextRequest, context: RouteContext) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const weekId = (await context.params).weekId
-  
-  // Validate weekId format
-  if (!/^\d{4}-W\d{2}$/.test(weekId)) {
-    return NextResponse.json(
-      { error: "Invalid week ID format (expected YYYY-Www)" },
-      { status: 400 }
-    )
-  }
-
-  try {
-    await connectDB()
-    
-    const rosterManager = new RosterManager()
-    const result = await rosterManager.getRoster(weekId)
-    
-    if (!result.success) {
-      if (result.error === "ROSTER_NOT_FOUND") {
-        return NextResponse.json(
-          { error: result.error, message: result.message },
-          { status: 404 }
-        )
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/rosters/{weekId}',
+  summary: 'Get roster for a specific week',
+  description: 'Get roster details and all shifts for a specific week',
+  tags: ['Rosters'],
+  security: 'adminAuth',
+  request: {
+    params: weekIdParamSchema,
+  },
+  responses: {
+    200: z.object({ roster: rosterResponseSchema }),
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return {
+        status: 401,
+        data: { error: "Unauthorized" }
       }
-      return NextResponse.json(
-        { error: result.error, message: result.message },
-        { status: 500 }
-      )
     }
-    
-    return NextResponse.json({ roster: result.roster })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/rosters/[weekId] GET]", err)
-    return NextResponse.json(
-      { 
-        error: "Failed to fetch roster", 
-        details: process.env.NODE_ENV === "development" ? message : undefined 
-      },
-      { status: 500 }
-    )
-  }
-}
 
-/** DELETE /api/rosters/[weekId] - Delete a roster */
-export async function DELETE(request: NextRequest, context: RouteContext) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    const weekId = params!.weekId
 
-  const weekId = (await context.params).weekId
-  
-  // Validate weekId format
-  if (!/^\d{4}-W\d{2}$/.test(weekId)) {
-    return NextResponse.json(
-      { error: "Invalid week ID format (expected YYYY-Www)" },
-      { status: 400 }
-    )
-  }
-
-  try {
-    await connectDB()
-    
-    const rosterManager = new RosterManager()
-    const result = await rosterManager.deleteRoster(weekId)
-    
-    if (!result.success) {
-      if (result.error === "ROSTER_NOT_FOUND") {
-        return NextResponse.json(
-          { error: result.error, message: result.message },
-          { status: 404 }
-        )
+    try {
+      await connectDB()
+      
+      const rosterManager = new RosterManager()
+      const result = await rosterManager.getRoster(weekId)
+      
+      if (!result.success) {
+        if (result.error === "ROSTER_NOT_FOUND") {
+          return {
+            status: 404,
+            data: { error: result.message || "Roster not found" }
+          }
+        }
+        return {
+          status: 500,
+          data: { error: result.message || "Failed to fetch roster" }
+        }
       }
-      if (result.error === "ROSTER_PUBLISHED") {
-        return NextResponse.json(
-          { error: result.error, message: result.message },
-          { status: 403 }
-        )
+      
+      return {
+        status: 200,
+        data: { roster: result.roster }
       }
-      return NextResponse.json(
-        { error: result.error, message: result.message },
-        { status: 500 }
-      )
+    } catch (err) {
+      console.error("[api/rosters/[weekId] GET]", err)
+      return {
+        status: 500,
+        data: { error: "Failed to fetch roster" }
+      }
     }
-    
-    return NextResponse.json({ message: "Roster deleted successfully" })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/rosters/[weekId] DELETE]", err)
-    return NextResponse.json(
-      { 
-        error: "Failed to delete roster", 
-        details: process.env.NODE_ENV === "development" ? message : undefined 
-      },
-      { status: 500 }
-    )
   }
-}
+})
+
+export const DELETE = createApiRoute({
+  method: 'DELETE',
+  path: '/api/rosters/{weekId}',
+  summary: 'Delete a roster',
+  description: 'Delete a roster and all its shifts (only if not published)',
+  tags: ['Rosters'],
+  security: 'adminAuth',
+  request: {
+    params: weekIdParamSchema,
+  },
+  responses: {
+    200: successResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return {
+        status: 401,
+        data: { error: "Unauthorized" }
+      }
+    }
+
+    const weekId = params!.weekId
+
+    try {
+      await connectDB()
+      
+      const rosterManager = new RosterManager()
+      const result = await rosterManager.deleteRoster(weekId)
+      
+      if (!result.success) {
+        if (result.error === "ROSTER_NOT_FOUND") {
+          return {
+            status: 404,
+            data: { error: result.message || "Roster not found" }
+          }
+        }
+        if (result.error === "ROSTER_PUBLISHED") {
+          return {
+            status: 403,
+            data: { error: result.message || "Cannot delete published roster" }
+          }
+        }
+        return {
+          status: 500,
+          data: { error: result.message || "Failed to delete roster" }
+        }
+      }
+      
+      return {
+        status: 200,
+        data: { message: "Roster deleted successfully" }
+      }
+    } catch (err) {
+      console.error("[api/rosters/[weekId] DELETE]", err)
+      return {
+        status: 500,
+        data: { error: "Failed to delete roster" }
+      }
+    }
+  }
+})

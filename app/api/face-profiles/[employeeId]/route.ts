@@ -1,136 +1,151 @@
-import { NextRequest, NextResponse } from "next/server"
+import { createApiRoute } from "@/lib/api/create-api-route"
 import { connectDB, StaffFaceProfile } from "@/lib/db"
-import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { 
+  employeeIdParamSchema, 
+  faceProfileUpdateSchema,
+  faceProfileResponseSchema,
+  faceProfileCreateResponseSchema,
+} from "@/lib/validations/face-profiles"
+import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
 
-type RouteContext = { params: Promise<{ employeeId: string }> }
+// GET /api/face-profiles/:employeeId - Fetch profile for employee
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/face-profiles/{employeeId}',
+  summary: 'Get face profile by employee ID',
+  description: 'Fetch face profile for a specific employee (without descriptor for security)',
+  tags: ['FaceRecognition'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+  },
+  responses: {
+    200: faceProfileResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params }) => {
+    const { employeeId } = params!
 
-// GET /api/face-profiles/:employeeId - Fetch descriptor for matching
-export async function GET(
-  req: NextRequest,
-  context: RouteContext
-) {
-  try {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    try {
+      await connectDB()
+
+      const profile = await StaffFaceProfile.findOne({
+        employeeId,
+        isActive: true,
+      }).select("-descriptor")
+
+      if (!profile) {
+        return { status: 404, data: { error: "Face profile not found" } }
+      }
+
+      return { 
+        status: 200, 
+        data: {
+          success: true,
+          profile,
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching face profile:", error)
+      return { status: 500, data: { error: error.message || "Failed to fetch face profile" } }
     }
-
-    const { employeeId } = await context.params
-
-    await connectDB()
-
-    const profile = await StaffFaceProfile.findOne({
-      employeeId,
-      isActive: true,
-    }).select("-descriptor")
-
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Face profile not found" },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      profile,
-    })
-  } catch (error: any) {
-    console.error("Error fetching face profile:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch face profile" },
-      { status: 500 }
-    )
   }
-}
+})
 
 // DELETE /api/face-profiles/:employeeId - GDPR right to erasure
-export async function DELETE(
-  req: NextRequest,
-  context: RouteContext
-) {
-  try {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const DELETE = createApiRoute({
+  method: 'DELETE',
+  path: '/api/face-profiles/{employeeId}',
+  summary: 'Delete face profile',
+  description: 'Delete face profile for GDPR compliance (right to erasure)',
+  tags: ['FaceRecognition'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+  },
+  responses: {
+    200: successResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params }) => {
+    const { employeeId } = params!
+
+    try {
+      await connectDB()
+
+      const profile = await StaffFaceProfile.findOneAndDelete({
+        employeeId,
+      })
+
+      if (!profile) {
+        return { status: 404, data: { error: "Face profile not found" } }
+      }
+
+      return { 
+        status: 200, 
+        data: {
+          success: true,
+          message: "Face profile deleted successfully",
+        }
+      }
+    } catch (error: any) {
+      console.error("Error deleting face profile:", error)
+      return { status: 500, data: { error: error.message || "Failed to delete face profile" } }
     }
-
-    const { employeeId } = await context.params
-
-    await connectDB()
-
-    const profile = await StaffFaceProfile.findOneAndDelete({
-      employeeId,
-    })
-
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Face profile not found" },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Face profile deleted successfully",
-    })
-  } catch (error: any) {
-    console.error("Error deleting face profile:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to delete face profile" },
-      { status: 500 }
-    )
   }
-}
+})
 
 // PATCH /api/face-profiles/:employeeId - Toggle active status
-export async function PATCH(
-  req: NextRequest,
-  context: RouteContext
-) {
-  try {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+export const PATCH = createApiRoute({
+  method: 'PATCH',
+  path: '/api/face-profiles/{employeeId}',
+  summary: 'Update face profile status',
+  description: 'Toggle active status of a face profile',
+  tags: ['FaceRecognition'],
+  security: 'adminAuth',
+  request: {
+    params: employeeIdParamSchema,
+    body: faceProfileUpdateSchema,
+  },
+  responses: {
+    200: faceProfileCreateResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params, body }) => {
+    const { employeeId } = params!
+    const { isActive } = body!
 
-    const { employeeId } = await context.params
+    try {
+      await connectDB()
 
-    await connectDB()
-
-    const body = await req.json()
-    const { isActive } = body
-
-    if (typeof isActive !== "boolean") {
-      return NextResponse.json(
-        { error: "isActive must be a boolean" },
-        { status: 400 }
+      const profile = await StaffFaceProfile.findOneAndUpdate(
+        { employeeId },
+        { isActive },
+        { new: true }
       )
+
+      if (!profile) {
+        return { status: 404, data: { error: "Face profile not found" } }
+      }
+
+      return { 
+        status: 200, 
+        data: {
+          success: true,
+          message: `Face profile ${isActive ? "activated" : "deactivated"} successfully`,
+          profile,
+        }
+      }
+    } catch (error: any) {
+      console.error("Error updating face profile:", error)
+      return { status: 500, data: { error: error.message || "Failed to update face profile" } }
     }
-
-    const profile = await StaffFaceProfile.findOneAndUpdate(
-      { employeeId },
-      { isActive },
-      { new: true }
-    )
-
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Face profile not found" },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Face profile ${isActive ? "activated" : "deactivated"} successfully`,
-      profile,
-    })
-  } catch (error: any) {
-    console.error("Error updating face profile:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update face profile" },
-      { status: 500 }
-    )
   }
-}
+})

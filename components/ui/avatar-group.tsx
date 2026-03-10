@@ -1,6 +1,6 @@
 import { cloneElement, Children, forwardRef, useMemo } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 import type { ElementRef, HTMLAttributes, ReactElement } from "react";
 

@@ -1,62 +1,87 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { VarianceAnalyticsService } from "@/lib/managers/variance-analytics-service"
-import mongoose from "mongoose"
-
-type RouteContext = { params: Promise<{ shiftId: string }> }
+import { createApiRoute } from "@/lib/api/create-api-route"
+import { 
+  analyticsShiftIdParamSchema, 
+  varianceResponseSchema, 
+} from "@/lib/validations/analytics"
+import { errorResponseSchema } from "@/lib/validations/auth"
 
 /** GET /api/analytics/variance/[shiftId] - Calculate variance for a specific shift */
-export async function GET(request: NextRequest, context: RouteContext) {
-  const ctx = await getAuthWithUserLocations()
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = createApiRoute({
+  method: 'GET',
+  path: '/api/analytics/variance/{shiftId}',
+  summary: 'Calculate variance for a specific shift',
+  description: 'Calculate the variance between scheduled hours and actual hours worked for a specific shift',
+  tags: ['Analytics'],
+  security: 'adminAuth',
+  request: {
+    params: analyticsShiftIdParamSchema,
+  },
+  responses: {
+    200: varianceResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async ({ params }) => {
+    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
+    const { connectDB } = await import("@/lib/db")
+    const { VarianceAnalyticsService } = await import("@/lib/managers/variance-analytics-service")
+    const mongoose = await import("mongoose")
 
-  const shiftId = (await context.params).shiftId
-  
-  // Validate shiftId format
-  if (!mongoose.Types.ObjectId.isValid(shiftId)) {
-    return NextResponse.json(
-      { error: "Invalid shift ID format" },
-      { status: 400 }
-    )
-  }
-
-  try {
-    await connectDB()
-    
-    const analyticsService = new VarianceAnalyticsService()
-    const result = await analyticsService.calculateVariance(shiftId)
-    
-    if (!result.success) {
-      if (result.error === "SHIFT_NOT_FOUND") {
-        return NextResponse.json(
-          { error: result.error, message: result.message },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json(
-        { error: result.error, message: result.message },
-        { status: 500 }
-      )
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } }
     }
+
+    const { shiftId } = params!
     
-    return NextResponse.json({
-      scheduledHours: result.scheduledHours,
-      actualHours: result.actualHours,
-      variance: result.variance,
-      timesheetCount: result.timesheetCount,
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/analytics/variance/[shiftId] GET]", err)
-    return NextResponse.json(
-      { 
-        error: "Failed to calculate variance", 
-        details: process.env.NODE_ENV === "development" ? message : undefined 
-      },
-      { status: 500 }
-    )
+    // Validate shiftId format
+    if (!mongoose.Types.ObjectId.isValid(shiftId)) {
+      return { 
+        status: 400, 
+        data: { error: "Invalid shift ID format" } 
+      }
+    }
+
+    try {
+      await connectDB()
+      
+      const analyticsService = new VarianceAnalyticsService()
+      const result = await analyticsService.calculateVariance(shiftId)
+      
+      if (!result.success) {
+        if (result.error === "SHIFT_NOT_FOUND") {
+          return {
+            status: 404,
+            data: { error: result.error, message: result.message }
+          }
+        }
+        return {
+          status: 500,
+          data: { error: result.error, message: result.message }
+        }
+      }
+      
+      return {
+        status: 200,
+        data: {
+          scheduledHours: result.scheduledHours,
+          actualHours: result.actualHours,
+          variance: result.variance,
+          timesheetCount: result.timesheetCount,
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error"
+      console.error("[api/analytics/variance/[shiftId] GET]", err)
+      return {
+        status: 500,
+        data: { 
+          error: "Failed to calculate variance", 
+          details: process.env.NODE_ENV === "development" ? message : undefined 
+        }
+      }
+    }
   }
-}
+})

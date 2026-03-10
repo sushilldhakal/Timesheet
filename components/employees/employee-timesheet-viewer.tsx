@@ -20,7 +20,7 @@ import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-na
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { useEmployeeTimesheet } from "@/lib/queries/employees"
 import { OptimizedImage } from "@/components/ui/optimized-image"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 interface TimesheetRow {
   date: string

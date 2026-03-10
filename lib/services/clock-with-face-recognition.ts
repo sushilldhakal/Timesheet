@@ -28,6 +28,8 @@ export interface ClockWithFaceData {
   photoUrl?: string
   faceDescriptor?: number[]
   faceQuality?: number
+  deviceId?: string
+  deviceName?: string
 }
 
 export interface FaceRecognitionResult {
@@ -53,6 +55,8 @@ export async function processFaceRecognition(
     photoUrl,
     faceDescriptor,
     faceQuality,
+    deviceId,
+    deviceName,
   } = data
 
   // Temporary logging for debugging
@@ -83,6 +87,8 @@ export async function processFaceRecognition(
         capturedPhotoUrl: photoUrl || null,
         enrolledPhotoUrl: existingProfile.enrolledPhotoUrl,
         locationId,
+        deviceId,
+        deviceName,
         status: "pending",
       })
 
@@ -159,6 +165,8 @@ export async function processFaceRecognition(
       capturedPhotoUrl: photoUrl,
       enrolledPhotoUrl: existingProfile.enrolledPhotoUrl, // Side-by-side comparison
       locationId,
+      deviceId,
+      deviceName,
       status: "pending",
     })
 

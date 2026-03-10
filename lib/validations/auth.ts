@@ -28,6 +28,66 @@ export const setupPasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters")
 })
 
+// Response schemas for OpenAPI
+export const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  username: z.string(),
+  role: z.enum(["admin", "user", "super_admin"]),
+  location: z.array(z.string()),
+  rights: z.array(z.string())
+})
+
+export const meUserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  username: z.string(),
+  role: z.enum(["admin", "user", "super_admin"]),
+  location: z.array(z.string()),
+  rights: z.array(z.string()),
+  managedRoles: z.array(z.string())
+})
+
+export const loginResponseSchema = z.object({
+  user: userSchema
+})
+
+export const meResponseSchema = z.object({
+  user: meUserSchema.nullable()
+})
+
+export const tokenVerificationResponseSchema = z.object({
+  valid: z.boolean(),
+  email: z.string().optional(),
+  name: z.string().optional(),
+  type: z.enum(["admin", "employee"]).optional()
+})
+
+export const resetPasswordResponseSchema = z.object({
+  message: z.string(),
+  userType: z.enum(["admin", "employee"])
+})
+
+export const setupTokenVerificationResponseSchema = z.object({
+  valid: z.boolean(),
+  email: z.string().optional(),
+  name: z.string().optional(),
+  pin: z.string().optional()
+})
+
+export const setupPasswordResponseSchema = z.object({
+  message: z.string(),
+  redirect: z.string()
+})
+
+export const errorResponseSchema = z.object({
+  error: z.string()
+})
+
+export const successResponseSchema = z.object({
+  message: z.string()
+})
+
 export const authResponseSchema = z.object({
   user: z.object({
     id: z.string(),

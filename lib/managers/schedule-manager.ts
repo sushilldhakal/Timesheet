@@ -1,7 +1,7 @@
 import mongoose from "mongoose"
 import { Employee, IEmployeeDocument } from "../db/schemas/employee"
 import { ISchedule } from "../db/schemas/schedule"
-import { validateSchedule } from "../utils/schedule-validation"
+import { validateSchedule } from "@/lib/utils/validation/schedule-validation"
 
 /**
  * Schedule Manager

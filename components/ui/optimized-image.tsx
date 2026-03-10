@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 /** Cloudinary URLs are proxied through /api/image for auth-protected access. */
 function getImageSrc(src: string): string {

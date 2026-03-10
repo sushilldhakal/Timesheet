@@ -57,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 import { InactiveEmployeesTable, type InactiveEmployee } from "@/components/dashboard/InactiveEmployeesTable"
 import { useDashboardStats, useHoursSummary, useInactiveEmployees, useDeleteEmployee } from "@/lib/queries/dashboard"
 

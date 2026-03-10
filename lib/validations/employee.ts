@@ -93,3 +93,36 @@ export const employeeQuerySchema = z.object({
 export const employeeIdParamSchema = z.object({
   id: objectIdSchema
 })
+// Response schemas for OpenAPI - simplified for compatibility
+export const employeeListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  pin: z.string(),
+  roles: z.array(z.any()), // Simplified for now
+  employers: z.array(z.any()), // Simplified for now
+  locations: z.array(z.any()), // Simplified for now
+  email: z.string(),
+  phone: z.string(),
+  homeAddress: z.string(),
+  dob: z.string(),
+  gender: z.string(),
+  comment: z.string(),
+  img: z.string(),
+  employmentType: z.string().nullable(),
+  standardHoursPerWeek: z.number().nullable(),
+  awardId: z.string().nullable(),
+  awardLevel: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const employeesListResponseSchema = z.object({
+  employees: z.array(employeeListItemSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+})
+
+export const employeeCreateResponseSchema = z.object({
+  employee: employeeListItemSchema,
+})

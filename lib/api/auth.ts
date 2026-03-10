@@ -1,16 +1,8 @@
+import type { AuthUser } from "@/lib/types/auth"
+
 export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
-}
-
-export interface AuthUser {
-  id: string
-  name?: string
-  username: string
-  role: "admin" | "user" | "super_admin"
-  location?: string[]
-  rights?: string[]
-  managedRoles?: string[]
 }
 
 export interface MeResponse {

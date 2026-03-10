@@ -43,8 +43,29 @@ export const categoryResponseSchema = z.object({
   description: z.string().optional(),
   isActive: z.boolean(),
   parentId: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  address: z.string().optional(),
+  radius: z.number().optional(),
+  geofenceMode: z.enum(["hard", "soft"]).optional(),
+  openingHour: z.number().optional(),
+  closingHour: z.number().optional(),
+  color: z.string().optional(),
+  defaultScheduleTemplate: z.any().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
+})
+
+export const categoriesListResponseSchema = z.object({
+  categories: z.array(categoryResponseSchema)
+})
+
+export const categoryCreateResponseSchema = z.object({
+  category: categoryResponseSchema
+})
+
+export const categoryQuerySchema = z.object({
+  type: z.enum(["role", "location", "employer"]).optional()
 })
 export const categoryIdParamSchema = z.object({
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid MongoDB ObjectId"),

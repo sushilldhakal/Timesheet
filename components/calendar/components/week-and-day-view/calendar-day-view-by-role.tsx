@@ -11,7 +11,7 @@ import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { AddEventDialog } from "@/components/calendar/components/dialogs/add-event-dialog";
 import { EventBlock } from "@/components/calendar/components/week-and-day-view/event-block";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 import { getVisibleHours, isWorkingHour } from "@/components/calendar/helpers";
 
 import type { IEvent } from "@/components/calendar/interfaces";

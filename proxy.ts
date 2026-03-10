@@ -110,8 +110,14 @@ export default async function proxy(request: NextRequest) {
   return response
 }
 
+// export const config = {
+//   matcher: [
+//     "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox|models|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
+//   ],
+// }
+
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox|models|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox|models|docs|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
   ],
 }

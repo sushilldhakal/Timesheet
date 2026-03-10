@@ -39,7 +39,7 @@ export default function LoginPage() {
             if (data.userType === "employee") {
               router.push("/staff/change-password")
             } else {
-              router.push("/dashboard/settings/change-password")
+              router.push("/dashboard/setting/change-password")
             }
             return
           }

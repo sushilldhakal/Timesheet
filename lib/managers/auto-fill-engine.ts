@@ -7,7 +7,7 @@ import { ComplianceManager, ComplianceViolation } from "./compliance-manager"
 import { AbsenceManager } from "./absence-manager"
 import { RotationCalculator } from "./rotation-calculator"
 
-export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL"
+export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT"
 
 export interface RosterFillResult {
   successCount: number

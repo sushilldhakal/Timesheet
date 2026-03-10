@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useAuth } from "@/lib/hooks/useAuth"
+import { useAuth } from "@/lib/hooks/use-auth"
 
 const DashboardContent = dynamic(
   () => import("@/components/dashboard/DashboardContent").then((m) => m.default),

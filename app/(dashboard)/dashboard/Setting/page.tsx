@@ -1,13 +1,19 @@
 "use client"
 
-import { useAuth } from "@/lib/hooks/useAuth"
+import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePathname, useRouter } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Cloud, Mail, Settings } from "lucide-react"
+import { cn } from "@/lib/utils/cn"
+import { Cloud, Lock, Mail, Settings } from "lucide-react"
 
 const settingsTabs = [
+  {
+    name: "Change Password",
+    href: "/dashboard/setting/change-password",
+    icon: Lock,
+    description: "Update your account password",
+  },
   {
     name: "Image Storage",
     href: "/dashboard/setting/image",

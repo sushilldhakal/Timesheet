@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/lib/utils/api-response'
+import { ApiResponse } from '@/lib/utils/api/api-response'
 import type {
   Device,
   ManagedDevice,
@@ -111,6 +111,23 @@ export async function updateManagedDevice(data: UpdateManagedDeviceRequest): Pro
     credentials: 'include',
     body: JSON.stringify(data),
   })
+  return response.json()
+}
+
+// Delete managed device (admin only)
+export async function deleteManagedDevice(deviceId: string): Promise<ApiResponse<void>> {
+  const response = await fetch(DEVICE_MANAGE_URL, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ deviceId }),
+  })
+  
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to delete device')
+  }
+  
   return response.json()
 }
 

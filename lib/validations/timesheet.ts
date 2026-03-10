@@ -69,3 +69,64 @@ export const timesheetResponseSchema = z.object({
 export const pinLoginSchema = z.object({
   pin: z.string().regex(/^\d{4,}$/, "PIN must be 4+ digits").max(10),
 })
+
+// Enhanced query schema for dashboard timesheets
+export const timesheetDashboardQuerySchema = z.object({
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
+  employeeId: z.array(mongoIdSchema).optional(),
+  employer: z.array(z.string()).optional(),
+  location: z.array(z.string()).optional(),
+  role: z.array(z.string()).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  sortBy: z.enum(['date', 'name', 'comment', 'employer', 'role', 'location', 'clockIn', 'breakIn', 'breakOut', 'clockOut', 'breakHours', 'totalHours']).optional().default('date'),
+  order: z.enum(['asc', 'desc']).optional().default('asc'),
+})
+
+// Dashboard timesheet row response
+export const dashboardTimesheetRowSchema = z.object({
+  date: z.string(),
+  employeeId: z.string(),
+  name: z.string(),
+  pin: z.string(),
+  comment: z.string(),
+  employer: z.string(),
+  role: z.string(),
+  location: z.string(),
+  clockIn: z.string(),
+  breakIn: z.string(),
+  breakOut: z.string(),
+  clockOut: z.string(),
+  breakMinutes: z.number(),
+  breakHours: z.string(),
+  totalMinutes: z.number(),
+  totalHours: z.string(),
+  clockInDeviceId: z.string().optional(),
+  clockInDeviceLocation: z.string().optional(),
+  breakInDeviceId: z.string().optional(),
+  breakInDeviceLocation: z.string().optional(),
+  breakOutDeviceId: z.string().optional(),
+  breakOutDeviceLocation: z.string().optional(),
+  clockOutDeviceId: z.string().optional(),
+  clockOutDeviceLocation: z.string().optional(),
+})
+
+// Dashboard timesheets response
+export const timesheetsDashboardResponseSchema = z.object({
+  timesheets: z.array(dashboardTimesheetRowSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+  totalWorkingMinutes: z.number(),
+  totalBreakMinutes: z.number(),
+  totalWorkingHours: z.string(),
+  totalBreakHours: z.string(),
+})
+
+// Timesheet creation response
+export const timesheetCreateResponseSchema = z.object({
+  success: z.boolean(),
+  timesheet: timesheetResponseSchema,
+  shiftMatched: z.boolean(),
+})

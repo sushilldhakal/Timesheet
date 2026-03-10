@@ -2,7 +2,7 @@ import * as React from "react"
 import { type Column } from "@tanstack/react-table"
 import { Check, PlusCircle } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

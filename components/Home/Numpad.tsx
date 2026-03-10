@@ -1,7 +1,7 @@
 "use client"
 
 import { Delete, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 interface NumpadProps {
   onKeyPress: (key: string) => void

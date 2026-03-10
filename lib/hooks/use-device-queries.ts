@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getOrCreateDeviceId, getStorageInfo } from '@/lib/utils/device-storage'
+import { getOrCreateDeviceId, getStorageInfo } from '@/lib/utils/storage/device-storage'
 import { logger } from '@/lib/utils/logger'
 
 // Query keys

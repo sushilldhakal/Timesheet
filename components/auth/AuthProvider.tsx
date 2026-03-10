@@ -8,16 +8,7 @@ import {
 } from "react"
 import { useRouter } from "next/navigation"
 import { useMe, useLogout } from "@/lib/queries/auth"
-
-export type AuthUser = {
-  id: string
-  name?: string
-  username: string
-  role: "admin" | "user" | "super_admin"
-  location?: string[]
-  rights?: string[]
-  managedRoles?: string[]
-}
+import type { AuthUser } from "@/lib/types/auth"
 
 type AuthContextValue = {
   user: AuthUser | null

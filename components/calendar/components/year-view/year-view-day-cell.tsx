@@ -2,7 +2,7 @@ import { isToday } from "date-fns";
 
 import { useCalendar } from "@/components/calendar/contexts/calendar-context";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 import type { IEvent } from "@/components/calendar/interfaces";
 

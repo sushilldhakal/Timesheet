@@ -8,7 +8,7 @@ import {
   THEME_STORAGE_KEY,
   type Theme,
   getThemeCookieClient,
-} from "@/lib/theme"
+} from "@/lib/utils/theme"
 
 type ThemeContextValue = {
   theme: Theme
@@ -41,13 +41,12 @@ export function ThemeProvider({
     setThemeState(next)
   }, [])
 
-  // Sync when initialTheme changes (e.g. after navigation with different cookie)
+  // Apply theme on mount and when initialTheme changes (e.g. after navigation)
   React.useEffect(() => {
     const stored = getThemeCookieClient()
-    if (stored && stored !== theme) {
-      setThemeState(stored)
-      applyTheme(stored)
-    }
+    const toApply = (stored === "light" || stored === "dark") ? stored : initialTheme
+    applyTheme(toApply)
+    setThemeState(toApply)
   }, [initialTheme])
 
   const value = React.useMemo<ThemeContextValue>(

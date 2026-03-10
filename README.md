@@ -94,7 +94,8 @@ A modern staff workforce management app with kiosk-style time clock — built wi
 │   ├── ui/                # shadcn/ui components
 │   ├── Home/              # PIN pad & login
 │   ├── Setup/             # Initial setup dialog
-│   └── DeviceRegistrationDialog.tsx
+│   └── device/            # Device-related components
+│       └── device-registration-dialog.tsx
 ├── lib/
 │   ├── db/                # Database connection & schemas
 │   │   └── schemas/       # Mongoose models
@@ -196,10 +197,10 @@ lib/
 | Date Handling | date-fns |
 | Deployment | Vercel |
 | API State | TanStack Query v5 |
-| API Docs | Scalar (OpenAPI 3.0) |
+| API Docs | Fumadocs (OpenAPI 3.1) |
 | Validation | Zod (centralized schemas) |
 | API State | TanStack Query v5 |
-| API Docs | Scalar (OpenAPI 3.0) |
+| API Docs | Fumadocs (OpenAPI 3.1) |
 | Validation | Zod (centralized schemas) |
 
 ---
@@ -532,20 +533,20 @@ The app implements a sophisticated two-layer authentication system:
 ## 📖 Interactive API Documentation
 
 Full interactive docs with try-it-out at:
-- **UI**: http://localhost:3000/api/docs
+- **UI**: http://localhost:3000/docs/api
 - **JSON**: http://localhost:3000/api/openapi.json
 
-96 endpoints documented with full request/response schemas, examples, and descriptions. Built with Scalar OpenAPI 3.0.
+82+ endpoints documented with full request/response schemas, examples, and descriptions. Built with Fumadocs OpenAPI 3.1.
 
 ---
 
 ## 📖 Interactive API Documentation
 
 Full interactive docs with try-it-out at:
-- **UI**: http://localhost:3000/api/docs
+- **UI**: http://localhost:3000/docs/api
 - **JSON**: http://localhost:3000/api/openapi.json
 
-96 endpoints documented with full request/response schemas, examples, and descriptions. Built with Scalar OpenAPI 3.0.
+82+ endpoints documented with full request/response schemas, examples, and descriptions. Built with Fumadocs OpenAPI 3.1.
 
 ---
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { Wifi, WifiOff, Upload, Clock } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils/cn'
 
 interface OfflineStatusProps {
   isOnline: boolean

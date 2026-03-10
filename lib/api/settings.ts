@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/lib/utils/api-response'
+import { ApiResponse } from '@/lib/utils/api/api-response'
 
 // Mail Settings
 export interface MailSettings {
