@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "generate:openapi": "MONGODB_URI=placeholder GENERATING_OPENAPI=true tsx lib/openapi/generate.ts",
-    "generate:test-data": "node --env-file=.env scripts/generate-test-data.mjs"
+    "generate:test-data": "node --env-file=.env scripts/generate-test-data.mjs",
+    "clean": "rm -rf .next out node_modules/.cache",
+    "type-check": "tsc --noEmit",
+    "build:analyze": "ANALYZE=true npm run build"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.4.3",

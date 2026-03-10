@@ -1,2 +1,3 @@
-export { SetupGuard } from "./SetupGuard"
-export { SetupDialog } from "./SetupDialog"
+// Setup components
+export { SetupGuard } from "./SetupGuard";
+export { SetupDialog } from "./SetupDialog";

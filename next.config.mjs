@@ -12,58 +12,56 @@ const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   turbopack: {},
 
-
-
-async headers() {
-  return [
-    {
-      source: "/(.*)",
-      headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "X-Frame-Options", value: "DENY" },
-        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-        { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-      ],
-    },
-     {
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        ],
+      },
+      {
         source: '/api/openapi.json',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
         ],
       },
-    {
-      source: "/docs/:path*",
-      headers: [
-        { key: "X-Frame-Options", value: "SAMEORIGIN" },
-        { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
-        { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
-        { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data: https://cdn.jsdelivr.net;" },
-      ],
-    },
-    {
-      source: "/api/openapi.json",
-      headers: [
-        { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        { key: "Access-Control-Allow-Origin", value: "*" },
-      ],
-    },
-    {
-      source: "/manifest.json",
-      headers: [
-        { key: "Content-Type", value: "application/manifest+json; charset=utf-8" },
-      ],
-    },
-    {
-      source: "/sw.js",
-      headers: [
-        { key: "Content-Type", value: "application/javascript; charset=utf-8" },
-        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-        { key: "Service-Worker-Allowed", value: "/" },
-      ],
-    },
-  ];
-},
+      {
+        source: "/docs/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data: https://cdn.jsdelivr.net;" },
+        ],
+      },
+      {
+        source: "/api/openapi.json",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
+      },
+      {
+        source: "/manifest.json",
+        headers: [
+          { key: "Content-Type", value: "application/manifest+json; charset=utf-8" },
+        ],
+      },
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
+  },
 
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
