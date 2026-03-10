@@ -25,31 +25,15 @@ const nextConfig = {
         ],
       },
       {
-        source: '/api/openapi.json',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-        ],
-      },
-      {
-        source: "/docs/:path*",
-        headers: [
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
-          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data: https://cdn.jsdelivr.net;" },
-        ],
-      },
-      {
-        source: "/api/openapi.json",
-        headers: [
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-        ],
-      },
-      {
         source: "/manifest.json",
         headers: [
           { key: "Content-Type", value: "application/manifest+json; charset=utf-8" },
+        ],
+      },
+      {
+        source: '/api/openapi.json',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
         ],
       },
       {
