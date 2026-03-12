@@ -190,11 +190,14 @@ export default function EmployeeProfileCard({
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
           <div className="flex gap-4 flex-1">
             <div className="relative h-16 w-16 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
-              {employee.img ? (
-                <OptimizedImage src={employee.img} alt={employee.name} fill className="object-cover" sizes="64px" />
-              ) : (
-                <UserCircle className="h-10 w-10 text-muted-foreground" />
-              )}
+              <OptimizedImage 
+                src={employee.img || ""} 
+                alt={employee.name} 
+                fill 
+                className="object-cover" 
+                sizes="64px" 
+                fallbackName={employee.name}
+              />
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="mb-1">{employee.name}</CardTitle>

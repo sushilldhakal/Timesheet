@@ -82,6 +82,7 @@ interface ServerDataTableProps<TData, TValue> extends BaseDataTableProps<TData, 
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   pageSizeOptions?: number[]
+  showAllOption?: boolean
   sortBy?: string | null
   sortOrder?: "asc" | "desc"
   onSortChange?: (columnId: string, order: "asc" | "desc") => void
@@ -299,6 +300,7 @@ function ServerDataTableImpl<TData, TValue>({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [10, 20, 30, 50],
+  showAllOption = false,
   filterConfig,
   toolbar,
   enableRowSelection = false,
@@ -496,6 +498,7 @@ function ServerDataTableImpl<TData, TValue>({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         pageSizeOptions={pageSizeOptions}
+        showAllOption={showAllOption}
       />
       </div>
     </div>
@@ -512,6 +515,7 @@ interface ServerDataTablePaginationProps<TData> {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   pageSizeOptions: number[]
+  showAllOption?: boolean
 }
 
 function ServerDataTablePagination<TData>({
@@ -523,6 +527,7 @@ function ServerDataTablePagination<TData>({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions,
+  showAllOption = false,
 }: ServerDataTablePaginationProps<TData>) {
   const displayPageSize = pageSize >= 99999 ? "All" : String(pageSize)
 
@@ -554,7 +559,7 @@ function ServerDataTablePagination<TData>({
                 {size}
               </option>
             ))}
-            <option value="All">All</option>
+            {showAllOption && <option value="All">All</option>}
           </select>
         </div>
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">

@@ -67,7 +67,7 @@ function buildTimesheetUrl(params: {
   const sp = new URLSearchParams()
   sp.set("startDate", params.startDate)
   sp.set("endDate", params.endDate)
-  sp.set("limit", "1000") // Get more data for aggregation
+  sp.set("limit", "500") // Get more data for aggregation (API max limit)
   sp.set("offset", "0")
   params.employeeIds?.forEach((id) => sp.append("employeeId", id))
   params.employers?.forEach((e) => sp.append("employer", e))

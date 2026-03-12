@@ -18,7 +18,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-col
 import { DataTableFacetedFilter } from "@/components/ui/data-table/data-table-faceted-filter"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
 import type { FilterConfig } from "@/components/ui/data-table/data-table-toolbar"
-import { useEmployees } from "@/lib/queries/employees"
 import * as employeesApi from "@/lib/api/employees"
 import type { Employee } from "@/lib/api/employees"
 import { AddEmployeeDialog } from "./AddEmployeeDialog"
@@ -32,7 +31,8 @@ function CustomEmployeeToolbar({
   onSearchChange, 
   filterConfig, 
   columnFilters, 
-  onColumnFiltersChange 
+  onColumnFiltersChange,
+  onFilterInteraction 
 }: {
   table: any
   searchValue: string
@@ -40,6 +40,7 @@ function CustomEmployeeToolbar({
   filterConfig: FilterConfig[]
   columnFilters: { id: string; value: string[] }[]
   onColumnFiltersChange: (filters: { id: string; value: string[] }[]) => void
+  onFilterInteraction: () => void
 }) {
   const hasFilters = columnFilters.some(filter => filter.value.length > 0)
 
@@ -94,6 +95,11 @@ function CustomEmployeeToolbar({
                 column={mockColumn as any}
                 title={filter.title}
                 options={filter.options}
+                onOpenChange={(open) => {
+                  if (open) {
+                    onFilterInteraction()
+                  }
+                }}
               />
             </div>
           )
@@ -145,25 +151,62 @@ export default function EmployeesPage() {
   const fetchEmployees = useCallback(async () => {
     setLoading(true)
     try {
-      const limit = pageSize >= 99999 ? 10000 : pageSize
-      const offset = pageIndex * (pageSize >= 99999 ? 10000 : pageSize)
-      const params = {
-        limit,
-        offset,
-        search: debouncedSearch || undefined,
-        sortBy: sortBy || undefined,
-        order: sortOrder,
-        // Add server-side filters
-        ...Object.fromEntries(
-          columnFilters
-            .filter(filter => filter.value.length > 0)
-            .map(filter => [filter.id, filter.value.join(',')])
-        )
+      // For "All" option, we need to fetch all employees using pagination
+      if (pageSize >= 99999) {
+        // Fetch all employees using pagination
+        let allEmployees: Employee[] = []
+        let offset = 0
+        const limit = 1000 // Use maximum allowed limit
+        let hasMore = true
+        
+        while (hasMore) {
+          const params = {
+            limit,
+            offset,
+            search: debouncedSearch || undefined,
+            sortBy: sortBy || undefined,
+            order: sortOrder,
+            // Add server-side filters
+            ...Object.fromEntries(
+              columnFilters
+                .filter(filter => filter.value.length > 0)
+                .map(filter => [filter.id, filter.value.join(',')])
+            )
+          }
+          
+          const data = await employeesApi.getEmployees(params)
+          const employees = data.employees || []
+          allEmployees = [...allEmployees, ...employees]
+          
+          // Check if we got fewer employees than requested, meaning we've reached the end
+          hasMore = employees.length === limit
+          offset += limit
+        }
+        
+        setEmployees(allEmployees)
+        setTotal(allEmployees.length)
+      } else {
+        // Normal pagination
+        const limit = pageSize
+        const offset = pageIndex * pageSize
+        
+        const params = {
+          limit,
+          offset,
+          search: debouncedSearch || undefined,
+          sortBy: sortBy || undefined,
+          order: sortOrder,
+          // Add server-side filters
+          ...Object.fromEntries(
+            columnFilters
+              .filter(filter => filter.value.length > 0)
+              .map(filter => [filter.id, filter.value.join(',')])
+          )
+        }
+        const data = await employeesApi.getEmployees(params)
+        setEmployees(data.employees ?? [])
+        setTotal(data.total ?? 0)
       }
-      
-      const data = await employeesApi.getEmployees(params)
-      setEmployees(data.employees ?? [])
-      setTotal(data.total ?? 0)
     } catch {
       setEmployees([])
       setTotal(0)
@@ -180,6 +223,11 @@ export default function EmployeesPage() {
     setPageIndex(0)
   }, [debouncedSearch, columnFilters])
 
+  // Load filters immediately on page load for better UX
+  useEffect(() => {
+    fetchFilterOptions()
+  }, [])
+
   const handleRowClick = (row: Employee) => {
     router.push(`/dashboard/employees/${row.id}`)
   }
@@ -190,8 +238,8 @@ export default function EmployeesPage() {
     setPageIndex(0)
   }
 
-  // Define sortable column IDs (role sorting requires complex aggregation, so it's excluded)
-  const sortableColumnIds = ["name", "pin", "email", "phone", "employer", "location"]
+  // Define sortable column IDs
+  const sortableColumnIds = ["name", "pin", "role", "email", "phone", "employer", "location"]
 
   // Define columns
   const columns = useMemo<ColumnDef<Employee>[]>(
@@ -221,11 +269,15 @@ export default function EmployeesPage() {
         accessorKey: "role",
         accessorFn: (row) => {
           if (row.roles && row.roles.length > 0) {
-            return row.roles.map((r) => r.role.name).join(", ")
+            const activeRoles = row.roles.filter((r) => r.isActive)
+            const roleNames = activeRoles.map((r) => r.role.name).join(", ")
+            return roleNames
           }
           return "—"
         },
-        header: () => <span>Roles</span>,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Roles" />
+        ),
         cell: ({ row }) => {
           const roles = row.original.roles
           
@@ -324,7 +376,10 @@ export default function EmployeesPage() {
       },
       {
         accessorKey: "location",
-        accessorFn: (row) => (row.locations ?? []).map(l => l.name).join(", "),
+        accessorFn: (row) => {
+          const locationNames = (row.locations ?? []).map(l => l.name).join(", ")
+          return locationNames
+        },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Locations" />
         ),
@@ -385,7 +440,7 @@ export default function EmployeesPage() {
   )
 
   // Extract unique filter options from ALL data (not just current page)
-  // We'll fetch these separately to get complete filter options with counts
+  // We'll fetch these separately when user interacts with filters (lazy loading)
   const [allFilterOptions, setAllFilterOptions] = useState<{
     roles: { label: string; value: string; count: number }[]
     employers: { label: string; value: string; count: number }[]
@@ -395,98 +450,92 @@ export default function EmployeesPage() {
     employers: [],
     locations: []
   })
+  const [filtersLoaded, setFiltersLoaded] = useState(false)
+  const [filtersLoading, setFiltersLoading] = useState(false)
 
-  // Fetch filter options separately
+  // Lazy load filter options when user first interacts with filters
   const fetchFilterOptions = useCallback(async () => {
+    if (filtersLoaded || filtersLoading) return
+    
+    setFiltersLoading(true)
     try {
-      // Fetch all employees to get complete filter options (without pagination)
-      const data = await employeesApi.getEmployees({ limit: 10000 })
-      const allEmployees = data.employees || []
-        
-      // Count unique employees per role (not total assignments)
-      const roleCounts = new Map<string, number>()
-      allEmployees.forEach((emp: Employee) => {
-        const employeeRoles = new Set<string>()
-        emp.roles?.filter((r) => r.isActive).forEach((r) => {
-          employeeRoles.add(r.role.name)
-        })
-        // Count each employee only once per role, even if they have multiple assignments
-        employeeRoles.forEach(roleName => {
-          roleCounts.set(roleName, (roleCounts.get(roleName) || 0) + 1)
-        })
-      })
-      const roles = Array.from(roleCounts.entries()).map(([role, count]) => ({ 
-        label: `${role} (${count})`, 
-        value: role,
-        count 
+      const data = await employeesApi.getEmployeeFilters()
+      
+      const roles = data.roles.map(role => ({
+        label: `${role.name} (${role.count})`,
+        value: role.name,
+        count: role.count
       }))
-
-      // Count unique employees per employer
-      const employerCounts = new Map<string, number>()
-      allEmployees.forEach((emp: Employee) => {
-        const employeeEmployers = new Set<string>()
-        emp.employers?.forEach((e) => {
-          employeeEmployers.add(e.name)
-        })
-        // Count each employee only once per employer
-        employeeEmployers.forEach(employerName => {
-          employerCounts.set(employerName, (employerCounts.get(employerName) || 0) + 1)
-        })
-      })
-      const employers = Array.from(employerCounts.entries()).map(([employer, count]) => ({ 
-        label: `${employer} (${count})`, 
-        value: employer,
-        count 
+      
+      const employers = data.employers.map(employer => ({
+        label: `${employer.name} (${employer.count})`,
+        value: employer.name,
+        count: employer.count
       }))
-
-      // Count unique employees per location
-      const locationCounts = new Map<string, number>()
-      allEmployees.forEach((emp: Employee) => {
-        const employeeLocations = new Set<string>()
-        emp.locations?.forEach((l) => {
-          employeeLocations.add(l.name)
-        })
-        // Count each employee only once per location
-        employeeLocations.forEach(locationName => {
-          locationCounts.set(locationName, (locationCounts.get(locationName) || 0) + 1)
-        })
-      })
-      const locations = Array.from(locationCounts.entries()).map(([location, count]) => ({ 
-        label: `${location} (${count})`, 
-        value: location,
-        count 
+      
+      const locations = data.locations.map(location => ({
+        label: `${location.name} (${location.count})`,
+        value: location.name,
+        count: location.count
       }))
 
       setAllFilterOptions({ roles, employers, locations })
+      setFiltersLoaded(true)
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
+    } finally {
+      setFiltersLoading(false)
     }
-  }, [])
+  }, [filtersLoaded, filtersLoading])
 
-  useEffect(() => {
-    fetchFilterOptions()
-  }, [fetchFilterOptions])
+  // Trigger filter loading when user interacts with filter UI
+  const handleFilterInteraction = useCallback(() => {
+    if (!filtersLoaded && !filtersLoading) {
+      fetchFilterOptions()
+    }
+  }, [fetchFilterOptions, filtersLoaded, filtersLoading])
+
+
 
   const filterConfig = useMemo<FilterConfig[]>(() => {
     const configs: FilterConfig[] = []
     
-    // Only show role filter if user has multiple managed roles or if there are multiple roles available
+    // Show placeholder filters immediately, then populate with real data
+    if (!filtersLoaded) {
+      // Show common filter placeholders while loading
+      configs.push({ 
+        columnId: "role", 
+        title: filtersLoading ? "Role (loading...)" : "Role", 
+        options: [] 
+      })
+      configs.push({ 
+        columnId: "employer", 
+        title: filtersLoading ? "Employer (loading...)" : "Employer", 
+        options: [] 
+      })
+      configs.push({ 
+        columnId: "location", 
+        title: filtersLoading ? "Location (loading...)" : "Location", 
+        options: [] 
+      })
+      return configs
+    }
+    
+    // Once loaded, only show filters with multiple options
     if (allFilterOptions.roles.length > 1) {
       configs.push({ columnId: "role", title: "Role", options: allFilterOptions.roles })
     }
     
-    // Only show employer filter if there are multiple employers among accessible employees
     if (allFilterOptions.employers.length > 1) {
       configs.push({ columnId: "employer", title: "Employer", options: allFilterOptions.employers })
     }
     
-    // Only show location filter if there are multiple locations among accessible employees
     if (allFilterOptions.locations.length > 1) {
       configs.push({ columnId: "location", title: "Location", options: allFilterOptions.locations })
     }
     
     return configs
-  }, [allFilterOptions])
+  }, [allFilterOptions, filtersLoaded, filtersLoading])
 
   return (
     <div className="space-y-6">
@@ -528,11 +577,12 @@ export default function EmployeesPage() {
               setPageSize(size)
               setPageIndex(0)
             }}
-            pageSizeOptions={[10, 20, 30, 50]}
+            pageSizeOptions={[10, 20, 30, 50, 100]}
+            showAllOption={true}
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
-            sortableColumnIds={["name", "pin", "email", "phone", "employer", "location"]}
+            sortableColumnIds={["name", "pin", "role", "email", "phone", "employer", "location"]}
             filterConfig={filterConfig}
             enableRowSelection={true}
             onRowClick={handleRowClick}
@@ -548,6 +598,7 @@ export default function EmployeesPage() {
                 filterConfig={filterConfig}
                 columnFilters={columnFilters}
                 onColumnFiltersChange={setColumnFilters}
+                onFilterInteraction={handleFilterInteraction}
               />
             )}
           />

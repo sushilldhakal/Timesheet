@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from "date-fns"
 import type { ColumnDef, VisibilityState } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/data-table/data-table"
@@ -104,6 +104,12 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     role: false,
   })
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  // Prevent hydration mismatch by only rendering dates after hydration
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const weekData = useMemo(() => {
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
@@ -205,7 +211,7 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
 
   const columns = useMemo(() => getWeekViewColumns(weekData.weekDays), [weekData.weekDays])
 
-  if (loading) {
+  if (loading || !isHydrated) {
     return (
       <div className="flex items-center justify-center h-32">
         <p className="text-muted-foreground">Loading...</p>

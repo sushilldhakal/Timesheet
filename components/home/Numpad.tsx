@@ -33,7 +33,7 @@ export function Numpad({ onKeyPress, onDelete, onClear, disabled = false }: Nump
               disabled={disabled}
               onClick={onClear}
               className={cn(
-                "flex h-24 min-h-24 items-center justify-center rounded-2xl text-white/70 transition-all duration-150",
+                "flex h-24 min-h-24 items-center text-3xl font-medium text-white justify-center rounded-2xl text-white/70 transition-all duration-150",
                 "shadow-[0_4px_0_0_rgba(0,0,0,0.2),0_6px_12px_rgba(0,0,0,0.15)]",
                 "hover:bg-white/15 active:scale-[0.98] active:shadow-[0_1px_0_0_rgba(0,0,0,0.2),0_2px_4px_rgba(0,0,0,0.1)] active:translate-y-0.5",
                 "disabled:pointer-events-none disabled:opacity-40"
@@ -41,7 +41,7 @@ export function Numpad({ onKeyPress, onDelete, onClear, disabled = false }: Nump
               aria-label="Clear all"
               title="Clear all digits"
             >
-              <X className="h-8 w-8" />
+              Clear
             </button>
           )
         }

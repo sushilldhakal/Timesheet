@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from "next/server"
 import mongoose from "mongoose"
 import { getAuthWithUserLocations, employeeLocationFilter, getFilteredEmployeeIdsByRole } from "@/lib/auth/auth-api"
 import { connectDB, Employee } from "@/lib/db"
@@ -59,12 +58,17 @@ export const GET = createApiRoute({
     const employerFilters = employerFilter ? employerFilter.split(',').map(s => s.trim()).filter(Boolean) : []
     
     // Validate sortBy to prevent injection
-    const validSortFields = ["name", "pin", "email", "phone", "createdAt", "employer", "location"]
+    // role and location are handled via aggregation pipeline (lookup), not direct Employee fields
+    const validSortFields = ["name", "pin", "email", "phone", "createdAt", "employer", "location", "role"]
     const sortBy = validSortFields.includes(sortByParam) ? sortByParam : "name"
     const order = orderParam === "desc" ? -1 : 1
+    const needsAggregation = sortBy === "role" || sortBy === "location"
 
     try {
       await connectDB()
+
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const { Category } = await import("@/lib/db")
 
       const andConditions: Record<string, unknown>[] = []
       const locFilter = employeeLocationFilter(ctx.userLocations)
@@ -88,12 +92,7 @@ export const GET = createApiRoute({
       }
 
       // Add role filters if provided - need to check role assignments
-      let roleFilteredIds: string[] | null = null
       if (roleFilters.length > 0) {
-        const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-        const { Category } = await import("@/lib/db")
-        
-        // Find role categories by name
         const roleCategories = await Category.find({
           name: { $in: roleFilters },
           type: "role"
@@ -102,26 +101,19 @@ export const GET = createApiRoute({
         if (roleCategories.length > 0) {
           const roleIds = roleCategories.map(r => r._id)
           
-          // Find employees with these roles
           const roleAssignments = await EmployeeRoleAssignment.find({
             roleId: { $in: roleIds },
             isActive: true
           }).distinct('employeeId')
           
-          roleFilteredIds = roleAssignments.map(id => id.toString())
+          const roleFilteredIds = roleAssignments.map(id => id.toString())
           
           if (roleFilteredIds.length > 0) {
             andConditions.push({ _id: { $in: roleFilteredIds.map(id => new mongoose.Types.ObjectId(id)) } })
           } else {
-            // No employees found with these roles - return empty result
             return {
               status: 200,
-              data: {
-                employees: [],
-                total: 0,
-                limit,
-                offset,
-              }
+              data: { employees: [], total: 0, limit, offset }
             }
           }
         }
@@ -143,21 +135,125 @@ export const GET = createApiRoute({
       }
       if (andConditions.length > 0) filter.$and = andConditions
 
-      const [employees, total] = await Promise.all([
-        Employee.find(filter)
-          .sort({ [sortBy]: order })
-          .skip(offset)
-          .limit(limit)
-          .lean(),
-        Employee.countDocuments(filter),
-      ])
+      let employees: any[]
+      let total: number
+
+      if (needsAggregation) {
+        // ---------------------------------------------------------------
+        // Aggregation path: sort by a joined field (role name or location
+        // name) that lives in EmployeeRoleAssignment, not on Employee.
+        // We $lookup the first active assignment, pull the joined name as
+        // a sortable scalar, then $sort → $skip → $limit.
+        // ---------------------------------------------------------------
+        
+        const roleAssignmentCollection = "employee_role_assignments"  // Explicit collection name
+        const categoryCollection = "categories"                                    // Explicit collection name
+
+        const pipeline: object[] = [
+          // 1. Apply the same filter we'd pass to .find()
+          { $match: filter },
+
+          // 2. Join to role assignments (only active ones)
+          {
+            $lookup: {
+              from: roleAssignmentCollection,
+              let: { empId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { 
+                      $and: [
+                        { $eq: ["$employeeId", "$$empId"] },
+                        { $eq: ["$isActive", true] }
+                      ]
+                    }
+                  }
+                },
+                { $sort: { assignedAt: 1 } },  // deterministic ordering
+                { $limit: 1 },                  // only the "primary" assignment
+              ],
+              as: "_primaryAssignment"
+            }
+          },
+          { $unwind: { path: "$_primaryAssignment", preserveNullAndEmptyArrays: true } }
+        ]
+
+        // Add role-specific stages
+        if (sortBy === "role") {
+          pipeline.push({
+            $lookup: {
+              from: categoryCollection,
+              localField: "_primaryAssignment.roleId",
+              foreignField: "_id",
+              as: "_roleCategory"
+            }
+          })
+          pipeline.push({ $unwind: { path: "$_roleCategory", preserveNullAndEmptyArrays: true } })
+          pipeline.push({ $addFields: { 
+            _sortKey: { 
+              $toLower: { 
+                $ifNull: ["$_roleCategory.name", "zzz"] 
+              } 
+            } 
+          } })
+        }
+
+        // Add location-specific stages
+        if (sortBy === "location") {
+          pipeline.push({
+            $lookup: {
+              from: categoryCollection,
+              localField: "_primaryAssignment.locationId",
+              foreignField: "_id",
+              as: "_locationCategory"
+            }
+          })
+          pipeline.push({ $unwind: { path: "$_locationCategory", preserveNullAndEmptyArrays: true } })
+          pipeline.push({ $addFields: { 
+            _sortKey: { 
+              $toLower: { 
+                $ifNull: ["$_locationCategory.name", "zzz"] 
+              } 
+            } 
+          } })
+        }
+
+        // Add final stages
+        pipeline.push({ $sort: { _sortKey: order, name: 1 } })
+        pipeline.push({
+          $facet: {
+            metadata: [{ $count: "total" }],
+            data: [{ $skip: offset }, { $limit: limit }],
+          }
+        })
+
+        try {
+          const [result] = await Employee.aggregate(pipeline as any)
+          total = result?.metadata?.[0]?.total ?? 0
+          employees = result?.data ?? []
+        } catch (aggError) {
+          console.error('🚨 Aggregation error:', aggError)
+          throw aggError
+        }
+      } else {
+        // ---------------------------------------------------------------
+        // Simple path: sort field exists directly on Employee
+        // ---------------------------------------------------------------
+        
+        ;[employees, total] = await Promise.all([
+          Employee.find(filter)
+            .sort({ [sortBy]: order })
+            .skip(offset)
+            .limit(limit)
+            .lean(),
+          Employee.countDocuments(filter),
+        ])
+      }
 
       const arr = (v: unknown) => Array.isArray(v) ? v : v ? [String(v)] : []
       
       // Fetch role assignments for all employees
       const employeeIds = employees.map(e => e._id)
-      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-      const { Category } = await import("@/lib/db")
       
       const roleAssignments = await EmployeeRoleAssignment.find({
         employeeId: { $in: employeeIds },

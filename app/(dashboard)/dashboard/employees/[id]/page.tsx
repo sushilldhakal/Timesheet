@@ -471,21 +471,15 @@ function EmployeeDetailPage() {
         <Card>
           <CardContent className="space-y-4">
             <div className="flex flex-col items-center gap-3 ">
-              {(employee.img || (timesheets.length > 0 && timesheets[0].clockInImage)) ? (
-                <OptimizedImage
-                  src={employee.img || timesheets[0].clockInImage}
-                  alt={employee.name}
-                  width={96}
-                  height={96}
-                  className="rounded-full object-cover w-24 h-24"
-                />
-              ) : (
-                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
-                  <span className="text-2xl font-medium text-muted-foreground">
-                    {employee.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
+              {/* Profile Image with improved fallback */}
+              <OptimizedImage
+                src={employee.img || (timesheets.length > 0 ? timesheets[0].clockInImage : "") || ""}
+                alt={employee.name}
+                width={96}
+                height={96}
+                className="rounded-full object-cover w-24 h-24"
+                fallbackName={employee.name}
+              />
               <div className="text-center space-y-2 w-full">
                 <div>
                   <p className="font-semibold text-lg">{employee.name}</p>

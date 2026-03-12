@@ -44,7 +44,7 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
   const params = new URLSearchParams()
   params.set('startDate', filters.startDate)
   params.set('endDate', filters.endDate)
-  params.set('limit', (filters.limit || 1000).toString())
+  params.set('limit', (filters.limit || 500).toString()) // API max limit is 500
   params.set('offset', (filters.offset || 0).toString())
   
   filters.employeeIds?.forEach(id => params.append('employeeId', id))

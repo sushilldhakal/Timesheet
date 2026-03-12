@@ -6,7 +6,7 @@ import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import { useRouter } from "next/navigation"
 import Webcam from "react-webcam"
-import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check, Wifi, WifiOff, Upload, Clock } from "lucide-react"
+import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check, Wifi, WifiOff, Upload, Clock, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -88,10 +88,56 @@ function calculateBreakDuration(breakIn?: string, breakOut?: string): string {
   }
 }
 
+// ─── Circular Progress Logout Button ─────────────────────────────────────────
+
+function CircularLogoutButton({
+  countdown,
+  onLogout
+}: {
+  countdown: number | null;
+  onLogout: () => void
+}) {
+  if (countdown === null) return null
+
+  const progress = ((30 - countdown) / 30) * 100
+  const circumference = 2 * Math.PI * 18 // radius = 18
+  const strokeDashoffset = circumference - (progress / 100) * circumference
+
+  return (
+    <button
+      onClick={onLogout}
+      className="relative w-12 h-12 rounded-full bg-red-500/10 hover:bg-red-500/20 transition-colors duration-200 group"
+      title={`Logging out in ${countdown}s - Click to logout now`}
+    >
+      {/* Circular progress ring */}
+      <svg
+        className="absolute inset-0 w-full h-full -rotate-90"
+        viewBox="0 0 40 40"
+      >
+        {/* Progress circle */}
+        <circle
+          cx="20"
+          cy="20"
+          r="18"
+          fill="none"
+          stroke="rgb(239, 68, 68)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          className="transition-all duration-1000 ease-linear"
+        />
+      </svg>
+
+      {/* X icon */}
+      <X className="absolute inset-0 m-auto h-5 w-5 text-red-400 group-hover:text-red-300 transition-colors" />
+    </button>
+  )
+}
+
 const HOME_BG = "min-h-dvh bg-dark"
 
 // ─── Face status indicator ────────────────────────────────────────────────────
-
 function FaceStatusBadge({ status }: { status: string }) {
   if (status === "loading") {
     return (
@@ -428,12 +474,11 @@ function ClockPageContent() {
     if (!employee) return
     const IDLE_SECONDS = 30
     let secondsLeft = IDLE_SECONDS
-    setIdleCountdown(null)
 
-    // Start countdown display at 10s remaining
+    // Start countdown display immediately when timer starts
     const countdownInterval = setInterval(() => {
       secondsLeft -= 1
-      if (secondsLeft <= 10) setIdleCountdown(secondsLeft)
+      setIdleCountdown(secondsLeft)
       if (secondsLeft <= 0) {
         clearInterval(countdownInterval)
         handleLogout()
@@ -533,8 +578,18 @@ console.log("clockLoading",clockLoading)
             {currentTime}
           </p>
           
-          {/* Offline/Online Status & Sync Queue - only show when offline or has pending data */}
-          {(!isOnline || hasOfflineData) && (
+          {/* Circular Logout Button - shows when countdown is active */}
+          {idleCountdown !== null && (
+            <div className="absolute top-4 right-4 z-50">
+              <CircularLogoutButton 
+                countdown={idleCountdown} 
+                onLogout={handleLogout} 
+              />
+            </div>
+          )}
+          
+          {/* Offline/Online Status & Sync Queue - only show when offline or has pending data and no logout countdown */}
+          {(!isOnline || hasOfflineData) && idleCountdown === null && (
             <OfflineStatus
               isOnline={isOnline}
               pendingCount={pendingCount}
@@ -803,15 +858,6 @@ console.log("clockLoading",clockLoading)
                     {!actualClockLoading && !actualClockSuccess && "CLOCK OUT"}
                   </Button>
                 </TabsContent>
-
-                 {/* Idle countdown warning */}
-      {idleCountdown !== null && (
-        <div className="text-center pb-2">
-          <p className="text-sm text-warning animate-pulse">
-            Logging out in {idleCountdown}s…
-          </p>
-        </div>
-      )}
 
                  {/* Message banner */}
                  {message && (

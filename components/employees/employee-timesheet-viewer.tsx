@@ -84,7 +84,14 @@ function PunchPhotoAndLocation({
           rel="noopener noreferrer"
           className="relative block w-16 h-16 rounded overflow-hidden border border-border hover:opacity-90 shrink-0"
         >
-          <OptimizedImage src={imageUrl} alt="" fill className="object-cover" sizes="64px" />
+          <OptimizedImage 
+            src={imageUrl} 
+            alt="" 
+            fill 
+            className="object-cover" 
+            sizes="64px" 
+            fallbackName=""
+          />
         </a>
       ) : (
         <div className="w-16 h-16 rounded border border-dashed border-muted flex items-center justify-center shrink-0">
@@ -138,19 +145,33 @@ function formatTime(timeStr: string): string {
 function getDateRange(view: TimesheetView, selectedDate: Date) {
   switch (view) {
     case "day":
+      // Show 14 days BEFORE the selected date (historical data)
+      const selectedDayEnd = endOfDay(selectedDate)
+      const fourteenDaysStart = new Date(selectedDate)
+      fourteenDaysStart.setDate(selectedDate.getDate() - 13) // 14 days total (including selected date)
+      
       return {
-        startDate: format(startOfDay(selectedDate), "yyyy-MM-dd"),
-        endDate: format(endOfDay(selectedDate), "yyyy-MM-dd"),
+        startDate: format(startOfDay(fourteenDaysStart), "yyyy-MM-dd"),
+        endDate: format(selectedDayEnd, "yyyy-MM-dd"),
       }
     case "week":
+      // Show 8 weeks BEFORE the current week (historical data)
+      const currentWeekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 })
+      const eightWeeksStart = new Date(currentWeekEnd)
+      eightWeeksStart.setDate(currentWeekEnd.getDate() - (8 * 7) + 1) // 8 weeks before, +1 to start on Monday
+      
       return {
-        startDate: format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
-        endDate: format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        startDate: format(startOfWeek(eightWeeksStart, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        endDate: format(currentWeekEnd, "yyyy-MM-dd"),
       }
     case "month":
+      // Show 6 months BEFORE the current month (historical data)
+      const currentMonthEnd = endOfMonth(selectedDate)
+      const sixMonthsStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 5, 1) // 6 months before (0-based, so -5 gives us 6 months)
+      
       return {
-        startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"),
-        endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd"),
+        startDate: format(startOfMonth(sixMonthsStart), "yyyy-MM-dd"),
+        endDate: format(currentMonthEnd, "yyyy-MM-dd"),
       }
     default:
       return {
@@ -189,8 +210,6 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
   }
 
   // Debug: Log the actual date from the data
-  console.log('SingleDayView - Raw date from API:', dayData.date)
-  console.log('SingleDayView - All data:', data)
 
   const totalMinutes = dayData.totalMinutes || 0
   const breakMinutes = dayData.breakMinutes || 0
@@ -263,6 +282,7 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
                       fill 
                       className="object-cover" 
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      fallbackName=""
                     />
                   </div>
                 </a>
@@ -311,6 +331,7 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
                       fill 
                       className="object-cover" 
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      fallbackName=""
                     />
                   </div>
                 </a>
@@ -359,6 +380,7 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
                       fill 
                       className="object-cover" 
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      fallbackName=""
                     />
                   </div>
                 </a>
@@ -407,6 +429,7 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
                       fill 
                       className="object-cover" 
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      fallbackName=""
                     />
                   </div>
                 </a>
@@ -452,7 +475,8 @@ function WeekView({ data, startDate, endDate }: { data: TimesheetRow[], startDat
       currentWeekStart.setDate(currentWeekStart.getDate() + 7)
     }
     
-    return weeksList
+    // Reverse the list so newest week appears first (descending order)
+    return weeksList.reverse()
   }, [rangeStart, rangeEnd])
 
   // Create a map of date to timesheet data
@@ -649,7 +673,7 @@ function WeekView({ data, startDate, endDate }: { data: TimesheetRow[], startDat
   )
 }
 
-// Month View Component - supports single month or multiple months (minimum 6 months)
+// Month View Component - supports single month or multiple months
 function MonthView({ data, startDate, endDate }: { data: TimesheetRow[], startDate: string, endDate: string }) {
   // Parse the dates as local dates to avoid timezone issues
   const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
@@ -657,7 +681,7 @@ function MonthView({ data, startDate, endDate }: { data: TimesheetRow[], startDa
   const rangeStart = new Date(startYear, startMonth - 1, startDay)
   const rangeEnd = new Date(endYear, endMonth - 1, endDay)
   
-  // Get all months in the range (minimum 6 months)
+  // Get all months in the range
   const months = useMemo(() => {
     const monthsList: { start: Date; end: Date; name: string; year: number }[] = []
     let currentMonth = startOfMonth(rangeStart)
@@ -675,22 +699,8 @@ function MonthView({ data, startDate, endDate }: { data: TimesheetRow[], startDa
       currentMonth.setMonth(currentMonth.getMonth() + 1)
     }
     
-    // Ensure minimum 6 months
-    while (monthsList.length < 6) {
-      const lastMonthDate = monthsList[monthsList.length - 1]?.start || rangeStart
-      const nextMonth = new Date(lastMonthDate)
-      nextMonth.setMonth(nextMonth.getMonth() + 1)
-      const monthStart = startOfMonth(nextMonth)
-      
-      monthsList.push({
-        start: monthStart,
-        end: endOfMonth(monthStart),
-        name: format(monthStart, 'MMMM'),
-        year: monthStart.getFullYear()
-      })
-    }
-    
-    return monthsList
+    // Reverse the list so newest month appears first (descending order)
+    return monthsList.reverse()
   }, [rangeStart, rangeEnd])
 
   // Create a map of date to timesheet data
@@ -953,7 +963,7 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
   const [customEndDate, setCustomEndDate] = useState("")
   const [useCustomRange, setUseCustomRange] = useState(false)
   const [pageIndex, setPageIndex] = useState(0)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(50) // Increased to accommodate 8 weeks of data
   const [searchValue, setSearchValue] = useState("")
   const [sortBy, setSortBy] = useState<string | null>("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
@@ -973,7 +983,6 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
   }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
 
   // Debug: Log what we're sending to API
-  console.log('API Request params:', { startDate, endDate, isSingleDay: startDate === endDate })
 
   // Fetch timesheet data
   const timesheetParams = new URLSearchParams({
@@ -996,21 +1005,9 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
 
   // Filter timesheets to match the requested date range (handle timezone issues from backend)
   const timesheets = useMemo(() => {
-    // Only filter for single day view to handle timezone issues
-    if (view === 'day' && isSingleDay) {
-      const filtered = rawTimesheets.filter(row => row.date === startDate)
-      console.log('Filtered timesheets for single day:', { 
-        requestedDate: startDate, 
-        rawCount: rawTimesheets.length, 
-        filteredCount: filtered.length,
-        rawDates: rawTimesheets.map(r => r.date)
-      })
-      return filtered
-    }
-    
-    // For week and month views, return all data
+    // For all views, return all data since the API handles the date range filtering
     return rawTimesheets
-  }, [rawTimesheets, view, isSingleDay, startDate])
+  }, [rawTimesheets])
 
   // Check if any row has images to determine if we should show expand functionality
   const hasImages = useMemo(() => {

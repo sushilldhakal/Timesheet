@@ -16,7 +16,7 @@ declare global {
 }
 
 const cached = globalThis.__mongooseCache ?? { conn: null, promise: null }
-if (process.env.NODE_ENV !== "production") globalThis.__mongooseCache = cached
+if (process.env.NODE_ENV == "production") globalThis.__mongooseCache = cached
 
 /**
  * Connect to MongoDB Atlas. Reuses the same connection in serverless (e.g. Next.js API routes).

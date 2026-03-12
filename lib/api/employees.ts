@@ -226,6 +226,25 @@ export interface EmployeeRolesResponse {
   }
 }
 
+export interface EmployeeFiltersResponse {
+  roles: Array<{ name: string; count: number }>
+  employers: Array<{ name: string; count: number }>
+  locations: Array<{ name: string; count: number }>
+}
+
+// Get employee filters
+export async function getEmployeeFilters(): Promise<EmployeeFiltersResponse> {
+  const response = await fetch('/api/employees/filters', {
+    credentials: 'include',
+  })
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch employee filters')
+  }
+  
+  return response.json()
+}
+
 // Get all employees
 export async function getEmployees(params?: GetEmployeesParams): Promise<EmployeesResponse> {
   const searchParams = new URLSearchParams()

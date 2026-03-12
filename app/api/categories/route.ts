@@ -57,8 +57,8 @@ export const GET = createApiRoute({
         openingHour: c.openingHour,
         closingHour: c.closingHour,
         defaultScheduleTemplate: c.defaultScheduleTemplate,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
+        createdAt: c.createdAt ? c.createdAt.toISOString() : null,
+        updatedAt: c.updatedAt ? c.updatedAt.toISOString() : null,
       }))
 
       return {
@@ -146,7 +146,7 @@ export const POST = createApiRoute({
         status: 200,
         data: {
           category: {
-            id: category._id,
+            id: category._id.toString(),
             name: category.name,
             type: category.type,
             lat: category.lat,
@@ -158,8 +158,8 @@ export const POST = createApiRoute({
             closingHour: category.closingHour,
             color: category.color,
             defaultScheduleTemplate: category.defaultScheduleTemplate,
-            createdAt: category.createdAt,
-            updatedAt: category.updatedAt,
+            createdAt: category.createdAt ? category.createdAt.toISOString() : null,
+            updatedAt: category.updatedAt ? category.updatedAt.toISOString() : null,
           },
         }
       }
