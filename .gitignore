@@ -44,6 +44,8 @@ env.txt
 next-env.d.ts
 
 scripts/
-
 skills-lock.json
 package-lock.json
+/.vscode/
+/.agents
+/shadcn-scheduler/

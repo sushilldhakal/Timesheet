@@ -532,21 +532,11 @@ The app implements a sophisticated two-layer authentication system:
 
 ## 📖 Interactive API Documentation
 
-Full interactive docs with try-it-out at:
-- **UI**: http://localhost:3000/docs/api
+Full interactive docs available in separate docs app:
+- **Docs App**: Separate documentation application  
 - **JSON**: http://localhost:3000/api/openapi.json
 
-82+ endpoints documented with full request/response schemas, examples, and descriptions. Built with Fumadocs OpenAPI 3.1.
-
----
-
-## 📖 Interactive API Documentation
-
-Full interactive docs with try-it-out at:
-- **UI**: http://localhost:3000/docs/api
-- **JSON**: http://localhost:3000/api/openapi.json
-
-82+ endpoints documented with full request/response schemas, examples, and descriptions. Built with Fumadocs OpenAPI 3.1.
+82+ endpoints documented with full request/response schemas, examples, and descriptions. Built with OpenAPI 3.1.
 
 ---
 

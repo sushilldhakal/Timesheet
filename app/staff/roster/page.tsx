@@ -1,32 +1,34 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar } from "lucide-react"
+import { useState } from "react"
+import { StaffRosterView } from "@/components/staff/roster/StaffRosterView"
+import { TeamRosterView } from "@/components/staff/roster/TeamRosterView"
+import { RosterTabs } from "@/components/staff/roster/RosterTabs"
+import { RosterHeader } from "@/components/staff/roster/RosterHeader"
 
 export default function StaffRosterPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">My Roster</h1>
-        <p className="text-muted-foreground">View your scheduled shifts and workplace roster</p>
-      </div>
+  const [activeTab, setActiveTab] = useState<"my-roster" | "team-roster">("my-roster")
+  const [selectedDate, setSelectedDate] = useState(new Date())
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Roster Schedule
-          </CardTitle>
-          <CardDescription>
-            Your roster and workplace schedule will be displayed here
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This page will show your upcoming shifts and the roster for your workplace location.
-          </p>
-        </CardContent>
-      </Card>
+  return (
+    <div className="flex flex-col h-full">
+      <RosterHeader 
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+      />
+      
+      <RosterTabs 
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
+      
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "my-roster" ? (
+          <StaffRosterView selectedDate={selectedDate} />
+        ) : (
+          <TeamRosterView selectedDate={selectedDate} />
+        )}
+      </div>
     </div>
   )
 }

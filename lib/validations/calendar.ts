@@ -3,8 +3,14 @@ import { mongoIdSchema, dateSchema } from './common'
 
 // Calendar events query schema
 export const calendarEventsQuerySchema = z.object({
-  startDate: z.string().datetime("Invalid startDate format"),
-  endDate: z.string().datetime("Invalid endDate format"),
+  startDate: z.string().refine((val) => {
+    // Accept both datetime and date formats
+    return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?)?$/.test(val) || !isNaN(Date.parse(val))
+  }, "Invalid startDate format"),
+  endDate: z.string().refine((val) => {
+    // Accept both datetime and date formats
+    return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?)?$/.test(val) || !isNaN(Date.parse(val))
+  }, "Invalid endDate format"),
   userId: z.string().optional().default("all"),
   locationId: z.string().optional().default("all"),
 })

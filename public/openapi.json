@@ -15772,6 +15772,136 @@
         }
       }
     },
+    "/api/employees/filters": {
+      "get": {
+        "summary": "Get employee filter options",
+        "description": "Get available filter options with employee counts for roles, employers, and locations",
+        "tags": [
+          "Employees"
+        ],
+        "operationId": "get__api_employees_filters",
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "employers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "locations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "roles",
+                    "employers",
+                    "locations"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response 401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Response 500",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/employees/generate-pin": {
       "get": {
         "summary": "Generate unique PIN",
@@ -17596,114 +17726,6 @@
           },
           "401": {
             "description": "Response 401",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Response 500",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/image": {
-      "get": {
-        "summary": "Image proxy",
-        "description": "Auth-protected image proxy for Cloudinary images. Requires dashboard or employee session.",
-        "tags": [
-          "Media"
-        ],
-        "operationId": "get__api_image",
-        "parameters": [
-          {
-            "name": "url",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uri"
-            },
-            "description": "url parameter"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response 200",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Response 400",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Response 401",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Response 404",
             "content": {
               "application/json": {
                 "schema": {

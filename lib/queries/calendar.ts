@@ -27,3 +27,28 @@ export function useCreateCalendarEvent() {
     },
   })
 }
+
+// Update calendar event
+export function useUpdateCalendarEvent() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: calendarApi.UpdateCalendarEventRequest }) => 
+      calendarApi.updateCalendarEvent(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: calendarKeys.all })
+    },
+  })
+}
+
+// Delete calendar event
+export function useDeleteCalendarEvent() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: calendarApi.deleteCalendarEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: calendarKeys.all })
+    },
+  })
+}

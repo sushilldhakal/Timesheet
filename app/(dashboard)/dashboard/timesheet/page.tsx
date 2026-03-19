@@ -109,7 +109,7 @@ function getDateRange(view: TimesheetView, selectedDate: Date) {
 
 export default function TimesheetPage() {
   const [view, setView] = useState<TimesheetView>("week")
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [customStartDate, setCustomStartDate] = useState("")
   const [customEndDate, setCustomEndDate] = useState("")
   const [useCustomRange, setUseCustomRange] = useState(false)
@@ -597,7 +597,9 @@ export default function TimesheetPage() {
             </div>
             <div className="mt-1">
               View: {view.charAt(0).toUpperCase() + view.slice(1)} | 
-              Generated: <span suppressHydrationWarning>{new Date().toLocaleString()}</span>
+              Generated: <span suppressHydrationWarning>
+                {typeof window !== 'undefined' ? new Date().toLocaleString() : ''}
+              </span>
             </div>
           </div>
         </CardHeader>

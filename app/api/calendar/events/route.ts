@@ -31,31 +31,50 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ query }) => {
+    console.log('[GET /api/calendar/events] Query params:', query);
+    
     const ctx = await getAuthWithUserLocations();
     if (!ctx) {
+      console.log('[GET /api/calendar/events] Unauthorized - no auth context');
       return {
         status: 401,
         data: { error: "Unauthorized" }
       };
     }
 
+    console.log('[GET /api/calendar/events] Auth context:', { 
+      role: ctx.auth.role, 
+      userLocations: ctx.userLocations 
+    });
+
     const { startDate: startDateParam, endDate: endDateParam, userId = "all", locationId = "all" } = query!;
 
     try {
       // Parse and validate dates
-      const startDate = parseISO(startDateParam);
-      if (!isValid(startDate)) {
+      let startDate: Date;
+      let endDate: Date;
+      
+      try {
+        startDate = parseISO(startDateParam);
+        if (!isValid(startDate)) {
+          throw new Error("Invalid startDate");
+        }
+      } catch (error) {
         return {
           status: 400,
-          data: { error: "Invalid startDate format" }
+          data: { error: "Invalid startDate format. Expected ISO date string." }
         };
       }
 
-      const endDate = parseISO(endDateParam);
-      if (!isValid(endDate)) {
+      try {
+        endDate = parseISO(endDateParam);
+        if (!isValid(endDate)) {
+          throw new Error("Invalid endDate");
+        }
+      } catch (error) {
         return {
           status: 400,
-          data: { error: "Invalid endDate format" }
+          data: { error: "Invalid endDate format. Expected ISO date string." }
         };
       }
 

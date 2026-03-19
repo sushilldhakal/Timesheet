@@ -27,6 +27,11 @@ export function DateRangePicker({
   placeholder = "Pick a date range",
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const [mounted, setMounted] = React.useState(false)
+  
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
   
   // Parse dates properly to avoid timezone issues
   const from = value.startDate ? new Date(value.startDate + 'T00:00:00') : undefined
@@ -64,6 +69,24 @@ export function DateRangePicker({
     }
     return placeholder
   }, [value.startDate, value.endDate, placeholder])
+
+  if (!mounted) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          "w-[260px] justify-start text-left font-normal print:hidden",
+          !range && "text-muted-foreground",
+          className
+        )}
+        disabled
+      >
+        <CalendarIcon className="mr-2 size-4" />
+        {placeholder}
+      </Button>
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
