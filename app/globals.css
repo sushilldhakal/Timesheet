@@ -84,17 +84,29 @@
   --font-serif: Libre Baskerville, serif;
   --font-mono: IBM Plex Mono, monospace;
 
-  /* shadcn-scheduler performance tokens */
-  --sch-bg-95:    color-mix(in oklch, var(--background) 95%, transparent);
-  --sch-fg-08:    color-mix(in oklch, var(--foreground) 8%, transparent);
-  --sch-fg-12:    color-mix(in oklch, var(--foreground) 12%, transparent);
-  --sch-b-12:   color-mix(in oklch, var(--border) 12%, transparent);
-  --sch-b-60:   color-mix(in oklch, var(--border) 60%, transparent);
-  --sch-fg-13:    color-mix(in oklch, var(--foreground) 13%, transparent);
-  --sch-muted-30: color-mix(in oklch, var(--muted) 30%, transparent);
-  --sch-primary-40:   color-mix(in oklch, var(--primary) 40%, transparent);
-  --sch-destr-04: color-mix(in oklch, var(--destructive) 4%, transparent);
-  --sch-destr-40: color-mix(in oklch, var(--destructive) 40%, transparent);
+  /*
+   * Scheduler grid tokens — must use hsl(var(--token)) because shadcn stores raw
+   * components (e.g. "240 10% 3.9%"). color-mix(in oklch, var(--foreground) …) is
+   * invalid and makes grid lines invisible in day/week views.
+   */
+  --sch-bg-95:      color-mix(in srgb, hsl(var(--background)) 95%, transparent);
+  --sch-fg-08:      color-mix(in srgb, hsl(var(--foreground)) 8%,  transparent);
+  --sch-fg-12:      color-mix(in srgb, hsl(var(--foreground)) 12%, transparent);
+  --sch-fg-13:      color-mix(in srgb, hsl(var(--foreground)) 13%, transparent);
+  --sch-fg-20:      color-mix(in srgb, hsl(var(--foreground)) 20%, transparent);
+  --sch-fg-35:      color-mix(in srgb, hsl(var(--foreground)) 35%, transparent);
+  /* Grid lines — foreground-based so they're always visible in light AND dark mode */
+  --sch-hour-line:  color-mix(in srgb, hsl(var(--foreground)) 14%, transparent);
+  --sch-half-line:  color-mix(in srgb, hsl(var(--foreground)) 8%,  transparent);
+  --sch-day-line:   color-mix(in srgb, hsl(var(--foreground)) 28%, transparent);
+  --sch-row-line:   color-mix(in srgb, hsl(var(--foreground)) 12%, transparent);
+  /* Keep old names for backwards compat */
+  --sch-b-12:       color-mix(in srgb, hsl(var(--foreground)) 12%, transparent);
+  --sch-b-60:       color-mix(in srgb, hsl(var(--foreground)) 18%, transparent);
+  --sch-muted-30:   color-mix(in srgb, hsl(var(--muted)) 30%, transparent);
+  --sch-primary-40: color-mix(in srgb, hsl(var(--primary)) 40%, transparent);
+  --sch-destr-04:   color-mix(in srgb, hsl(var(--destructive)) 4%,  transparent);
+  --sch-destr-40:   color-mix(in srgb, hsl(var(--destructive)) 40%, transparent);
 }
 
 .dark {
@@ -144,6 +156,44 @@
   --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
   --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
   --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+}
+
+
+
+
+
+@keyframes scaleIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+@keyframes slideInFromLeft {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(8px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+/* CSS containment: layout+style only — NOT paint.
+   contain:paint would clip Radix portal overlays (context menus, tooltips)
+   and break pointer-event routing to portals. */
+[data-scheduler-block] {
+  contain: layout style;
+}
+
+[data-scheduler-ghost] {
+  contain: layout style;
+  will-change: transform;
+}
+
+@media (forced-colors: active) {
+  [data-scheduler-block] {
+    outline: 2px solid CanvasText;
+    outline-offset: 1px;
+  }
 }
 
 /* ─────────────────────────────────────────────

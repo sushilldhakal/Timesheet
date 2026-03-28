@@ -34,6 +34,11 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Redirect legacy /login path to / (login page was moved to root)
+  if (pathname === "/login") {
+    return NextResponse.redirect(new URL("/", request.url))
+  }
+
   // Clear employee session when accessing PIN page (login page)
   // This prevents stale sessions from causing redirect loops
   if (pathname === "/pin") {

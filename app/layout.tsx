@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils/cn";
 import "./globals.css";
+import "@/components/scheduling/packages/shadcn-scheduler/src/core/scheduler.css";
 import { SetupGuard } from "@/components/setup";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";

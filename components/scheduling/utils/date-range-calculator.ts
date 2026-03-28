@@ -1,80 +1,63 @@
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, addMonths } from "date-fns";
-import type { ViewString } from "@/components/scheduling/types";
+import type { ViewString } from "../types"
 
-export interface DateRange {
-  start: Date;
-  end: Date;
+export type DateRange = { start: Date; end: Date }
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
 }
 
-/**
- * Calculate the date range for a calendar view based on the selected date
- * @param selectedDate - The currently selected date in the calendar
- * @param view - The calendar view type (day, week, month, year, agenda)
- * @param agendaMonths - Number of months to show in agenda view (default: 3)
- * @returns DateRange object with start and end
- */
-export function calculateDateRange(
-  selectedDate: Date,
-  view: ViewString,
-  agendaMonths: number = 3
-): DateRange {
-  switch (view) {
+function endOfDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(23, 59, 59, 999)
+  return x
+}
+
+function startOfWeekMon(d: Date): Date {
+  const x = startOfDay(d)
+  const day = x.getDay() // 0 Sun..6 Sat
+  const diffToMon = (day + 6) % 7
+  x.setDate(x.getDate() - diffToMon)
+  return x
+}
+
+function endOfWeekSun(d: Date): Date {
+  const s = startOfWeekMon(d)
+  const e = new Date(s)
+  e.setDate(s.getDate() + 6)
+  return endOfDay(e)
+}
+
+function startOfMonth(d: Date): Date {
+  return startOfDay(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+
+function endOfMonth(d: Date): Date {
+  return endOfDay(new Date(d.getFullYear(), d.getMonth() + 1, 0))
+}
+
+function startOfYear(d: Date): Date {
+  return startOfDay(new Date(d.getFullYear(), 0, 1))
+}
+
+function endOfYear(d: Date): Date {
+  return endOfDay(new Date(d.getFullYear(), 11, 31))
+}
+
+export function calculateDateRange(selectedDate: Date, view: ViewString): DateRange {
+  const base = view.startsWith("list") ? (view.slice(4) as ViewString) : view
+  switch (base) {
     case "day":
-      // Day view: 00:00:00 to 23:59:59 of selected day
-      return {
-        start: startOfDay(selectedDate),
-        end: endOfDay(selectedDate),
-      };
-
+      return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) }
     case "week":
-      // Week view: Sunday 00:00:00 to Saturday 23:59:59 of selected week
-      return {
-        start: startOfWeek(selectedDate),
-        end: endOfWeek(selectedDate),
-      };
-
+      return { start: startOfWeekMon(selectedDate), end: endOfWeekSun(selectedDate) }
     case "month":
-      // Month view: First day 00:00:00 to last day 23:59:59 of month
-      return {
-        start: startOfMonth(selectedDate),
-        end: endOfMonth(selectedDate),
-      };
-
+      return { start: startOfMonth(selectedDate), end: endOfMonth(selectedDate) }
     case "year":
-      // Year view: January 1st 00:00:00 to December 31st 23:59:59
-      return {
-        start: startOfYear(selectedDate),
-        end: endOfYear(selectedDate),
-      };
-
-    case "listday":
-      return {
-        start: startOfDay(selectedDate),
-        end: endOfDay(selectedDate),
-      };
-      case "listweek":
-      return {
-        start: startOfWeek(selectedDate),
-        end: endOfWeek(selectedDate),
-      };
-
-       case "listmonth":
-      return {
-         start: startOfMonth(selectedDate),
-        end: endOfMonth(selectedDate),
-      };
-
-       case "listyear":
-      return {
-          start: startOfYear(selectedDate),
-        end: endOfYear(selectedDate),
-      };
-
+      return { start: startOfYear(selectedDate), end: endOfYear(selectedDate) }
     default:
-      // Fallback to day view
-      return {
-        start: startOfDay(selectedDate),
-        end: endOfDay(selectedDate),
-      };
+      return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) }
   }
 }
+
