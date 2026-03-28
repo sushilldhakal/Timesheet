@@ -740,7 +740,7 @@ export default function SchedulingPage() {
   const confirmAutoFill = async () => {
     if (!date || !selectedLocationId) return;
     const managedRoles = [...roleIdsForScheduling];
-    setAutoFillDialogOpen(false);
+    // Do NOT close dialog yet — keep it open in loading state to block double-submit
     try {
       const wid = weekIdFromDate(date);
       const res = await autoFillMutation.mutateAsync({
@@ -752,9 +752,11 @@ export default function SchedulingPage() {
       const ok = res.successCount ?? 0;
       const sk = res.skippedCount ?? 0;
       const fail = res.failureCount ?? 0;
+      setAutoFillDialogOpen(false);
       toast.message(`Fill complete: ${ok} shifts created · ${sk} skipped · ${fail} need manual fixes`);
       await refetchEvents();
     } catch {
+      setAutoFillDialogOpen(false);
       toast.error('Auto-fill failed');
     }
   };
@@ -1285,18 +1287,48 @@ export default function SchedulingPage() {
       </SchedulerProvider>
 
       {/* ── Auto-fill confirm dialog ─────────────────────────────────────────── */}
-      <AlertDialog open={autoFillDialogOpen} onOpenChange={setAutoFillDialogOpen}>
+      <AlertDialog
+        open={autoFillDialogOpen}
+        onOpenChange={(open) => {
+          // Block closing while the mutation is running to prevent double-submit
+          if (autoFillMutation.isPending) return;
+          setAutoFillDialogOpen(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Run auto-fill?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {autoFillMutation.isPending ? 'Running auto-fill…' : 'Run auto-fill?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will auto-fill the current week for full-time and part-time employees
-              based on their contracted hours. Existing draft shifts will not be replaced.
+              {autoFillMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                  Filling shifts — please wait, do not close this window.
+                </span>
+              ) : (
+                'This will auto-fill the current week for full-time and part-time employees based on their contracted hours. Existing draft shifts will not be replaced.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAutoFill}>Run auto-fill</AlertDialogAction>
+            <AlertDialogCancel disabled={autoFillMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmAutoFill}
+              disabled={autoFillMutation.isPending}
+              className="min-w-[110px]"
+            >
+              {autoFillMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                  Running…
+                </span>
+              ) : (
+                'Run auto-fill'
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
