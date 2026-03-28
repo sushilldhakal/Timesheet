@@ -18,7 +18,7 @@ import { KanbanView } from '@/components/scheduling/packages/view-kanban/src/Kan
 import { DayView } from '@/components/scheduling/packages/view-day/src/DayView';
 import { DayViewPanelChrome } from '@/components/scheduling/day-view-panel/DayViewPanelChrome';
 import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge';
-import { UserSelect, AddShiftModal } from '@/components/scheduling/packages/grid-engine/src';
+import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling/packages/grid-engine/src';
 import {
   Plus,
   ChevronLeft,
@@ -129,6 +129,10 @@ export default function SchedulingPage() {
   const isGrid = !view.startsWith('list')
   const [selEmps, setSelEmps] = useState<Set<string>>(() => new Set())
   const [headerAddOpen, setHeaderAddOpen] = useState(false)
+  /** Day timeline (GridView): double-click opens edit — Kanban uses the same ShiftModal pattern */
+  const [dayViewShiftEdit, setDayViewShiftEdit] = useState<{ shift: Block; category: Resource } | null>(
+    null,
+  )
   const [settingsOverride, setSettingsOverride] = useState<Partial<Settings>>({})
 
   // Dashboard store for sidebar management
@@ -640,6 +644,55 @@ export default function SchedulingPage() {
     // Refetch to ensure consistency
     await refetchEvents();
   };
+
+  /** GridView context-menu delete (Day / week timeline) — confirm UI is inside GridView */
+  const handleDeleteShiftForGrid = useCallback(
+    async (shiftId: string) => {
+      setShifts((prev) => prev.filter((s) => s.id !== shiftId));
+      setDayViewShiftEdit((e) => (e?.shift.id === shiftId ? null : e));
+      try {
+        await deleteEventMutation.mutateAsync(shiftId);
+        toast.success('Shift deleted successfully');
+        await refetchEvents();
+      } catch (error) {
+        console.error('Failed to delete shift:', error);
+        toast.error('Failed to delete shift');
+        await refetchEvents();
+      }
+    },
+    [deleteEventMutation, refetchEvents],
+  );
+
+  /** ShiftModal save from day timeline */
+  const handleDayViewShiftUpdate = useCallback(
+    async (updated: Block) => {
+      setShifts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      try {
+        const startHour = Math.floor(updated.startH);
+        const startMinute = Math.round((updated.startH - startHour) * 60);
+        const endHour = Math.floor(updated.endH);
+        const endMinute = Math.round((updated.endH - endHour) * 60);
+        await updateEventMutation.mutateAsync({
+          id: updated.id,
+          data: {
+            employeeId: updated.employeeId !== 'unassigned' ? updated.employeeId : undefined,
+            roleId: updated.categoryId,
+            startDate: updated.date,
+            startTime: { hour: startHour, minute: startMinute },
+            endDate: updated.date,
+            endTime: { hour: endHour, minute: endMinute },
+          },
+        });
+        toast.success('Shift updated successfully');
+        await refetchEvents();
+      } catch (error) {
+        console.error('Failed to update shift:', error);
+        toast.error('Failed to update shift');
+        await refetchEvents();
+      }
+    },
+    [updateEventMutation, refetchEvents],
+  );
 
   // Copy last week functionality
   const handleCopyLastWeek = () => {
@@ -1172,8 +1225,9 @@ export default function SchedulingPage() {
                   shifts={filteredShifts}
                   setShifts={setShifts}
                   selEmps={selEmps}
-                  onShiftClick={() => {}}
+                  onShiftClick={(block, resource) => setDayViewShiftEdit({ shift: block, category: resource })}
                   onAddShift={() => setHeaderAddOpen(true)}
+                  onDeleteShift={handleDeleteShiftForGrid}
                   initialScrollToNow
                   scrollToNowRef={scrollToNowRef}
                   readOnly={false}
@@ -1204,6 +1258,27 @@ export default function SchedulingPage() {
               date={date}
               onAdd={(block) => setShifts((prev) => [...prev, block])}
               onClose={() => setHeaderAddOpen(false)}
+            />
+          )}
+          {dayViewShiftEdit && (
+            <ShiftModal
+              shift={dayViewShiftEdit.shift}
+              category={dayViewShiftEdit.category}
+              allShifts={shifts}
+              onClose={() => setDayViewShiftEdit(null)}
+              onPublish={(id) =>
+                setShifts((p) => p.map((s) => (s.id === id ? { ...s, status: 'published' as const } : s)))
+              }
+              onUnpublish={(id) =>
+                setShifts((p) => p.map((s) => (s.id === id ? { ...s, status: 'draft' as const } : s)))
+              }
+              onDelete={(id) => {
+                void handleDeleteShiftForGrid(id);
+                setDayViewShiftEdit(null);
+              }}
+              onUpdate={(u) => {
+                void handleDayViewShiftUpdate(u);
+              }}
             />
           )}
         </div>

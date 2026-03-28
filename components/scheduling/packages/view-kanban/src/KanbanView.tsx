@@ -744,9 +744,9 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                 key={i}
                 onClick={(e) => setDayPopover({ date: d, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
                 className={cn(
-                  'table-cell cursor-pointer select-none border-b-2 border-border px-2.5 py-2 align-bottom',
+                  'table-cell cursor-pointer select-none border-b-2 border-border px-2.5 py-2 align-bottom' ,
                   i < dates.length - 1 && 'border-r border-border',
-                  today ? 'bg-primary/5' : 'bg-background'
+                  today ? 'bg-primary/20' : 'bg-background'
                 )}
               >
                 <div className="flex items-center justify-center gap-1">

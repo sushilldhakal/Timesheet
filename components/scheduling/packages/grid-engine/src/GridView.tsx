@@ -69,6 +69,28 @@ interface DragState {
   srcCategoryKey: string
 }
 
+/** Keep shift bars inside day column bounds (float math; use with overflow-x on grid for ring/shadow). */
+function clampShiftHoriz(
+  left: number,
+  width: number,
+  rightLimit: number,
+  minWidth: number,
+  minLeft?: number
+): { left: number; width: number } | null {
+  let l = left
+  let w = width
+  if (minLeft !== undefined && l < minLeft) {
+    const d = minLeft - l
+    l = minLeft
+    w -= d
+  }
+  const room = rightLimit - l
+  if (room < minWidth) return null
+  w = Math.min(w, room)
+  if (w < minWidth) return null
+  return { left: l, width: w }
+}
+
 export interface GridViewProps {
   dates: Date[]
   shifts: Block[]
@@ -2629,6 +2651,7 @@ function GridViewInner({
                   width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
                   height: totalHVirtual,
                   willChange: dragId ? "contents" : "auto",
+                  overflowX: "hidden",
                 }}
                 tabIndex={0}
                 onKeyDown={onGridKeyDown}
@@ -3423,6 +3446,14 @@ function GridViewInner({
                       left = (cs - settings.visibleFrom) * HOUR_W + 2
                       width = Math.max((ce - cs) * HOUR_W - 4, 18)
                     }
+                    const clampedCat = isWeekView
+                      ? clampShiftHoriz(left, width, di * COL_W_WEEK + COL_W_WEEK - 1, 12, di * COL_W_WEEK + 1)
+                      : isDayViewMultiDay
+                        ? clampShiftHoriz(left, width, di * DAY_WIDTH + DAY_WIDTH - 2, 18, di * DAY_WIDTH + 2)
+                        : clampShiftHoriz(left, width, DAY_WIDTH - 2, 18, 2)
+                    if (!clampedCat) return null
+                    left = clampedCat.left
+                    width = clampedCat.width
                     // Cast needed: TypeScript narrows effectiveRowMode to "category" here via control flow
                     const rowModeForRender = effectiveRowMode as string
                     const top = rowModeForRender === "flat"
@@ -3477,8 +3508,6 @@ function GridViewInner({
                       blockStyle.zIndex = 200
                       blockStyle.pointerEvents = "none"
                       blockStyle.boxShadow = `0 24px 48px -8px ${c.bg}70, 0 8px 24px -4px rgba(0,0,0,0.3)`
-                    } else if (isActivating) {
-                      blockStyle.transform = "scale(1.04)"
                     }
                     return (
                       <ContextMenu key={shift.id}>
@@ -3683,6 +3712,14 @@ function GridViewInner({
                       left = (cs - settings.visibleFrom) * HOUR_W + 2
                       width = Math.max((ce - cs) * HOUR_W - 4, 18)
                     }
+                    const clampedSkel = isWeekView
+                      ? clampShiftHoriz(left, width, di * COL_W_WEEK + COL_W_WEEK - 1, 12, di * COL_W_WEEK + 1)
+                      : isDayViewMultiDay
+                        ? clampShiftHoriz(left, width, di * DAY_WIDTH + DAY_WIDTH - 2, 18, di * DAY_WIDTH + 2)
+                        : clampShiftHoriz(left, width, DAY_WIDTH - 2, 18, 2)
+                    if (!clampedSkel) return null
+                    left = clampedSkel.left
+                    width = clampedSkel.width
                     const top = catTop + track * SHIFT_H + 3
                     return (
                       <div
@@ -3716,6 +3753,14 @@ function GridViewInner({
                     left = (cs - settings.visibleFrom) * HOUR_W + 2
                     width = Math.max((ce - cs) * HOUR_W - 4, 18)
                   }
+                  const clampedInd = isWeekView
+                    ? clampShiftHoriz(left, width, di * COL_W_WEEK + COL_W_WEEK - 1, 12, di * COL_W_WEEK + 1)
+                    : isDayViewMultiDay
+                      ? clampShiftHoriz(left, width, di * DAY_WIDTH + DAY_WIDTH - 2, 18, di * DAY_WIDTH + 2)
+                      : clampShiftHoriz(left, width, DAY_WIDTH - 2, 18, 2)
+                  if (!clampedInd) return null
+                  left = clampedInd.left
+                  width = clampedInd.width
                   const variant = settings.badgeVariant ?? "both"
                   const canDrag = (variant === "drag" || variant === "both") && shift.draggable !== false
                   const showResize = !readOnly && (variant === "resize" || variant === "both") && width >= 48 && shift.resizable !== false
@@ -3772,8 +3817,6 @@ function GridViewInner({
                     blockStyle.zIndex = 200
                     blockStyle.pointerEvents = "none"
                     blockStyle.boxShadow = `0 24px 48px -8px ${c.bg}70, 0 8px 24px -4px rgba(0,0,0,0.3)`
-                  } else if (isActivating) {
-                    blockStyle.transform = "scale(1.04)"
                   }
                   const conflictCount = getConflictCount(shifts, shift.id)
                   const blockSlotProps = {
