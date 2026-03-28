@@ -952,7 +952,9 @@ function GridViewInner({
     // Grid is inside scroll container: contentX = scrollLeft + (clientX - visibleLeft)
     // When hasDayScrollNav, grid starts after buffer; otherwise at 0
     const contentX = scrollLeft + (cx - sr.left)
-    const contentY = scrollTop + (cy - sr.top)
+    // Subtract HOUR_HDR_H: the time header sits inside scrollRef but categoryTops
+    // are virtualizer vr.start values which start at 0 relative to gridRef (below the header).
+    const contentY = scrollTop + (cy - sr.top) - HOUR_HDR_H
     const gridX = hasDayScrollNav ? contentX - DAY_SCROLL_BUFFER : contentX
     return { x: gridX, y: contentY }
   }, [hasDayScrollNav])
@@ -1117,13 +1119,13 @@ function GridViewInner({
       ghostEl.style.width = `160px`
       ghostEl.style.height = `26px`
       ghostEl.style.borderRadius = "999px"
-      ghostEl.style.transform = `translate(${x + 8}px, ${y + 8}px)`
-      ghostEl.style.background = "hsl(var(--primary))"
-      ghostEl.style.borderColor = "hsl(var(--primary))"
+      ghostEl.style.transform = `translate(${x + 8}px, ${y + HOUR_HDR_H + 8}px)`
+      ghostEl.style.background = "var(--primary)"
+      ghostEl.style.borderColor = "var(--primary)"
       const label = ghostEl.querySelector("[data-ghost-label]") as HTMLElement | null
       if (label) {
         label.textContent = drag.empName
-        label.style.color = "hsl(var(--primary-foreground))"
+        label.style.color = "var(--primary-foreground)"
         label.style.background = "transparent"
       }
     },
@@ -1327,7 +1329,7 @@ function GridViewInner({
       const isTouch = e.pointerType === "touch"
       const blockEl = e.currentTarget as HTMLElement
       const cat = CATEGORIES.find((c) => c.id === shift.categoryId)
-      const color = cat ? getColor(cat.colorIdx).bg : "hsl(var(--primary))"
+      const color = cat ? getColor(cat.colorIdx).bg : "var(--primary)"
 
       const startDrag = (captureEvent: React.PointerEvent<HTMLDivElement> | PointerEvent): void => {
         const el = blockEl

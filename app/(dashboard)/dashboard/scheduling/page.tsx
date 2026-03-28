@@ -50,6 +50,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { useMe } from '@/lib/queries/auth';
 import { useCategoriesByType } from '@/lib/queries/categories';
 import { useEmployees } from '@/lib/queries/employees';
@@ -93,6 +111,13 @@ export default function SchedulingPage() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [shifts, setShifts] = useState<Block[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+
+  // ── Dialog state (replaces window.confirm / window.prompt) ───────────────────
+  const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
+  const [deleteTemplateDialog, setDeleteTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
+  const [applyTemplateDialog, setApplyTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
+  const [saveTemplateDialog, setSaveTemplateDialog] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState('');
 
   // ── Kanban demo state (MUST be defined before any early returns) ─────────────
   const [mounted, setMounted] = useState(false)
@@ -188,7 +213,7 @@ export default function SchedulingPage() {
   const schedulerCategories: Resource[] = useMemo(() => {
     const list = roles.filter((r: { id: string }) => roleIdsForScheduling.has(r.id));
     const source = list.length ? list : roles;
-    return source.map((r: any, idx: number) => ({
+    return source.map((r: { id: string; name: string }, idx: number) => ({
       id: r.id,
       name: r.name,
       kind: 'category' as const,
@@ -199,17 +224,21 @@ export default function SchedulingPage() {
   const schedulerEmployees: Resource[] = useMemo(() => {
     const locId = selectedLocationId;
     return employees
-      .filter((e: any) => {
+      .filter((e: { roles?: Array<{ location?: { id: string }; role?: { id: string } }> }) => {
         if (!locId) return false;
         return e.roles?.some(
-          (a: any) =>
+          (a) =>
             a.location?.id === locId &&
-            roleIdsForScheduling.has(a.role?.id),
+            roleIdsForScheduling.has(a.role?.id ?? ''),
         );
       })
-      .map((e: any, idx: number) => {
+      .map((e: {
+        id: string; firstName?: string; lastName?: string; name?: string; email?: string;
+        roles?: Array<{ location?: { id: string }; role?: { id: string } }>;
+        roleId?: string; avatarUrl?: string; img?: string; colorIdx?: number;
+      }, idx: number) => {
         const assignment = e.roles?.find(
-          (a: any) => a.location?.id === locId && roleIdsForScheduling.has(a.role?.id),
+          (a) => a.location?.id === locId && roleIdsForScheduling.has(a.role?.id ?? ''),
         );
         const firstRoleId =
           assignment?.role?.id ??
@@ -447,7 +476,7 @@ export default function SchedulingPage() {
       userInfo.role !== 'super_admin' &&
       (userInfo.location?.length ?? 0) > 0;
     if (isRestricted && userInfo?.location) {
-      const filtered = locations.filter((loc: any) => userInfo.location?.includes(loc.name));
+      const filtered = locations.filter((loc: { id: string; name: string }) => userInfo.location?.includes(loc.name));
       if (filtered[0]) setSelectedLocationId(filtered[0].id);
       return;
     }
@@ -468,13 +497,17 @@ export default function SchedulingPage() {
 
   // Transform employees for CalendarProvider (IUser interface)
   const calendarUsers = useMemo(() => {
-    return employees.map((employee: any) => ({
+    return employees.map((employee: {
+      id?: string; _id?: string; name?: string; avatar?: string;
+      locations?: Array<{ name: string }>; roles?: Array<{ role?: { name?: string } }>;
+      employers?: Array<{ name: string }>;
+    }) => ({
       id: employee.id || employee._id,
       name: employee.name,
       picturePath: employee.avatar || null,
-      location: employee.locations?.map((loc: any) => loc.name) || [],
-      role: employee.roles?.map((role: any) => role.role?.name) || [],
-      employer: employee.employers?.map((emp: any) => emp.name) || []
+      location: employee.locations?.map((loc) => loc.name) || [],
+      role: employee.roles?.map((role) => role.role?.name ?? '') || [],
+      employer: employee.employers?.map((emp) => emp.name) || []
     }));
   }, [employees]);
 
@@ -482,7 +515,11 @@ export default function SchedulingPage() {
   useEffect(() => {
     const ev = (eventsData as { events?: unknown[] } | undefined)?.events;
     if (ev?.length) {
-      const transformedShifts: Block[] = ev.map((event: any) => {
+      const transformedShifts: Block[] = ev.map((event: {
+        id: string; startDate: string; endDate: string; roleId?: string;
+        employerBadge?: string; user?: { id?: string; name?: string };
+        shiftStatus?: string;
+      }) => {
         const startDate = parseISO(event.startDate);
         const endDate = parseISO(event.endDate);
         
@@ -493,10 +530,7 @@ export default function SchedulingPage() {
         // Find role/category
         const roleId = event.roleId || roles[0]?.id || 'default';
         
-        const employerBadge =
-          typeof (event as { employerBadge?: string }).employerBadge === 'string'
-            ? (event as { employerBadge: string }).employerBadge
-            : 'Own staff';
+        const employerBadge = typeof event.employerBadge === 'string' ? event.employerBadge : 'Own staff';
 
         return {
           id: event.id,
@@ -527,7 +561,7 @@ export default function SchedulingPage() {
     const createdShifts = newShifts.filter(s => !currentShiftIds.includes(s.id));
     for (const shift of createdShifts) {
       try {
-        const employerId = employees?.find((emp: any) => emp.id === shift.employeeId)?.employers?.[0]?.id || 'default';
+        const employerId = employees?.find((emp: { id: string; employers?: Array<{ id: string }> }) => emp.id === shift.employeeId)?.employers?.[0]?.id || 'default';
         
         // Convert decimal hours back to time
         const startHour = Math.floor(shift.startH);
@@ -637,7 +671,7 @@ export default function SchedulingPage() {
     }
   };
 
-  const handleFillSchedule = async () => {
+  const handleFillSchedule = () => {
     if (!date || !selectedLocationId) {
       toast.error('Select a location and week');
       return;
@@ -647,7 +681,13 @@ export default function SchedulingPage() {
       toast.error('No managed roles for auto-fill');
       return;
     }
-    if (!window.confirm('Run auto-fill for this week (full-time + part-time)?')) return;
+    setAutoFillDialogOpen(true);
+  };
+
+  const confirmAutoFill = async () => {
+    if (!date || !selectedLocationId) return;
+    const managedRoles = [...roleIdsForScheduling];
+    setAutoFillDialogOpen(false);
     try {
       const wid = weekIdFromDate(date);
       const res = await autoFillMutation.mutateAsync({
@@ -666,10 +706,15 @@ export default function SchedulingPage() {
     }
   };
 
-  const handleSaveWeekTemplate = async () => {
+  const handleSaveWeekTemplate = () => {
     if (!date || !selectedLocationId) return;
-    const name = window.prompt('Template name');
-    if (!name?.trim()) return;
+    setTemplateNameInput('');
+    setSaveTemplateDialog(true);
+  };
+
+  const confirmSaveTemplate = async () => {
+    if (!date || !selectedLocationId || !templateNameInput.trim()) return;
+    setSaveTemplateDialog(false);
     try {
       const wid = weekIdFromDate(date);
       const res = await fetch('/api/scheduling/templates', {
@@ -677,7 +722,7 @@ export default function SchedulingPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          name: name.trim(),
+          name: templateNameInput.trim(),
           weekId: wid,
           locationId: selectedLocationId,
           roleIds: [...roleIdsForScheduling],
@@ -700,8 +745,13 @@ export default function SchedulingPage() {
     [userInfo],
   );
 
-  const handleDeleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Delete this template? This cannot be undone.')) return;
+  const handleDeleteTemplate = (templateId: string) => {
+    setDeleteTemplateDialog({ open: true, templateId });
+  };
+
+  const confirmDeleteTemplate = async () => {
+    const { templateId } = deleteTemplateDialog;
+    setDeleteTemplateDialog({ open: false, templateId: '' });
     try {
       const res = await fetch(`/api/scheduling/templates/${templateId}`, {
         method: 'DELETE',
@@ -715,9 +765,14 @@ export default function SchedulingPage() {
     }
   };
 
-  const handleApplyTemplate = async (templateId: string) => {
+  const handleApplyTemplate = (templateId: string) => {
+    setApplyTemplateDialog({ open: true, templateId });
+  };
+
+  const confirmApplyTemplate = async (mode: 'replace' | 'add') => {
+    const { templateId } = applyTemplateDialog;
+    setApplyTemplateDialog({ open: false, templateId: '' });
     if (!date || !selectedLocationId) return;
-    const mode = window.confirm('Replace existing draft shifts in scope? OK = replace, Cancel = add') ? 'replace' : 'add';
     try {
       const wid = weekIdFromDate(date);
       const res = await fetch(`/api/scheduling/templates/${templateId}/apply`, {
@@ -913,7 +968,7 @@ export default function SchedulingPage() {
                             <DatePickerCalendar
                               mode="range"
                               selected={{ from: getWeekDates(date)[0], to: getWeekDates(date)[6] }}
-                              onSelect={(sel: any) => {
+                              onSelect={(sel: { from?: Date; to?: Date } | undefined) => {
                                 const from = sel?.from as Date | undefined
                                 if (!from) return
                                 const d = new Date(from)
@@ -1153,6 +1208,92 @@ export default function SchedulingPage() {
           )}
         </div>
       </SchedulerProvider>
+
+      {/* ── Auto-fill confirm dialog ─────────────────────────────────────────── */}
+      <AlertDialog open={autoFillDialogOpen} onOpenChange={setAutoFillDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run auto-fill?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will auto-fill the current week for full-time and part-time employees
+              based on their contracted hours. Existing draft shifts will not be replaced.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAutoFill}>Run auto-fill</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Delete template confirm dialog ───────────────────────────────────── */}
+      <AlertDialog
+        open={deleteTemplateDialog.open}
+        onOpenChange={(open) => setDeleteTemplateDialog((s) => ({ ...s, open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The template will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteTemplate}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Apply template dialog (replace vs add) ────────────────────────────── */}
+      <AlertDialog
+        open={applyTemplateDialog.open}
+        onOpenChange={(open) => setApplyTemplateDialog((s) => ({ ...s, open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply template</AlertDialogTitle>
+            <AlertDialogDescription>
+              How should the template be applied to the current week?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:flex-row gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => confirmApplyTemplate('add')}>
+              Add shifts
+            </Button>
+            <AlertDialogAction onClick={() => confirmApplyTemplate('replace')}>
+              Replace drafts
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Save template name dialog ─────────────────────────────────────────── */}
+      <Dialog open={saveTemplateDialog} onOpenChange={setSaveTemplateDialog}>
+        <DialogContent className="max-w-sm rounded-xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Save as template</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Template name"
+            value={templateNameInput}
+            onChange={(e) => setTemplateNameInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmSaveTemplate(); }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveTemplateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmSaveTemplate} disabled={!templateNameInput.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

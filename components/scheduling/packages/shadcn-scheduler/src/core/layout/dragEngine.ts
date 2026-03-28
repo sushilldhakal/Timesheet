@@ -297,7 +297,7 @@ export class DragEngine {
         cg.style.transform  = `translate(${rawLeft}px, ${rawTop}px)`
         cg.style.width      = `${d.blockW}px`
         cg.style.height     = `${d.blockH}px`
-        cg.style.background = d.blockColor || "hsl(var(--primary))"
+        cg.style.background = d.blockColor || "var(--primary)"
         cg.style.opacity    = "0.85"
         const lbl = cg.querySelector<HTMLSpanElement>("[data-cursor-label]")
         if (lbl) lbl.textContent = d.blockLabel

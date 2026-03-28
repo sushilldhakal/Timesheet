@@ -406,7 +406,7 @@ export function GridViewSidebar({
                         style={{
                           width: `${hoursPercent}%`,
                           background: isOverCapacity
-                            ? "hsl(var(--destructive))"
+                            ? "var(--destructive)"
                             : c.bg,
                         }}
                       />
@@ -477,10 +477,10 @@ export function GridViewSidebar({
                 <div
                   className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
                   style={{
-                    color: empHours > 40 ? "hsl(var(--destructive))" : c.text,
+                    color: empHours > 40 ? "var(--destructive)" : c.text,
                     background:
                       empHours > 40
-                        ? "color-mix(in srgb, hsl(var(--destructive)) 10%, transparent)"
+                        ? "color-mix(in srgb, var(--destructive) 10%, transparent)"
                         : c.light,
                   }}
                 >

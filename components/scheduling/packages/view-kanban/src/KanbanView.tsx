@@ -292,8 +292,8 @@ function DayCard({
       style={{
         background: isDraft ? undefined : color.bg,
         border: isDraft
-          ? `1px dashed ${hasConflict ? 'hsl(var(--destructive))' : color.bg}`
-          : `1px solid ${hasConflict ? 'hsl(var(--destructive))' : 'transparent'}`,
+          ? `1px dashed ${hasConflict ? 'var(--destructive)' : color.bg}`
+          : `1px solid ${hasConflict ? 'var(--destructive)' : 'transparent'}`,
       }}
       onMouseEnter={(e) => { if (beingDragged) return; const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)'; el.style.transform = 'translateY(-1px)' }}
       onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = beingDragged ? 'none' : '0 1px 4px rgba(0,0,0,0.08)'; el.style.transform = '' }}
@@ -452,10 +452,10 @@ function WeekCard({
         )}
         style={{
           border: hasConflict
-            ? '1.5px solid hsl(var(--destructive))'
+            ? '1.5px solid var(--destructive)'
             : isDraft
               ? `1.5px dashed ${color.bg}`
-              : '1px solid hsl(var(--border))',
+              : '1px solid var(--border)',
         }}
         onMouseEnter={(e) => { if (!beingDragged) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)' }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
@@ -474,7 +474,7 @@ function WeekCard({
             className="absolute top-1.5 right-1.5 z-[3] size-1.5 rounded-full"
             style={{
               background: hasConflict
-                ? 'hsl(var(--destructive))'
+                ? 'var(--destructive)'
                 : isLive
                   ? '#22c55e'
                   : `${color.bg}80`,

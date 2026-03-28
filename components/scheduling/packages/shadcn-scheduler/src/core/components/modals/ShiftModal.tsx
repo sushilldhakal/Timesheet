@@ -134,10 +134,10 @@ export function ShiftModal({
           </div>
           <div
             className="flex items-center gap-1.5 rounded-full px-2.5 py-[3px]"
-            style={{ background: isDraft ? "hsl(var(--muted))" : `${c.bg}18` }}
+            style={{ background: isDraft ? "var(--muted)" : `${c.bg}18` }}
           >
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: isDraft ? "hsl(var(--muted-foreground))" : c.bg }} />
-            <span className="text-[10px] font-bold" style={{ color: isDraft ? "hsl(var(--muted-foreground))" : c.bg }}>
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: isDraft ? "var(--muted-foreground)" : c.bg }} />
+            <span className="text-[10px] font-bold" style={{ color: isDraft ? "var(--muted-foreground)" : c.bg }}>
               {isDraft ? labels.draft : labels.published}
             </span>
           </div>
