@@ -39,13 +39,15 @@ export function TeamRosterView({ selectedDate }: TeamRosterViewProps) {
   const { data: eventsData, isLoading } = useCalendarEvents({
     startDate: weekStart.toISOString(),
     endDate: weekEnd.toISOString(),
-    locationId: userInfo?.user?.location?.[0] || "all" // Filter by user's location
+    locationId: userInfo?.user?.location?.[0] || "all", // Filter by user's location
+    publishedOnly: true,
   })
 
   // Transform events to team shifts
   useEffect(() => {
-    if (eventsData?.data?.events) {
-      const shifts = eventsData.data.events
+    const rawEvents = (eventsData as { events?: unknown[] } | undefined)?.events
+    if (rawEvents?.length) {
+      const shifts = rawEvents
         .filter((event: any) => isSameDay(parseISO(event.startDate), currentDay))
         .map((event: any) => {
           const startDate = parseISO(event.startDate)

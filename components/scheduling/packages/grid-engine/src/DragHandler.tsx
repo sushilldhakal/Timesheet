@@ -60,7 +60,7 @@ export function DragHandler({ onDragStart, onDragEnd, children }: DragHandlerPro
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      className={isDragging ? 'cursor-grabbing' : 'cursor-grab'}
     >
       {children}
     </div>

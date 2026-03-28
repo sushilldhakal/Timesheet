@@ -36,13 +36,15 @@ export function StaffRosterView({ selectedDate }: StaffRosterViewProps) {
   const { data: eventsData, isLoading } = useCalendarEvents({
     startDate: weekStart.toISOString(),
     endDate: weekEnd.toISOString(),
-    userId: userInfo?.user?.id || "all"
+    userId: userInfo?.user?.id || "all",
+    publishedOnly: true,
   })
 
   // Transform events to shifts
   useEffect(() => {
-    if (eventsData?.data?.events && userInfo?.user?.id) {
-      const userShifts = eventsData.data.events
+    const rawEvents = (eventsData as { events?: unknown[] } | undefined)?.events
+    if (rawEvents?.length && userInfo?.user?.id) {
+      const userShifts = rawEvents
         .filter((event: any) => event.user?.id === userInfo.user?.id)
         .map((event: any) => {
           const startDate = parseISO(event.startDate)

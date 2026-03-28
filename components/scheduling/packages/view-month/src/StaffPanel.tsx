@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import type { Block, Resource } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
+import { cn } from '@/lib/utils/cn'
 
 interface StaffPanelProps {
   category: Resource
@@ -40,23 +41,45 @@ export function StaffPanel({
   }, [onClose])
 
   if (variant === 'popover' && !anchorRect) return null
-  const isDrawer = variant === 'drawer'
 
+  const isDrawer = variant === 'drawer'
   return (
     <div
       ref={ref}
+      className={cn(
+        'fixed z-[8888] overflow-y-auto bg-background',
+        isDrawer
+          ? 'bottom-0 right-0 top-0 w-[280px] border-l border-border py-3 shadow-[-8px_0_24px_var(--color-schedule-fg-08)]'
+          : 'max-h-60 min-w-[190px] rounded-[10px] py-1.5 shadow-[0_8px_32px_var(--color-schedule-fg-12)]',
+      )}
       style={
         isDrawer
-          ? { position: 'fixed', top: 0, right: 0, bottom: 0, width: 280, zIndex: 8888, background: 'var(--background)', borderLeft: `1px solid var(--border)`, boxShadow: '-8px 0 24px rgba(0,0,0,0.12)', overflowY: 'auto', padding: '12px 0' }
-          : { position: 'fixed', top: anchorRect!.bottom + 4, left: anchorRect!.left, zIndex: 8888, background: 'var(--background)', border: `1.5px solid ${c.bg}30`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', minWidth: 190, maxHeight: 240, overflowY: 'auto', padding: '6px 0' }
+          ? undefined
+          : {
+              top: anchorRect!.bottom + 4,
+              left: anchorRect!.left,
+              border: `1.5px solid ${c.bg}30`,
+            }
       }
     >
-      <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: c.bg, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: `1px solid ${c.bg}20`, marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        className="mb-1 flex items-center justify-between border-b px-3 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-wide"
+        style={{ color: c.bg, borderBottomColor: `${c.bg}33` }}
+      >
         <span>Drag to schedule · {category.name}</span>
-        {isDrawer && <button type="button" onClick={onClose} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted-foreground)', fontSize: 18, lineHeight: 1 }}>×</button>}
+        {isDrawer && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close panel"
+            className="cursor-pointer border-none bg-transparent p-1 text-lg leading-none text-muted-foreground"
+          >
+            ×
+          </button>
+        )}
       </div>
       {unscheduled.length === 0 && (
-        <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted-foreground)' }}>
+        <div className="px-3 py-2 text-xs text-muted-foreground">
           All {labels.staff?.toLowerCase() ?? 'staff'} scheduled
         </div>
       )}
@@ -68,15 +91,18 @@ export function StaffPanel({
             e.currentTarget.setPointerCapture(e.pointerId)
             onDragStaff({ empId: emp.id, categoryId: category.id, empName: emp.name, pointerId: e.pointerId })
           }}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'grab', userSelect: 'none', touchAction: 'none' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          className="flex cursor-grab touch-none select-none items-center gap-2 px-3 py-[7px] hover:bg-accent"
         >
-          <div style={{ width: 26, height: 26, borderRadius: '50%', background: c.light, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: 8, fontWeight: 700, color: c.text }}>{emp.avatar}</span>
+          <div
+            className="flex size-[26px] shrink-0 items-center justify-center rounded-full"
+            style={{ background: c.light }}
+          >
+            <span className="text-[8px] font-bold" style={{ color: c.text }}>
+              {emp.avatar}
+            </span>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground)' }}>{emp.name}</span>
-          <span style={{ fontSize: 9, color: 'var(--muted-foreground)', marginLeft: 'auto' }}>drag →</span>
+          <span className="text-xs font-medium text-foreground">{emp.name}</span>
+          <span className="ml-auto text-[9px] text-muted-foreground">drag →</span>
         </div>
       ))}
     </div>

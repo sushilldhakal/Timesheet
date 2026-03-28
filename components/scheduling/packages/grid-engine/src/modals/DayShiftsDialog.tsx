@@ -2,6 +2,7 @@ import React from "react"
 import type { Block, Resource } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
 import { fmt12 } from '@shadcn-scheduler/core'
+import { cn } from '@/lib/utils/cn'
 
 interface DayShiftsDialogProps {
   date: Date
@@ -65,14 +66,8 @@ export function DayShiftsDialog({
             const c = getColor(cat.colorIdx)
             return (
               <div key={categoryId}>
-                <div
-                  className="mb-2 flex items-center gap-1.5 text-xs font-bold"
-                  style={{ color: c.text }}
-                >
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: c.bg }}
-                  />
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: c.text }}>
+                  <div className="h-2 w-2 rounded-full" style={{ background: c.bg }} />
                   {cat.name}
                 </div>
                 <div className="flex flex-col gap-1">
@@ -82,12 +77,14 @@ export function DayShiftsDialog({
                       <div
                         key={shift.id}
                         onClick={() => onShiftClick?.(shift, cat)}
-                        className="rounded-lg px-3 py-2 text-[13px] font-semibold"
+                        className={cn(
+                          "rounded-lg px-3 py-2 text-[13px] font-semibold",
+                          isDraft ? "border-[1.5px] border-dashed" : "border border-transparent text-background",
+                          onShiftClick && "cursor-pointer",
+                        )}
                         style={{
                           background: isDraft ? c.light : c.bg,
-                          color: isDraft ? c.text : "var(--background)",
-                          border: isDraft ? `1.5px dashed ${c.border}` : "none",
-                          cursor: onShiftClick ? "pointer" : "default",
+                          ...(isDraft ? { color: c.text, borderColor: c.border } : {}),
                         }}
                       >
                         <div className="flex items-center justify-between">

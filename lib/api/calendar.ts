@@ -18,6 +18,8 @@ export interface CalendarEventsFilters {
   endDate: string
   userId?: string
   locationId?: string
+  /** Staff-safe roster view */
+  publishedOnly?: boolean
 }
 
 // Get calendar events
@@ -33,6 +35,10 @@ export async function getCalendarEvents(filters: CalendarEventsFilters): Promise
   
   if (filters.userId && filters.userId !== 'all') {
     params.append('userId', filters.userId)
+  }
+
+  if (filters.publishedOnly) {
+    params.append('publishedOnly', 'true')
   }
   
   console.log('[getCalendarEvents] Making request with params:', params.toString())

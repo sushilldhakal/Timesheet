@@ -4,6 +4,7 @@ import type { Block, Resource, FlatRow, SchedulerSlots } from "../types";
 import { useSchedulerContext } from "../context";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import type { StaffPanelState, AddPromptState } from "./GridView";
+import { employeesForCategory } from "../hooks/useFlatRows";
 
 export interface GridViewSidebarProps {
   sidebarCollapsed: boolean;
@@ -351,8 +352,10 @@ export function GridViewSidebar({
               (sum, s) => sum + (s.endH - s.startH),
               0,
             );
-            const staffCount = ALL_EMPLOYEES.filter(
-              (e) => e.categoryId === cat.id,
+            const staffCount = employeesForCategory(
+              cat.id,
+              ALL_EMPLOYEES,
+              visibleShifts,
             ).length;
             const hoursCapacity = 40;
             const hoursPercent = Math.min(

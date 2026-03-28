@@ -1,6 +1,16 @@
 import mongoose from "mongoose"
 import { RIGHTS_LIST, type Right } from "@/lib/config/rights"
 
+/** Per-day visible working window in the scheduler (hours as decimals); null = use app default for that day */
+export type SchedulingDayHours = { from: number; to: number } | null
+
+export interface IUserSchedulingSettings {
+  visibleFrom: number
+  visibleTo: number
+  /** Keys 0–6 (Sun–Sat); omitted keys use app defaults */
+  workingHours: Partial<Record<number, SchedulingDayHours>>
+}
+
 export interface IUser {
   name: string
   username: string
@@ -11,6 +21,8 @@ export interface IUser {
   location: string[]
   rights: Right[]
   managedRoles: string[] // Role names that this user can supervise
+  /** Personal scheduler UI preferences; null = use built-in defaults */
+  schedulingSettings?: IUserSchedulingSettings | null
   passwordResetToken?: string | null // Token for password reset
   passwordResetExpiry?: Date | null // Expiry for reset token
   createdAt: number // Unix timestamp (seconds since epoch)
@@ -66,6 +78,17 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     managedRoles: {
       type: [String],
       default: [],
+    },
+    schedulingSettings: {
+      type: new mongoose.Schema(
+        {
+          visibleFrom: { type: Number, required: true },
+          visibleTo: { type: Number, required: true },
+          workingHours: { type: mongoose.Schema.Types.Mixed, default: {} },
+        },
+        { _id: false }
+      ),
+      default: null,
     },
     passwordResetToken: {
       type: String,

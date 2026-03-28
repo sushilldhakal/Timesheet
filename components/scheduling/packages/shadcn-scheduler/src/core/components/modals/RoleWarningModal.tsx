@@ -35,93 +35,44 @@ export function RoleWarningModal({
   return (
     <div
       onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 10000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.45)",
-        backdropFilter: "blur(4px)",
-      }}
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[4px]"
     >
       <div
         onClick={handleModalClick}
-        style={{
-          background: "var(--background)",
-          borderRadius: 14,
-          padding: "22px 24px",
-          maxWidth: 360,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
-          borderTop: "4px solid var(--primary)",
-        }}
+        className="max-w-[360px] rounded-[14px] border-t-4 border-primary bg-background px-6 py-[22px] shadow-[0_24px_64px_rgba(0,0,0,0.2)]"
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: "var(--accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-accent">
             <AlertTriangle size={16} />
           </div>
-          <span style={{ fontSize: 14, fontWeight: 800, color: "var(--foreground)" }}>
+          <span className="text-sm font-extrabold text-foreground">
             {labels.category} Mismatch
           </span>
         </div>
 
-        <p style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "0 0 6px" }}>
+        <p className="mb-1.5 text-[13px] leading-snug text-muted-foreground">
           <strong>{emp.name}</strong> is assigned to{" "}
-          <span style={{ color: fc.bg, fontWeight: 700 }}>{fromCategory.name}</span>. You're
+          <span className="font-bold" style={{ color: fc.bg }}>{fromCategory.name}</span>. You&apos;re
           moving this shift to{" "}
-          <span style={{ color: tc.bg, fontWeight: 700 }}>{toCategory.name}</span>.
+          <span className="font-bold" style={{ color: tc.bg }}>{toCategory.name}</span>.
         </p>
-        <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "0 0 18px" }}>
+        <p className="mb-[18px] text-xs text-muted-foreground">
           This is allowed as fill-in cover. The shift {labels.category.toLowerCase()} will be
           updated.
         </p>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           <button
+            type="button"
             onClick={onConfirm}
-            style={{
-              flex: 1,
-              padding: "9px",
-              background: "var(--primary)",
-              color: "var(--background)",
-              border: "none",
-              borderRadius: 9,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            className="flex-1 cursor-pointer rounded-[9px] border-none bg-primary py-2.5 text-[13px] font-bold text-primary-foreground"
           >
             Move Anyway
           </button>
           <button
+            type="button"
             onClick={onCancel}
-            style={{
-              padding: "9px 14px",
-              background: "var(--border)",
-              color: "var(--foreground)",
-              border: "none",
-              borderRadius: 9,
-              fontSize: 13,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-[9px] border-none bg-border px-3.5 py-2.5 text-[13px] text-foreground"
           >
             Cancel
           </button>

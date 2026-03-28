@@ -1,5 +1,37 @@
 import { useMemo } from "react"
-import type { Resource, FlatRow } from "../types"
+import type { Block, Resource, FlatRow } from "../types"
+
+/** Primary role in category ∪ anyone with a shift in this category. */
+export function employeesForCategory(
+  catId: string,
+  employees: Resource[],
+  shifts: Block[] | undefined,
+): Resource[] {
+  const byId = new Map<string, Resource>()
+  for (const e of employees) {
+    if (e.categoryId === catId) byId.set(e.id, e)
+  }
+  if (shifts) {
+    for (const s of shifts) {
+      if (s.categoryId !== catId || !s.employeeId) continue
+      if (byId.has(s.employeeId)) continue
+      const e = employees.find((x) => x.id === s.employeeId)
+      if (e) {
+        byId.set(e.id, e)
+        continue
+      }
+      // Roster miss: still surface shift assignee so counts / rows match the grid.
+      byId.set(s.employeeId, {
+        id: s.employeeId,
+        name: s.employee?.trim() || s.employeeId,
+        kind: "employee",
+        categoryId: catId,
+        colorIdx: 0,
+      })
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
 
 /**
  * Computes the flat virtualizer row array.
@@ -13,13 +45,14 @@ export function useFlatRows(
   employees: Resource[],
   collapsed: Set<string>,
   mode: "category" | "individual" | "flat" = "individual",
+  shifts?: Block[],
 ): FlatRow[] {
   return useMemo(() => {
     const rows: FlatRow[] = []
     for (const cat of categories) {
       // flat mode: skip category header entirely — one row per employee only
       if (mode === "flat") {
-        const catEmployees = employees.filter((e) => e.categoryId === cat.id)
+        const catEmployees = employeesForCategory(cat.id, employees, shifts)
         for (const emp of catEmployees) {
           rows.push({
             key: `emp:${cat.id}:${emp.id}`,
@@ -38,7 +71,7 @@ export function useFlatRows(
         depth: 0,
       })
       if (mode === "individual" && !collapsed.has(cat.id)) {
-        const catEmployees = employees.filter((e) => e.categoryId === cat.id)
+        const catEmployees = employeesForCategory(cat.id, employees, shifts)
         for (const emp of catEmployees) {
           rows.push({
             key: `emp:${cat.id}:${emp.id}`,
@@ -51,7 +84,7 @@ export function useFlatRows(
       }
     }
     return rows
-  }, [categories, employees, collapsed, mode])
+  }, [categories, employees, collapsed, mode, shifts])
 }
 
 /**

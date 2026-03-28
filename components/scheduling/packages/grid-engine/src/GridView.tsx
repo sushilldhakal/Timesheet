@@ -749,7 +749,7 @@ function GridViewInner({
   // In flat EPG/timeline mode: skip category headers, one row per resource
   const effectiveRowMode: "category" | "individual" | "flat" =
     (timelineSidebarFlat && isDayViewMultiDay) ? "flat" : rowMode
-  const flatRows = useFlatRows(SORTED_CATEGORIES, ALL_EMPLOYEES, collapsed, effectiveRowMode)
+  const flatRows = useFlatRows(SORTED_CATEGORIES, ALL_EMPLOYEES, collapsed, effectiveRowMode, shifts)
 
   // Pre-compute max packed tracks per category across all dates — O(dates × categories × shifts)
   // Separated so virtualizer estimateSize can use it without re-running flatRows loop
@@ -2286,7 +2286,7 @@ function GridViewInner({
       >
         {/* Sidebar — sticky left so it doesn't scroll horizontally */}
         <div
-          className="sticky left-0 z-22 shrink-0 self-start border-r flex bg-background flex-col"
+          className="sticky left-0 z-22 shrink-0 self-start flex flex-col border-r bg-background"
           style={{
             width: sidebarCollapsed ? 0 : sidebarWidth,
             minWidth: sidebarCollapsed ? 0 : sidebarWidth,
@@ -2397,15 +2397,14 @@ function GridViewInner({
                           onDoubleClick={() => onDateDoubleClick?.(d)}
                           title={onDateDoubleClick ? "Double-click to open day view" : undefined}
                           className={cn(
-                            "relative flex shrink-0 flex-col",
+                            "relative flex shrink-0 flex-col border-b border-schedule-day-line",
                             onDateDoubleClick ? "cursor-pointer" : "cursor-default",
+                            i < dates.length - 1 ? "border-r-2 border-schedule-day-line" : "border-r border-schedule-day-line",
                           )}
                           style={{
                             width: COL_W_WEEK,
                             height: HOUR_HDR_H,
                             background: colBg,
-                            borderRight: i < dates.length - 1 ? "2px solid var(--sch-day-line)" : "1px solid var(--sch-day-line)",
-                            borderBottom: "1px solid var(--sch-day-line)",
                           }}
                         >
                           {/* ── Sticky date label: overflow:clip container + sticky left:0 inner ── */}
@@ -2541,17 +2540,16 @@ function GridViewInner({
                               <div
                                 key={String(h)}
                                 title={getTimeLabel(toDateISO(d), h)}
+                                className={cn(
+                                  "flex shrink-0 items-end border-r border-border pb-1 pl-1.5 font-semibold",
+                                  dayTimeStep < 1 ? "text-[9px]" : "text-[10px]",
+                                  (dayTimeStep < 1 ? Math.abs(h - nowH) < 0.3 : h === Math.floor(nowH)) && isToday(d)
+                                    ? "text-primary"
+                                    : "text-muted-foreground"
+                                )}
                                 style={{
                                   width: SLOT_W,
-                                  flexShrink: 0,
-                                  display: "flex",
-                                  alignItems: "flex-end",
-                                  padding: "0 0 4px 6px",
-                                  fontSize: dayTimeStep < 1 ? 9 : 10,
-                                  fontWeight: 600,
-                                  borderRight: "1px solid var(--border)",
                                   background: dashed ? DASHED_BG : hourBg(h, settings, d.getDay()),
-                                  color: (dayTimeStep < 1 ? Math.abs(h - nowH) < 0.3 : h === Math.floor(nowH)) && isToday(d) ? "var(--primary)" : "var(--muted-foreground)",
                                 }}
                               >
                                 {getTimeLabel(toDateISO(d), h)}
@@ -2580,20 +2578,12 @@ function GridViewInner({
                           <div
                             key={String(h)}
                             title={getTimeLabel(toDateISO(dates[0]!), h)}
-                            style={{
-                              width: HOUR_W,
-                              flexShrink: 0,
-                              height: "100%",
-                              display: "flex",
-                              alignItems: "flex-end",
-                              padding: "0 0 4px 8px",
-                              fontSize: 11,
-                              fontWeight: isNowHour ? 700 : 600,
-                              borderRight: "1px solid var(--border)",
-                              color: isNowHour ? "var(--primary)" : isWorking ? "var(--foreground)" : "var(--muted-foreground)",
-                              background: isWorking ? "transparent" : "var(--muted)",
-                              position: "relative",
-                            }}
+                            className={cn(
+                              "relative flex h-full shrink-0 items-end border-r border-border pb-1 pl-2 text-[11px]",
+                              isNowHour ? "font-bold text-primary" : isWorking ? "font-semibold text-foreground" : "font-semibold text-muted-foreground",
+                              isWorking ? "bg-transparent" : "bg-muted"
+                            )}
+                            style={{ width: HOUR_W }}
                           >
                             {/* Now-hour accent */}
                             {isNowHour && (
@@ -2612,20 +2602,14 @@ function GridViewInner({
                           return (
                             <div
                               key={String(h)}
-                              style={{
-                                width: SLOT_W,
-                                flexShrink: 0,
-                                height: "100%",
-                                display: "flex",
-                                alignItems: "flex-end",
-                                justifyContent: "flex-start",
-                                paddingBottom: 1,
-                                paddingLeft: isHalf ? 0 : 0,
-                                borderRight: "1px solid color-mix(in srgb, var(--border) 60%, transparent)",
-                              }}
+                              className="flex h-full shrink-0 items-end justify-start border-r border-border/60 pb-px"
+                              style={{ width: SLOT_W }}
                             >
                               {isHalf && (
-                                <div style={{ width: 1, height: 4, background: "var(--muted-foreground)", opacity: 0.4, marginLeft: SLOT_W / 2 - 0.5 }} />
+                                <div
+                                  className="h-1 w-px bg-muted-foreground/40"
+                                  style={{ marginLeft: SLOT_W / 2 - 0.5 }}
+                                />
                               )}
                             </div>
                           )
@@ -2638,13 +2622,10 @@ function GridViewInner({
               </div>
               <div
                 ref={gridRef}
-                className="transition-all duration-200"
+                className="relative min-h-full contain-[layout_style] transition-all duration-200"
                 style={{
-                  position: "relative",
                   width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
                   height: totalHVirtual,
-                  minHeight: "100%",
-                  contain: "layout style",
                   willChange: dragId ? "contents" : "auto",
                 }}
                 tabIndex={0}
@@ -2663,34 +2644,14 @@ function GridViewInner({
             >
               <span
                 data-ghost-label
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "1px 6px",
-                  borderRadius: 3,
-                }}
+                className="rounded-[3px] px-1.5 py-px text-[10px] font-bold"
               />
             </div>
 
             {/* Resize label: floats near cursor during resize showing live time */}
             <div
               ref={resizeLabelRef}
-              style={{
-                display: "none",
-                position: "absolute",
-                left: 0,
-                top: 0,
-                zIndex: 200,
-                pointerEvents: "none",
-                fontSize: 10,
-                fontWeight: 700,
-                color: "rgba(255,255,255,0.95)",
-                borderRadius: 5,
-                padding: "2px 7px",
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                willChange: "transform",
-              }}
+              className="pointer-events-none absolute left-0 top-0 z-[200] hidden items-center whitespace-nowrap rounded-md px-[7px] py-0.5 text-[10px] font-bold text-white/95 shadow-[0_2px_8px_rgba(0,0,0,0.18)] will-change-transform"
             />
 
             {/* Rubber-band selection rect */}
@@ -2701,18 +2662,8 @@ function GridViewInner({
               const height = Math.abs(selRect.y1 - selRect.y0)
               return (
                 <div
-                  style={{
-                    position: "absolute",
-                    left,
-                    top,
-                    width,
-                    height,
-                    border: "1.5px dashed var(--primary)",
-                    background: "color-mix(in srgb, var(--primary) 8%, transparent)",
-                    borderRadius: 4,
-                    pointerEvents: "none",
-                    zIndex: 50,
-                  }}
+                  className="pointer-events-none absolute z-50 rounded border-[1.5px] border-dashed border-primary bg-primary/10"
+                  style={{ left, top, width, height }}
                 />
               )
             })()}
@@ -2720,15 +2671,10 @@ function GridViewInner({
             {/* Row hover highlight during drag — DOM-driven, zero re-renders */}
             <div
               ref={rowHoverHighlightRef}
+              className="pointer-events-none absolute left-0 top-0 z-[6] hidden"
               style={{
-                display: "none",
-                position: "absolute",
-                left: 0,
-                top: 0,
                 width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
                 height: 0,
-                pointerEvents: "none",
-                zIndex: 6,
               }}
             />
             {/* Availability shading — per-employee unavailable time overlay */}
@@ -2813,7 +2759,10 @@ function GridViewInner({
                         key={`bg-${row.key}-${di}-${h}`}
                         data-empty-cell
                         role="gridcell"
-                        className="changeGrid-first"
+                        className={cn(
+                          "changeGrid-first border-r border-schedule-hour-line",
+                          h === settings.visibleFrom && di > 0 && "border-l-2 border-schedule-day-line",
+                        )}
                         style={{
                           position: "absolute",
                           left: di * DAY_WIDTH + (h - settings.visibleFrom) * HOUR_W,
@@ -2821,9 +2770,6 @@ function GridViewInner({
                           width: SLOT_W,
                           height: rowH,
                           background: dashed ? DASHED_BG : hourBg(h, settings, date.getDay()),
-                          borderRight: "1px solid var(--sch-hour-line)",
-                          // Day boundary: stronger border at the start of each new day
-                          borderLeft: h === settings.visibleFrom && di > 0 ? "2px solid var(--sch-day-line)" : undefined,
                         }}
                         onPointerEnter={() => {
                           if (!dragEmpId) return
@@ -2849,7 +2795,10 @@ function GridViewInner({
                       key={`bg-${row.key}-${di}`}
                       data-empty-cell
                       role="gridcell"
-                      className="changeGrid-second"
+                      className={cn(
+                        "changeGrid-second border-b border-schedule-row-line",
+                        di < dates.length - 1 ? "border-r-2 border-schedule-day-line" : "border-r border-schedule-day-line",
+                      )}
                       style={{
                         position: "absolute",
                         left: di * COL_W_WEEK,
@@ -2863,8 +2812,6 @@ function GridViewInner({
                             : isWeekend
                               ? "color-mix(in srgb, var(--muted) 35%, var(--background))"
                               : "var(--background)",
-                        borderRight: di < dates.length - 1 ? "2px solid var(--sch-day-line)" : "1px solid var(--sch-day-line)",
-                        borderBottom: "1px solid var(--sch-row-line)",
                       }}
                       onPointerEnter={() => {
                         if (!dragEmpId) return
@@ -2899,6 +2846,7 @@ function GridViewInner({
                           return (
                             <div
                               key={k}
+                              className="pointer-events-none border-r border-schedule-hour-line"
                               style={{
                                 position: "absolute",
                                 left: k * PX_WEEK,
@@ -2906,8 +2854,6 @@ function GridViewInner({
                                 width: Math.max(PX_WEEK, 2),
                                 height: "100%",
                                 background: outsideWorking ? "color-mix(in srgb, var(--muted) 50%, transparent)" : "transparent",
-                                borderRight: "1px solid var(--sch-hour-line)",
-                                pointerEvents: "none",
                               }}
                             />
                           )
@@ -2924,7 +2870,10 @@ function GridViewInner({
                     key={`bg-${row.key}-${h}`}
                     data-empty-cell
                     role="gridcell"
-                    className="changeGrid-third"
+                    className={cn(
+                      "changeGrid-third border-r",
+                      isHourBoundary ? "border-schedule-hour-line" : "border-schedule-half-line",
+                    )}
                     style={{
                       position: "absolute",
                       left: (h - settings.visibleFrom) * HOUR_W,
@@ -2934,9 +2883,6 @@ function GridViewInner({
                       background: outsideWorking
                         ? "color-mix(in srgb, var(--muted) 70%, transparent)"
                         : "transparent",
-                      borderRight: isHourBoundary
-                        ? "1px solid var(--sch-hour-line)"
-                        : "1px solid var(--sch-half-line)",
                     }}
                     onPointerEnter={() => {
                       if (!dragEmpId) return
@@ -2967,15 +2913,10 @@ function GridViewInner({
               return (
                 <div
                   key={`sep-${row.key}`}
+                  className="pointer-events-none absolute left-0 z-[3] h-0.5 bg-schedule-fg-12"
                   style={{
-                    position: "absolute",
-                    left: 0,
                     top: vr.start + vr.size - 1,
                     width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
-                    height: 2,
-                    background: "var(--sch-fg-12))",
-                    zIndex: 3,
-                    pointerEvents: "none",
                   }}
                 />
               )
@@ -2987,15 +2928,10 @@ function GridViewInner({
                     DAY_VISIBLE_SLOTS.map((h) => (
                       <div
                         key={`vl-${di}-${h}`}
+                        className="pointer-events-none absolute top-0 z-[1] w-px bg-schedule-fg-12"
                         style={{
-                          position: "absolute",
                           left: di * DAY_WIDTH + (h - settings.visibleFrom) * HOUR_W,
-                          top: 0,
-                          width: 1,
                           height: totalHVirtual,
-                          background: "var(--sch-fg-12))",
-                          zIndex: 1,
-                          pointerEvents: "none",
                         }}
                       />
                     ))
@@ -3003,15 +2939,10 @@ function GridViewInner({
                 : DAY_VISIBLE_SLOTS.map((h) => (
                     <div
                       key={`vl-${h}`}
+                      className="pointer-events-none absolute top-0 z-[1] w-px bg-schedule-fg-12"
                       style={{
-                        position: "absolute",
                         left: (h - settings.visibleFrom) * HOUR_W,
-                        top: 0,
-                        width: 1,
                         height: totalHVirtual,
-                        background: "var(--sch-fg-12))",
-                        zIndex: 1,
-                        pointerEvents: "none",
                       }}
                     />
                   )))}
@@ -3023,52 +2954,23 @@ function GridViewInner({
                 <div
                   key={`now-${di}`}
                   data-scheduler-now-line
+                  className="pointer-events-none absolute top-0 z-[15] w-0.5 bg-destructive shadow-[0_0_8px_color-mix(in_srgb,var(--destructive)_50%,transparent)]"
                   style={{
-                    position: "absolute",
-                    pointerEvents: "none",
-                    top: 0,
                     left: isWeekView
                       ? di * COL_W_WEEK + (nowH - settings.visibleFrom) * PX_WEEK
                       : isDayViewMultiDay
                         ? di * DAY_WIDTH + (nowH - settings.visibleFrom) * HOUR_W
                         : (nowH - settings.visibleFrom) * HOUR_W,
-                    width: 2,
                     height: totalHVirtual,
-                    background: "var(--destructive)",
-                    boxShadow: "0 0 8px color-mix(in srgb, var(--destructive) 50%, transparent)",
-                    zIndex: 15,
                   }}
                 >
                   {/* Pulsing dot at top */}
                   <div
                     data-scheduler-now-dot
-                    style={{
-                      position: "absolute",
-                      left: -5,
-                      top: -1,
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      background: "var(--destructive)",
-                      border: "2px solid var(--background)",
-                    }}
+                    className="absolute -left-[5px] -top-px size-3 rounded-full border-2 border-background bg-destructive"
                   />
                   {/* Time pill label */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 8,
-                      top: 0,
-                      background: "var(--destructive)",
-                      color: "var(--destructive-foreground)",
-                      fontSize: 9,
-                      fontWeight: 700,
-                      padding: "1px 5px",
-                      borderRadius: 4,
-                      whiteSpace: "nowrap",
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <div className="absolute top-0 left-2 whitespace-nowrap rounded bg-destructive px-[5px] py-px text-[9px] font-bold leading-snug text-destructive-foreground">
                     {fmt12(nowH)}
                   </div>
                 </div>
@@ -3091,17 +2993,13 @@ function GridViewInner({
                 <div
                   key={marker.id}
                   data-scheduler-marker={marker.id}
+                  className={cn(
+                    "absolute top-0 z-[16] flex w-3.5 justify-center",
+                    marker.draggable ? "cursor-ew-resize" : onMarkersChange ? "cursor-pointer" : "cursor-default"
+                  )}
                   style={{
-                    position: "absolute",
-                    left: left - 6,  // widen hit area: 2px visual + 6px padding each side
-                    top: 0,
-                    width: 14,
+                    left: left - 6,
                     height: totalHVirtual,
-                    zIndex: 16,
-                    pointerEvents: "auto",
-                    cursor: marker.draggable ? "ew-resize" : (onMarkersChange ? "pointer" : "default"),
-                    display: "flex",
-                    justifyContent: "center",
                   }}
                   onContextMenu={onMarkersChange ? (e) => {
                     e.preventDefault()
@@ -3138,34 +3036,17 @@ function GridViewInner({
                   } : undefined}
                 >
                   {/* Visible 2px line centred in the hit area */}
-                  <div style={{ width: 2, height: "100%", background: color, pointerEvents: "none" }} />
+                  <div className="pointer-events-none h-full w-0.5" style={{ background: color }} />
                   {marker.label && (
-                    <span style={{
-                      position: "absolute",
-                      top: 4,
-                      left: 10,
-                      fontSize: 10,
-                      whiteSpace: "nowrap",
-                      color,
-                      fontWeight: 600,
-                      pointerEvents: "none",
-                      background: "var(--background)",
-                      padding: "0 3px",
-                      borderRadius: 2,
-                    }}>
+                    <span
+                      className="pointer-events-none absolute top-1 left-2.5 rounded-sm bg-background px-0.5 text-[10px] font-semibold whitespace-nowrap"
+                      style={{ color }}
+                    >
                       {marker.label}
                     </span>
                   )}
                   {onMarkersChange && (
-                    <span style={{
-                      position: "absolute",
-                      bottom: 4,
-                      left: 10,
-                      fontSize: 9,
-                      color: "var(--muted-foreground)",
-                      pointerEvents: "none",
-                      whiteSpace: "nowrap",
-                    }}>
+                    <span className="pointer-events-none absolute bottom-1 left-2.5 whitespace-nowrap text-[9px] text-muted-foreground">
                       right-click to remove
                     </span>
                   )}
@@ -3217,7 +3098,8 @@ function GridViewInner({
                   {/* Visual SVG layer — pointerEvents none, colors driven by state */}
                   <svg
                     ref={depSvgRef}
-                    style={{ position: "absolute", top: 0, left: 0, width: TOTAL_W, height: totalHVirtual, pointerEvents: "none", zIndex: 17, overflow: "visible" }}
+                    className="pointer-events-none absolute left-0 top-0 z-[17] overflow-visible"
+                    style={{ width: TOTAL_W, height: totalHVirtual }}
                   >
                     <defs>
                       <marker id="dep-preview-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -3253,7 +3135,7 @@ function GridViewInner({
                             strokeDasharray={type !== "finish-to-start" ? "5 3" : undefined}
                             markerEnd={isSelected ? "url(#dep-arr-selected)" : `url(#dep-arr-${ci})`}
                             opacity={opacity}
-                            style={{ transition: "opacity 120ms, stroke-width 120ms" }}
+                            className="transition-[opacity,stroke-width] duration-120"
                           />
                         </g>
                       )
@@ -3262,7 +3144,7 @@ function GridViewInner({
 
                   {/* Hit-area layer — wide transparent stroke for hover/click/dblclick */}
                   {dependencies.length > 0 && (
-                    <svg style={{ position: "absolute", top: 0, left: 0, width: TOTAL_W, height: totalHVirtual, overflow: "visible", zIndex: 18, pointerEvents: "none" }}>
+                    <svg className="pointer-events-none absolute left-0 top-0 z-[18] overflow-visible" style={{ width: TOTAL_W, height: totalHVirtual }}>
                       {dependencies.map((dep) => {
                         const p = depPath(dep)
                         if (!p) return null
@@ -3274,7 +3156,7 @@ function GridViewInner({
                             stroke="transparent"
                             strokeWidth={20}
                             pointerEvents="visibleStroke"
-                            style={{ cursor: "pointer" }}
+                            className="cursor-pointer"
                             onMouseEnter={() => setHoveredDepId(dep.id)}
                             onMouseLeave={(e) => {
                               const rel = e.relatedTarget as Element | null
@@ -3316,25 +3198,12 @@ function GridViewInner({
                         data-dep-ui={dep.id}
                         onMouseEnter={() => setHoveredDepId(dep.id)}
                         onMouseLeave={() => setHoveredDepId(null)}
-                        style={{
-                          position: "absolute",
-                          left: p.mx + 10,
-                          top: p.my - 12,
-                          background: "var(--popover)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 6,
-                          padding: "5px 9px",
-                          fontSize: 11,
-                          color: "var(--foreground)",
-                          pointerEvents: "none",
-                          zIndex: 50,
-                          whiteSpace: "nowrap",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                        }}
+                        className="pointer-events-none absolute z-50 whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1.5 text-[11px] text-foreground shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
+                        style={{ left: p.mx + 10, top: p.my - 12 }}
                       >
-                        <div style={{ fontWeight: 600 }}>{from.label} → {to.label}</div>
-                        <div style={{ color: "var(--muted-foreground)", marginTop: 1 }}>{typeLabel[dep.type ?? "finish-to-start"]}</div>
-                        <div style={{ color: "var(--muted-foreground)", marginTop: 1, fontSize: 10 }}>Click to select · Double-click to edit</div>
+                        <div className="font-semibold">{from.label} → {to.label}</div>
+                        <div className="mt-px text-muted-foreground">{typeLabel[dep.type ?? "finish-to-start"]}</div>
+                        <div className="mt-px text-[10px] text-muted-foreground">Click to select · Double-click to edit</div>
                       </div>
                     )
                   })()}
@@ -3348,24 +3217,19 @@ function GridViewInner({
                     return (
                       <div
                         data-dep-ui={dep.id}
-                        style={{ position: "absolute", left: p.mx - 10, top: p.my - 10, zIndex: 50, display: "flex", gap: 4 }}
+                        className="absolute z-50 flex gap-1"
+                        style={{ left: p.mx - 10, top: p.my - 10 }}
                         onMouseEnter={() => setHoveredDepId(dep.id)}
                       >
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation()
                             onDependenciesChange(dependencies.filter(dd => dd.id !== dep.id))
                             setSelectedDepId(null)
                             setHoveredDepId(null)
                           }}
-                          style={{
-                            width: 22, height: 22, borderRadius: "50%",
-                            background: "var(--destructive)", border: "none",
-                            color: "white", fontSize: 15, fontWeight: 700,
-                            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-                            lineHeight: 1,
-                          }}
+                          className="flex size-[22px] cursor-pointer items-center justify-center rounded-full border-none bg-destructive text-[15px] font-bold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.25)]"
                           title="Delete dependency"
                         >×</button>
                       </div>
@@ -3380,40 +3244,26 @@ function GridViewInner({
                       { value: "finish-to-finish", label: "Finish → Finish" },
                       { value: "start-to-finish",  label: "Start → Finish"  },
                     ]
-                    const selectStyle: React.CSSProperties = {
-                      width: "100%", padding: "7px 10px", borderRadius: 8,
-                      border: "1px solid var(--border)", background: "var(--background)",
-                      color: "var(--foreground)", fontSize: 12, cursor: "pointer",
-                      outline: "none", appearance: "auto",
-                    }
+                    const selectClass =
+                      "w-full cursor-pointer appearance-auto rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none"
                     return (
                       <div
                         onClick={() => setEditingDep(null)}
-                        style={{
-                          position: "fixed", inset: 0, zIndex: 9999,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: "rgba(0,0,0,0.4)", backdropFilter: "blur(3px)",
-                        }}
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
                       >
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          style={{
-                            background: "var(--background)", borderRadius: 12,
-                            padding: "22px 24px", width: 360,
-                            boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
-                            border: "1px solid var(--border)",
-                            display: "flex", flexDirection: "column", gap: 16,
-                          }}
+                          className="flex w-[360px] flex-col gap-4 rounded-xl border border-border bg-background p-6 shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
                         >
-                          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>Edit Dependency</div>
+                          <div className="text-[15px] font-bold text-foreground">Edit Dependency</div>
 
                           {/* From shift */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.5 }}>From</label>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">From</label>
                             <select
                               value={editingDep.fromId}
                               onChange={(e) => setEditingDep(prev => prev ? { ...prev, fromId: e.target.value } : null)}
-                              style={selectStyle}
+                              className={selectClass}
                             >
                               {shifts.map(s => (
                                 <option key={s.id} value={s.id} disabled={s.id === editingDep.toId}>
@@ -3424,12 +3274,12 @@ function GridViewInner({
                           </div>
 
                           {/* To shift */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.5 }}>To</label>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">To</label>
                             <select
                               value={editingDep.toId}
                               onChange={(e) => setEditingDep(prev => prev ? { ...prev, toId: e.target.value } : null)}
-                              style={selectStyle}
+                              className={selectClass}
                             >
                               {shifts.map(s => (
                                 <option key={s.id} value={s.id} disabled={s.id === editingDep.fromId}>
@@ -3440,12 +3290,12 @@ function GridViewInner({
                           </div>
 
                           {/* Type */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.5 }}>Type</label>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Type</label>
                             <select
                               value={editingDep.type ?? "finish-to-start"}
                               onChange={(e) => setEditingDep(prev => prev ? { ...prev, type: e.target.value as NonNullable<ShiftDependency["type"]> } : null)}
-                              style={selectStyle}
+                              className={selectClass}
                             >
                               {TYPE_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3453,19 +3303,21 @@ function GridViewInner({
                             </select>
                           </div>
 
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                          <div className="mt-1 flex justify-end gap-2">
                             <button
+                              type="button"
                               onClick={() => setEditingDep(null)}
-                              style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", cursor: "pointer", fontSize: 12, color: "var(--foreground)" }}
+                              className="cursor-pointer rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground"
                             >Cancel</button>
                             <button
+                              type="button"
                               onClick={() => {
                                 if (!editingDep) return
                                 onDependenciesChange(dependencies.map(d => d.id === editingDep.id ? editingDep : d))
                                 setEditingDep(null)
                                 setSelectedDepId(null)
                               }}
-                              style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--primary)", cursor: "pointer", fontSize: 12, color: "var(--primary-foreground)", fontWeight: 600 }}
+                              className="cursor-pointer rounded-lg border-none bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"
                             >Save</button>
                           </div>
                         </div>
@@ -3644,31 +3496,46 @@ function GridViewInner({
                         style={blockStyle}
                       >
                         {/* Left accent strip — darker overlay on left edge */}
-                        <div style={{ width: 4, flexShrink: 0, background: "rgba(0,0,0,0.18)", borderRadius: "8px 0 0 8px" }} />
+                        <div className="w-1 shrink-0 rounded-l-lg bg-black/18" />
 
                         {/* Main content */}
-                        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 8px 0 8px", flex: 1, minWidth: 0, overflow: "hidden", gap: 2 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 3, minWidth: 0 }}>
-                            {hasConflict && <AlertTriangle size={9} style={{ flexShrink: 0, color: isDraft ? "var(--destructive)" : "rgba(255,255,255,0.9)" }} />}
-                            <span style={{
-                              fontSize: 12, fontWeight: 700,
-                              color: isDraft ? c.text : "rgba(255,255,255,0.97)",
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2,
-                            }}>
+                        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
+                          <div className="flex min-w-0 items-center gap-0.5">
+                            {hasConflict && (
+                              <AlertTriangle
+                                size={9}
+                                className={cn("shrink-0", isDraft ? "text-destructive" : "text-white/90")}
+                              />
+                            )}
+                            <span
+                              className={cn(
+                                "truncate text-xs font-bold leading-snug",
+                                isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
+                              )}
+                              style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
+                            >
                               {shift.employee}
                             </span>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                            <span style={{
-                              fontSize: 10, fontWeight: 400,
-                              color: isDraft ? c.bg : "rgba(255,255,255,0.75)",
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2,
-                            }}>
+                          <div className="flex min-w-0 items-center gap-1">
+                            <span
+                              className={cn(
+                                "truncate text-[10px] font-normal leading-snug",
+                                isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                              )}
+                              style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
+                            >
                               {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
                             </span>
                             {/* Break indicator inline */}
                             {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
-                              <span style={{ fontSize: 9, color: isDraft ? c.bg : "rgba(255,255,255,0.65)", flexShrink: 0, display: "flex", alignItems: "center", gap: 2 }}>
+                              <span
+                                className={cn(
+                                  "flex shrink-0 items-center gap-0.5 text-[9px]",
+                                  isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                )}
+                                style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                              >
                                 ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
                               </span>
                             )}
@@ -3677,19 +3544,15 @@ function GridViewInner({
 
                         {/* Status badge — top right */}
                         {width >= 72 && (
-                          <div style={{
-                            position: "absolute", top: 4, right: showResize ? 14 : 6,
-                            fontSize: 8, fontWeight: 700, lineHeight: 1,
-                            padding: "2px 5px", borderRadius: 10,
-                            background: hasConflict
-                              ? "rgba(239,68,68,0.85)"
-                              : isDraft
-                                ? "rgba(0,0,0,0.25)"
-                                : "rgba(255,255,255,0.22)",
-                            color: "rgba(255,255,255,0.95)",
-                            pointerEvents: "none",
-                            whiteSpace: "nowrap",
-                          }}>
+                          <div
+                            className={cn(
+                              "pointer-events-none absolute top-1 rounded-[10px] px-[5px] py-0.5 text-[8px] font-bold leading-none whitespace-nowrap text-white/95",
+                              showResize ? "right-3.5" : "right-1.5",
+                              hasConflict && "bg-red-500/85",
+                              !hasConflict && isDraft && "bg-black/25",
+                              !hasConflict && !isDraft && "bg-white/22"
+                            )}
+                          >
                             {hasConflict ? "Conflict" : isDraft ? "Draft" : isLive ? "Live" : ""}
                           </div>
                         )}
@@ -3702,16 +3565,8 @@ function GridViewInner({
                           const breakWidth = ((shift.breakEndH - shift.breakStartH) / dur) * 100
                           return (
                             <div
-                              style={{
-                                position: "absolute", top: 0,
-                                left: `${breakLeft}%`,
-                                width: `${Math.max(breakWidth, 2)}%`,
-                                height: "100%",
-                                background: "rgba(0,0,0,0.15)",
-                                borderLeft: "1px dashed rgba(255,255,255,0.35)",
-                                borderRight: "1px dashed rgba(255,255,255,0.35)",
-                                pointerEvents: "none", zIndex: 2,
-                              }}
+                              className="pointer-events-none absolute top-0 z-[2] h-full border-l border-r border-dashed border-white/35 bg-black/15"
+                              style={{ left: `${breakLeft}%`, width: `${Math.max(breakWidth, 2)}%` }}
                               title={`Break ${getTimeLabel(shift.date, shift.breakStartH!)}–${getTimeLabel(shift.date, shift.breakEndH!)}`}
                             />
                           )
@@ -3721,18 +3576,20 @@ function GridViewInner({
                           <div
                             data-resize="left"
                             onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => onRLD(e, shift)}
-                            style={{ position: "absolute", left: 0, top: 0, height: "100%", width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14, paddingLeft: 8, zIndex: 3, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "flex-start" }}
+                            className="absolute left-0 top-0 z-[3] flex h-full cursor-ew-resize items-center justify-start pl-2"
+                            style={{ width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14 }}
                           >
-                            <div style={{ width: 2, height: "55%", minHeight: 10, borderRadius: 2, background: "rgba(255,255,255,0.65)", pointerEvents: "none" }} />
+                            <div className="pointer-events-none h-[55%] min-h-2.5 w-0.5 rounded-sm bg-white/65" />
                           </div>
                         )}
                         {showResize && (
                           <div
                             data-resize="right"
                             onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => onRRD(e, shift)}
-                            style={{ position: "absolute", right: 0, top: 0, height: "100%", width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14, paddingRight: 8, zIndex: 3, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "flex-end" }}
+                            className="absolute right-0 top-0 z-[3] flex h-full cursor-ew-resize items-center justify-end pr-2"
+                            style={{ width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14 }}
                           >
-                            <div style={{ width: 2, height: "55%", minHeight: 10, borderRadius: 2, background: "rgba(255,255,255,0.65)", pointerEvents: "none" }} />
+                            <div className="pointer-events-none h-[55%] min-h-2.5 w-0.5 rounded-sm bg-white/65" />
                           </div>
                         )}
                         {/* Dep-draw dots — 4 connection points, visible on hover */}
@@ -3741,7 +3598,7 @@ function GridViewInner({
                         </ContextMenuTrigger>
 
                       <ContextMenuContent>
-                        <ContextMenuLabel style={{ color: c.bg }}>{shift.employee}</ContextMenuLabel>
+                        <ContextMenuLabel className="text-[var(--gv-emp)]" style={{ ['--gv-emp' as string]: c.bg }}>{shift.employee}</ContextMenuLabel>
                         <ContextMenuSeparator />
                         <ContextMenuItem
                           onClick={() => onShiftClick(shift, cat)}
@@ -3953,30 +3810,45 @@ function GridViewInner({
                       {slots.block ? slots.block(blockSlotProps) : (
                         <>
                           {/* Left accent strip */}
-                          <div style={{ width: 4, flexShrink: 0, background: "rgba(0,0,0,0.18)", borderRadius: "8px 0 0 8px" }} />
+                          <div className="w-1 shrink-0 rounded-l-lg bg-black/18" />
 
                           {/* Main content */}
-                          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 8px", flex: 1, minWidth: 0, overflow: "hidden", gap: 2 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 3, minWidth: 0 }}>
-                              {hasConflict && <AlertTriangle size={9} style={{ flexShrink: 0, color: isDraft ? "var(--destructive)" : "rgba(255,255,255,0.9)" }} />}
-                              <span style={{
-                                fontSize: 12, fontWeight: 700,
-                                color: isDraft ? c.text : "rgba(255,255,255,0.97)",
-                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2,
-                              }}>
+                          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
+                            <div className="flex min-w-0 items-center gap-0.5">
+                              {hasConflict && (
+                                <AlertTriangle
+                                  size={9}
+                                  className={cn("shrink-0", isDraft ? "text-destructive" : "text-white/90")}
+                                />
+                              )}
+                              <span
+                                className={cn(
+                                  "truncate text-xs font-bold leading-snug",
+                                  isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
+                                )}
+                                style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
+                              >
                                 {shift.employee}
                               </span>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                              <span style={{
-                                fontSize: 10, fontWeight: 400,
-                                color: isDraft ? c.bg : "rgba(255,255,255,0.75)",
-                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2,
-                              }}>
+                            <div className="flex min-w-0 items-center gap-1">
+                              <span
+                                className={cn(
+                                  "truncate text-[10px] font-normal leading-snug",
+                                  isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                                )}
+                                style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
+                              >
                                 {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
                               </span>
                               {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
-                                <span style={{ fontSize: 9, color: isDraft ? c.bg : "rgba(255,255,255,0.65)", flexShrink: 0 }}>
+                                <span
+                                  className={cn(
+                                    "shrink-0 text-[9px]",
+                                    isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                  )}
+                                  style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                                >
                                   ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
                                 </span>
                               )}
@@ -3985,19 +3857,15 @@ function GridViewInner({
 
                           {/* Status badge */}
                           {width >= 72 && (hasConflict || isDraft || isLive) && (
-                            <div style={{
-                              position: "absolute", top: 4, right: showResize ? 14 : 6,
-                              fontSize: 8, fontWeight: 700, lineHeight: 1,
-                              padding: "2px 5px", borderRadius: 10,
-                              background: hasConflict
-                                ? "rgba(239,68,68,0.85)"
-                                : isDraft
-                                  ? "rgba(0,0,0,0.25)"
-                                  : "rgba(255,255,255,0.25)",
-                              color: "rgba(255,255,255,0.95)",
-                              pointerEvents: "none",
-                              whiteSpace: "nowrap",
-                            }}>
+                            <div
+                              className={cn(
+                                "pointer-events-none absolute top-1 rounded-[10px] px-[5px] py-0.5 text-[8px] font-bold leading-none whitespace-nowrap text-white/95",
+                                showResize ? "right-3.5" : "right-1.5",
+                                hasConflict && "bg-red-500/85",
+                                !hasConflict && isDraft && "bg-black/25",
+                                !hasConflict && !isDraft && "bg-white/25"
+                              )}
+                            >
                               {hasConflict ? "Conflict" : isDraft ? "Draft" : "Live"}
                             </div>
                           )}
@@ -4010,16 +3878,8 @@ function GridViewInner({
                             const breakWidth = ((shift.breakEndH - shift.breakStartH) / dur) * 100
                             return (
                               <div
-                                style={{
-                                  position: "absolute", top: 0,
-                                  left: `${breakLeft}%`,
-                                  width: `${Math.max(breakWidth, 2)}%`,
-                                  height: "100%",
-                                  background: "rgba(0,0,0,0.15)",
-                                  borderLeft: "1px dashed rgba(255,255,255,0.35)",
-                                  borderRight: "1px dashed rgba(255,255,255,0.35)",
-                                  pointerEvents: "none", zIndex: 2,
-                                }}
+                                className="pointer-events-none absolute top-0 z-[2] h-full border-l border-r border-dashed border-white/35 bg-black/15"
+                                style={{ left: `${breakLeft}%`, width: `${Math.max(breakWidth, 2)}%` }}
                                 title={`Break ${getTimeLabel(shift.date, shift.breakStartH!)}–${getTimeLabel(shift.date, shift.breakEndH!)}`}
                               />
                             )
@@ -4029,18 +3889,20 @@ function GridViewInner({
                             <div
                               data-resize="left"
                               onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => onRLD(e, shift)}
-                              style={{ position: "absolute", left: 0, top: 0, height: "100%", width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14, paddingLeft: 8, zIndex: 3, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "flex-start" }}
+                              className="absolute left-0 top-0 z-[3] flex h-full cursor-ew-resize items-center justify-start pl-2"
+                              style={{ width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14 }}
                             >
-                              <div style={{ width: 2, height: "55%", minHeight: 10, borderRadius: 2, background: "rgba(255,255,255,0.65)", pointerEvents: "none" }} />
+                              <div className="pointer-events-none h-[55%] min-h-2.5 w-0.5 rounded-sm bg-white/65" />
                             </div>
                           )}
                           {showResize && (
                             <div
                               data-resize="right"
                               onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => onRRD(e, shift)}
-                              style={{ position: "absolute", right: 0, top: 0, height: "100%", width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14, paddingRight: 8, zIndex: 3, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "flex-end" }}
+                              className="absolute right-0 top-0 z-[3] flex h-full cursor-ew-resize items-center justify-end pr-2"
+                              style={{ width: isTouchDevice ? RESIZE_HANDLE_MIN_TOUCH_PX : 14 }}
                             >
-                              <div style={{ width: 2, height: "55%", minHeight: 10, borderRadius: 2, background: "rgba(255,255,255,0.65)", pointerEvents: "none" }} />
+                              <div className="pointer-events-none h-[55%] min-h-2.5 w-0.5 rounded-sm bg-white/65" />
                             </div>
                           )}
                           {/* Dep-draw dots — 4 connection points, visible on hover */}
@@ -4051,7 +3913,7 @@ function GridViewInner({
                       </ContextMenuTrigger>
 
                     <ContextMenuContent>
-                      <ContextMenuLabel style={{ color: c.bg }}>{shift.employee}</ContextMenuLabel>
+                      <ContextMenuLabel className="text-[var(--gv-emp)]" style={{ ['--gv-emp' as string]: c.bg }}>{shift.employee}</ContextMenuLabel>
                       <ContextMenuSeparator />
                       <ContextMenuItem
                           onClick={() => onShiftClick(shift, cat)}
@@ -4128,48 +3990,40 @@ function GridViewInner({
           <div
             onPointerEnter={() => { if (tooltipLeaveTimerRef.current) clearTimeout(tooltipLeaveTimerRef.current) }}
             onPointerLeave={() => { tooltipLeaveTimerRef.current = setTimeout(() => setTooltipBlockId(null), TOOLTIP_LEAVE_MS) }}
+            className={cn(
+              "pointer-events-auto fixed z-99999 -translate-x-1/2 overflow-hidden rounded-[10px] border border-border bg-popover text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)]",
+              !slots.tooltip && "min-w-[190px] max-w-[280px] px-[14px] py-[10px]",
+            )}
             style={{
-              position: "fixed",
               top: showBelow ? popTop : undefined,
-              bottom: showBelow ? undefined : `${window.innerHeight - popTop}px`,
+              bottom: showBelow ? undefined : window.innerHeight - popTop,
               left: popLeft,
-              transform: "translateX(-50%)",
-              zIndex: 99999,
-              background: "var(--popover)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: slots.tooltip ? 0 : "10px 14px",
-              minWidth: slots.tooltip ? undefined : 190,
-              maxWidth: slots.tooltip ? undefined : 280,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-              pointerEvents: "auto",
-              overflow: "hidden",
             }}
           >
             {slots.tooltip ? slots.tooltip(shift, cat) : (
               <>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.bg, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{shift.employee}</span>
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <div className="size-2 shrink-0 rounded-full" style={{ background: c.bg }} />
+                  <span className="text-[13px] font-bold text-foreground">{shift.employee}</span>
                 </div>
-                <div style={{ fontSize: 11, color: c.bg, fontWeight: 600, marginBottom: 5 }}>{cat.name}</div>
-                <div style={{ fontSize: 11, color: "var(--foreground)", fontWeight: 600 }}>
+                <div className="mb-1.5 text-[11px] font-semibold" style={{ color: c.bg }}>{cat.name}</div>
+                <div className="text-[11px] font-semibold text-foreground">
                   {getTimeLabel(shift.date, shift.startH)} – {getTimeLabel(shift.date, shift.endH)}
-                  <span style={{ fontWeight: 400, color: "var(--muted-foreground)", marginLeft: 6 }}>{hrs}</span>
+                  <span className="ml-1.5 font-normal text-muted-foreground">{hrs}</span>
                 </div>
                 {shift.breakStartH !== undefined && (
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 3 }}>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
                     Break: {getTimeLabel(shift.date, shift.breakStartH!)}–{getTimeLabel(shift.date, shift.breakEndH!)}
                   </div>
                 )}
                 {hasConflict && (
-                  <div style={{ marginTop: 7, padding: "4px 8px", borderRadius: 6, background: "var(--destructive)", color: "var(--destructive-foreground)", fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div className="mt-1.5 flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-[10px] font-semibold text-destructive-foreground">
                     <AlertTriangle size={10} />
                     Shift conflict — cannot publish
                   </div>
                 )}
                 {isDraft && !hasConflict && (
-                  <div style={{ marginTop: 5, fontSize: 10, color: "var(--muted-foreground)" }}>Draft — not published</div>
+                  <div className="mt-1.5 text-[10px] text-muted-foreground">Draft — not published</div>
                 )}
               </>
             )}
@@ -4181,38 +4035,19 @@ function GridViewInner({
       {/* Marker label input — shown immediately after placing a marker */}
       {pendingMarker && onMarkersChange && createPortal(
         <div
+          className="fixed z-999999 flex min-w-[180px] flex-col gap-1.5 rounded-lg border border-border bg-popover p-2.5 shadow-lg"
           style={{
-            position: "fixed",
             top: pendingMarker.clientY + 12,
             left: pendingMarker.clientX,
-            zIndex: 999999,
-            background: "var(--popover)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "8px 10px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            minWidth: 180,
           }}
         >
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
+          <span className="text-[11px] font-semibold text-muted-foreground">
             Label this marker (optional)
           </span>
           <input
             autoFocus
             placeholder="e.g. Deadline, Sprint start…"
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 5,
-              padding: "4px 8px",
-              fontSize: 12,
-              background: "var(--background)",
-              color: "var(--foreground)",
-              outline: "none",
-              width: "100%",
-            }}
+            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === "Escape") {
                 const label = (e.target as HTMLInputElement).value.trim()
@@ -4234,7 +4069,7 @@ function GridViewInner({
               setPendingMarker(null)
             }}
           />
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+          <span className="text-[10px] text-muted-foreground">
             Press Enter to confirm · Esc or click away to skip
           </span>
         </div>,
@@ -4244,45 +4079,37 @@ function GridViewInner({
       {/* Grid right-click context menu — right-click on any empty cell */}
       {gridContextMenu && createPortal(
         <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 999998 }} onPointerDown={() => setGridContextMenu(null)} />
-          <div style={{
-            position: "fixed",
-            top: gridContextMenu.clientY + 4,
-            left: gridContextMenu.clientX,
-            zIndex: 999999,
-            background: "var(--popover)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            minWidth: 180,
-            padding: "4px 0",
-            overflow: "hidden",
-          }}>
+          <div className="fixed inset-0 z-999998" onPointerDown={() => setGridContextMenu(null)} />
+          <div
+            className="fixed z-999999 min-w-[180px] overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg"
+            style={{
+              top: gridContextMenu.clientY + 4,
+              left: gridContextMenu.clientX,
+            }}
+          >
             {/* Add shift — always shown, uses customisable label */}
             {!readOnly && (
               <button
-                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, color: "var(--foreground)", textAlign: "left" }}
-                onPointerEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                onPointerLeave={(e) => (e.currentTarget.style.background = "none")}
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
                 onClick={() => {
                   setAddPrompt({ date: gridContextMenu.date, categoryId: gridContextMenu.categoryId, hour: gridContextMenu.hour, employeeId: gridContextMenu.employeeId })
                   setGridContextMenu(null)
                 }}
               >
-                <Plus size={14} style={{ flexShrink: 0, color: "var(--primary)" }} />
+                <Plus size={14} className="shrink-0 text-primary" />
                 {labels.addShift}
               </button>
             )}
             {/* Divider — only shown when both items are visible */}
             {!readOnly && copiedShift && (
-              <div style={{ height: 1, margin: "4px 0", background: "var(--border)" }} />
+              <div className="my-1 h-px bg-border" />
             )}
             {/* Paste — only shown when there is a copied/cut shift */}
             {copiedShift && (
               <button
-                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, color: "var(--foreground)", textAlign: "left" }}
-                onPointerEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                onPointerLeave={(e) => (e.currentTarget.style.background = "none")}
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
                 onClick={() => {
                   const newShift: Block = {
                     ...copiedShift,
@@ -4302,7 +4129,7 @@ function GridViewInner({
                   setGridContextMenu(null)
                 }}
               >
-                <ClipboardPaste size={14} style={{ flexShrink: 0, color: "var(--primary)" }} />
+                <ClipboardPaste size={14} className="shrink-0 text-primary" />
                 Paste shift here
               </button>
             )}
@@ -4314,35 +4141,21 @@ function GridViewInner({
         <>
           {/* Backdrop to close */}
           <div
-            style={{ position: "fixed", inset: 0, zIndex: 999998 }}
+            className="fixed inset-0 z-999998"
             onPointerDown={() => setHeaderPopover(null)}
           />
           <div
+            className="fixed z-999999 min-w-[200px] overflow-hidden rounded-[10px] border border-border bg-popover py-1 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
             style={{
-              position: "fixed",
               top: headerPopover.clientY + 4,
               left: headerPopover.clientX,
-              zIndex: 999999,
-              background: "var(--popover)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-              minWidth: 200,
-              padding: "4px 0",
-              overflow: "hidden",
             }}
           >
             {/* Add Marker */}
             {onMarkersChange && (
               <button
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  width: "100%", padding: "8px 14px", border: "none",
-                  background: "none", cursor: "pointer", fontSize: 13,
-                  color: "var(--foreground)", textAlign: "left",
-                }}
-                onPointerEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                onPointerLeave={(e) => (e.currentTarget.style.background = "none")}
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
                 onClick={() => {
                   const newId = `marker-${Date.now()}`
                   onMarkersChange([...markers, {
@@ -4357,22 +4170,25 @@ function GridViewInner({
                   setHeaderPopover(null)
                 }}
               >
-                <MapPin size={14} style={{ color: "var(--primary)", flexShrink: 0 }} />
+                <MapPin size={14} className="shrink-0 text-primary" />
                 Add marker here
               </button>
             )}
 
             {/* Divider */}
-            <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
+            <div className="my-0.5 h-px bg-border" />
 
             {/* Zoom controls */}
-            <div style={{ padding: "6px 14px 4px", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <div className="px-3.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Zoom
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 8px" }}>
+            <div className="flex items-center gap-2 px-3.5 pb-2 pt-1">
               <ZoomOut
                 size={13}
-                style={{ flexShrink: 0, cursor: zoom <= 0.5 ? "default" : "pointer", opacity: zoom <= 0.5 ? 0.35 : 0.7, color: "var(--foreground)" }}
+                className={cn(
+                  "shrink-0 text-foreground",
+                  zoom <= 0.5 ? "cursor-default opacity-35" : "cursor-pointer opacity-70",
+                )}
                 onClick={() => { if (setZoom && zoom > 0.5) setZoom((z) => Math.max(0.5, z - 0.25)) }}
               />
               <input
@@ -4386,40 +4202,37 @@ function GridViewInner({
                   const level = levels[Number(e.target.value)]
                   if (level !== undefined && setZoom) setZoom(level)
                 }}
-                style={{ flex: 1, height: 4, accentColor: "var(--primary)", cursor: "pointer" }}
+                className="h-1 flex-1 cursor-pointer accent-primary"
               />
               <ZoomIn
                 size={13}
-                style={{ flexShrink: 0, cursor: zoom >= 2 ? "default" : "pointer", opacity: zoom >= 2 ? 0.35 : 0.7, color: "var(--foreground)" }}
+                className={cn(
+                  "shrink-0 text-foreground",
+                  zoom >= 2 ? "cursor-default opacity-35" : "cursor-pointer opacity-70",
+                )}
                 onClick={() => { if (setZoom && zoom < 2) setZoom((z) => Math.min(2, z + 0.25)) }}
               />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", minWidth: 28, textAlign: "right" }}>
+              <span className="min-w-[28px] text-right text-[11px] font-semibold text-muted-foreground">
                 {Math.round(zoom * 100)}%
               </span>
             </div>
 
             {/* Divider */}
-            <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }} />
+            <div className="my-0.5 h-px bg-border" />
 
             {/* Dependencies toggle */}
             {onDependenciesChange && (
               <button
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  width: "100%", padding: "8px 14px", border: "none",
-                  background: "none", cursor: "pointer", fontSize: 13,
-                  color: "var(--foreground)", textAlign: "left",
-                }}
-                onPointerEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-                onPointerLeave={(e) => (e.currentTarget.style.background = "none")}
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
                 onClick={() => {
                   // Toggle: clear all deps or restore — for now just close (deps are always on)
                   setHeaderPopover(null)
                 }}
               >
-                <Link2 size={14} style={{ color: dependencies.length > 0 ? "var(--primary)" : "var(--muted-foreground)", flexShrink: 0 }} />
+                <Link2 size={14} className={cn("shrink-0", dependencies.length > 0 ? "text-primary" : "text-muted-foreground")} />
                 Dependencies
-                <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted-foreground)" }}>
+                <span className="ml-auto text-[11px] text-muted-foreground">
                   {dependencies.length} link{dependencies.length !== 1 ? "s" : ""}
                 </span>
               </button>
@@ -4429,25 +4242,8 @@ function GridViewInner({
         document.body
       )}
       {selectedBlockIds.size > 0 && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 200,
-            background: "var(--background)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 16px",
-            fontSize: 13,
-          }}
-        >
-          <span style={{ fontWeight: 600, color: "var(--foreground)" }}>
+        <div className="fixed bottom-6 left-1/2 z-200 flex -translate-x-1/2 transform items-center gap-2 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] shadow-[0_8px_32px_rgba(0,0,0,0.18)]">
+          <span className="font-semibold text-foreground">
             {selectedBlockIds.size} selected
           </span>
           <button
@@ -4458,32 +4254,14 @@ function GridViewInner({
               ))
               setSelectedBlockIds(new Set())
             }}
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-foreground)",
-              border: "none",
-              borderRadius: 6,
-              padding: "4px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-md border-none bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
           >
             Publish
           </button>
           <button
             type="button"
             onClick={deleteSelectedBlocks}
-            style={{
-              background: "var(--destructive)",
-              color: "var(--destructive-foreground)",
-              border: "none",
-              borderRadius: 6,
-              padding: "4px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-md border-none bg-destructive px-3 py-1 text-xs font-semibold text-destructive-foreground"
           >
             Delete
           </button>
@@ -4491,16 +4269,7 @@ function GridViewInner({
             type="button"
             onClick={() => moveSelectedBlocks(-1)}
             title="Move selected back 1 day"
-            style={{
-              background: "var(--secondary)",
-              color: "var(--secondary-foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-md border border-border bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground"
           >
             ← Day
           </button>
@@ -4508,31 +4277,14 @@ function GridViewInner({
             type="button"
             onClick={() => moveSelectedBlocks(1)}
             title="Move selected forward 1 day"
-            style={{
-              background: "var(--secondary)",
-              color: "var(--secondary-foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-md border border-border bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground"
           >
             Day →
           </button>
           <button
             type="button"
             onClick={() => setSelectedBlockIds(new Set())}
-            style={{
-              background: "transparent",
-              color: "var(--muted-foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
+            className="cursor-pointer rounded-md border border-border bg-transparent px-2.5 py-1 text-xs text-muted-foreground"
           >
             Clear
           </button>
@@ -4563,49 +4315,24 @@ function GridViewInner({
 
       {shiftToDeleteConfirm && onDeleteShift && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.4)",
-            backdropFilter: "blur(3px)",
-          }}
+          className="fixed inset-0 z-10000 flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
           onClick={() => setShiftToDeleteConfirm(null)}
         >
           <div
-            style={{
-              background: "var(--background)",
-              borderRadius: 12,
-              padding: 20,
-              maxWidth: 340,
-              boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
-              border: "1px solid var(--border)",
-            }}
+            className="max-w-[340px] rounded-xl border border-border bg-background p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: "var(--foreground)" }}>
+            <div className="mb-2 text-base font-bold text-foreground">
               Delete shift?
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 16 }}>
+            <div className="mb-4 text-[13px] text-muted-foreground">
               This shift will be removed. This cannot be undone.
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShiftToDeleteConfirm(null)}
-                style={{
-                  padding: "8px 16px",
-                  background: "var(--muted)",
-                  color: "var(--foreground)",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                className="cursor-pointer rounded-lg border-none bg-muted px-4 py-2 text-[13px] font-semibold text-foreground"
               >
                 Cancel
               </button>
@@ -4625,16 +4352,7 @@ function GridViewInner({
                     })
                   }, 150)
                 }}
-                style={{
-                  padding: "8px 16px",
-                  background: "var(--destructive)",
-                  color: "var(--destructive-foreground)",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                className="cursor-pointer rounded-lg border-none bg-destructive px-4 py-2 text-[13px] font-semibold text-destructive-foreground"
               >
                 Delete
               </button>

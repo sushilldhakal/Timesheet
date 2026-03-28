@@ -77,5 +77,5 @@ export const templateCreateResponseSchema = z.object({
 })
 
 export const templateQuerySchema = z.object({
-  organizationId: mongoIdSchema,
+  organizationId: mongoIdSchema.optional(),
 })

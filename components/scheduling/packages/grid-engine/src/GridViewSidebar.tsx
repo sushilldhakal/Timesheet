@@ -5,6 +5,7 @@ import { useSchedulerContext } from '@shadcn-scheduler/shell';
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils/cn";
 import type { StaffPanelState, AddPromptState } from "./GridView";
+import { employeesForCategory } from "./hooks/useFlatRows";
 
 export interface GridViewSidebarProps {
   sidebarCollapsed: boolean;
@@ -263,8 +264,10 @@ export function GridViewSidebar({
               (sum, s) => sum + (s.endH - s.startH),
               0,
             );
-            const staffCount = ALL_EMPLOYEES.filter(
-              (e) => e.categoryId === cat.id,
+            const staffCount = employeesForCategory(
+              cat.id,
+              ALL_EMPLOYEES,
+              visibleShifts,
             ).length;
             const hoursCapacity = 40;
             const hoursPercent = Math.min(
@@ -511,14 +514,18 @@ export function GridViewSidebar({
         <div className="absolute bottom-0 left-3 top-0 w-0.5 bg-border" />
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — absolute to sidebar column (fixed + left: sidebarWidth was viewport-relative and misaligned) */}
       <div
-        className="fixed top-1/2 z-50 -translate-y-1/2 transition-[left] duration-150 ease-out"
-        style={{ left: sidebarCollapsed ? 8 : sidebarWidth - 4 }}
+        className={cn(
+          "absolute top-1/2 z-50 -translate-y-1/2 transition-[left,transform] duration-150 ease-out",
+          sidebarCollapsed ? "left-2" : "left-full -translate-x-1/2",
+        )}
       >
         <button
+          type="button"
           onClick={toggleSidebar}
           className="flex h-7 w-4 cursor-pointer items-center justify-center rounded-r-lg border border-l-0 border-border bg-background p-0 text-muted-foreground shadow-sm transition-colors duration-150 hover:bg-accent hover:text-foreground"
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {sidebarCollapsed ? (
             <ChevronsRight size={10} />

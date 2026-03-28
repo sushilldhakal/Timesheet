@@ -5,6 +5,11 @@ import { HOURS, fmtHourOpt, toDateISO } from '@shadcn-scheduler/core'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon, Clock } from "lucide-react"
+import { cn } from "@/lib/utils/cn"
+
+const LBL = "mb-1 block text-[11px] font-semibold text-muted-foreground"
+const SEL =
+  "w-full min-w-0 cursor-pointer rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none"
 
 interface AddShiftModalProps {
   date: Date
@@ -13,16 +18,6 @@ interface AddShiftModalProps {
   prefillStartH?: number
   onAdd: (block: Block) => void
   onClose: () => void
-}
-
-const LBL: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600,
-  color: "var(--muted-foreground)", marginBottom: 4,
-}
-const SEL: React.CSSProperties = {
-  width: "100%", padding: "6px 8px", border: "1px solid var(--border)",
-  borderRadius: 7, fontSize: 12, color: "var(--foreground)",
-  background: "var(--background)", cursor: "pointer", outline: "none",
 }
 
 function fmtDate(d: Date): string {
@@ -118,7 +113,7 @@ export function AddShiftModal({
 
           {/* Date picker */}
           <div>
-            <label style={LBL}>{"Date"}</label>
+            <label className={LBL}>{"Date"}</label>
             <Popover open={dateOpen} onOpenChange={setDateOpen}>
               <PopoverTrigger asChild>
                 <button className="flex items-center gap-2 w-full px-2.5 py-[7px] border rounded-md bg-background cursor-pointer text-[13px] text-foreground text-left">
@@ -138,37 +133,37 @@ export function AddShiftModal({
 
           {/* Category */}
           <div>
-            <label style={LBL}>{labels.category}</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} style={SEL}>
+            <label className={LBL}>{labels.category}</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={SEL}>
               {categories.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
 
           {/* Employee */}
           <div>
-            <label style={LBL}>{labels.employee}</label>
-            <select value={emp} onChange={(e) => setEmp(e.target.value)} style={SEL}>
+            <label className={LBL}>{labels.employee}</label>
+            <select value={emp} onChange={(e) => setEmp(e.target.value)} className={SEL}>
               {categoryEmployees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
 
           {/* Time */}
           <div>
-            <label style={LBL}>Time</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select value={startH} onChange={(e) => setSH(+e.target.value)} style={{ ...SEL, flex: 1 }}>
+            <label className={LBL}>Time</label>
+            <div className="flex gap-2">
+              <select value={startH} onChange={(e) => setSH(+e.target.value)} className={cn(SEL, "flex-1")}>
                 {HOURS.map((h) => <option key={h} value={h}>{fmtHourOpt(h)}</option>)}
               </select>
-              <span style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--muted-foreground)", flexShrink: 0 }}>to</span>
-              <select value={endH} onChange={(e) => setEH(+e.target.value)} style={{ ...SEL, flex: 1 }}>
+              <span className="flex shrink-0 items-center text-xs text-muted-foreground">to</span>
+              <select value={endH} onChange={(e) => setEH(+e.target.value)} className={cn(SEL, "flex-1")}>
                 {HOURS.filter((h) => h > startH).map((h) => <option key={h} value={h}>{fmtHourOpt(h)}</option>)}
               </select>
             </div>
           </div>
 
           {/* Break section */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+          <div className="border-t border-border pt-3">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-foreground">
               <input
                 type="checkbox" checked={hasBreak}
                 onChange={(e) => setHasBreak(e.target.checked)}
@@ -178,8 +173,8 @@ export function AddShiftModal({
             </label>
 
             {hasBreak && (
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--muted-foreground)" }}>
+              <div className="mt-2.5 flex flex-col gap-2.5">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
                   <input
                     type="checkbox" checked={splitShift}
                     onChange={(e) => setSplitShift(e.target.checked)}
@@ -189,18 +184,18 @@ export function AddShiftModal({
                 </label>
 
                 {splitShift ? (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={LBL}>Break start</label>
-                      <select value={breakStartH} onChange={(e) => setBreakSH(+e.target.value)} style={SEL}>
+                  <div className="flex gap-2">
+                    <div className="min-w-0 flex-1">
+                      <label className={LBL}>Break start</label>
+                      <select value={breakStartH} onChange={(e) => setBreakSH(+e.target.value)} className={SEL}>
                         {HOURS.filter((h) => h > startH && h < endH).map((h) => (
                           <option key={h} value={h}>{fmtHourOpt(h)}</option>
                         ))}
                       </select>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={LBL}>Break end</label>
-                      <select value={breakEndH} onChange={(e) => setBreakEH(+e.target.value)} style={SEL}>
+                    <div className="min-w-0 flex-1">
+                      <label className={LBL}>Break end</label>
+                      <select value={breakEndH} onChange={(e) => setBreakEH(+e.target.value)} className={SEL}>
                         {HOURS.filter((h) => h > breakStartH && h < endH).map((h) => (
                           <option key={h} value={h}>{fmtHourOpt(h)}</option>
                         ))}
@@ -209,8 +204,8 @@ export function AddShiftModal({
                   </div>
                 ) : (
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label style={{ ...LBL, marginBottom: 0 }}>Break duration</label>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className={cn(LBL, "mb-0")}>Break duration</label>
                       <span style={{ fontSize: 12, fontWeight: 700, color: c.bg }}>
                         {breakDurMin >= 60 ? `${(breakDurMin / 60).toFixed(breakDurMin % 60 === 0 ? 0 : 1)}h` : `${breakDurMin}m`}
                       </span>
@@ -220,7 +215,7 @@ export function AddShiftModal({
                       onChange={(e) => setBreakDurMin(Number(e.target.value))}
                       style={{ width: "100%", accentColor: c.bg, cursor: "pointer" }}
                     />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                       {["15m", "30m", "45m", "1h", "1.5h", "2h"].map((l) => <span key={l}>{l}</span>)}
                     </div>
                   </div>
@@ -230,28 +225,26 @@ export function AddShiftModal({
           </div>
 
           {/* Summary */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: "var(--muted)", fontSize: 12 }}>
-            <Clock size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
-            <span style={{ color: "var(--foreground)", fontWeight: 600 }}>{timeDisplay()}</span>
-            <span style={{ marginLeft: "auto", color: "var(--muted-foreground)", fontWeight: 500, flexShrink: 0 }}>
+          <div className="flex items-center gap-2 rounded-lg bg-muted px-2.5 py-2 text-xs">
+            <Clock size={14} className="shrink-0 text-muted-foreground" />
+            <span className="font-semibold text-foreground">{timeDisplay()}</span>
+            <span className="ml-auto shrink-0 font-medium text-muted-foreground">
               {workedHours.toFixed(1)}h
             </span>
           </div>
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="flex gap-2">
             <button
               onClick={submit}
-              style={{
-                flex: 1, padding: "9px", background: c.bg, color: "rgba(255,255,255,0.95)",
-                border: "none", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: "pointer",
-              }}
+              className="flex-1 cursor-pointer rounded-lg border-none py-2 text-[13px] font-bold text-white/95"
+              style={{ background: c.bg }}
             >
               {labels.addShift}
             </button>
             <button
               onClick={onClose}
-              style={{ padding: "9px 14px", background: "var(--muted)", color: "var(--foreground)", border: "none", borderRadius: 9, fontSize: 13, cursor: "pointer" }}
+              className="cursor-pointer rounded-lg border-none bg-muted px-3.5 py-2 text-[13px] text-foreground"
             >
               Cancel
             </button>

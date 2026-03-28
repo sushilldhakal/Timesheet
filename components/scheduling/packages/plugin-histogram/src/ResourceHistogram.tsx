@@ -1,10 +1,11 @@
 import React from 'react'
+import { cn } from '@/lib/utils/cn'
 import type { HistogramBar } from './useHistogram'
 
-const STATUS_COLOR: Record<HistogramBar['status'], string> = {
-  ok: '#10b981',
-  warning: '#f59e0b',
-  over: '#ef4444',
+const STATUS_BAR: Record<HistogramBar['status'], string> = {
+  ok: 'bg-emerald-500',
+  warning: 'bg-amber-500',
+  over: 'bg-red-500',
 }
 
 export interface ResourceHistogramProps {
@@ -26,51 +27,34 @@ export function ResourceHistogram({
 
   return (
     <div
-      className={className}
-      style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: 4,
-        padding: '8px 12px',
-        borderTop: '1px solid var(--border)',
-        overflowX: 'auto',
-        ...style,
-      }}
+      className={cn(
+        'flex items-end gap-1 overflow-x-auto border-t border-border px-3 py-2',
+        className
+      )}
+      style={style}
     >
       {bars.map(({ resource, scheduledHours, capacityHours, utilizationPct, status }) => {
         const barH = Math.min((utilizationPct / 100) * height, height + 8)
-        const color = STATUS_COLOR[status]
         return (
           <div
             key={resource.id}
             title={`${resource.name}: ${scheduledHours.toFixed(1)}h / ${capacityHours}h (${Math.round(utilizationPct)}%)`}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 28 }}
+            className="flex min-w-[28px] flex-col items-center gap-0.5"
           >
             <div
-              style={{
-                width: 20,
-                height,
-                background: 'var(--border)',
-                borderRadius: 3,
-                position: 'relative',
-                overflow: 'hidden',
-              }}
+              className="relative w-5 overflow-hidden rounded-[3px] bg-border"
+              style={{ height }}
             >
               <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: barH,
-                  background: color,
-                  borderRadius: 3,
-                  transition: 'height 0.3s ease',
-                }}
+                className={cn(
+                  'absolute right-0 bottom-0 left-0 rounded-[3px] transition-[height] duration-300 ease-out',
+                  STATUS_BAR[status]
+                )}
+                style={{ height: barH }}
               />
             </div>
             {showLabels && (
-              <span style={{ fontSize: 9, color: 'var(--muted-foreground)', textAlign: 'center', maxWidth: 36, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span className="max-w-[36px] truncate text-center text-[9px] text-muted-foreground">
                 {resource.name.split(' ')[0]}
               </span>
             )}

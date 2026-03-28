@@ -119,49 +119,51 @@ export function DayView({
   }, [shifts, dates])
 
   return (
-    <GridView
-      dates={dates}
-      shifts={visibleShifts}
-      setShifts={setShifts}
-      selEmps={selEmps}
-      onShiftClick={onShiftClick}
-      onAddShift={onAddShift}
-      isWeekView={false}
-      setDate={setDate}
-      isDayViewMultiDay={!!setDate && dates.length > 1}
-      focusedDate={date}
-      copiedShift={copiedShift}
-      setCopiedShift={setCopiedShift}
-      zoom={zoom}
-      onVisibleRangeChange={onVisibleRangeChange}
-      prefetchThreshold={prefetchThreshold}
-      onDeleteShift={onDeleteShift}
-      scrollToNowRef={scrollToNowRef}
-      initialScrollToNow={initialScrollToNow}
-      onSwipeNavigate={onSwipeNavigate}
-      setZoom={setZoom}
-      isLoading={isLoading}
-      mobileResourceIndex={isMobile ? mobileResourceIndex : undefined}
-      onMobileResourceChange={
-        isMobile
-          ? (dir) => setMobileResourceIndex((i) => clamp(i + dir, 0, categories.length - 1))
-          : undefined
-      }
-      onNavigate={onNavigate}
-      onBlockMoved={onBlockMoved}
-      onFocusedBlockChange={onFocusedBlockChange}
-      readOnly={readOnly}
-      onBlockCreate={onBlockCreate}
-      onBlockDelete={onBlockDelete}
-      onBlockMove={onBlockMove}
-      onBlockResize={onBlockResize}
-      onBlockPublish={onBlockPublish}
-      markers={markers}
-      onMarkersChange={onMarkersChange}
-      dependencies={dependencies}
-      onDependenciesChange={onDependenciesChange}
-      availability={availability}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <GridView
+        dates={dates}
+        shifts={visibleShifts}
+        setShifts={setShifts}
+        selEmps={selEmps}
+        onShiftClick={onShiftClick}
+        onAddShift={onAddShift}
+        isWeekView={false}
+        setDate={setDate}
+        isDayViewMultiDay={!!setDate && dates.length > 1}
+        focusedDate={date}
+        copiedShift={copiedShift}
+        setCopiedShift={setCopiedShift}
+        zoom={zoom}
+        onVisibleRangeChange={onVisibleRangeChange}
+        prefetchThreshold={prefetchThreshold}
+        onDeleteShift={onDeleteShift}
+        scrollToNowRef={scrollToNowRef}
+        initialScrollToNow={initialScrollToNow}
+        onSwipeNavigate={onSwipeNavigate}
+        setZoom={setZoom}
+        isLoading={isLoading}
+        mobileResourceIndex={isMobile ? mobileResourceIndex : undefined}
+        onMobileResourceChange={
+          isMobile
+            ? (dir) => setMobileResourceIndex((i) => clamp(i + dir, 0, categories.length - 1))
+            : undefined
+        }
+        onNavigate={onNavigate}
+        onBlockMoved={onBlockMoved}
+        onFocusedBlockChange={onFocusedBlockChange}
+        readOnly={readOnly}
+        onBlockCreate={onBlockCreate}
+        onBlockDelete={onBlockDelete}
+        onBlockMove={onBlockMove}
+        onBlockResize={onBlockResize}
+        onBlockPublish={onBlockPublish}
+        markers={markers}
+        onMarkersChange={onMarkersChange}
+        dependencies={dependencies}
+        onDependenciesChange={onDependenciesChange}
+        availability={availability}
+      />
+    </div>
   )
 }
 

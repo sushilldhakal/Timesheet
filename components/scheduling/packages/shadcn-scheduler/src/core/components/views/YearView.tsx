@@ -2,6 +2,7 @@ import React from "react"
 import type { Block } from "../../types"
 import { useSchedulerContext } from "../../context"
 import { isToday, getDIM, getFirst, MONTHS } from "../../constants"
+import { cn } from "@/lib/utils/cn"
 
 interface YearViewProps {
   date: Date
@@ -15,31 +16,15 @@ function YearViewInner({ date, shifts, onMonthClick }: YearViewProps): React.Rea
 
   if (shifts.length === 0 && slots.emptyState) {
     return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="flex flex-1 items-center justify-center">
         {slots.emptyState({ view: "year" })}
       </div>
     )
   }
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>): void => {
-    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"
-    e.currentTarget.style.transform = "translateY(-2px)"
-  }
-
-  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>): void => {
-    e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)"
-    e.currentTarget.style.transform = "translateY(0)"
-  }
-
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-          gap: 16,
-        }}
-      >
+    <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
         {MONTHS.map((mName, m) => {
           const days = getDIM(year, m)
           const first = getFirst(year, m)
@@ -56,49 +41,19 @@ function YearViewInner({ date, shifts, onMonthClick }: YearViewProps): React.Rea
             <div
               key={m}
               onClick={() => onMonthClick(year, m)}
-              style={{
-                background: "var(--background)",
-                borderRadius: 12,
-                border: "1px solid var(--border)",
-                padding: "12px",
-                cursor: "pointer",
-                transition: "box-shadow 0.15s,transform 0.15s",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-              }}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
+              className="cursor-pointer rounded-xl border border-border bg-background p-3 shadow-sm transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 8 }}>{mName}</div>
+              <div className="mb-2 text-[13px] font-bold text-foreground">{mName}</div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7,1fr)",
-                  marginBottom: 2,
-                }}
-              >
-                {"MTWTFSS".split("").map((c, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      textAlign: "center",
-                      fontSize: 8,
-                      color: "var(--muted-foreground)",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {c}
+              <div className="mb-0.5 grid grid-cols-7">
+                {"MTWTFSS".split("").map((ch, i) => (
+                  <div key={i} className="text-center text-[8px] font-bold text-muted-foreground">
+                    {ch}
                   </div>
                 ))}
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7,1fr)",
-                  gap: 1,
-                }}
-              >
+              <div className="grid grid-cols-7 gap-px">
                 {cells.map((d, i) => {
                   if (!d) return <div key={`e${i}`} />
                   const has = ms.some((s) => new Date(s.date + "T12:00:00").getDate() === d)
@@ -106,15 +61,12 @@ function YearViewInner({ date, shifts, onMonthClick }: YearViewProps): React.Rea
                   return (
                     <div
                       key={d}
-                      style={{
-                        textAlign: "center",
-                        fontSize: 9,
-                        fontWeight: tod || has ? 700 : 400,
-                        color: tod ? "var(--background)" : has ? "var(--primary-foreground)" : "var(--muted-foreground)",
-                        background: tod ? "var(--primary)" : has ? "var(--primary)" : "transparent",
-                        borderRadius: 2,
-                        lineHeight: "16px",
-                      }}
+                      className={cn(
+                        "rounded-sm text-center text-[9px] leading-4",
+                        tod || has
+                          ? "bg-primary font-bold text-primary-foreground"
+                          : "font-normal text-muted-foreground",
+                      )}
                     >
                       {d}
                     </div>
@@ -122,25 +74,25 @@ function YearViewInner({ date, shifts, onMonthClick }: YearViewProps): React.Rea
                 })}
               </div>
 
-              <div
-                style={{
-                  marginTop: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
+              <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <div
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      background: ms.length > 0 ? "var(--primary)" : "var(--muted-foreground)",
-                    }}
+                    className={cn(
+                      "h-1.5 w-1.5 shrink-0 rounded-full",
+                      ms.length > 0 ? "bg-primary" : "bg-muted-foreground",
+                    )}
                   />
-                  <span className={ms.length > 0 ? "text-foreground" : "text-muted-foreground"} style={{ fontSize: 10 }}>{ms.length} shifts</span>
+                  <span
+                    className={cn(
+                      "text-[10px]",
+                      ms.length > 0 ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {ms.length} shifts
+                  </span>
                 </div>
                 {ms.filter((s) => s.status === "draft").length > 0 && (
-                  <span style={{ fontSize: 9, color: "var(--accent-foreground)", fontWeight: 600 }}>
+                  <span className="text-[9px] font-semibold text-accent-foreground">
                     {ms.filter((s) => s.status === "draft").length} draft
                   </span>
                 )}

@@ -1,6 +1,7 @@
 import React, { useMemo } from "react"
 import { useSchedulerContext } from "../context"
 import type { Block, HistogramConfig } from "../types"
+import { cn } from "../lib/utils"
 
 interface ResourceHistogramProps {
   shifts: Block[]
@@ -64,39 +65,19 @@ function ResourceHistogramInner({
   if (rows.length === 0) return null
 
   const BAR_H = 18
-  const LABEL_W = 120
-  const PADDING = 10
-  const innerH = height - PADDING * 2
-
   return (
     <div
-      style={{
-        height,
-        borderTop: "1px solid var(--border)",
-        background: "var(--muted)",
-        overflowY: "auto",
-        overflowX: "hidden",
-        padding: `${PADDING}px 12px`,
-        flexShrink: 0,
-      }}
+      className="shrink-0 overflow-x-hidden overflow-y-auto border-t border-border bg-muted px-3 py-2.5"
+      style={{ height }}
       aria-label="Resource utilisation histogram"
     >
       {/* Header */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: "var(--muted-foreground)",
-          marginBottom: 8,
-        }}
-      >
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
         Resource Utilisation
       </div>
 
       {/* Bars */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         {rows.map((row) => {
           const pct = Math.min(row.hours / maxHours, 1)
           const capPct = row.capacity != null ? Math.min(row.capacity / maxHours, 1) : null
@@ -120,19 +101,10 @@ function ResourceHistogramInner({
           }
 
           return (
-            <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div key={row.id} className="flex items-center gap-2">
               {/* Label */}
               <div
-                style={{
-                  width: LABEL_W,
-                  flexShrink: 0,
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "var(--foreground)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+                className="w-[120px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-foreground"
                 title={row.label}
               >
                 {row.label}
@@ -140,77 +112,40 @@ function ResourceHistogramInner({
 
               {/* Bar track */}
               <div
-                style={{
-                  flex: 1,
-                  height: BAR_H,
-                  background: "var(--background)",
-                  borderRadius: 4,
-                  border: "1px solid var(--border)",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
+                className="relative flex-1 overflow-hidden rounded border border-border bg-background"
+                style={{ height: BAR_H }}
               >
                 {/* Fill bar */}
                 <div
+                  className="absolute left-0 top-0 h-full rounded transition-[width] duration-300 ease-out"
                   style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    height: "100%",
                     width: `${pct * 100}%`,
                     background: barColor,
-                    borderRadius: 4,
-                    transition: "width 0.3s ease",
                     opacity: barOpacity,
                   }}
                 />
                 {/* Over-capacity indicator — red right border */}
                 {overCapacity && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 3,
-                      background: "var(--destructive)",
-                      borderRadius: "0 4px 4px 0",
-                    }}
-                  />
+                  <div className="absolute top-0 right-0 bottom-0 w-[3px] rounded-r bg-destructive" />
                 )}
                 {/* Capacity marker line */}
                 {capPct != null && (
                   <div
-                    style={{
-                      position: "absolute",
-                      left: `${capPct * 100}%`,
-                      top: 0,
-                      bottom: 0,
-                      width: 2,
-                      background: "var(--foreground)",
-                      opacity: 0.4,
-                    }}
+                    className="absolute top-0 bottom-0 w-0.5 bg-foreground/40"
+                    style={{ left: `${capPct * 100}%` }}
                     title={`Capacity: ${row.capacity}h`}
                   />
                 )}
                 {/* Hours label inside bar */}
                 <div
-                  style={{
-                    position: "absolute",
-                    right: 6,
-                    top: 0,
-                    bottom: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: pct > 0.5 ? "rgba(255,255,255,0.9)" : "var(--muted-foreground)",
-                    pointerEvents: "none",
-                  }}
+                  className={cn(
+                    "pointer-events-none absolute top-0 right-1.5 bottom-0 flex items-center text-[10px] font-semibold",
+                    pct > 0.5 ? "text-white/90" : "text-muted-foreground"
+                  )}
                 >
                   {row.hours.toFixed(1)}h
                   {row.capacity != null && (
-                    <span style={{ opacity: 0.7, marginLeft: 2 }}>/ {row.capacity}h</span>
+                    <span className="ml-0.5 opacity-70">/ {row.capacity}h</span>
                   )}
                 </div>
               </div>

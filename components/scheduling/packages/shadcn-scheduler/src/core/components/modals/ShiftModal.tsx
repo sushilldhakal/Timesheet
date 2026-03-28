@@ -6,6 +6,11 @@ import { findConflicts } from "../../utils/packing"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils/cn"
+
+const LBL = "mb-1 block text-[11px] font-semibold text-muted-foreground"
+const SEL =
+  "w-full min-w-0 cursor-pointer rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none"
 
 interface ShiftModalProps {
   shift: Block | null
@@ -17,16 +22,6 @@ interface ShiftModalProps {
   variant?: "modal" | "sheet"
   allShifts?: Block[]
   onUpdate?: (updated: Block) => void
-}
-
-const LBL: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600,
-  color: "var(--muted-foreground)", marginBottom: 4,
-}
-const SEL: React.CSSProperties = {
-  width: "100%", padding: "6px 8px", border: "1px solid var(--border)",
-  borderRadius: 7, fontSize: 12, color: "var(--foreground)",
-  background: "var(--background)", cursor: "pointer", outline: "none",
 }
 
 function fmtDate(d: Date): string {
@@ -173,7 +168,7 @@ export function ShiftModal({
 
         {/* Date — popover picker, not inline calendar */}
         <div>
-          <label style={LBL}>Date</label>
+          <label className={LBL}>Date</label>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
             <PopoverTrigger asChild>
               <button className="flex items-center gap-2 w-full px-2.5 py-[7px] border rounded-md bg-background cursor-pointer text-[13px] text-foreground text-left">
@@ -198,16 +193,16 @@ export function ShiftModal({
 
         {/* Category — moved here so order is: Date → Category → Time → Break */}
         <div>
-          <label style={LBL}>Category</label>
-          <select value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })} style={SEL}>
+          <label className={LBL}>Category</label>
+          <select value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })} className={SEL}>
             {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
           </select>
         </div>
 
         {/* Start / End time */}
         <div>
-          <label style={LBL}>Time</label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label className={LBL}>Time</label>
+          <div className="flex items-center gap-2">
             <select
               value={draft.startH}
               onChange={(e) => {
@@ -215,18 +210,18 @@ export function ShiftModal({
                 const next = { ...draft, startH: v, endH: Math.max(v + SNAP, draft.endH) }
                 setDraft(next); validate(next)
               }}
-              style={{ ...SEL, flex: 1 }}
+              className={cn(SEL, "flex-1")}
             >
               {hourOptions.map((h) => <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>)}
             </select>
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)", flexShrink: 0 }}>to</span>
+            <span className="shrink-0 text-xs text-muted-foreground">to</span>
             <select
               value={draft.endH}
               onChange={(e) => {
                 const v = Number(e.target.value)
                 setDraft({ ...draft, endH: v }); validate({ ...draft, endH: v })
               }}
-              style={{ ...SEL, flex: 1 }}
+              className={cn(SEL, "flex-1")}
             >
               {hourOptions.filter((h) => h > draft.startH).map((h) => (
                 <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
@@ -234,13 +229,13 @@ export function ShiftModal({
             </select>
           </div>
           {(errors.startH || errors.endH) && (
-            <div style={{ fontSize: 11, color: "var(--destructive)", marginTop: 4 }}>{errors.startH || errors.endH}</div>
+            <div className="mt-1 text-[11px] text-destructive">{errors.startH || errors.endH}</div>
           )}
         </div>
 
         {/* Break section */}
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 0 }}>
+        <div className="border-t border-border pt-3">
+          <label className="mb-0 flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-foreground">
             <input
               type="checkbox" checked={hasBreak}
               onChange={(e) => setHasBreak(e.target.checked)}
@@ -250,8 +245,8 @@ export function ShiftModal({
           </label>
 
           {hasBreak && (
-            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--muted-foreground)" }}>
+            <div className="mt-2.5 flex flex-col gap-2.5">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
                 <input
                   type="checkbox" checked={splitShift}
                   onChange={(e) => setSplitShift(e.target.checked)}
@@ -261,18 +256,18 @@ export function ShiftModal({
               </label>
 
               {splitShift ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={LBL}>Break start</label>
-                    <select value={breakStartH} onChange={(e) => setBreakStartH(Number(e.target.value))} style={SEL}>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <label className={LBL}>Break start</label>
+                    <select value={breakStartH} onChange={(e) => setBreakStartH(Number(e.target.value))} className={SEL}>
                       {hourOptions.filter((h) => h > draft.startH && h < draft.endH).map((h) => (
                         <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
                       ))}
                     </select>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={LBL}>Break end</label>
-                    <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} style={SEL}>
+                  <div className="min-w-0 flex-1">
+                    <label className={LBL}>Break end</label>
+                    <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} className={SEL}>
                       {hourOptions.filter((h) => h > breakStartH && h < draft.endH).map((h) => (
                         <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
                       ))}
@@ -281,8 +276,8 @@ export function ShiftModal({
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <label style={{ ...LBL, marginBottom: 0 }}>Break duration</label>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className={cn(LBL, "mb-0")}>Break duration</label>
                     <span style={{ fontSize: 12, fontWeight: 700, color: c.bg }}>
                       {breakDurMin >= 60 ? `${(breakDurMin / 60).toFixed(breakDurMin % 60 === 0 ? 0 : 1)}h` : `${breakDurMin}m`}
                     </span>
@@ -292,7 +287,7 @@ export function ShiftModal({
                     onChange={(e) => setBreakDurMin(Number(e.target.value))}
                     style={{ width: "100%", accentColor: c.bg, cursor: "pointer" }}
                   />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                     {["15m", "30m", "45m", "1h", "1.5h", "2h"].map((l) => <span key={l}>{l}</span>)}
                   </div>
                 </div>
@@ -366,7 +361,7 @@ export function ShiftModal({
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(3px)" }}
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
     >
       {content}
     </div>

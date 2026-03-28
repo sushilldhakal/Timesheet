@@ -1,56 +1,60 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { assertManagerSchedulingScope } from "@/lib/auth/scheduling-scope"
 import { connectDB } from "@/lib/db"
-import { AutoFillEngine, EmploymentType } from "@/lib/managers/auto-fill-engine"
+import { AutoFillEngine } from "@/lib/managers/auto-fill-engine"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { 
+import {
   weekIdParamSchema,
   autoFillRequestSchema,
-  autoFillResponseSchema
+  autoFillResponseSchema,
 } from "@/lib/validations/roster-operations"
 import { errorResponseSchema } from "@/lib/validations/auth"
 
 export const POST = createApiRoute({
-  method: 'POST',
-  path: '/api/rosters/{weekId}/auto-fill',
-  summary: 'Auto-fill roster',
-  description: 'Auto-fill roster with shifts based on employee schedules',
-  tags: ['Rosters'],
-  security: 'adminAuth',
+  method: "POST",
+  path: "/api/rosters/{weekId}/auto-fill",
+  summary: "Auto-fill roster",
+  description: "Auto-fill roster with shifts for a location and managed roles",
+  tags: ["Rosters"],
+  security: "adminAuth",
   request: {
     params: weekIdParamSchema,
-    body: autoFillRequestSchema
+    body: autoFillRequestSchema,
   },
   responses: {
     200: autoFillResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
-    500: errorResponseSchema
+    403: errorResponseSchema,
+    500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } };
+      return { status: 401, data: { error: "Unauthorized" } }
     }
 
     if (!params || !body) {
-      return { status: 400, data: { error: "Week ID and request body are required" } };
+      return { status: 400, data: { error: "Week ID and request body are required" } }
     }
 
-    const { weekId } = params!;
-    const { organizationId, employmentTypes, validateAvailability, validateCompliance } = body!;
+    const { weekId } = params
+    const { locationId, managedRoles, employmentTypes } = body
 
-    // Default to FULL_TIME and PART_TIME if not specified
-    const types: EmploymentType[] = employmentTypes || ["FULL_TIME", "PART_TIME"]
+    const scope = await assertManagerSchedulingScope(ctx, locationId, managedRoles)
+    if (!scope.ok) {
+      return { status: scope.status, data: { error: scope.error } }
+    }
+
+    const types = employmentTypes || ["FULL_TIME", "PART_TIME"]
 
     try {
       await connectDB()
 
-      // Find or create the roster
       const { Roster } = await import("@/lib/db")
       let roster = await Roster.findOne({ weekId })
 
       if (!roster) {
-        // Create a new roster for this week
         const { getWeekBoundaries } = await import("@/lib/db/schemas/roster")
         const { start, end } = getWeekBoundaries(weekId)
         const [yearStr, weekStr] = weekId.split("-W")
@@ -69,7 +73,8 @@ export const POST = createApiRoute({
       const autoFillEngine = new AutoFillEngine()
       const result = await autoFillEngine.fillRoster(
         roster._id.toString(),
-        organizationId,
+        locationId,
+        managedRoles,
         types
       )
 
@@ -80,11 +85,12 @@ export const POST = createApiRoute({
           failureCount: result.failureCount,
           skippedCount: result.skippedCount,
           violations: result.violations,
-        }
-      };
+          skippedEmployees: result.skippedEmployees,
+        },
+      }
     } catch (err) {
       console.error("[api/rosters/[weekId]/auto-fill POST]", err)
-      return { status: 500, data: { error: "Failed to auto-fill roster" } };
+      return { status: 500, data: { error: "Failed to auto-fill roster" } }
     }
-  }
-});
+  },
+})

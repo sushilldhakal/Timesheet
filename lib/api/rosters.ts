@@ -115,11 +115,50 @@ export async function deleteShift(weekId: string, shiftId: string): Promise<ApiR
   return response.json()
 }
 
-// Publish a roster
-export async function publishRoster(weekId: string): Promise<ApiResponse<RosterWeek>> {
+/** Publish only shifts matching location + roles (shift-level status). */
+export async function publishRosterScoped(
+  weekId: string,
+  body: { locationId: string; roleIds: string[] }
+): Promise<ApiResponse<RosterWeek & { publishedCount?: number }>> {
   const response = await fetch(`${BASE_URL}/${weekId}/publish`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  return response.json()
+}
+
+/** Legacy: publish entire roster document status (PUT). */
+export async function publishRosterAll(weekId: string): Promise<ApiResponse<RosterWeek>> {
+  const response = await fetch(`${BASE_URL}/${weekId}/publish`, {
+    method: 'PUT',
+    credentials: 'include',
+  })
+  return response.json()
+}
+
+export async function autoFillRoster(
+  weekId: string,
+  body: {
+    locationId: string
+    managedRoles: string[]
+    employmentTypes?: Array<"FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT">
+  }
+): Promise<
+  ApiResponse<{
+    successCount: number
+    failureCount: number
+    skippedCount: number
+    violations: unknown[]
+    skippedEmployees?: Array<{ employeeId: string; employeeName: string; reason: string }>
+  }>
+> {
+  const response = await fetch(`${BASE_URL}/${weekId}/auto-fill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
   })
   return response.json()
 }

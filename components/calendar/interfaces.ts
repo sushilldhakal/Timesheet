@@ -15,5 +15,9 @@ export interface IEvent {
   color?: string
   description?: string
   user: IUser
+  /** Present when sourced from roster shifts */
+  shiftStatus?: "draft" | "published"
+  /** Resolved employer label for roster cards ("Own staff" when none) */
+  employerBadge?: string
 }
 

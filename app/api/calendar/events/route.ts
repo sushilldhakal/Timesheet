@@ -47,7 +47,14 @@ export const GET = createApiRoute({
       userLocations: ctx.userLocations 
     });
 
-    const { startDate: startDateParam, endDate: endDateParam, userId = "all", locationId = "all" } = query!;
+    const {
+      startDate: startDateParam,
+      endDate: endDateParam,
+      userId = "all",
+      locationId = "all",
+      publishedOnly = "false",
+    } = query!;
+    const publishedOnlyBool = publishedOnly === "true";
 
     try {
       // Parse and validate dates
@@ -89,14 +96,53 @@ export const GET = createApiRoute({
       // Connect to database
       await connectDB();
 
+      const { Category } = await import("@/lib/db");
+
       // Query rosters that overlap with the date range
       const rosters = await Roster.find({
         weekStartDate: { $lte: endDate },
         weekEndDate: { $gte: startDate },
       })
-        .populate("shifts.employeeId", "name picturePath")
+        .populate("shifts.employeeId", "name picturePath employer")
         .populate("shifts.roleId", "name")
         .populate("shifts.locationId", "name");
+
+      const employerOidSet = new Set<string>();
+      for (const roster of rosters) {
+        for (const shift of roster.shifts) {
+          const emp = shift.employeeId as { employer?: string[] } | null;
+          if (!emp?.employer?.length) continue;
+          for (const x of emp.employer) {
+            if (typeof x === "string" && /^[a-fA-F0-9]{24}$/.test(x)) {
+              employerOidSet.add(x);
+            }
+          }
+        }
+      }
+
+      const employerNameById = new Map<string, string>();
+      if (employerOidSet.size > 0) {
+        const cats = await Category.find({
+          _id: { $in: [...employerOidSet].map((id) => new mongoose.Types.ObjectId(id)) },
+        })
+          .select("name")
+          .lean();
+        for (const c of cats) {
+          employerNameById.set(c._id.toString(), c.name);
+        }
+      }
+
+      function formatEmployerBadge(emp: { employer?: string[] } | null | undefined): string {
+        const raw = emp?.employer;
+        if (!Array.isArray(raw) || raw.length === 0) return "Own staff";
+        const parts = raw.map((x) => {
+          if (typeof x !== "string") return String(x);
+          if (/^[a-fA-F0-9]{24}$/.test(x)) return employerNameById.get(x) ?? x;
+          return x;
+        });
+        const joined = parts.filter(Boolean).join(", ").trim();
+        return joined || "Own staff";
+      }
 
       // Transform roster shifts to calendar events
       const events: IEvent[] = [];
@@ -108,10 +154,15 @@ export const GET = createApiRoute({
           const shiftEnd = new Date(shift.endTime);
 
           if (shiftStart <= endDate && shiftEnd >= startDate) {
+            if (publishedOnlyBool && shift.status === "draft") {
+              continue;
+            }
+
             // Filter by user if specified
             const employeeId = (shift.employeeId as any)?._id?.toString() || "vacant";
             const employeeName = (shift.employeeId as any)?.name || "Vacant";
             const employeePicture = (shift.employeeId as any)?.picturePath || null;
+            const employerBadge = formatEmployerBadge(shift.employeeId as { employer?: string[] } | null);
             const roleName = (shift.roleId as any)?.name || "Unknown Role";
             const locationIdStr = (shift.locationId as any)?._id?.toString() || "";
             const locationName = (shift.locationId as any)?.name || "Unknown Location";
@@ -147,6 +198,8 @@ export const GET = createApiRoute({
                   name: employeeName,
                   picturePath: employeePicture,
                 },
+                shiftStatus: shift.status === "draft" ? "draft" : "published",
+                employerBadge,
               };
 
               // Add roleId and locationId for filtering (cast to any to add extra properties)
@@ -293,6 +346,7 @@ export const POST = createApiRoute({
         sourceScheduleId: null,
         estimatedCost: 0, // TODO: Calculate based on employee award
         notes: notes || "",
+        status: "draft" as const,
       };
 
       console.log('New shift:', newShift);

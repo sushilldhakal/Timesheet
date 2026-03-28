@@ -3,17 +3,21 @@
 // NOTE: This page now renders the copied Kanban demo composition (same header + KanbanView)
 // using the local packages under `components/scheduling/packages/*`.
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   SchedulerProvider,
   SchedulerSettings,
   createSchedulerConfig,
+  findConflicts,
+  ListView,
   type Block,
   type Settings,
   type Resource,
 } from '@/components/scheduling/packages/shadcn-scheduler/src';
 import { KanbanView } from '@/components/scheduling/packages/view-kanban/src/KanbanView';
 import { DayView } from '@/components/scheduling/packages/view-day/src/DayView';
+import { DayViewPanelChrome } from '@/components/scheduling/day-view-panel/DayViewPanelChrome';
+import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge';
 import { UserSelect, AddShiftModal } from '@/components/scheduling/packages/grid-engine/src';
 import {
   Plus,
@@ -23,32 +27,81 @@ import {
   Columns,
   LayoutGrid,
   Grid,
+  List,
   Calendar,
   MapPin,
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as DatePickerCalendar } from '@/components/ui/calendar';
-import { MultiSelect } from '@/components/ui/MultiSelect';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useMe } from '@/lib/queries/auth';
 import { useCategoriesByType } from '@/lib/queries/categories';
 import { useEmployees } from '@/lib/queries/employees';
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '@/lib/queries/calendar';
+import {
+  useLocationRolesForScheduling,
+  useUserSchedulingSettings,
+  usePatchSchedulingSettings,
+  useAutoFillRoster,
+  usePublishRosterScoped,
+  useSchedulingTemplates,
+} from '@/lib/queries/scheduling-page';
+import { useSchedulingSettingsStore } from '@/lib/store/scheduling-settings-store';
 import useDashboardStore from '@/lib/store';
-import { startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, format, parseISO, getISOWeek, getISOWeekYear } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils/cn';
+
+type KViewBase = 'day' | 'week' | 'month' | 'year';
+type KView = KViewBase | `list${KViewBase}`;
+
+function weekIdFromDate(d: Date): string {
+  const y = getISOWeekYear(d);
+  const w = getISOWeek(d);
+  return `${y}-W${String(w).padStart(2, '0')}`;
+}
+
+const VIEW_TABS: { k: KViewBase; l: string; Icon: LucideIcon }[] = [
+  { k: 'day', l: 'Day', Icon: AlignJustify },
+  { k: 'week', l: 'Week', Icon: Columns },
+  { k: 'month', l: 'Month', Icon: LayoutGrid },
+  { k: 'year', l: 'Year', Icon: Grid },
+];
+
+/** Stable fallbacks — inline `[]` from `data ?? []` is a new reference every render and breaks useMemo / effects. */
+const EMPTY_CATEGORIES: { id: string; name: string }[] = []
+const EMPTY_EMPLOYEES: unknown[] = []
+const EMPTY_LOCATION_ROLES: { roleId: string; roleName: string }[] = []
 
 export default function SchedulingPage() {
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [shifts, setShifts] = useState<Block[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // ── Kanban demo state (MUST be defined before any early returns) ─────────────
-  type KView = 'day' | 'week' | 'month' | 'year'
   const [mounted, setMounted] = useState(false)
   const [date, setDate] = useState<Date | null>(null)
   const [view, setView] = useState<KView>('week')
+  const viewBase = useMemo((): KViewBase => {
+    return (view.startsWith('list') ? view.slice(4) : view) as KViewBase
+  }, [view])
+  const isGrid = !view.startsWith('list')
   const [selEmps, setSelEmps] = useState<Set<string>>(() => new Set())
   const [headerAddOpen, setHeaderAddOpen] = useState(false)
   const [settingsOverride, setSettingsOverride] = useState<Partial<Settings>>({})
@@ -61,58 +114,133 @@ export default function SchedulingPage() {
   const locationsQuery = useCategoriesByType('location');
   const rolesQuery = useCategoriesByType('role');
   const employeesQuery = useEmployees(1000);
+  const locationRolesQuery = useLocationRolesForScheduling(selectedLocationId || null);
+  const userSchedulingSettingsQuery = useUserSchedulingSettings();
+  const patchSettings = usePatchSchedulingSettings();
+  const autoFillMutation = useAutoFillRoster();
+  const publishScopedMutation = usePublishRosterScoped();
+  const templatesQuery = useSchedulingTemplates();
+  const setSettingsStore = useSchedulingSettingsStore((s) => s.setSchedulingSettings);
 
   const userInfo = userInfoQuery.data?.user;
-  const locations = locationsQuery.data?.categories || [];
-  const roles = rolesQuery.data?.categories || [];
-  const employees = employeesQuery.data?.employees || [];
 
+  const locations = locationsQuery.data?.categories ?? EMPTY_CATEGORIES;
+  const roles = rolesQuery.data?.categories ?? EMPTY_CATEGORIES;
+  const employees = (employeesQuery.data?.employees ?? EMPTY_EMPLOYEES) as NonNullable<
+    typeof employeesQuery.data
+  >['employees'];
+  const locationRoleRows = locationRolesQuery.data?.roles ?? EMPTY_LOCATION_ROLES;
 
-  const schedulerCategories: Resource[] = useMemo(
-    () =>
-      roles.map((r: any, idx: number) => ({
-        id: r.id,
-        name: r.name,
-        kind: 'category' as const,
-        colorIdx: idx,
-      })),
-    [roles],
-  )
+  const locationOptions = useMemo(() => {
+    const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
+    if (isAdmin) return locations;
+    const locNames = userInfo?.location ?? [];
+    if (locNames.length === 0) return locations;
+    return locations.filter((loc: { name: string }) => locNames.includes(loc.name));
+  }, [userInfo, locations]);
 
-  const schedulerEmployees: Resource[] = useMemo(
-    () =>
-      employees.map((e: any, idx: number) => {
+  /** Open-Meteo: use geofence lat/lng on the selected location category when set */
+  const weatherCoords = useMemo((): { lat: number; lng: number } | null => {
+    if (!selectedLocationId) return null;
+    const loc = locationOptions.find((l: { id: string }) => l.id === selectedLocationId) as
+      | { lat?: number; lng?: number }
+      | undefined;
+    if (!loc) return null;
+    const lat = typeof loc.lat === 'number' && Number.isFinite(loc.lat) ? loc.lat : null;
+    const lng = typeof loc.lng === 'number' && Number.isFinite(loc.lng) ? loc.lng : null;
+    if (lat == null || lng == null) return null;
+    return { lat, lng };
+  }, [locationOptions, selectedLocationId]);
+
+  const visibleRoleIds = useMemo(() => {
+    const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
+    const ids = new Set(locationRoleRows.map((r) => r.roleId));
+    if (isAdmin || !userInfo?.managedRoles?.length) {
+      return ids;
+    }
+    const managed = new Set(userInfo.managedRoles.map((n) => String(n).trim().toLowerCase()));
+    const filtered = new Set<string>();
+    for (const row of locationRoleRows) {
+      if (managed.has(String(row.roleName).trim().toLowerCase())) {
+        filtered.add(row.roleId);
+      }
+    }
+    return filtered.size ? filtered : ids;
+  }, [locationRoleRows, userInfo]);
+
+  /** Roles shown in the grid + sidebar for the selected location. Falls back when /locations/:id/roles is empty or loading. */
+  const roleIdsForScheduling = useMemo(() => {
+    if (visibleRoleIds.size > 0) return visibleRoleIds;
+    const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
+    if (isAdmin || !userInfo?.managedRoles?.length) {
+      return new Set(roles.map((r: { id: string }) => r.id));
+    }
+    const managed = new Set(userInfo.managedRoles.map((n) => String(n).trim().toLowerCase()));
+    const fromNames = new Set<string>();
+    for (const r of roles) {
+      if (managed.has(String(r.name).trim().toLowerCase())) {
+        fromNames.add(r.id);
+      }
+    }
+    return fromNames.size > 0 ? fromNames : new Set(roles.map((r: { id: string }) => r.id));
+  }, [visibleRoleIds, roles, userInfo]);
+
+  const schedulerCategories: Resource[] = useMemo(() => {
+    const list = roles.filter((r: { id: string }) => roleIdsForScheduling.has(r.id));
+    const source = list.length ? list : roles;
+    return source.map((r: any, idx: number) => ({
+      id: r.id,
+      name: r.name,
+      kind: 'category' as const,
+      colorIdx: idx,
+    }));
+  }, [roles, roleIdsForScheduling]);
+
+  const schedulerEmployees: Resource[] = useMemo(() => {
+    const locId = selectedLocationId;
+    return employees
+      .filter((e: any) => {
+        if (!locId) return false;
+        return e.roles?.some(
+          (a: any) =>
+            a.location?.id === locId &&
+            roleIdsForScheduling.has(a.role?.id),
+        );
+      })
+      .map((e: any, idx: number) => {
+        const assignment = e.roles?.find(
+          (a: any) => a.location?.id === locId && roleIdsForScheduling.has(a.role?.id),
+        );
         const firstRoleId =
+          assignment?.role?.id ??
           e.roles?.[0]?.role?.id ??
           e.roleId ??
-          (Array.isArray(e.roleIds) ? e.roleIds[0] : undefined) ??
-          roles?.[0]?.id ??
-          undefined
+          schedulerCategories[0]?.id;
 
-        const fromParts = [e.firstName, e.lastName].filter(Boolean).join(' ').trim()
+        const fromParts = [e.firstName, e.lastName].filter(Boolean).join(' ').trim();
         const displayName =
           fromParts ||
           (typeof e.name === 'string' ? e.name.trim() : '') ||
           (typeof e.email === 'string' ? e.email.trim() : '') ||
-          'Employee'
+          'Employee';
 
         return {
           id: e.id,
           name: displayName,
           kind: 'employee' as const,
-          // This is what lets the scheduler "load staff by roles"
           categoryId: firstRoleId,
           colorIdx: idx,
           avatar: e.avatarUrl ?? e.img ?? undefined,
-        }
-      }),
-    [employees, roles],
-  )
+        };
+      });
+  }, [employees, selectedLocationId, roleIdsForScheduling, schedulerCategories])
 
   const schedulerConfig = useMemo(
     () =>
       createSchedulerConfig({
         snapMinutes: 30,
+        /** Roster UX: keep category headers + per-employee rows (not EPG flat timeline). */
+        timelineSidebarFlat: false,
         defaultSettings: { rowMode: 'individual', ...settingsOverride },
       }),
     [settingsOverride],
@@ -133,16 +261,16 @@ export default function SchedulingPage() {
 
   const monthTitle = useMemo(() => {
     if (!date) return ''
-    if (view === 'year') return `${date.getFullYear()}`
+    if (viewBase === 'year') return `${date.getFullYear()}`
     return date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-  }, [date, view])
+  }, [date, viewBase])
 
   const rangeLabel = useMemo(() => {
     if (!date) return ''
-    if (view === 'day') {
+    if (viewBase === 'day') {
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
     }
-    if (view === 'week') {
+    if (viewBase === 'week') {
       const wd = getWeekDates(date)
       const s = wd[0]!
       const e = wd[6]!
@@ -151,12 +279,29 @@ export default function SchedulingPage() {
         ? `${s.toLocaleString('en-US', { month: 'short' })} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
         : `${s.toLocaleString('en-US', { month: 'short' })} ${s.getDate()} – ${e.toLocaleString('en-US', { month: 'short' })} ${e.getDate()}, ${e.getFullYear()}`
     }
-    if (view === 'month') return date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    if (viewBase === 'month') return date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
     return `${date.getFullYear()}`
-  }, [date, view, getWeekDates])
+  }, [date, viewBase, getWeekDates])
 
   const weekDates = useMemo(() => (date ? getWeekDates(date) : []), [date, getWeekDates])
   const filteredShifts = useMemo(() => shifts.filter((s) => selEmps.has(s.employeeId)), [shifts, selEmps])
+
+  const publishShiftsList = useCallback((...ids: string[]) => {
+    setShifts((prev) => {
+      const conflictIds = findConflicts(prev)
+      const allowedIds = ids.filter((id) => !conflictIds.has(id))
+      if (allowedIds.length === 0) return prev
+      return prev.map((s) =>
+        allowedIds.includes(s.id) ? { ...s, status: 'published' as const } : s
+      )
+    })
+  }, [])
+
+  const unpublishShiftList = useCallback((id: string) => {
+    setShifts((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: 'draft' as const } : s))
+    )
+  }, [])
 
   const toggleEmp = useCallback((empId: string) => {
     setSelEmps((prev) => {
@@ -166,21 +311,38 @@ export default function SchedulingPage() {
     })
   }, [])
 
-  const handleSettingsChange = useCallback((partial: Partial<Settings>) => {
-    setSettingsOverride((prev) => ({ ...prev, ...partial }))
-  }, [])
+  const handleSettingsChange = useCallback(
+    (partial: Partial<Settings>) => {
+      setSettingsOverride((prev) => {
+        const next = { ...prev, ...partial };
+        const vf = next.visibleFrom;
+        const vt = next.visibleTo;
+        if (typeof vf === 'number' && typeof vt === 'number') {
+          const wh = (next.workingHours ?? {}) as Record<string, { from: number; to: number } | null>;
+          patchSettings.mutate(
+            { visibleFrom: vf, visibleTo: vt, workingHours: wh },
+            {
+              onError: () => toast.error('Could not save scheduling settings'),
+            },
+          );
+        }
+        return next;
+      });
+    },
+    [patchSettings],
+  );
 
   const navigate = useCallback((dir: number) => {
     setDate((prev) => {
       if (!prev) return prev
       const nd = new Date(prev)
-      if (view === 'day') nd.setDate(nd.getDate() + dir)
-      if (view === 'week') nd.setDate(nd.getDate() + dir * 7)
-      if (view === 'month') nd.setMonth(nd.getMonth() + dir)
-      if (view === 'year') nd.setFullYear(nd.getFullYear() + dir)
+      if (viewBase === 'day') nd.setDate(nd.getDate() + dir)
+      if (viewBase === 'week') nd.setDate(nd.getDate() + dir * 7)
+      if (viewBase === 'month') nd.setMonth(nd.getMonth() + dir)
+      if (viewBase === 'year') nd.setFullYear(nd.getFullYear() + dir)
       return nd
     })
-  }, [view])
+  }, [viewBase])
 
   const goToToday = useCallback(() => {
     const d = new Date()
@@ -188,11 +350,28 @@ export default function SchedulingPage() {
     setDate(d)
   }, [])
 
+  const scrollToNowRef = useRef<(() => void) | null>(null)
+
+  const handleNow = useCallback(() => {
+    goToToday()
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => scrollToNowRef.current?.())
+    )
+  }, [goToToday])
+
   const handleMonthDrill = useCallback((y: number, m: number) => {
     const nd = new Date(y, m, 1)
     nd.setHours(0, 0, 0, 0)
     setDate(nd)
-    setView('month')
+    setView((v) => (v.startsWith('list') ? 'listmonth' : 'month'))
+  }, [])
+
+  const toggleGridList = useCallback(() => {
+    setView((v) => {
+      const grid = !v.startsWith('list')
+      const base = (grid ? v : v.slice(4)) as KViewBase
+      return (grid ? `list${base}` : base) as KView
+    })
   }, [])
 
   useEffect(() => {
@@ -203,19 +382,36 @@ export default function SchedulingPage() {
   }, [])
 
   useEffect(() => {
-    if (schedulerEmployees.length) setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))
+    if (!schedulerEmployees.length) return
+    const next = new Set(schedulerEmployees.map((e) => e.id))
+    setSelEmps((prev) => {
+      if (prev.size !== next.size) return next
+      for (const id of next) {
+        if (!prev.has(id)) return next
+      }
+      return prev
+    })
   }, [schedulerEmployees])
 
-  // Fetch events for current week
-  const currentDate = new Date();
-  const weekStart = startOfDay(new Date(currentDate.setDate(currentDate.getDate() - currentDate.getDay() + 1)));
-  const weekEnd = endOfDay(new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000));
+  const calendarWeekRange = useMemo(() => {
+    const anchor = date ?? new Date();
+    const wd = getWeekDates(anchor);
+    const s = wd[0];
+    const e = wd[6];
+    if (!s || !e) {
+      const now = new Date();
+      const ws = startOfDay(now);
+      return { start: ws, end: endOfDay(new Date(ws.getTime() + 6 * 24 * 60 * 60 * 1000)) };
+    }
+    return { start: startOfDay(s), end: endOfDay(e) };
+  }, [date, getWeekDates]);
 
   const { data: eventsData, refetch: refetchEvents, error: eventsError } = useCalendarEvents({
-    startDate: weekStart.toISOString(),
-    endDate: weekEnd.toISOString(),
+    startDate: calendarWeekRange.start.toISOString(),
+    endDate: calendarWeekRange.end.toISOString(),
     userId: 'all',
-    locationId: selectedLocations.length === 1 ? selectedLocations[0] : 'all'
+    locationId: selectedLocationId || 'all',
+    publishedOnly: false,
   });
 
   // Log any API errors
@@ -241,62 +437,34 @@ export default function SchedulingPage() {
     setSidebarCollapsed(true);
   }, [setSidebarCollapsed]);
 
-  // Filter locations based on user permissions
   useEffect(() => {
-    if (userInfo && locations.length > 0) {
-      const isRestricted = userInfo.role !== 'admin' && 
-        userInfo.role !== 'super_admin' &&
-        (userInfo.location?.length ?? 0) > 0;
+    if (!locations.length) return;
+    if (selectedLocationId && locations.some((l: { id: string }) => l.id === selectedLocationId)) return;
 
-      if (isRestricted && userInfo.location) {
-        const filteredLocations = locations.filter((loc: any) => 
-          userInfo.location?.includes(loc.name)
-        );
-        
-        if (filteredLocations.length > 0) {
-          const userLocationIds = filteredLocations.map((loc: any) => loc.id);
-          setSelectedLocations(userLocationIds);
-        }
-      }
+    const isRestricted =
+      userInfo &&
+      userInfo.role !== 'admin' &&
+      userInfo.role !== 'super_admin' &&
+      (userInfo.location?.length ?? 0) > 0;
+    if (isRestricted && userInfo?.location) {
+      const filtered = locations.filter((loc: any) => userInfo.location?.includes(loc.name));
+      if (filtered[0]) setSelectedLocationId(filtered[0].id);
+      return;
     }
-  }, [userInfo, locations]);
+    setSelectedLocationId(locations[0]!.id);
+  }, [userInfo, locations, selectedLocationId]);
 
-  // Transform data for scheduler
-  const categories: Resource[] = useMemo(() => {
-    if (!roles) return [];
-    
-    return roles.map((role: any, index: number) => ({
-      id: role.id,
-      name: role.name,
-      colorIdx: index % 8, // Cycle through 8 colors
-      kind: "category" as const
+  useEffect(() => {
+    const s = userSchedulingSettingsQuery.data?.schedulingSettings;
+    if (!s) return;
+    setSettingsStore(s);
+    setSettingsOverride((prev) => ({
+      ...prev,
+      visibleFrom: s.visibleFrom,
+      visibleTo: s.visibleTo,
+      workingHours: (s.workingHours ?? {}) as Settings['workingHours'],
     }));
-  }, [roles]);
-
-  const apiSchedulerEmployees: Resource[] = useMemo(() => {
-    if (!employees) return [];
-    
-    return employees.map((employee: any) => {
-      // Get the first role for category assignment
-      const firstRole = employee.roles?.[0]?.role;
-      const categoryId = firstRole?.id || roles[0]?.id || 'default';
-      
-      // Create avatar from initials
-      const nameParts = employee.name.split(' ');
-      const avatar = nameParts.length > 1 
-        ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase()
-        : employee.name.substring(0, 2).toUpperCase();
-
-      return {
-        id: employee.id || employee._id,
-        name: employee.name,
-        kind: "employee" as const,
-        categoryId,
-        avatar,
-        colorIdx: categories.findIndex(cat => cat.id === categoryId) % 8
-      };
-    });
-  }, [employees, categories, roles]);
+  }, [userSchedulingSettingsQuery.data?.schedulingSettings, setSettingsStore]);
 
   // Transform employees for CalendarProvider (IUser interface)
   const calendarUsers = useMemo(() => {
@@ -312,8 +480,9 @@ export default function SchedulingPage() {
 
   // Transform events to shifts
   useEffect(() => {
-    if (eventsData?.data?.events) {
-      const transformedShifts: Block[] = eventsData.data.events.map((event: any) => {
+    const ev = (eventsData as { events?: unknown[] } | undefined)?.events;
+    if (ev?.length) {
+      const transformedShifts: Block[] = ev.map((event: any) => {
         const startDate = parseISO(event.startDate);
         const endDate = parseISO(event.endDate);
         
@@ -324,6 +493,11 @@ export default function SchedulingPage() {
         // Find role/category
         const roleId = event.roleId || roles[0]?.id || 'default';
         
+        const employerBadge =
+          typeof (event as { employerBadge?: string }).employerBadge === 'string'
+            ? (event as { employerBadge: string }).employerBadge
+            : 'Own staff';
+
         return {
           id: event.id,
           categoryId: roleId,
@@ -332,7 +506,8 @@ export default function SchedulingPage() {
           startH,
           endH,
           employee: event.user?.name || 'Unassigned',
-          status: 'published' as const
+          status: event.shiftStatus === 'draft' ? 'draft' : 'published',
+          meta: { employerBadge },
         };
       });
       
@@ -363,7 +538,7 @@ export default function SchedulingPage() {
         await createEventMutation.mutateAsync({
           employeeId: shift.employeeId !== 'unassigned' ? shift.employeeId : undefined,
           roleId: shift.categoryId,
-          locationId: selectedLocations[0] || locations[0]?.id,
+          locationId: selectedLocationId || locations[0]?.id,
           employerId,
           startDate: format(shift.date, 'yyyy-MM-dd'),
           startTime: { hour: startHour, minute: startMinute },
@@ -438,12 +613,132 @@ export default function SchedulingPage() {
     toast.info('Copy last week functionality to be implemented');
   };
 
-  // Publish all drafts
-  const handlePublishAllDrafts = () => {
-    const draftShifts = shifts.filter(s => s.status === 'draft');
-    const publishedShifts = shifts.map(s => ({ ...s, status: 'published' as const }));
-    setShifts(publishedShifts);
-    toast.success(`Published ${draftShifts.length} draft shifts`);
+  const handlePublishScoped = async () => {
+    if (!date || !selectedLocationId) {
+      toast.error('Select a location');
+      return;
+    }
+    const roleIds = [...roleIdsForScheduling];
+    if (!roleIds.length) {
+      toast.error('No roles in scope');
+      return;
+    }
+    try {
+      const wid = weekIdFromDate(date);
+      await publishScopedMutation.mutateAsync({
+        weekId: wid,
+        locationId: selectedLocationId,
+        roleIds,
+      });
+      toast.success('Published shifts in scope');
+      await refetchEvents();
+    } catch {
+      toast.error('Publish failed');
+    }
+  };
+
+  const handleFillSchedule = async () => {
+    if (!date || !selectedLocationId) {
+      toast.error('Select a location and week');
+      return;
+    }
+    const managedRoles = [...roleIdsForScheduling];
+    if (!managedRoles.length) {
+      toast.error('No managed roles for auto-fill');
+      return;
+    }
+    if (!window.confirm('Run auto-fill for this week (full-time + part-time)?')) return;
+    try {
+      const wid = weekIdFromDate(date);
+      const res = await autoFillMutation.mutateAsync({
+        weekId: wid,
+        locationId: selectedLocationId,
+        managedRoles,
+        employmentTypes: ['FULL_TIME', 'PART_TIME'],
+      });
+      const ok = res.successCount ?? 0;
+      const sk = res.skippedCount ?? 0;
+      const fail = res.failureCount ?? 0;
+      toast.message(`Fill complete: ${ok} shifts created · ${sk} skipped · ${fail} need manual fixes`);
+      await refetchEvents();
+    } catch {
+      toast.error('Auto-fill failed');
+    }
+  };
+
+  const handleSaveWeekTemplate = async () => {
+    if (!date || !selectedLocationId) return;
+    const name = window.prompt('Template name');
+    if (!name?.trim()) return;
+    try {
+      const wid = weekIdFromDate(date);
+      const res = await fetch('/api/scheduling/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: name.trim(),
+          weekId: wid,
+          locationId: selectedLocationId,
+          roleIds: [...roleIdsForScheduling],
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Template saved');
+      await templatesQuery.refetch();
+    } catch {
+      toast.error('Could not save template');
+    }
+  };
+
+  const canDeleteTemplate = useCallback(
+    (createdBy: string | undefined) => {
+      if (userInfo?.role === 'admin' || userInfo?.role === 'super_admin') return true;
+      if (!createdBy || !userInfo?.id) return false;
+      return String(createdBy) === String(userInfo.id);
+    },
+    [userInfo],
+  );
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!window.confirm('Delete this template? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/scheduling/templates/${templateId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Template deleted');
+      await templatesQuery.refetch();
+    } catch {
+      toast.error('Could not delete template');
+    }
+  };
+
+  const handleApplyTemplate = async (templateId: string) => {
+    if (!date || !selectedLocationId) return;
+    const mode = window.confirm('Replace existing draft shifts in scope? OK = replace, Cancel = add') ? 'replace' : 'add';
+    try {
+      const wid = weekIdFromDate(date);
+      const res = await fetch(`/api/scheduling/templates/${templateId}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          targetWeekId: wid,
+          mode,
+          locationId: selectedLocationId,
+          roleIds: [...roleIdsForScheduling],
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      const n = j?.data?.shiftsCreated ?? 0;
+      toast.success(`Applied template (${n} shifts)`);
+      await refetchEvents();
+    } catch {
+      toast.error('Apply failed');
+    }
   };
 
   if (!isHydrated) {
@@ -467,15 +762,6 @@ export default function SchedulingPage() {
       </div>
     );
   }
-
-  // (Kanban demo hooks are defined above, before early returns.)
-
-  const VIEW_TABS: { k: KView; l: string; Icon: LucideIcon }[] = [
-    { k: 'day', l: 'Day', Icon: AlignJustify },
-    { k: 'week', l: 'Week', Icon: Columns },
-    { k: 'month', l: 'Month', Icon: LayoutGrid },
-    { k: 'year', l: 'Year', Icon: Grid },
-  ]
 
   const iconBtn: React.CSSProperties = {
     padding: '5px 8px',
@@ -509,28 +795,35 @@ export default function SchedulingPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-3">
-              <MapPin className="h-5 w-5 shrink-0 text-primary" />
-              <MultiSelect
-                options={locations.map((loc: { id: string; name: string }) => ({
-                  label: loc.name,
-                  value: loc.id,
-                }))}
-                onValueChange={(values) => {
-                  setSelectedLocations(values);
-                }}
-                defaultValue={selectedLocations}
-                placeholder="Select locations"
-                maxCount={2}
-                className="w-[250px] border-0 bg-transparent"
-                disabled={
-                  !!userInfo &&
-                  userInfo.role !== 'admin' &&
-                  userInfo.role !== 'super_admin' &&
-                  (userInfo.location?.length ?? 0) > 0
-                }
-                resetOnDefaultValueChange={true}
-              />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Location</span>
+              <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-3">
+                <MapPin className="h-5 w-5 shrink-0 text-primary" />
+                <Select
+                  value={selectedLocationId || undefined}
+                  onValueChange={(v) => setSelectedLocationId(v)}
+                  disabled={locationOptions.length <= 1}
+                >
+                  <SelectTrigger className="w-[min(100%,280px)] min-w-[200px] border-0 bg-transparent shadow-none focus:ring-0">
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locationOptions.map((loc: { id: string; name: string }) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {userInfo &&
+                userInfo.role !== 'admin' &&
+                userInfo.role !== 'super_admin' &&
+                (userInfo.location?.length ?? 0) > 0 && (
+                  <p className="max-w-[320px] text-[11px] text-muted-foreground">
+                    Only locations assigned to you are listed. Role scope follows your manager roles.
+                  </p>
+                )}
             </div>
 
             <div className="rounded-lg border bg-muted px-4 py-3">
@@ -538,9 +831,9 @@ export default function SchedulingPage() {
                 <Users className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <div className="text-2xl font-bold text-foreground">
-                    {employees.length}
+                    {schedulerEmployees.length}
                   </div>
-                  <div className="text-xs text-muted-foreground">Employees</div>
+                  <div className="text-xs text-muted-foreground">Staff at this location</div>
                 </div>
               </div>
             </div>
@@ -569,6 +862,13 @@ export default function SchedulingPage() {
                 <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-y-0.5 gap-x-2">
                   <div className="col-start-2 flex items-center gap-1.5">
                     <span className="text-[15px] font-bold text-foreground">{monthTitle}</span>
+                    <SchedulingWeatherDayBadge
+                      date={date}
+                      coords={weatherCoords}
+                      rangeStart={viewBase === 'week' && weekDates[0] ? weekDates[0] : undefined}
+                      rangeEnd={viewBase === 'week' && weekDates[6] ? weekDates[6] : undefined}
+                      iconClassName="size-4"
+                    />
                   </div>
                   <div className="col-start-2 flex items-center gap-1">
                     <button onClick={() => navigate(-1)} style={iconBtn} title="Previous"><ChevronLeft size={14} /></button>
@@ -583,7 +883,7 @@ export default function SchedulingPage() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent align="start" className="p-0 w-auto">
-                        {view === 'year' ? (
+                        {viewBase === 'year' ? (
                           <div className="p-2.5">
                             <div className="text-xs font-medium mb-2">Pick year</div>
                             <div className="grid grid-cols-3 gap-2">
@@ -609,7 +909,7 @@ export default function SchedulingPage() {
                             </div>
                           </div>
                         ) : (
-                          view === 'week' ? (
+                          viewBase === 'week' ? (
                             <DatePickerCalendar
                               mode="range"
                               selected={{ from: getWeekDates(date)[0], to: getWeekDates(date)[6] }}
@@ -644,13 +944,23 @@ export default function SchedulingPage() {
               <div className="flex-1" />
 
               <div className="flex items-center gap-2">
+                {(viewBase === 'day' || viewBase === 'week') && (
+                  <div className="mr-1 flex items-center gap-1">
+                    <Button variant="outline" size="sm" type="button" onClick={handleNow}>
+                      Now
+                    </Button>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
                 <div className="flex items-center gap-0.5 bg-muted rounded-lg p-1">
                   {VIEW_TABS.map(({ k, l, Icon }) => {
-                    const active = view === k
+                    const active = viewBase === k
                     return (
                       <button
                         key={k}
-                        onClick={() => setView(k)}
+                        onClick={() =>
+                          setView((v) => (v.startsWith('list') ? `list${k}` : k) as KView)
+                        }
                         title={l}
                         className={[
                           "flex items-center justify-center rounded-md h-7 overflow-hidden transition-all duration-200 ease-in-out gap-1 text-xs",
@@ -671,6 +981,35 @@ export default function SchedulingPage() {
                   })}
                 </div>
 
+                <div className="h-6 w-px shrink-0 bg-border" aria-hidden />
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  className="relative h-9 w-9 shrink-0 overflow-hidden text-muted-foreground hover:text-foreground"
+                  onClick={toggleGridList}
+                  title={isGrid ? 'Switch to List view' : 'Switch to Grid view'}
+                >
+                  <div
+                    className={cn(
+                      'absolute flex items-center justify-center transition-all duration-300',
+                      isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 rotate-90 opacity-0',
+                    )}
+                  >
+                    <List size={16} />
+                  </div>
+                  <div
+                    className={cn(
+                      'absolute flex items-center justify-center transition-all duration-300',
+                      !isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 -rotate-90 opacity-0',
+                    )}
+                  >
+                    <LayoutGrid size={16} />
+                  </div>
+                </Button>
+                </div>
+
                 <div className="w-px h-6 bg-border shrink-0" />
                 <UserSelect
                   selEmps={selEmps}
@@ -681,6 +1020,63 @@ export default function SchedulingPage() {
                 <div className="w-px h-6 bg-border shrink-0" />
                 <SchedulerSettings onSettingsChange={handleSettingsChange} shifts={filteredShifts} />
                 <button
+                  type="button"
+                  onClick={handleFillSchedule}
+                  className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
+                >
+                  Fill schedule
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
+                    >
+                      Templates ▾
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[240px] max-h-[min(420px,70vh)] overflow-y-auto">
+                    <DropdownMenuItem onClick={handleSaveWeekTemplate}>
+                      Save current week as template…
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {(templatesQuery.data?.templates as
+                      | Array<{ _id?: string; name?: string; createdBy?: string | { toString(): string } }>
+                      | undefined)?.map((t) => {
+                      const id = t._id ? String(t._id) : '';
+                      const created =
+                        t.createdBy != null && typeof t.createdBy === 'object' && 'toString' in t.createdBy
+                          ? (t.createdBy as { toString(): string }).toString()
+                          : String(t.createdBy ?? '');
+                      return (
+                        <div key={id || t.name} className="flex flex-col gap-0 py-1">
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => id && handleApplyTemplate(id)}
+                          >
+                            Apply: {t.name ?? id}
+                          </DropdownMenuItem>
+                          {id && canDeleteTemplate(created) && (
+                            <DropdownMenuItem
+                              className="cursor-pointer text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteTemplate(id)}
+                            >
+                              Delete: {t.name ?? id}
+                            </DropdownMenuItem>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <button
+                  type="button"
+                  onClick={handlePublishScoped}
+                  className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
+                >
+                  Publish
+                </button>
+                <button
                   onClick={() => setHeaderAddOpen(true)}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-[13px] font-semibold shrink-0"
                 >
@@ -690,28 +1086,59 @@ export default function SchedulingPage() {
             </div>
           </div>
 
-          <div className="w-full not-prose flex-1 min-h-0 overflow-hidden">
-            {view === 'day' ? (
-              <DayView
-                date={date}
+          <div className="not-prose flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+            {view.startsWith('list') ? (
+              <ListView
                 shifts={filteredShifts}
                 setShifts={setShifts}
-                selEmps={selEmps}
                 onShiftClick={() => {}}
+                onPublish={publishShiftsList}
+                onUnpublish={unpublishShiftList}
                 onAddShift={() => setHeaderAddOpen(true)}
-                initialScrollToNow
-                readOnly={false}
+                currentDate={date}
+                view={view}
               />
+            ) : viewBase === 'day' ? (
+              <DayViewPanelChrome
+                selectedDate={date}
+                weekDates={weekDates}
+                onSelectDay={(d) => setDate(startOfDay(d))}
+                weatherCoords={weatherCoords}
+              >
+                <DayView
+                  date={date}
+                  setDate={(action) => {
+                    setDate((prev) => {
+                      if (!prev) return prev
+                      const raw = typeof action === 'function' ? action(prev) : action
+                      return startOfDay(raw)
+                    })
+                  }}
+                  shifts={filteredShifts}
+                  setShifts={setShifts}
+                  selEmps={selEmps}
+                  onShiftClick={() => {}}
+                  onAddShift={() => setHeaderAddOpen(true)}
+                  initialScrollToNow
+                  scrollToNowRef={scrollToNowRef}
+                  readOnly={false}
+                />
+              </DayViewPanelChrome>
             ) : (
-              <div className="h-full flex flex-col overflow-y-auto">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
                 <KanbanView
                   date={date}
                   shifts={filteredShifts}
                   setShifts={setShifts}
-                  mode={view}
-                  dates={view === 'week' ? weekDates : undefined}
+                  mode={viewBase}
+                  dates={viewBase === 'week' ? weekDates : undefined}
                   onMonthDrill={handleMonthDrill}
-                  onGoToDay={(d) => { setDate(d); setView('day') }}
+                  onGoToDay={(d) => {
+                    setDate(startOfDay(d))
+                    setView((v) => (v.startsWith('list') ? 'listday' : 'day'))
+                  }}
+                  readOnly={false}
+                  weatherCoords={weatherCoords}
                 />
               </div>
             )}

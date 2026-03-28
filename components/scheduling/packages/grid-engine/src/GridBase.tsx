@@ -21,14 +21,13 @@ export function GridBase({
   className = ''
 }: GridBaseProps) {
   const defaultCellRenderer = ({ position, row, column, blocks }: CellProps) => (
-    <div 
-      className="grid-cell"
+    <div
+      className="grid-cell absolute"
       style={{
         width: position.width,
         height: position.height,
-        position: 'absolute',
         left: position.x,
-        top: position.y
+        top: position.y,
       }}
       onClick={() => onCellClick?.(position)}
     >

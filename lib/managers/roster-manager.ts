@@ -807,6 +807,7 @@ export class RosterManager {
         sourceScheduleId: shiftData.sourceScheduleId ?? null,
         estimatedCost,
         notes: shiftData.notes || "",
+        status: "draft",
       }
 
       // Add shift to roster
@@ -845,6 +846,7 @@ export class RosterManager {
       roleId: mongoose.Types.ObjectId
       sourceScheduleId: mongoose.Types.ObjectId | null
       notes: string
+      status: "draft" | "published"
     }>
   ): Promise<{ success: true; shift: IShift } | { success: false; error: string; message: string }> {
     try {
@@ -884,6 +886,10 @@ export class RosterManager {
             ? shiftData.sourceScheduleId
             : existingShift.sourceScheduleId,
         notes: shiftData.notes !== undefined ? shiftData.notes : existingShift.notes,
+        status:
+          shiftData.status !== undefined
+            ? shiftData.status
+            : existingShift.status ?? "published",
       }
 
       // Validate updated shift data using basic validation
@@ -946,6 +952,7 @@ export class RosterManager {
         sourceScheduleId: updatedShiftData.sourceScheduleId,
         estimatedCost,
         notes: updatedShiftData.notes,
+        status: updatedShiftData.status,
       }
 
       roster.shifts[shiftIndex] = updatedShift
@@ -1077,6 +1084,53 @@ export class RosterManager {
           success: false,
           error: "PUBLISH_FAILED",
           message: error instanceof Error ? error.message : "Failed to publish roster",
+        }
+      }
+    }
+
+    /**
+     * Publish only shifts in scope (embedded shift.status). Other shifts stay draft.
+     */
+    async publishShiftsInScope(
+      weekId: string,
+      locationId: mongoose.Types.ObjectId | string,
+      roleIds: Array<mongoose.Types.ObjectId | string>
+    ): Promise<{ success: true; roster: IRoster; publishedCount: number } | { success: false; error: string; message: string }> {
+      try {
+        const roster = await Roster.findOne({ weekId })
+        if (!roster) {
+          return {
+            success: false,
+            error: "ROSTER_NOT_FOUND",
+            message: `Roster not found for week ${weekId}`,
+          }
+        }
+
+        const locId = locationId.toString()
+        const roleSet = new Set(roleIds.map((r) => r.toString()))
+        let publishedCount = 0
+
+        for (const shift of roster.shifts) {
+          const matchesLoc = shift.locationId.toString() === locId
+          const matchesRole = roleSet.has(shift.roleId.toString())
+          if (matchesLoc && matchesRole) {
+            shift.status = "published"
+            publishedCount++
+          }
+        }
+
+        await roster.save()
+
+        return {
+          success: true,
+          roster: roster.toObject() as IRoster,
+          publishedCount,
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: "PUBLISH_FAILED",
+          message: error instanceof Error ? error.message : "Failed to publish shifts",
         }
       }
     }
@@ -1245,6 +1299,7 @@ export class RosterManager {
             sourceScheduleId: null, // Copied shifts are manual (not from schedule)
             estimatedCost,
             notes: sourceShift.notes,
+            status: "draft",
           }
 
           copiedShifts.push(copiedShift)

@@ -112,7 +112,8 @@ export function CalendarProvider({
     startDate: dateRange.start.toISOString(),
     endDate: dateRange.end.toISOString(),
     userId: "all",
-    locationId: selectedLocationId || "all"
+    locationId: selectedLocationId || "all",
+    publishedOnly: false,
   });
 
   // Mutations
@@ -126,9 +127,10 @@ export function CalendarProvider({
       return providedEvents;
     }
     
-    if (!eventsData?.data?.events) return [];
-    
-    return eventsData.data.events.map((event: any) => calendarEventToIEvent(event));
+    const raw = (eventsData as { events?: unknown[] } | undefined)?.events;
+    if (!raw?.length) return [];
+
+    return raw.map((event: any) => calendarEventToIEvent(event));
   }, [eventsData, providedEvents]);
 
   // Filter events based on selected users

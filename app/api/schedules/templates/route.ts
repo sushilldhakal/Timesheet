@@ -35,18 +35,13 @@ export const GET = createApiRoute({
       }
     }
 
-    const organizationId = query?.organizationId
-    if (!organizationId) {
-      return {
-        status: 400,
-        data: { error: "organizationId is required" }
-      }
-    }
+    const organizationId = query?.organizationId ?? ""
 
     try {
       await connectDB()
       const templateManager = new TemplateManager()
-      const templates = await templateManager.listRoleTemplates(organizationId)
+      const isAdmin = ctx.auth.role === "admin" || ctx.auth.role === "super_admin"
+      const templates = await templateManager.listRoleTemplates(ctx.auth.sub, isAdmin, organizationId)
 
       return {
         status: 200,
@@ -100,14 +95,15 @@ export const POST = createApiRoute({
           dayOfWeek: shiftPattern.dayOfWeek,
           startTime: new Date(shiftPattern.startTime),
           endTime: new Date(shiftPattern.endTime),
-          locationId: shiftPattern.locationId as any,
-          roleId: shiftPattern.roleId as any,
+          locationId: shiftPattern.locationId as string,
+          roleId: (shiftPattern.roleId ?? roleId) as string,
           isRotating: shiftPattern.isRotating || false,
           rotationCycle: shiftPattern.rotationCycle,
           rotationStartDate: shiftPattern.rotationStartDate
             ? new Date(shiftPattern.rotationStartDate)
             : undefined,
-        }
+        },
+        ctx.auth.sub
       )
 
       return {

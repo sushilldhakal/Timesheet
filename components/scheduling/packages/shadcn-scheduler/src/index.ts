@@ -88,7 +88,7 @@ export { SchedulerVenue } from "./domains/venue"
 export type { SchedulerVenueProps } from "./domains/venue"
 
 // Phase 4 — employee-per-row tree model
-export { useFlatRows, buildFlatRowTops } from "./core/hooks/useFlatRows"
+export { useFlatRows, buildFlatRowTops, employeesForCategory } from "./core/hooks/useFlatRows"
 export type { FlatRow, RowMode } from "./core/types"
 export { ChangeRowModeInput } from "./core/components/settings/ChangeRowModeInput"
 
@@ -99,4 +99,5 @@ export { WeekView } from "./core/components/views/DayWeekViews"
 export type { WeekViewProps } from "./core/components/views/DayWeekViews"
 export { TimelineView } from "./core/components/views/TimelineView"
 export type { TimelineViewProps } from "./core/components/views/TimelineView"
+export { ListView } from "./core/components/views/ListView"
 export { GridView } from "@shadcn-scheduler/grid-engine"

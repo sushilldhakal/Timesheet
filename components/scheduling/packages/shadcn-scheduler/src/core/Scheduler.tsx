@@ -21,6 +21,7 @@ import { ListView } from "./components/views/ListView"
 import { TimelineView } from "./components/views/TimelineView"
 import type { SchedulerConfig, SchedulerSettingsContext } from "@shadcn-scheduler/core"
 import { useAuditTrail, type AuditEntry } from "./hooks/useAuditTrail"
+import { cn } from "@/lib/utils/cn"
 
 interface AddContext {
   date: Date
@@ -640,12 +641,7 @@ export function Scheduler({
   const content = (
       <div
         ref={schedulerContainerRef}
-        className="flex h-full flex-col overflow-hidden bg-background text-foreground"
-        style={{
-          fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif",
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        className="flex h-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] font-[Inter,-apple-system,BlinkMacSystemFont,sans-serif] text-foreground"
         dir={mergedConfig?.isRTL ? "rtl" : "ltr"}
       >
         <div
@@ -696,10 +692,7 @@ export function Scheduler({
                 Today
               </Button>
             </div>
-            <div
-              className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-2 border-t border-border bg-background p-2"
-              style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-            >
+            <div className="fixed right-0 bottom-0 left-0 z-50 flex items-center justify-center gap-2 border-t border-border bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               {showViewTabs && <ViewTabs view={view} setView={handleViewChange} views={mergedConfig.views} />}
               {showAddShiftButton && (
                 <Button onClick={handleAddShiftButton} size="sm">
@@ -783,15 +776,11 @@ export function Scheduler({
         )}
 
         <div
-          className="transition-opacity duration-150"
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            opacity: viewOpacity,
-            paddingBottom: isMobile ? 56 : 0,
-          }}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-150",
+            isMobile && "pb-14"
+          )}
+          style={{ opacity: viewOpacity }}
         >
           {!isListView && baseView === "day" && (
             <DayView

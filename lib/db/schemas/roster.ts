@@ -21,6 +21,8 @@ export interface IShift {
   requiredStaffCount?: number // Number of staff required for this shift slot
   currentStaffCount?: number // Number of staff currently assigned
   isUnderstaffed?: boolean // Flag indicating insufficient staff
+  /** Draft shifts are manager-only until published; staff queries use published only */
+  status?: "draft" | "published"
 }
 
 /**
@@ -126,6 +128,11 @@ export const ShiftSchema = new mongoose.Schema<IShift>(
     isUnderstaffed: {
       type: Boolean,
       default: false,
+    },
+    status: {
+      type: String,
+      enum: ["draft", "published"],
+      default: "draft",
     },
   },
   { _id: true }

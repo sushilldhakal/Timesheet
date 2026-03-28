@@ -82,7 +82,7 @@ export function usePublishRoster() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: rostersApi.publishRoster,
+    mutationFn: rostersApi.publishRosterAll,
     onSuccess: (data) => {
       if (data.success && data.data) {
         queryClient.setQueryData(rosterKeys.week(data.data.weekId), data)

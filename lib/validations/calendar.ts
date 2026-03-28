@@ -13,6 +13,8 @@ export const calendarEventsQuerySchema = z.object({
   }, "Invalid endDate format"),
   userId: z.string().optional().default("all"),
   locationId: z.string().optional().default("all"),
+  /** When true, only shifts with status published are returned (staff-safe). */
+  publishedOnly: z.enum(["true", "false"]).optional().default("false"),
 })
 
 // Calendar event creation schema

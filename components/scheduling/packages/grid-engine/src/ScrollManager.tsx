@@ -37,12 +37,7 @@ export function ScrollManager({
   return (
     <div
       ref={scrollRef}
-      className={`scroll-manager ${className}`}
-      style={{
-        overflow: 'auto',
-        width: '100%',
-        height: '100%'
-      }}
+      className={`scroll-manager size-full overflow-auto ${className}`}
     >
       {children}
     </div>

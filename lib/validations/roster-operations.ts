@@ -12,7 +12,8 @@ export const shiftIdParamSchema = z.object({
 
 // Auto-fill request schema
 export const autoFillRequestSchema = z.object({
-  organizationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid organization ID format"),
+  locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format"),
+  managedRoles: z.array(z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format")).min(1),
   employmentTypes: z.array(z.enum(["FULL_TIME", "PART_TIME", "CASUAL", "CONTRACT"])).optional(),
   validateAvailability: z.boolean().optional(),
   validateCompliance: z.boolean().optional()
@@ -23,7 +24,12 @@ export const autoFillResponseSchema = z.object({
   successCount: z.number(),
   failureCount: z.number(),
   skippedCount: z.number(),
-  violations: z.array(z.any())
+  violations: z.array(z.any()),
+  skippedEmployees: z.array(z.object({
+    employeeId: z.string(),
+    employeeName: z.string(),
+    reason: z.string(),
+  })).optional(),
 });
 
 // Gaps query schema

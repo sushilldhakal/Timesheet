@@ -38,44 +38,18 @@ export function BottomSheet({
       role="dialog"
       aria-modal="true"
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.4)",
-        backdropFilter: "blur(3px)",
-      }}
+      className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/40 backdrop-blur-[3px]"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          maxHeight: "85vh",
-          background: "var(--background)",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          boxShadow: "0 -8px 32px rgba(0,0,0,0.2)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
+        className="flex max-h-[85vh] w-full max-w-[420px] flex-col overflow-hidden rounded-t-2xl bg-background shadow-[0_-8px_32px_rgba(0,0,0,0.2)]"
       >
         {title !== undefined && (
-          <div
-            style={{
-              flexShrink: 0,
-              padding: "12px 16px",
-              borderBottom: "1px solid var(--border)",
-            }}
-          >
+          <div className="shrink-0 border-b border-border px-4 py-3">
             {title}
           </div>
         )}
-        <div style={{ overflowY: "auto", flex: 1 }}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {children}
         </div>
       </div>

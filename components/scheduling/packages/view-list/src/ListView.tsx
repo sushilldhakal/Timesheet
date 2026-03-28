@@ -1,8 +1,9 @@
 import React, { useRef, useState, useCallback, useMemo } from 'react'
 import type { Block, Resource } from '@shadcn-scheduler/core'
-import { sameDay, isToday, DAY_NAMES, MONTHS_SHORT, getWeekDates } from '@shadcn-scheduler/core'
+import { isToday, DAY_NAMES, MONTHS_SHORT, getWeekDates } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
 import { Plus } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 
 export interface ListViewProps {
   shifts: Block[]
@@ -98,19 +99,19 @@ function ListViewInner({
   if (!grouped.length) {
     if (slots.emptyState) {
       return (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="flex flex-1 items-center justify-center">
           {slots.emptyState({ view })}
         </div>
       )
     }
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, textAlign: 'center' }}>
-        <p style={{ fontSize: 14, color: 'var(--muted-foreground)' }}>No {labels.shift}s in this period</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <p className="text-sm text-muted-foreground">No {labels.shift}s in this period</p>
         {onAddShift && (
           <button
             type="button"
             onClick={() => onAddShift(currentDate)}
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 6, background: 'var(--primary)', padding: '8px 16px', fontSize: 14, fontWeight: 500, color: 'var(--primary-foreground)', border: 'none', cursor: 'pointer' }}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus size={16} /> Add {labels.shift}
           </button>
@@ -121,7 +122,7 @@ function ListViewInner({
 
   return (
     <div
-      style={{ flex: 1, overflowY: 'auto', paddingBottom: 24, userSelect: 'none', position: 'relative' }}
+      className="relative flex-1 select-none overflow-y-auto pb-6"
       onPointerMove={onPM}
       onPointerUp={onPU}
     >
@@ -135,30 +136,34 @@ function ListViewInner({
           <div key={date}>
             <div
               data-drop-date={dateStr}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '12px 20px 8px', background: 'var(--background)',
-                borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 5,
-                outline: isOT ? '2px solid var(--primary)' : 'none', outlineOffset: -2,
-              }}
+              className={cn(
+                'sticky top-0 z-[5] flex items-center justify-between border-b border-border bg-background px-5 pb-2 pt-3',
+                isOT && 'ring-2 ring-inset ring-primary',
+              )}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: isToday(dateObj) ? 'var(--primary)' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: isToday(dateObj) ? 'var(--background)' : 'var(--foreground)' }}>{dateObj.getDate()}</span>
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={cn(
+                    'flex size-9 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold',
+                    isToday(dateObj) ? 'bg-primary text-background' : 'bg-border text-foreground',
+                  )}
+                >
+                  {dateObj.getDate()}
                 </div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>
+                  <div className="text-sm font-bold text-foreground">
                     {DAY_NAMES[dateObj.getDay()]}, {MONTHS_SHORT[dateObj.getMonth()]} {dateObj.getDate()}, {dateObj.getFullYear()}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                  <div className="text-[11px] text-muted-foreground">
                     {ds_.length} shift{ds_.length !== 1 ? 's' : ''}{drafts.length > 0 ? ` · ${drafts.length} draft` : ''}
                   </div>
                 </div>
               </div>
               {drafts.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => onPublish(...drafts.map((s) => s.id))}
-                  style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                  className="cursor-pointer rounded-md border-none bg-accent px-2.5 py-1 text-[11px] font-bold text-primary"
                 >
                   Publish all
                 </button>
@@ -175,33 +180,51 @@ function ListViewInner({
                   data-drop-date={dateStr}
                   onPointerDown={(e) => onIPD(e, shift)}
                   onClick={() => { if (!dragId) onShiftClick(shift, category!) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', padding: '10px 20px',
-                    borderBottom: '1px solid var(--border)', cursor: isDrag ? 'grabbing' : 'grab',
-                    background: isDrag ? 'var(--accent)' : 'var(--background)', opacity: isDrag ? 0.5 : 1,
-                    touchAction: 'none', transition: 'background 150ms',
-                  }}
+                  className={cn(
+                    'flex touch-none items-center border-b border-border px-5 py-2.5 transition-colors',
+                    isDrag ? 'cursor-grabbing bg-accent opacity-50' : 'cursor-grab bg-background hover:bg-accent/50',
+                  )}
                 >
-                  <div style={{ marginRight: 10, color: 'var(--muted-foreground)', fontSize: 14, flexShrink: 0 }}>⠿</div>
-                  <div style={{ width: 3, height: 36, borderRadius: 2, background: c.bg, marginRight: 14, flexShrink: 0, opacity: isDraft ? 0.4 : 1 }} />
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: isDraft ? 'transparent' : c.light, border: isDraft ? `1.5px dashed ${c.bg}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 12, flexShrink: 0 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.bg, opacity: isDraft ? 0.6 : 1 }} />
+                  <div className="mr-2.5 shrink-0 text-sm text-muted-foreground">⠿</div>
+                  <div
+                    className="mr-3.5 h-9 w-0.5 shrink-0 rounded-sm"
+                    style={{ background: c.bg, opacity: isDraft ? 0.4 : 1 }}
+                  />
+                  <div
+                    className="mr-3 flex size-8 shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      background: isDraft ? 'transparent' : c.light,
+                      border: isDraft ? `1.5px dashed ${c.bg}` : 'none',
+                    }}
+                  >
+                    <div
+                      className="size-2 rounded-full"
+                      style={{ background: c.bg, opacity: isDraft ? 0.6 : 1 }}
+                    />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>{shift.employee}</span>
-                      {isDraft && <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--accent)', color: 'var(--accent-foreground)', borderRadius: 4, padding: '1px 5px' }}>DRAFT</span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[13px] font-bold text-foreground">{shift.employee}</span>
+                      {isDraft && (
+                        <span className="rounded px-1.5 py-px text-[9px] font-bold text-accent-foreground bg-accent">
+                          DRAFT
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 1 }}>
+                    <div className="mt-px text-xs text-muted-foreground">
                       {category?.name} · {getTimeLabel(shift.date, shift.startH)} – {getTimeLabel(shift.date, shift.endH)} · {shift.endH - shift.startH}h
                     </div>
                   </div>
-                  <div
+                  <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); if (isDraft) onPublish(shift.id); else onUnpublish(shift.id) }}
-                    style={{ fontSize: 11, fontWeight: 600, color: isDraft ? 'var(--primary)' : 'var(--muted-foreground)', background: isDraft ? 'var(--accent)' : 'var(--border)', borderRadius: 6, padding: '4px 10px', flexShrink: 0, cursor: 'pointer' }}
+                    className={cn(
+                      'shrink-0 cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-semibold',
+                      isDraft ? 'bg-accent text-primary' : 'bg-border text-muted-foreground',
+                    )}
                   >
                     {isDraft ? 'Publish' : 'Draft'}
-                  </div>
+                  </button>
                 </div>
               )
             })}
@@ -213,7 +236,10 @@ function ListViewInner({
         if (!s) return null
         const c = getColor(categoryMap[s.categoryId]?.colorIdx ?? 0)
         return (
-          <div style={{ position: 'fixed', left: gPos.x + 14, top: gPos.y - 12, background: c.bg, color: 'var(--background)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+          <div
+            className="pointer-events-none fixed z-[9999] whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-bold shadow-lg text-background"
+            style={{ left: gPos.x + 14, top: gPos.y - 12, background: c.bg }}
+          >
             {s.employee} · {getTimeLabel(s.date, s.startH)}–{getTimeLabel(s.date, s.endH)}
           </div>
         )

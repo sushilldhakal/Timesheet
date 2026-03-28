@@ -246,6 +246,10 @@ export class TimesheetManager {
 
       // Find matching shift for this employee on this date
       const matchingShift = roster.shifts.find((shift: IShift) => {
+        if (shift.status === "draft") {
+          return false
+        }
+
         // Convert shift date to string for comparison
         const shiftDateStr = shift.date instanceof Date 
           ? shift.date.toISOString().split('T')[0] 

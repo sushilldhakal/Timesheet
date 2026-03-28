@@ -17,7 +17,7 @@ export type { GridConfig, BlockRect } from './geometry'
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export { useDragEngine } from './hooks/useDragEngine'
-export { useFlatRows, buildFlatRowTops } from './hooks/useFlatRows'
+export { useFlatRows, buildFlatRowTops, employeesForCategory } from './hooks/useFlatRows'
 export { useScrollToNow } from './hooks/useScrollToNow'
 export { useMediaQuery, useIsMobile, useIsTablet, useIsDesktop } from './hooks/useMediaQuery'
 export { useLongPress } from './hooks/useLongPress'

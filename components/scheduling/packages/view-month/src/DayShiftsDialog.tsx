@@ -2,6 +2,7 @@ import React from 'react'
 import type { Block, Resource } from '@shadcn-scheduler/core'
 import { fmt12 } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
+import { cn } from '@/lib/utils/cn'
 
 interface DayShiftsDialogProps {
   date: Date
@@ -35,37 +36,47 @@ export function DayShiftsDialog({
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ minWidth: 320, maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--background)', padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+        className="min-w-[320px] max-w-[420px] max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-background p-5 shadow-xl"
       >
-        <div style={{ marginBottom: 4, fontSize: 15, fontWeight: 800, color: 'var(--foreground)' }}>{dateStr}</div>
-        <div style={{ marginBottom: 16, fontSize: 12, color: 'var(--muted-foreground)' }}>{shifts.length} shift{shifts.length !== 1 ? 's' : ''}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="mb-1 text-[15px] font-extrabold text-foreground">{dateStr}</div>
+        <div className="mb-4 text-xs text-muted-foreground">
+          {shifts.length} shift{shifts.length !== 1 ? 's' : ''}
+        </div>
+        <div className="flex flex-col gap-4">
           {Object.entries(byCategory).map(([categoryId, catShifts]) => {
             const cat = categoryMap[categoryId]
             if (!cat) return null
             const c = getColor(cat.colorIdx)
             return (
               <div key={categoryId}>
-                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.text }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.bg }} />
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: c.text }}>
+                  <div className="h-2 w-2 rounded-full" style={{ background: c.bg }} />
                   {cat.name}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div className="flex flex-col gap-1">
                   {catShifts.map((shift) => {
                     const isDraft = shift.status === 'draft'
                     return (
                       <div
                         key={shift.id}
                         onClick={() => onShiftClick?.(shift, cat)}
-                        style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, background: isDraft ? c.light : c.bg, color: isDraft ? c.text : 'var(--background)', border: isDraft ? `1.5px dashed ${c.border}` : 'none', cursor: onShiftClick ? 'pointer' : 'default' }}
+                        className={cn(
+                          'rounded-lg px-3 py-2 text-[13px] font-semibold',
+                          isDraft ? 'border-[1.5px] border-dashed' : 'border border-transparent text-background',
+                          onShiftClick && 'cursor-pointer',
+                        )}
+                        style={{
+                          background: isDraft ? c.light : c.bg,
+                          ...(isDraft ? { color: c.text, borderColor: c.border } : {}),
+                        }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div className="flex items-center justify-between">
                           <span>{isDraft && '✎ '}{shift.employee}</span>
-                          <span style={{ fontSize: 12, opacity: 0.9 }}>{fmt12(shift.startH)} – {fmt12(shift.endH)}</span>
+                          <span className="text-xs opacity-90">{fmt12(shift.startH)} – {fmt12(shift.endH)}</span>
                         </div>
                       </div>
                     )
@@ -75,7 +86,11 @@ export function DayShiftsDialog({
             )
           })}
         </div>
-        <button type="button" onClick={onClose} style={{ marginTop: 20, width: '100%', borderRadius: 8, background: 'var(--muted)', padding: '10px 16px', fontSize: 13, fontWeight: 600, color: 'var(--foreground)', border: 'none', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 w-full rounded-lg bg-muted px-4 py-2.5 text-[13px] font-semibold text-foreground"
+        >
           Close
         </button>
       </div>

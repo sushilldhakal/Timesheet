@@ -9,6 +9,7 @@
  * virtualization, drag/resize, conflict detection, etc.
  */
 import React, { useState, useCallback } from 'react'
+import { cn } from '@/lib/utils/cn'
 import type { Block, Resource, SchedulerConfig, SchedulerSlots, SchedulerMarker, ShiftDependency, EmployeeAvailability, HistogramConfig } from '@shadcn-scheduler/core'
 import { DEFAULT_SETTINGS, nextUid as coreNextUid, toDateISO } from '@shadcn-scheduler/core'
 import { SchedulerProvider } from '@shadcn-scheduler/shell'
@@ -210,7 +211,7 @@ function SchedulerInner({
         )
       default:
         return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--muted-foreground)', fontSize: 14 }}>
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             Unknown view "{view}".
           </div>
         )
@@ -218,28 +219,29 @@ function SchedulerInner({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'inherit' }}>
-      <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--background)', flexShrink: 0 }}>
+    <div className="flex h-full flex-col font-[inherit]">
+      <div className="flex shrink-0 gap-2 border-b border-border bg-background px-3 py-2">
         {['day', 'week', 'month', 'year', 'timeline', 'list'].map(v => {
           const enabled = config?.views ? config.views[v as keyof typeof config.views] !== false : true
           if (!enabled) return null
           return (
             <button
               key={v}
+              type="button"
               onClick={() => setView(v)}
-              style={{
-                padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13,
-                fontWeight: view === v ? 700 : 400,
-                background: view === v ? 'var(--primary)' : 'var(--muted)',
-                color: view === v ? 'var(--primary-foreground)' : 'var(--foreground)',
-              }}
+              className={cn(
+                'cursor-pointer rounded-md border-none px-3 py-1 text-[13px]',
+                view === v
+                  ? 'bg-primary font-bold text-primary-foreground'
+                  : 'bg-muted font-normal text-foreground'
+              )}
             >
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           )
         })}
       </div>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="flex flex-1 flex-col overflow-hidden">
         {renderView()}
       </div>
     </div>

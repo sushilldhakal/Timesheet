@@ -24,7 +24,15 @@ import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent,
   ContextMenuItem, ContextMenuSeparator, ContextMenuLabel,
 } from '@shadcn-scheduler/grid-engine'
-import { Pencil, Copy, Scissors, Trash2, Plus, ClipboardPaste } from 'lucide-react'
+import { Pencil, Copy, Scissors, Trash2, Plus, ClipboardPaste, GripVertical } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
+import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge'
+
+function employerBadgeLabel(shift: Block): string {
+  const m = shift.meta as { employerBadge?: string } | undefined
+  const v = m?.employerBadge?.trim()
+  return v || 'Own staff'
+}
 
 // ─── Public props ─────────────────────────────────────────────────────────────
 
@@ -45,6 +53,8 @@ export interface KanbanViewProps {
   onBlockCreate?: (block: Block) => void
   onBlockUpdate?: (block: Block) => void
   onBlockDelete?: (shiftId: string) => void
+  /** Location coordinates for Open-Meteo (location category lat/lng) */
+  weatherCoords?: { lat: number; lng: number } | null
 }
 
 // ─── Internal types ───────────────────────────────────────────────────────────
@@ -70,6 +80,14 @@ function getInitials(shift: Block, employees: Resource[]): string {
     emp?.avatar ??
     shift.employee.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
   )
+}
+
+/** Display initials from a person or resource name */
+function resourceInitialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase() || '?'
 }
 
 /** Category initials — e.g. "Bar Floating/Polishing" → "BF", "Barista" → "B" */
@@ -103,7 +121,17 @@ function useConflicts(subset: Block[]): Set<string> {
 
 function Av({ initials, color, size = 28 }: { initials: string; color: string; size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: `${color}18`, border: `1.5px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size <= 24 ? 8 : 10, fontWeight: 800, color, flexShrink: 0, letterSpacing: 0.5 }}>
+    <div
+      className="flex shrink-0 items-center justify-center rounded-full border-[1.5px] font-extrabold tracking-wide"
+      style={{
+        width: size,
+        height: size,
+        fontSize: size <= 24 ? 8 : 10,
+        background: `${color}18`,
+        borderColor: `${color}40`,
+        color,
+      }}
+    >
       {initials}
     </div>
   )
@@ -138,28 +166,30 @@ function CellCtxMenu({
 
   const content = (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 99998 }} onPointerDown={onClose} />
-      <div onPointerDown={(e) => e.stopPropagation()} style={{ position: 'fixed', top: menu.clientY + 4, left: menu.clientX, zIndex: 99999, background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 0', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', minWidth: 180 }}>
+      <div className="fixed inset-0 z-[99998]" onPointerDown={onClose} />
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        className="fixed z-[99999] min-w-[180px] rounded-[10px] border border-border bg-popover py-1 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+        style={{ top: menu.clientY + 4, left: menu.clientX }}
+      >
         {!readOnly && (
           <button
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--foreground)', textAlign: 'left' }}
-            onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent)' }}
-            onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
             onClick={() => { onAddShift(); onClose() }}
           >
-            <Plus size={14} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+            <Plus size={14} className="shrink-0 text-primary" />
             Add shift
           </button>
         )}
-        {(!readOnly && clipboard) && <div style={{ height: 1, margin: '4px 0', background: 'var(--border)' }} />}
+        {(!readOnly && clipboard) && <div className="my-1 h-px bg-border" />}
         {clipboard && (
           <button
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--foreground)', textAlign: 'left' }}
-            onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent)' }}
-            onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left text-[13px] text-foreground hover:bg-accent"
             onClick={() => { onPaste(); onClose() }}
           >
-            <ClipboardPaste size={14} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+            <ClipboardPaste size={14} className="shrink-0 text-primary" />
             Paste — {clipboard.employee}
           </button>
         )}
@@ -182,12 +212,12 @@ function ShiftCtxMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div style={{ display: 'contents' }} onContextMenu={(e) => e.stopPropagation()}>
+        <div className="contents" onContextMenu={(e) => e.stopPropagation()}>
           {children}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuLabel style={{ color: color.bg }}>{shift.employee}</ContextMenuLabel>
+        <ContextMenuLabel className="font-semibold" style={{ color: color.bg }}>{shift.employee}</ContextMenuLabel>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={onEdit} className="gap-2"><Pencil size={14} className="text-muted-foreground" />Edit shift</ContextMenuItem>
         <ContextMenuItem onClick={onCopy} className="gap-2"><Copy size={14} className="text-muted-foreground" />Copy shift</ContextMenuItem>
@@ -202,12 +232,12 @@ function ShiftCtxMenu({
 // ─── Drop-zone wrapper ────────────────────────────────────────────────────────
 
 function DropZone({
-  dropKey, activeDropKey, color, onDragOver, onDragLeave, onDrop, onContextMenu, children, style,
+  dropKey, activeDropKey, color, onDragOver, onDragLeave, onDrop, onContextMenu, children, style, className,
 }: {
   dropKey: string; activeDropKey: string | null; color: { bg: string }
   onDragOver: (k: string) => void; onDragLeave: () => void; onDrop: (k: string) => void
   onContextMenu?: (e: React.MouseEvent) => void
-  children: React.ReactNode; style?: React.CSSProperties
+  children: React.ReactNode; style?: React.CSSProperties; className?: string
 }) {
   const isOver = activeDropKey === dropKey
   return (
@@ -215,7 +245,13 @@ function DropZone({
       onDragOver={(e) => { e.preventDefault(); onDragOver(dropKey) }}
       onDragLeave={onDragLeave} onDrop={(e) => { e.preventDefault(); onDrop(dropKey) }}
       onContextMenu={onContextMenu}
-      style={{ ...style, background: isOver ? `color-mix(in srgb, ${color.bg} 10%, var(--background))` : (style?.background ?? 'transparent'), outline: isOver ? `2px dashed ${color.bg}60` : undefined, outlineOffset: isOver ? -2 : undefined, transition: 'background 80ms, outline 80ms' }}
+      className={cn('transition-[background,outline] duration-75', className)}
+      style={{
+        ...style,
+        background: isOver ? `color-mix(in srgb, ${color.bg} 10%, var(--background))` : (style?.background ?? 'transparent'),
+        outline: isOver ? `2px dashed ${color.bg}60` : undefined,
+        outlineOffset: isOver ? -2 : undefined,
+      }}
     >
       {children}
     </div>
@@ -248,72 +284,66 @@ function DayCard({
     <div
       draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDoubleClick={onDoubleClick}
       title="Double-click to edit · Right-click for options"
+      className={cn(
+        "relative min-h-20 select-none overflow-hidden rounded-[10px] px-[13px] py-[11px] transition-[box-shadow,transform,opacity] duration-100",
+        isDraft && "bg-background",
+        beingDragged ? "cursor-grabbing opacity-35 shadow-none" : "cursor-grab opacity-100 shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
+      )}
       style={{
-        /* Solid category color — same as the grid's shift block */
-        background: isDraft ? 'var(--background)' : color.bg,
+        background: isDraft ? undefined : color.bg,
         border: isDraft
-          ? `1px dashed ${hasConflict ? 'var(--destructive)' : color.bg}`
-          : `1px solid ${hasConflict ? 'var(--destructive)' : 'transparent'}`,
-        borderRadius: 10,
-        padding: '11px 13px',
-        cursor: beingDragged ? 'grabbing' : 'grab',
-        boxShadow: beingDragged ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
-        /* position:relative + overflow:hidden so the break overlay clips to the card */
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'box-shadow 100ms, transform 100ms, opacity 120ms',
-        opacity: beingDragged ? 0.35 : 1,
-        minHeight: 80,
-        userSelect: 'none',
+          ? `1px dashed ${hasConflict ? 'hsl(var(--destructive))' : color.bg}`
+          : `1px solid ${hasConflict ? 'hsl(var(--destructive))' : 'transparent'}`,
       }}
       onMouseEnter={(e) => { if (beingDragged) return; const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)'; el.style.transform = 'translateY(-1px)' }}
-      onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)'; el.style.transform = '' }}
+      onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = beingDragged ? 'none' : '0 1px 4px rgba(0,0,0,0.08)'; el.style.transform = '' }}
     >
       {/* Left accent strip — 4px darker overlay, exactly like the grid */}
-      {!isDraft && <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: 'rgba(0,0,0,0.18)', pointerEvents: 'none', zIndex: 1 }} />}
+      {!isDraft && <div className="pointer-events-none absolute left-0 top-0 z-[1] h-full w-1 bg-black/18" />}
 
       {/* Break overlay — same div as GridView: position:absolute; top:0; height:100% */}
       {brk && (
         <div
           title={brk.title}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${brk.leftPct}%`,
-            width: `${brk.widthPct}%`,
-            height: '100%',
-            background: 'rgba(0,0,0,0.15)',
-            borderLeft:  '1px dashed rgba(255,255,255,0.35)',
-            borderRight: '1px dashed rgba(255,255,255,0.35)',
-            pointerEvents: 'none',
-            zIndex: 2,
-          }}
+          className="pointer-events-none absolute top-0 z-[2] h-full border-l border-r border-dashed border-white/35 bg-black/15"
+          style={{ left: `${brk.leftPct}%`, width: `${brk.widthPct}%` }}
         />
       )}
 
       {/* Content — z-index:3 so it sits above the break overlay */}
-      <div style={{ position: 'relative', zIndex: 3 }}>
+      <div className="relative z-[3]">
         {/* Avatar + name + badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+        <div className="mb-[7px] flex items-center gap-2">
           <Av initials={initials} color={isDraft ? color.bg : 'rgba(255,255,255,0.95)'} size={30} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: isDraft ? 'var(--foreground)' : 'rgba(255,255,255,0.97)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shift.employee}</span>
-          {hasConflict && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'rgba(239,68,68,0.9)', color: 'white', flexShrink: 0 }}>⚡ Conflict</span>}
-          {!hasConflict && isLive && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,255,255,0.22)', color: 'rgba(255,255,255,0.95)', flexShrink: 0 }}>● Live</span>}
-          {!hasConflict && !isLive && isDraft && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 999, background: 'var(--muted)', color: 'var(--muted-foreground)', flexShrink: 0 }}>Draft</span>}
+          <span className={cn("min-w-0 flex-1 truncate text-[13px] font-bold", isDraft ? "text-foreground" : "text-white/[0.97]")}>{shift.employee}</span>
+          {hasConflict && <span className="shrink-0 rounded-full bg-red-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">⚡ Conflict</span>}
+          {!hasConflict && isLive && <span className="shrink-0 rounded-full bg-white/22 px-1.5 py-0.5 text-[9px] font-bold text-white/95">● Live</span>}
+          {!hasConflict && !isLive && isDraft && <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">Draft</span>}
         </div>
 
         {/* Time + hours */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 500, color: isDraft ? 'var(--muted-foreground)' : 'rgba(255,255,255,0.82)' }}>{fmt12(shift.startH)} – {fmt12(shift.endH)}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: isDraft ? `${color.bg}14` : 'rgba(0,0,0,0.18)', color: isDraft ? color.bg : 'rgba(255,255,255,0.9)' }}>{hrs}</span>
+        <div className="flex items-center gap-1.5">
+          <span className={cn("text-xs font-medium", isDraft ? "text-muted-foreground" : "text-white/80")}>{fmt12(shift.startH)} – {fmt12(shift.endH)}</span>
+          <span
+            className={cn(
+              "ml-auto rounded-full px-[7px] py-0.5 text-[10px] font-bold",
+              isDraft ? "" : "bg-black/18 text-white/90"
+            )}
+            style={isDraft ? { background: `${color.bg}14`, color: color.bg } : undefined}
+          >
+            {hrs}
+          </span>
         </div>
 
         {/* Break label — text only, the visual is the overlay above */}
         {brk && (
-          <div style={{ marginTop: 5, fontSize: 10, color: isDraft ? 'var(--muted-foreground)' : 'rgba(255,255,255,0.72)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className={cn("mt-[5px] flex items-center gap-1 text-[10px]", isDraft ? "text-muted-foreground" : "text-white/72")}>
             ☕ {fmt12(shift.breakStartH!)} – {fmt12(shift.breakEndH!)}
           </div>
         )}
+        <div className={cn("mt-1.5 truncate text-[10px] font-semibold", isDraft ? "text-muted-foreground" : "text-white/78")}>
+          {employerBadgeLabel(shift)}
+        </div>
       </div>
     </div>
   )
@@ -366,51 +396,43 @@ function WeekCard({
       <div
         onPointerEnter={() => { if (leaveTimer.current) clearTimeout(leaveTimer.current) }}
         onPointerLeave={handleLeave}
+        className="fixed z-[99999] min-w-[190px] max-w-[280px] -translate-x-1/2 overflow-hidden rounded-[10px] border border-border bg-popover px-3.5 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
         style={{
-          position: 'fixed',
           top: showBelow ? popTop : undefined,
-          bottom: showBelow ? undefined : `${window.innerHeight - popTop}px`,
+          bottom: showBelow ? undefined : window.innerHeight - popTop,
           left: popLeft,
-          transform: 'translateX(-50%)',
-          zIndex: 99999,
-          background: 'var(--popover)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: '10px 14px',
-          minWidth: 190,
-          maxWidth: 280,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-          pointerEvents: 'auto',
-          overflow: 'hidden',
         }}
       >
         {/* Employee + colored dot */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: color.bg, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>{shift.employee}</span>
+        <div className="mb-1 flex items-center gap-1.5">
+          <div className="size-2 shrink-0 rounded-full" style={{ background: color.bg }} />
+          <span className="text-[13px] font-bold text-foreground">{shift.employee}</span>
         </div>
         {/* Category name */}
-        <div style={{ fontSize: 11, color: color.bg, fontWeight: 600, marginBottom: 5 }}>{catName}</div>
+        <div className="mb-1 text-[11px] font-semibold" style={{ color: color.bg }}>{catName}</div>
+        <div className="mb-1 truncate text-[10px] text-muted-foreground">
+          {employerBadgeLabel(shift)}
+        </div>
         {/* Time + duration */}
-        <div style={{ fontSize: 11, color: 'var(--foreground)', fontWeight: 600 }}>
+        <div className="text-[11px] font-semibold text-foreground">
           {fmt12(shift.startH)} – {fmt12(shift.endH)}
-          <span style={{ fontWeight: 400, color: 'var(--muted-foreground)', marginLeft: 6 }}>{hrs}</span>
+          <span className="ml-1.5 font-normal text-muted-foreground">{hrs}</span>
         </div>
         {/* Break */}
         {brk && (
-          <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 3 }}>
+          <div className="mt-1 text-[10px] text-muted-foreground">
             Break: {fmt12(shift.breakStartH!)}–{fmt12(shift.breakEndH!)}
           </div>
         )}
         {/* Conflict */}
         {hasConflict && (
-          <div style={{ marginTop: 7, padding: '4px 8px', borderRadius: 6, background: 'var(--destructive)', color: 'var(--destructive-foreground)', fontSize: 10, fontWeight: 600 }}>
+          <div className="mt-2 rounded-md bg-destructive px-2 py-1 text-[10px] font-semibold text-destructive-foreground">
             ⚡ Shift conflict — cannot publish
           </div>
         )}
         {/* Draft */}
         {isDraft && !hasConflict && (
-          <div style={{ marginTop: 5, fontSize: 10, color: 'var(--muted-foreground)' }}>Draft — not published</div>
+          <div className="mt-1 text-[10px] text-muted-foreground">Draft — not published</div>
         )}
       </div>,
       document.body
@@ -423,66 +445,63 @@ function WeekCard({
         ref={cardRef}
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDoubleClick={onDoubleClick}
         onPointerEnter={handleEnter} onPointerLeave={handleLeave}
+        className={cn(
+          "relative select-none overflow-hidden rounded-md py-1.5 pl-1.5 pr-[7px] transition-[opacity,box-shadow] duration-100",
+          isDraft ? "bg-transparent" : "bg-background",
+          beingDragged ? "cursor-grabbing opacity-35" : "cursor-grab opacity-100"
+        )}
         style={{
-          background: isDraft ? 'transparent' : 'var(--background)',
           border: hasConflict
-            ? '1.5px solid var(--destructive)'
+            ? '1.5px solid hsl(var(--destructive))'
             : isDraft
               ? `1.5px dashed ${color.bg}`
-              : '1px solid var(--border)',
-          borderRadius: 6,
-          padding: '5px 7px 5px 6px',
-          cursor: beingDragged ? 'grabbing' : 'grab',
-          position: 'relative', overflow: 'hidden',
-          opacity: beingDragged ? 0.35 : 1,
-          transition: 'opacity 120ms, box-shadow 100ms',
-          userSelect: 'none',
+              : '1px solid hsl(var(--border))',
         }}
         onMouseEnter={(e) => { if (!beingDragged) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)' }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
       >
         {/* Break overlay */}
         {brk && (
-          <div style={{
-            position: 'absolute', top: 0, left: `${brk.leftPct}%`,
-            width: `${brk.widthPct}%`, height: '100%',
-            background: 'rgba(0,0,0,0.07)',
-            borderLeft: '1px dashed rgba(0,0,0,0.2)',
-            borderRight: '1px dashed rgba(0,0,0,0.2)',
-            pointerEvents: 'none', zIndex: 2,
-          }} />
+          <div
+            className="pointer-events-none absolute top-0 z-[2] h-full border-l border-r border-dashed border-black/20 bg-black/[0.07]"
+            style={{ left: `${brk.leftPct}%`, width: `${brk.widthPct}%` }}
+          />
         )}
 
         {/* Status dot */}
         {(isLive || !isDraft) && (
-          <div style={{
-            position: 'absolute', top: 6, right: 6,
-            width: 6, height: 6, borderRadius: '50%',
-            background: hasConflict ? 'var(--destructive)' : isLive ? '#22c55e' : `${color.bg}80`,
-            zIndex: 3,
-          }} />
+          <div
+            className="absolute top-1.5 right-1.5 z-[3] size-1.5 rounded-full"
+            style={{
+              background: hasConflict
+                ? 'hsl(var(--destructive))'
+                : isLive
+                  ? '#22c55e'
+                  : `${color.bg}80`,
+            }}
+          />
         )}
 
         {/* Content */}
-        <div style={{ position: 'relative', zIndex: 3, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 5, flexShrink: 0,
-            background: color.bg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.95)',
-            letterSpacing: 0.3,
-          }}>
+        <div className="relative z-[3] flex items-center gap-[7px]">
+          <div
+            className="flex size-[26px] shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold tracking-wide text-white/95"
+            style={{ background: color.bg }}
+          >
             {catInitials}
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: hasConflict ? 'var(--destructive)' : 'var(--foreground)', whiteSpace: 'nowrap' }}>{fmt12(shift.startH)}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>{fmt12(shift.endH)}</span>
-              {isDraft && <span style={{ fontSize: 8, color: color.bg, marginLeft: 2, lineHeight: 1 }}>▶</span>}
-              {brk && <span style={{ fontSize: 9, color: 'var(--muted-foreground)', marginLeft: 1 }}>☕</span>}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 pr-2.5">
+              <span className={cn("whitespace-nowrap text-[11px] font-bold", hasConflict ? "text-destructive" : "text-foreground")}>{fmt12(shift.startH)}</span>
+              <span className="whitespace-nowrap text-[11px] font-bold text-muted-foreground">{fmt12(shift.endH)}</span>
+              {isDraft && <span className="ml-0.5 text-[8px] leading-none" style={{ color: color.bg }}>▶</span>}
+              {brk && <span className="ml-px text-[9px] text-muted-foreground">☕</span>}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+            <div className="mt-px truncate text-[10px] text-muted-foreground">
               {shift.employee}
+            </div>
+            <div className="mt-0.5 truncate text-[9px] text-muted-foreground/90">
+              {employerBadgeLabel(shift)}
             </div>
           </div>
         </div>
@@ -518,7 +537,7 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
   }
 
   return (
-    <div style={{ display: 'flex', gap: 12, padding: '12px 16px 16px', overflowX: 'auto', overflowY: 'hidden', height: '100%', alignItems: 'flex-start', boxSizing: 'border-box' }}>
+    <div className="box-border flex h-full items-start gap-3 overflow-x-auto overflow-y-hidden px-4 pt-3 pb-4">
       {categories.map((cat) => {
         const c = getColor(cat.colorIdx)
         const catShifts = dayShifts.filter((s) => s.categoryId === cat.id).sort((a, b) => a.startH - b.startH)
@@ -526,17 +545,25 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
         const draftN = catShifts.filter((s) => s.status === 'draft').length
         const pubN = catShifts.filter((s) => s.status === 'published').length
         return (
-          <div key={cat.id} style={{ minWidth: 250, width: 250, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--muted)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', maxHeight: '100%' }}>
-            <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--border)', borderTop: `3px solid ${c.bg}`, background: `${c.bg}07`, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.bg, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, background: `${c.bg}20`, color: c.bg, borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>{catShifts.length}</span>
+          <div key={cat.id} className="flex max-h-full w-[250px] min-w-[250px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-muted">
+            <div
+              className="shrink-0 border-b border-border px-3.5 pb-2.5 pt-3"
+              style={{ borderTop: `3px solid ${c.bg}`, background: `${c.bg}07` }}
+            >
+              <div className="flex items-center gap-[7px]">
+                <div className="size-2 shrink-0 rounded-full" style={{ background: c.bg }} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{cat.name}</span>
+                <span
+                  className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style={{ color: c.bg, background: `${c.bg}20` }}
+                >
+                  {catShifts.length}
+                </span>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 5, fontSize: 10, color: 'var(--muted-foreground)' }}>
+              <div className="mt-[5px] flex gap-2 text-[10px] text-muted-foreground">
                 <span>{totalH % 1 === 0 ? totalH : totalH.toFixed(1)}h</span>
-                {pubN > 0 && <span style={{ color: c.bg, fontWeight: 600 }}>· {pubN} pub</span>}
-                {draftN > 0 && <span style={{ fontWeight: 600 }}>· {draftN} draft</span>}
+                {pubN > 0 && <span className="font-semibold" style={{ color: c.bg }}>· {pubN} pub</span>}
+                {draftN > 0 && <span className="font-semibold">· {draftN} draft</span>}
               </div>
             </div>
 
@@ -544,10 +571,10 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
               onDragOver={setDropKey} onDragLeave={() => setDropKey(null)}
               onDrop={(k) => { const id = dragRef.current; if (!id) return; setShifts((p) => p.map((s) => s.id === id ? { ...s, categoryId: k } : s)); dragRef.current = null; setDragId(null); setDropKey(null) }}
               onContextMenu={(e) => { if (readOnly && !clipboard) return; e.preventDefault(); setCellMenu({ clientX: e.clientX, clientY: e.clientY, date, categoryId: cat.id }) }}
-              style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}
+              className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2"
             >
               {catShifts.length === 0 && (
-                <div style={{ padding: '28px 12px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 11, borderRadius: 8, border: '1.5px dashed var(--border)' }}>No shifts — right-click to add</div>
+                <div className="rounded-lg border-[1.5px] border-dashed border-border px-3 py-7 text-center text-[11px] text-muted-foreground">No shifts — right-click to add</div>
               )}
               {catShifts.map((shift) => (
                 <ShiftCtxMenu key={shift.id} shift={shift} color={c} readOnly={readOnly}
@@ -564,13 +591,20 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
             </DropZone>
 
             {!readOnly && (
-              <div style={{ padding: '0 8px 8px', flexShrink: 0 }}>
-                <button onClick={() => setAddPrompt({ date, categoryId: cat.id })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1.5px dashed ${c.bg}35`, background: `${c.bg}04`, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: c.bg, display: 'flex', alignItems: 'center', gap: 6 }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = `${c.bg}10` }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = `${c.bg}04` }}
+              <div className="shrink-0 px-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setAddPrompt({ date, categoryId: cat.id })}
+                  className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg border-[1.5px] border-dashed px-3 py-2 text-xs font-semibold transition-colors"
+                  style={{
+                    color: c.bg,
+                    borderColor: `${c.bg}35`,
+                    background: `${c.bg}04`,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${c.bg}10` }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = `${c.bg}04` }}
                 >
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add shift
+                  <span className="text-base leading-none">+</span> Add shift
                 </button>
               </div>
             )}
@@ -596,9 +630,25 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
 
 const CAT_W = 180
 
-function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlockUpdate, onBlockDelete, onGoToDay }: { dates: Date[]; onGoToDay?: (date: Date) => void } & BoardState) {
-  const { categories, getColor, nextUid } = useSchedulerContext()
+function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlockUpdate, onBlockDelete, onGoToDay, weatherCoords }: { dates: Date[]; onGoToDay?: (date: Date) => void; weatherCoords?: { lat: number; lng: number } | null } & BoardState) {
+  const { categories, employees, getColor, nextUid } = useSchedulerContext()
   const nowH = new Date().getHours() + new Date().getMinutes() / 60
+
+  /** Same grouping as UserSelect: employees whose primary category matches each role row */
+  const employeesByCategory = useMemo(() => {
+    const m = new Map<string, Resource[]>()
+    for (const e of employees) {
+      const cid = e.categoryId
+      if (!cid) continue
+      const list = m.get(cid) ?? []
+      list.push(e)
+      m.set(cid, list)
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return m
+  }, [employees])
 
   const idx = useMemo(() => {
     const m = new Map<string, Block[]>()
@@ -614,10 +664,51 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   const [clipboard, setClipboard] = useState<Block | null>(null)
   const [cellMenu, setCellMenu] = useState<CellMenu | null>(null)
   const dragRef = useRef<string | null>(null)
+  /** Dragging a person from the left roster onto a day cell creates a draft shift */
+  const rosterDragRef = useRef<{ employeeId: string; categoryId: string; name: string } | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropKey, setDropKey] = useState<string | null>(null)
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
   const [dayPopover, setDayPopover] = useState<{ date: Date; rect: DOMRect } | null>(null)
+
+  const handleWeekCellDrop = useCallback(
+    (cellKey: string) => {
+      const roster = rosterDragRef.current
+      if (roster) {
+        const [nc, nd] = cellKey.split(':') as [string, string]
+        if (nc !== roster.categoryId) {
+          rosterDragRef.current = null
+          setDragId(null)
+          setDropKey(null)
+          return
+        }
+        const block: Block = {
+          id: nextUid(),
+          categoryId: nc,
+          employeeId: roster.employeeId,
+          date: nd,
+          startH: 9,
+          endH: 17,
+          employee: roster.name,
+          status: 'draft',
+        }
+        setShifts((p) => [...p, block])
+        onBlockCreate?.(block)
+        rosterDragRef.current = null
+        setDragId(null)
+        setDropKey(null)
+        return
+      }
+      const id = dragRef.current
+      if (!id) return
+      const [nc, nd] = cellKey.split(':') as [string, string]
+      setShifts((p) => p.map((s) => (s.id === id ? { ...s, categoryId: nc, date: nd } : s)))
+      dragRef.current = null
+      setDragId(null)
+      setDropKey(null)
+    },
+    [nextUid, onBlockCreate, setShifts],
+  )
 
   const toggleCat = (catId: string) =>
     setCollapsedCats((prev) => { const n = new Set(prev); n.has(catId) ? n.delete(catId) : n.add(catId); return n })
@@ -631,11 +722,19 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   }
 
   return (
-    <div style={{ overflow: 'auto', boxSizing: 'border-box' }}>
-      <div style={{ display: 'table', tableLayout: 'fixed', width: '100%', minWidth: CAT_W + dates.length * 140, borderCollapse: 'collapse' }}>
+    <div className="box-border overflow-auto">
+      <div
+        className="table w-full border-collapse"
+        style={{ tableLayout: 'fixed', minWidth: CAT_W + dates.length * 140 }}
+      >
         {/* Header — matches screenshot: day abbrev + date circle + month + total hours */}
-        <div style={{ display: 'table-row', position: 'sticky', top: 0, zIndex: 10 }}>
-          <div style={{ display: 'table-cell', width: CAT_W, minWidth: CAT_W, padding: '10px 14px', borderBottom: '2px solid var(--border)', borderRight: '1px solid var(--border)', background: 'var(--background)', fontSize: 10, fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: 0.5, verticalAlign: 'bottom' }}>Category</div>
+        <div className="sticky top-0 z-10 table-row">
+          <div
+            className="table-cell border-b-2 border-r border-border bg-background px-3.5 py-2.5 align-bottom text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            style={{ width: CAT_W, minWidth: CAT_W }}
+          >
+            Category
+          </div>
           {dates.map((d, i) => {
             const today = isTodayFn(d); const iso = toDateISO(d)
             const dayShifts = weekShifts.filter((s) => s.date === iso)
@@ -644,12 +743,39 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
               <div
                 key={i}
                 onClick={(e) => setDayPopover({ date: d, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
-                style={{ display: 'table-cell', padding: '8px 10px 8px', borderBottom: '2px solid var(--border)', borderRight: i < dates.length - 1 ? '1px solid var(--border)' : undefined, background: today ? 'color-mix(in srgb, var(--primary) 5%, var(--background))' : 'var(--background)', verticalAlign: 'bottom', cursor: 'pointer', userSelect: 'none' }}
+                className={cn(
+                  'table-cell cursor-pointer select-none border-b-2 border-border px-2.5 py-2 align-bottom',
+                  i < dates.length - 1 && 'border-r border-border',
+                  today ? 'bg-primary/5' : 'bg-background'
+                )}
               >
-                <div style={{ fontSize: 12, fontWeight: 700, color: today ? 'var(--primary)' : 'var(--foreground)', whiteSpace: 'nowrap' }}>
-                  {DOW_MON_FIRST[(d.getDay() + 6) % 7]} <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: today ? 'var(--primary)' : 'transparent', color: today ? 'var(--primary-foreground)' : 'var(--foreground)', fontSize: 12 }}>{d.getDate()}</span> {MONTHS_SHORT[d.getMonth()]}
+                <div className="flex items-center justify-center gap-1">
+                  <div className={cn('whitespace-nowrap text-xs font-bold', today ? 'text-primary' : 'text-foreground')}>
+                    {DOW_MON_FIRST[(d.getDay() + 6) % 7]}{' '}
+                    <span
+                      className={cn(
+                        'inline-flex size-[22px] items-center justify-center rounded-full text-xs',
+                        today ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground'
+                      )}
+                    >
+                      {d.getDate()}
+                    </span>{' '}
+                    {MONTHS_SHORT[d.getMonth()]}
+                  </div>
+                  <span
+                    className="inline-flex shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <SchedulingWeatherDayBadge
+                      date={d}
+                      coords={weatherCoords ?? null}
+                      rangeStart={dates[0]}
+                      rangeEnd={dates[dates.length - 1]}
+                    />
+                  </span>
                 </div>
-                {dayH > 0 && <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>{dayH % 1 === 0 ? dayH : dayH.toFixed(1)}h</div>}
+                {dayH > 0 && <div className="mt-0.5 text-[10px] text-muted-foreground">{dayH % 1 === 0 ? dayH : dayH.toFixed(1)}h</div>}
               </div>
             )
           })}
@@ -659,32 +785,108 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
         {categories.map((cat, ci) => {
           const c = getColor(cat.colorIdx)
           const catW = weekShifts.filter((s) => s.categoryId === cat.id)
+          const roster = employeesByCategory.get(cat.id) ?? []
           const totalH = catW.reduce((a, s) => a + (s.endH - s.startH), 0)
           const uniqueEmployees = new Set(catW.map((s) => s.employee)).size
           const draftN = catW.filter((s) => s.status === 'draft').length
           const isCollapsed = collapsedCats.has(cat.id)
           const borderB = ci < categories.length - 1 ? '1px solid var(--border)' : undefined
           return (
-            <div key={cat.id} style={{ display: 'table-row' }}>
+            <div key={cat.id} className="table-row">
               {/* Accordion label — click to collapse / expand */}
               <div
                 onClick={() => toggleCat(cat.id)}
-                style={{ display: 'table-cell', width: CAT_W, minWidth: CAT_W, padding: isCollapsed ? '6px 10px' : '8px 10px', borderBottom: borderB, borderRight: '1px solid var(--border)', borderLeft: `3px solid ${c.bg}`, background: `${c.bg}06`, verticalAlign: 'middle', cursor: 'pointer', userSelect: 'none' }}
+                className={cn(
+                  "table-cell cursor-pointer select-none border-r border-border align-middle",
+                  isCollapsed ? "px-2.5 py-1.5" : "p-2.5"
+                )}
+                style={{
+                  width: CAT_W,
+                  minWidth: CAT_W,
+                  borderBottom: borderB,
+                  borderLeft: `3px solid ${c.bg}`,
+                  background: `${c.bg}06`,
+                }}
               >
                 {/* Row 1: colored square + name + chevron */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: c.bg, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cat.name}</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="size-2.5 shrink-0 rounded-sm" style={{ background: c.bg }} />
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-foreground">{cat.name}</span>
                   {/* Chevron rotates when expanded */}
-                  <span style={{ fontSize: 10, color: 'var(--muted-foreground)', flexShrink: 0, display: 'inline-block', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 150ms' }}>›</span>
+                  <span
+                    className={cn(
+                      "inline-block shrink-0 text-[10px] text-muted-foreground transition-transform duration-150",
+                      isCollapsed ? "rotate-0" : "rotate-90"
+                    )}
+                  >
+                    ›
+                  </span>
                 </div>
                 {/* Stats row — hidden when collapsed */}
                 {!isCollapsed && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--muted-foreground)', flexWrap: 'wrap', marginTop: 4 }}>
-                    <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{catW.length}</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="font-bold text-foreground">{catW.length}</span>
                     {uniqueEmployees > 0 && <><span>👥</span><span>{uniqueEmployees}</span></>}
-                    {draftN > 0 && <><span style={{ fontSize: 11 }}>□</span><span>{draftN}</span></>}
+                    {draftN > 0 && <><span className="text-[11px]">□</span><span>{draftN}</span></>}
                     {totalH > 0 && <><span>{totalH % 1 === 0 ? totalH : totalH.toFixed(1)}h</span><span>⏱</span></>}
+                  </div>
+                )}
+                {/* Roster — draggable onto week day cells (creates draft 9–17 shift) */}
+                {!isCollapsed && roster.length > 0 && (
+                  <div
+                    className="mt-2 space-y-1 rounded-md border border-border/60 bg-background/40 p-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {roster.map((emp) => {
+                      const ini = resourceInitialsFromName(emp.name)
+                      return (
+                        <div
+                          key={emp.id}
+                          draggable={!readOnly}
+                          title={
+                            readOnly
+                              ? emp.name
+                              : `${emp.name} — drag onto a day to add a draft shift (9am–5pm)`
+                          }
+                          onDragStart={(e) => {
+                            if (readOnly) return
+                            e.dataTransfer.effectAllowed = 'copy'
+                            e.dataTransfer.setData('text/plain', `employee:${emp.id}`)
+                            rosterDragRef.current = {
+                              employeeId: emp.id,
+                              categoryId: cat.id,
+                              name: emp.name,
+                            }
+                            dragRef.current = null
+                            setDragId(`__roster__${emp.id}`)
+                            setDropKey(null)
+                          }}
+                          onDragEnd={() => {
+                            rosterDragRef.current = null
+                            setDragId(null)
+                            setDropKey(null)
+                          }}
+                          className={cn(
+                            'group flex items-center gap-1 rounded-md border px-1 py-0.5 transition-[background,border-color,box-shadow]',
+                            readOnly
+                              ? 'cursor-default border-transparent'
+                              : 'cursor-grab border-transparent bg-muted/30 active:cursor-grabbing hover:border-border hover:bg-muted/70 hover:shadow-sm',
+                            dragId === `__roster__${emp.id}` && 'opacity-40 ring-1 ring-primary/30',
+                          )}
+                        >
+                          {!readOnly && (
+                            <GripVertical
+                              className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-muted-foreground"
+                              aria-hidden
+                            />
+                          )}
+                          <Av initials={ini} color={c.bg} size={20} />
+                          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-foreground">
+                            {emp.name}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -696,17 +898,22 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                 /* When collapsed: render just a thin strip, no content */
                 if (isCollapsed) {
                   return (
-                    <div key={di} style={{ display: 'table-cell', padding: '6px 0', borderBottom: borderB, borderRight: di < dates.length - 1 ? '1px solid var(--border)' : undefined, background: todayBg }} />
+                    <div
+                      key={di}
+                      className={cn("table-cell py-1.5", di < dates.length - 1 && "border-r border-border")}
+                      style={{ borderBottom: borderB, background: todayBg }}
+                    />
                   )
                 }
                 return (
                   <DropZone key={di} dropKey={cellKey} activeDropKey={dropKey} color={c}
                     onDragOver={setDropKey} onDragLeave={() => setDropKey(null)}
-                    onDrop={(k) => { const id = dragRef.current; if (!id) return; const [nc, nd] = k.split(':') as [string, string]; setShifts((p) => p.map((s) => s.id === id ? { ...s, categoryId: nc, date: nd } : s)); dragRef.current = null; setDragId(null); setDropKey(null) }}
+                    onDrop={handleWeekCellDrop}
                     onContextMenu={(e) => { if (readOnly && !clipboard) return; e.preventDefault(); setCellMenu({ clientX: e.clientX, clientY: e.clientY, date: d, categoryId: cat.id }) }}
-                    style={{ display: 'table-cell', padding: '7px 8px', borderBottom: borderB, borderRight: di < dates.length - 1 ? '1px solid var(--border)' : undefined, background: todayBg, verticalAlign: 'top' }}
+                    className={cn("table-cell align-top px-2 py-[7px]", di < dates.length - 1 && "border-r border-border")}
+                    style={{ borderBottom: borderB, background: todayBg }}
                   >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div className="flex flex-col gap-1">
                       {cellShifts.map((shift) => (
                         <ShiftCtxMenu key={shift.id} shift={shift} color={c} readOnly={readOnly}
                           onEdit={() => setEditTarget({ shift, category: cat })}
@@ -714,13 +921,21 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                         >
                           <WeekCard shift={shift} color={c} catInitials={getCatInitials(cat.name)} catName={cat.name} conflictIds={conflictIds} nowH={nowH} iso={iso} dragShiftId={dragId}
                             onDoubleClick={() => setEditTarget({ shift, category: cat })}
-                            onDragStart={(e) => { dragRef.current = shift.id; setDragId(shift.id); e.dataTransfer.effectAllowed = 'move' }}
+                            onDragStart={(e) => {
+                              rosterDragRef.current = null
+                              dragRef.current = shift.id
+                              setDragId(shift.id)
+                              e.dataTransfer.effectAllowed = 'move'
+                            }}
                             onDragEnd={() => { dragRef.current = null; setDragId(null); setDropKey(null) }}
                           />
                         </ShiftCtxMenu>
                       ))}
                       {cellShifts.length === 0 && !readOnly && (
-                        <div title="Right-click to add a shift" style={{ height: 4, borderRadius: 4, border: '1px dashed transparent', transition: 'all 100ms' }}
+                        <div
+                          title="Right-click to add a shift"
+                          className="rounded border border-dashed border-transparent transition-all duration-100"
+                          style={{ height: 4 }}
                           onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = `${c.bg}30`; el.style.background = `${c.bg}06`; el.style.height = '28px' }}
                           onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = 'transparent'; el.style.background = 'transparent'; el.style.height = '4px' }}
                         />
@@ -748,30 +963,24 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
       {/* Day header click popover — "Go to Day View" */}
       {dayPopover && createPortal(
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setDayPopover(null)} />
-          <div style={{
-            position: 'fixed',
-            top: dayPopover.rect.bottom + 6,
-            left: Math.min(dayPopover.rect.left + dayPopover.rect.width / 2, window.innerWidth - 220),
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-            background: 'var(--popover)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '12px 14px',
-            minWidth: 200,
-            maxWidth: 240,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-          }}>
-            <button onClick={() => setDayPopover(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setDayPopover(null)} />
+          <div
+            className="fixed z-[9999] min-w-[200px] max-w-[240px] -translate-x-1/2 rounded-[10px] border border-border bg-popover px-3.5 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+            style={{
+              top: dayPopover.rect.bottom + 6,
+              left: Math.min(dayPopover.rect.left + dayPopover.rect.width / 2, window.innerWidth - 220),
+            }}
+          >
+            <button type="button" onClick={() => setDayPopover(null)} className="absolute top-2 right-2 cursor-pointer border-none bg-transparent p-0.5 text-sm leading-none text-muted-foreground">✕</button>
             <button
+              type="button"
               onClick={() => { onGoToDay?.(dayPopover.date); setDayPopover(null) }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--foreground)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 6 }}
+              className="mb-1.5 flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[13px] font-bold text-foreground"
             >
-              <span style={{ fontSize: 14 }}>→</span> Go to Day View
+              <span className="text-sm">→</span> Open day view
             </button>
-            <div style={{ fontSize: 11, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
-              Check the sidebar for more info and actions for this day
+            <div className="text-[11px] leading-snug text-muted-foreground">
+              Opens the day panel with full drag and resize for this date.
             </div>
           </div>
         </>,
@@ -832,18 +1041,18 @@ function MonthLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlock
   }, [dragId, getDateFromEl, setShifts])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Day-of-week header */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderBottom: '2px solid var(--border)', flexShrink: 0 }}>
+      <div className="grid shrink-0 grid-cols-7 border-b-2 border-border">
         {DOW_MON_FIRST.map((d) => (
-          <div key={d} style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{d}</div>
+          <div key={d} className="py-2 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{d}</div>
         ))}
       </div>
 
       {/* Grid */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridAutoRows: 'minmax(100px,1fr)' }}>
+      <div className="grid min-h-0 flex-1 auto-rows-[minmax(100px,1fr)] grid-cols-7 overflow-y-auto">
         {cells.map((d, i) => {
-          if (!d) return <div key={`e${i}`} style={{ background: 'var(--muted)', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }} />
+          if (!d) return <div key={`e${i}`} className="border-b border-r border-border bg-muted" />
           const today = isTodayFn(d)
           const iso = toDateISO(d)
           const isOver = dropISO === iso
@@ -854,24 +1063,27 @@ function MonthLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlock
               key={iso}
               data-month-cell={iso}
               onContextMenu={(e) => { if (readOnly && !clipboard) return; e.preventDefault(); setCellMenu({ clientX: e.clientX, clientY: e.clientY, date: d }) }}
-              style={{
-                borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
-                padding: '5px 4px',
-                background: isOver ? 'var(--accent)' : today ? 'color-mix(in srgb, var(--primary) 6%, var(--background))' : 'var(--background)',
-                display: 'flex', flexDirection: 'column', gap: 2,
-                outline: isOver ? '2px solid var(--primary)' : 'none', outlineOffset: -2,
-                position: 'relative',
-              }}
+              className={cn(
+                "relative flex flex-col gap-0.5 border-b border-r border-border p-1 px-1",
+                isOver && "bg-accent outline outline-2 -outline-offset-2 outline-primary",
+                !isOver && today && "bg-primary/6",
+                !isOver && !today && "bg-background"
+              )}
             >
               {/* Day number + buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: today ? 'var(--primary)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: today ? 700 : 500, color: today ? 'var(--primary-foreground)' : 'var(--foreground)' }}>
+              <div className="mb-0.5 flex items-center justify-between">
+                <div
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded-full text-[13px]",
+                    today ? "bg-primary font-bold text-primary-foreground" : "bg-transparent font-medium text-foreground"
+                  )}
+                >
                   {d.getDate()}
                 </div>
                 {!readOnly && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <button onClick={() => setAddPrompt({ date: d })} style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px dashed var(--muted-foreground)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)', padding: 0 }} title="Add shift"><Plus size={8} /></button>
-                    {clipboard && <button onClick={() => paste(d)} style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px dashed var(--primary)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', padding: 0 }} title="Paste shift"><ClipboardPaste size={8} /></button>}
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => setAddPrompt({ date: d })} className="flex size-[18px] cursor-pointer items-center justify-center rounded-full border-[1.5px] border-dashed border-muted-foreground bg-transparent p-0 text-muted-foreground" title="Add shift"><Plus size={8} /></button>
+                    {clipboard && <button type="button" onClick={() => paste(d)} className="flex size-[18px] cursor-pointer items-center justify-center rounded-full border-[1.5px] border-dashed border-primary bg-transparent p-0 text-primary" title="Paste shift"><ClipboardPaste size={8} /></button>}
                   </div>
                 )}
               </div>
@@ -888,25 +1100,35 @@ function MonthLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlock
                     onCopy={() => setClipboard(shift)} onCut={() => cut(shift)} onDelete={() => del(shift.id)}
                   >
                     <div
+                      title={`${shift.employee} · ${employerBadgeLabel(shift)}`}
                       onPointerDown={(e) => { e.stopPropagation(); dragRef.current = shift.id; setDragId(shift.id) }}
                       onDoubleClick={(e) => { e.stopPropagation(); setEditTarget({ shift, category: cat }) }}
-                      style={{
-                        background: isDraft ? 'transparent' : c.bg,
-                        border: isDraft ? `1.5px dashed ${c.bg}` : 'none',
-                        color: isDraft ? c.bg : 'rgba(255,255,255,0.97)',
-                        borderRadius: 4, padding: '2px 5px', fontSize: 10, fontWeight: 600,
-                        cursor: dragId === shift.id ? 'grabbing' : 'grab',
-                        opacity: dragId === shift.id ? 0.3 : 1,
-                        touchAction: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      }}
+                      className={cn(
+                        "flex touch-none items-center justify-between overflow-hidden text-ellipsis whitespace-nowrap rounded px-[5px] py-0.5 text-[10px] font-semibold",
+                        isDraft ? "border-[1.5px] border-dashed bg-transparent" : "border border-transparent text-white/[0.97]",
+                        dragId === shift.id ? "cursor-grabbing opacity-30" : "cursor-grab opacity-100"
+                      )}
+                      style={
+                        isDraft
+                          ? { borderColor: c.bg, color: c.bg }
+                          : { background: c.bg }
+                      }
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                      <span className="min-w-0 flex-1 truncate">
                         {isDraft && '✎ '}{shift.employee.split(' ')[0]} {fmt12(shift.startH)}
                         {shift.breakStartH !== undefined && ' ☕'}
                       </span>
-                      <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setClipboard(shift) }}
-                        style={{ background: 'transparent', border: 'none', color: isDraft ? c.bg : 'rgba(255,255,255,0.85)', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center' }} title="Copy">
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setClipboard(shift) }}
+                        className={cn(
+                          "flex cursor-pointer items-center border-none bg-transparent px-0.5",
+                          isDraft ? "" : "text-white/85"
+                        )}
+                        style={isDraft ? { color: c.bg } : undefined}
+                        title="Copy"
+                      >
                         <Copy size={9} />
                       </button>
                     </div>
@@ -914,7 +1136,7 @@ function MonthLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlock
                 )
               })}
               {dayShifts.length > 3 && (
-                <div style={{ fontSize: 10, color: 'var(--primary)', paddingLeft: 2, cursor: 'pointer' }}>
+                <div className="cursor-pointer pl-0.5 text-[10px] text-primary">
                   +{dayShifts.length - 3} more
                 </div>
               )}
@@ -943,8 +1165,8 @@ function YearLayout({ date, shifts, onMonthDrill }: { date: Date; shifts: Block[
   const year = date.getFullYear()
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
         {MONTHS.map((mName, m) => {
           const days = getDIM(year, m)
           const first = getFirst(year, m)
@@ -954,32 +1176,45 @@ function YearLayout({ date, shifts, onMonthDrill }: { date: Date; shifts: Block[
           for (let d = 1; d <= days; d++) cells.push(d)
 
           return (
-            <div key={m} onClick={() => onMonthDrill?.(year, m)}
-              style={{ background: 'var(--background)', borderRadius: 12, border: '1px solid var(--border)', padding: 12, cursor: 'pointer', transition: 'box-shadow 0.15s, transform 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+            <div
+              key={m}
+              role="button"
+              tabIndex={0}
+              onClick={() => onMonthDrill?.(year, m)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onMonthDrill?.(year, m) } }}
+              className="cursor-pointer rounded-xl border border-border bg-background p-3 shadow-sm transition-[box-shadow,transform] duration-150"
               onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = '0 6px 20px rgba(0,0,0,0.1)'; el.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; el.style.transform = '' }}
+              onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = ''; el.style.transform = '' }}
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', marginBottom: 8 }}>{mName}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
-                {'MTWTFSS'.split('').map((c, i) => <div key={i} style={{ textAlign: 'center', fontSize: 8, color: 'var(--muted-foreground)', fontWeight: 700 }}>{c}</div>)}
+              <div className="mb-2 text-[13px] font-bold text-foreground">{mName}</div>
+              <div className="mb-0.5 grid grid-cols-7">
+                {'MTWTFSS'.split('').map((c, i) => <div key={i} className="text-center text-[8px] font-bold text-muted-foreground">{c}</div>)}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1 }}>
+              <div className="grid grid-cols-7 gap-px">
                 {cells.map((d, i) => {
                   if (!d) return <div key={`e${i}`} />
                   const has = ms.some((s) => new Date(s.date + 'T12:00:00').getDate() === d)
                   const tod = isTodayFn(new Date(year, m, d))
                   return (
-                    <div key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: tod || has ? 700 : 400, color: tod ? 'var(--background)' : has ? 'var(--primary-foreground)' : 'var(--muted-foreground)', background: tod ? 'var(--primary)' : has ? 'var(--primary)' : 'transparent', borderRadius: 2, lineHeight: '16px' }}>{d}</div>
+                    <div
+                      key={d}
+                      className={cn(
+                        "rounded-sm text-center text-[9px] leading-4",
+                        tod || has ? "bg-primary font-bold text-primary-foreground" : "bg-transparent font-normal text-muted-foreground"
+                      )}
+                    >
+                      {d}
+                    </div>
                   )
                 })}
               </div>
-              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: ms.length > 0 ? 'var(--primary)' : 'var(--muted-foreground)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 10, color: ms.length > 0 ? 'var(--foreground)' : 'var(--muted-foreground)' }}>{ms.length} shifts</span>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <div className={cn("size-1.5 shrink-0 rounded-full", ms.length > 0 ? "bg-primary" : "bg-muted-foreground")} />
+                  <span className={cn("text-[10px]", ms.length > 0 ? "text-foreground" : "text-muted-foreground")}>{ms.length} shifts</span>
                 </div>
                 {ms.filter((s) => s.status === 'draft').length > 0 && (
-                  <span style={{ fontSize: 9, color: 'var(--accent-foreground)', fontWeight: 600 }}>{ms.filter((s) => s.status === 'draft').length} draft</span>
+                  <span className="text-[9px] font-semibold text-accent-foreground">{ms.filter((s) => s.status === 'draft').length} draft</span>
                 )}
               </div>
             </div>
@@ -995,6 +1230,7 @@ function YearLayout({ date, shifts, onMonthDrill }: { date: Date; shifts: Block[
 export function KanbanView({
   date, shifts, setShifts, readOnly, mode = 'day', dates,
   onMonthDrill, onGoToDay, onBlockCreate, onBlockUpdate, onBlockDelete,
+  weatherCoords,
 }: KanbanViewProps): React.ReactElement {
   if (mode === 'year') {
     return <YearLayout date={date} shifts={shifts} onMonthDrill={onMonthDrill} />
@@ -1003,7 +1239,7 @@ export function KanbanView({
     return <MonthLayout date={date} shifts={shifts} setShifts={setShifts} readOnly={readOnly} onBlockCreate={onBlockCreate} onBlockUpdate={onBlockUpdate} onBlockDelete={onBlockDelete} />
   }
   if (mode === 'week' && dates && dates.length > 0) {
-    return <WeekLayout dates={dates} shifts={shifts} setShifts={setShifts} readOnly={readOnly} onGoToDay={onGoToDay} onBlockCreate={onBlockCreate} onBlockUpdate={onBlockUpdate} onBlockDelete={onBlockDelete} />
+    return <WeekLayout dates={dates} shifts={shifts} setShifts={setShifts} readOnly={readOnly} onGoToDay={onGoToDay} onBlockCreate={onBlockCreate} onBlockUpdate={onBlockUpdate} onBlockDelete={onBlockDelete} weatherCoords={weatherCoords} />
   }
   return <DayLayout date={date} shifts={shifts} setShifts={setShifts} readOnly={readOnly} onBlockCreate={onBlockCreate} onBlockUpdate={onBlockUpdate} onBlockDelete={onBlockDelete} />
 }
