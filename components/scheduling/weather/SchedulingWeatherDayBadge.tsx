@@ -154,7 +154,7 @@ export function SchedulingWeatherDayBadge({
         className={cn('inline-flex text-muted-foreground/50', className)}
         title="Add latitude and longitude to this location to show weather"
       >
-        <MapPinOff className={cn('size-3.5', iconClassName)} aria-hidden />
+        <MapPinOff className={cn('size-5', iconClassName)} aria-hidden />
       </span>
     )
   }
@@ -182,7 +182,7 @@ export function SchedulingWeatherDayBadge({
           }}
         >
           {isLoading ? (
-            <Loader2 className={cn('size-3.5 animate-spin', iconClassName)} />
+            <Loader2 className={cn('size-5 animate-spin', iconClassName)} />
           ) : isError || !day ? (
             <AmChartsWeatherIcon
               kind="cloud"

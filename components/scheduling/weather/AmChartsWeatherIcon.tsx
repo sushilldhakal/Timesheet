@@ -43,7 +43,7 @@ function fileForKind(kind: WeatherIconKind, isNight: boolean): string {
 export type AmChartsWeatherIconSize = 'sm' | 'lg'
 
 const px: Record<AmChartsWeatherIconSize, number> = {
-  sm: 22,
+  sm: 34,
   lg: 48,
 }
 

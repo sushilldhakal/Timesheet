@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
 import type { Block, Resource , SchedulerMarker , ShiftDependency, EmployeeAvailability } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
@@ -156,6 +156,8 @@ export interface GridViewProps {
   /** When true, hides the floating + add and paste buttons on each row.
    *  Use for Timeline view where double-click / right-click replaces them. */
   hideFloatingButtons?: boolean
+  /** Single-day day view: stretch hour columns to fill the grid column width (ResizeObserver). */
+  dayTimelineFillContainer?: boolean
 }
 
 export interface StaffPanelState {
@@ -230,6 +232,7 @@ function GridViewInner({
   onDependenciesChange,
   availability = [],
   hideFloatingButtons = false,
+  dayTimelineFillContainer = false,
 }: GridViewProps): React.ReactElement {
   const { categories, employees, nextUid, getColor, labels, settings, slots, snapMinutes, allowOvernight, getTimeLabel, timelineSidebarFlat } = useSchedulerContext()
   const CATEGORIES =
@@ -245,8 +248,6 @@ function GridViewInner({
     [snapHours]
   )
   const ALL_EMPLOYEES = employees
-
-  const HOUR_W = 96 * zoom
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -270,6 +271,31 @@ function GridViewInner({
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((c) => !c)
   }, [])
+
+  const timelineFillActive =
+    !!dayTimelineFillContainer && !isWeekView && !isDayViewMultiDay && dates.length === 1
+  const [timelineInnerW, setTimelineInnerW] = useState<number | null>(null)
+  const gridTimelineColRef = useRef<HTMLDivElement>(null)
+  const visibleHourSpanForFill = Math.max(settings.visibleTo - settings.visibleFrom, 1)
+  useLayoutEffect(() => {
+    if (!timelineFillActive) {
+      setTimelineInnerW(null)
+      return
+    }
+    const el = gridTimelineColRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      setTimelineInnerW(el.getBoundingClientRect().width)
+    })
+    ro.observe(el)
+    setTimelineInnerW(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [timelineFillActive, dates, sidebarCollapsed, sidebarWidth])
+
+  const HOUR_W =
+    timelineFillActive && timelineInnerW != null && timelineInnerW > 0
+      ? Math.max(32, timelineInnerW / visibleHourSpanForFill)
+      : 96 * zoom
   /** Sort: "name" | "hours" | "scheduled" | null */
   const [sortBy, setSortBy] = useState<"name" | "hours" | "scheduled" | null>(null)
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
@@ -2274,7 +2300,7 @@ function GridViewInner({
 
   const currentCategory = isMobileSingleResource && categories[mobileResourceIndex!]
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {isMobileSingleResource && currentCategory && (
         <div
           className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-muted"
@@ -2344,11 +2370,12 @@ function GridViewInner({
             setAddPrompt={setAddPrompt}
             slots={slots}
             categoryHeights={categoryHeights}
+            dayOverviewStaffRail={timelineFillActive}
           />
         </div>
 
-        {/* Grid column */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Grid column (ref: fluid hour width for single-day overview) */}
+        <div ref={gridTimelineColRef} className="flex min-w-0 min-h-0 flex-1 flex-col">
           <div
             className="flex"
             style={{

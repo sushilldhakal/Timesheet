@@ -1214,6 +1214,7 @@ export default function SchedulingPage() {
                 weekDates={weekDates}
                 onSelectDay={(d) => setDate(startOfDay(d))}
                 weatherCoords={weatherCoords}
+                shifts={filteredShifts}
               >
                 <DayView
                   date={date}

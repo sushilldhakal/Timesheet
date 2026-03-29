@@ -39,6 +39,11 @@ export interface DayViewProps {
   dependencies?: ShiftDependency[]
   onDependenciesChange?: (deps: ShiftDependency[]) => void
   availability?: EmployeeAvailability[]
+  /**
+   * When true (default): one selected day fills the viewport width; change days via the week strip.
+   * When false: legacy horizontal multi-day buffer inside the grid.
+   */
+  dayOverviewLayout?: boolean
 }
 
 export function DayView({
@@ -75,6 +80,7 @@ export function DayView({
   dependencies = [],
   onDependenciesChange,
   availability = [],
+  dayOverviewLayout = true,
 }: DayViewProps): React.ReactElement {
   const { categories } = useSchedulerContext()
   const isMobile = useIsMobile()
@@ -82,7 +88,10 @@ export function DayView({
   const [mobileResourceIndex, setMobileResourceIndex] = useState(0)
 
   let currentCenter = centerDate
-  if (Math.abs(date.getTime() - centerDate.getTime()) > 1000 * 60 * 60 * 24 * 5) {
+  if (
+    !dayOverviewLayout &&
+    Math.abs(date.getTime() - centerDate.getTime()) > 1000 * 60 * 60 * 24 * 5
+  ) {
     currentCenter = date
     setCenterDate(date)
   }
@@ -105,21 +114,28 @@ export function DayView({
 
   const totalDays = 1 + 2 * effectiveBufferDays
   const dates = useMemo((): Date[] => {
+    if (dayOverviewLayout) {
+      const d = new Date(date)
+      d.setHours(0, 0, 0, 0)
+      return [d]
+    }
     if (!setDate) return [currentCenter]
     return Array.from({ length: totalDays }, (_, i) => {
       const d = new Date(currentCenter)
       d.setDate(d.getDate() + i - effectiveBufferDays)
       return d
     })
-  }, [currentCenter, setDate, effectiveBufferDays, totalDays])
+  }, [dayOverviewLayout, date, currentCenter, setDate, effectiveBufferDays, totalDays])
 
   const visibleShifts = useMemo(() => {
     const dateSet = new Set(dates.map((d) => toDateISO(d)))
     return shifts.filter((s) => dateSet.has(s.date))
   }, [shifts, dates])
 
+  const overview = dayOverviewLayout
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <GridView
         dates={dates}
         shifts={visibleShifts}
@@ -128,13 +144,13 @@ export function DayView({
         onShiftClick={onShiftClick}
         onAddShift={onAddShift}
         isWeekView={false}
-        setDate={setDate}
-        isDayViewMultiDay={!!setDate && dates.length > 1}
+        setDate={overview ? undefined : setDate}
+        isDayViewMultiDay={overview ? false : !!setDate && dates.length > 1}
         focusedDate={date}
         copiedShift={copiedShift}
         setCopiedShift={setCopiedShift}
         zoom={zoom}
-        onVisibleRangeChange={onVisibleRangeChange}
+        onVisibleRangeChange={overview ? undefined : onVisibleRangeChange}
         prefetchThreshold={prefetchThreshold}
         onDeleteShift={onDeleteShift}
         scrollToNowRef={scrollToNowRef}
@@ -162,6 +178,7 @@ export function DayView({
         dependencies={dependencies}
         onDependenciesChange={onDependenciesChange}
         availability={availability}
+        dayTimelineFillContainer={overview}
       />
     </div>
   )

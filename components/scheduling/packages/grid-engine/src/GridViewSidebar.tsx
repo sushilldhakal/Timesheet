@@ -34,6 +34,8 @@ export interface GridViewSidebarProps {
   setAddPrompt: React.Dispatch<React.SetStateAction<AddPromptState | null>>;
   slots: SchedulerSlots;
   categoryHeights: Record<string, number>;
+  /** Single-day overview: richer staff rail (initials tile, shift times, name). */
+  dayOverviewStaffRail?: boolean;
 }
 
 export function GridViewSidebar({
@@ -63,8 +65,9 @@ export function GridViewSidebar({
   setAddPrompt,
   slots,
   categoryHeights,
+  dayOverviewStaffRail = false,
 }: GridViewSidebarProps): React.ReactElement {
-  const { labels, getColor, timelineSidebarFlat } = useSchedulerContext();
+  const { labels, getColor, timelineSidebarFlat, getTimeLabel } = useSchedulerContext();
   // Flat sidebar: active when config requests it AND we are in timeline (multiday) mode
   const flatSidebar = !!(timelineSidebarFlat && isDayViewMultiDay)
 
@@ -339,7 +342,13 @@ export function GridViewSidebar({
                     ) : (
                       <>
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[13px] font-bold leading-tight text-foreground">
+                          <span
+                            className={cn(
+                              'truncate text-[13px] font-bold leading-tight',
+                              !dayOverviewStaffRail && 'text-foreground',
+                            )}
+                            style={dayOverviewStaffRail ? { color: c.bg } : undefined}
+                          >
                             {cat.name}
                           </span>
                           <span className="truncate text-[10px] leading-tight text-muted-foreground">
@@ -433,6 +442,18 @@ export function GridViewSidebar({
             .slice(0, 2)
             .join("")
             .toUpperCase();
+          const shiftDateIso =
+            empShifts[0]?.date ?? focusedDate?.toISOString().slice(0, 10) ?? dates[0]?.toISOString().slice(0, 10) ?? "";
+          const timeRangeLabel =
+            empShifts.length > 0 && shiftDateIso
+              ? (() => {
+                  const starts = empShifts.map((s) => s.startH);
+                  const ends = empShifts.map((s) => s.endH);
+                  const lo = Math.min(...starts);
+                  const hi = Math.max(...ends);
+                  return `${getTimeLabel(shiftDateIso, lo)} ${getTimeLabel(shiftDateIso, hi)}`;
+                })()
+              : "—";
           return (
             <div
               key={row.key}
@@ -440,15 +461,23 @@ export function GridViewSidebar({
               style={{
                 top: vr.start,
                 height: vr.size,
-                background:
-                  hoveredCategoryId === cat.id ? `${c.bg}0d` : undefined,
+                background: dayOverviewStaffRail
+                  ? hoveredCategoryId === cat.id
+                    ? `${c.bg}12`
+                    : `${c.bg}07`
+                  : hoveredCategoryId === cat.id
+                    ? `${c.bg}0d`
+                    : undefined,
               }}
             >
               <div
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                className={cn(
+                  "flex shrink-0 items-center justify-center text-[10px] font-bold",
+                  dayOverviewStaffRail ? "size-9 rounded-md" : "size-8 rounded-full",
+                )}
                 style={{
-                  background: `${c.bg}20`,
-                  border: `1.5px solid ${c.bg}40`,
+                  background: `${c.bg}22`,
+                  border: `1.5px solid ${c.bg}45`,
                   color: c.bg,
                 }}
               >
@@ -456,7 +485,10 @@ export function GridViewSidebar({
                   <img
                     src={emp.avatar}
                     alt={emp.name}
-                    className="size-full rounded-full object-cover"
+                    className={cn(
+                      "size-full object-cover",
+                      dayOverviewStaffRail ? "rounded-md" : "rounded-full",
+                    )}
                     onError={(e) => {
                       e.currentTarget.classList.add("hidden");
                     }}
@@ -466,12 +498,25 @@ export function GridViewSidebar({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-semibold text-foreground">
-                  {emp.name}
-                </div>
-                <div className="truncate text-[10px] text-muted-foreground">
-                  {empShifts.length} shift{empShifts.length !== 1 ? "s" : ""}
-                </div>
+                {dayOverviewStaffRail ? (
+                  <>
+                    <div className="truncate text-[9px] font-medium tabular-nums leading-tight text-muted-foreground">
+                      {timeRangeLabel}
+                    </div>
+                    <div className="truncate text-xs font-semibold leading-tight text-foreground">
+                      {emp.name}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="truncate text-xs font-semibold text-foreground">
+                      {emp.name}
+                    </div>
+                    <div className="truncate text-[10px] text-muted-foreground">
+                      {empShifts.length} shift{empShifts.length !== 1 ? "s" : ""}
+                    </div>
+                  </>
+                )}
               </div>
               {empHours > 0 && (
                 <div

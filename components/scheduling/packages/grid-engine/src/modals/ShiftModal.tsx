@@ -200,7 +200,7 @@ export function ShiftModal({
 
         {/* Start / End time */}
         <div>
-          <label style={LBL}>Time</label>
+          <label className={LBL}>Time</label>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <select
               value={draft.startH}
@@ -209,7 +209,7 @@ export function ShiftModal({
                 const next = { ...draft, startH: v, endH: Math.max(v + SNAP, draft.endH) }
                 setDraft(next); validate(next)
               }}
-              style={{ ...SEL, flex: 1 }}
+              className={cn(SEL, "min-w-0 flex-1")}
             >
               {hourOptions.map((h) => <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>)}
             </select>
@@ -220,7 +220,7 @@ export function ShiftModal({
                 const v = Number(e.target.value)
                 setDraft({ ...draft, endH: v }); validate({ ...draft, endH: v })
               }}
-              style={{ ...SEL, flex: 1 }}
+              className={cn(SEL, "min-w-0 flex-1")}
             >
               {hourOptions.filter((h) => h > draft.startH).map((h) => (
                 <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
@@ -265,8 +265,8 @@ export function ShiftModal({
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={LBL}>Break end</label>
-                    <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} style={SEL}>
+                    <label className={LBL}>Break end</label>
+                    <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} className={SEL}>
                       {hourOptions.filter((h) => h > breakStartH && h < draft.endH).map((h) => (
                         <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
                       ))}
