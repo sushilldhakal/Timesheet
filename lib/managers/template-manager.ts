@@ -189,7 +189,7 @@ export class TemplateManager {
   }
 
   private toRoleTemplate(
-    doc: Record<string, unknown>,
+    doc: object,
     shiftPattern: ShiftPattern,
     roleId: string,
     organizationId: string
