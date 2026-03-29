@@ -2314,7 +2314,7 @@ function GridViewInner({
 
   const currentCategory = isMobileSingleResource && categories[mobileResourceIndex!]
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col">
       {isMobileSingleResource && currentCategory && (
         <div
           className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-muted"
@@ -2346,11 +2346,11 @@ function GridViewInner({
       <div
         ref={scrollRef}
         onScroll={isWeekView ? onWeekScroll : onDayScroll}
-        className="relative flex min-h-0 min-w-0 flex-1 overflow-auto"
+        className="relative flex min-h-0 min-w-0 flex-1 items-start overflow-auto"
       >
         {/* Sidebar — sticky left so it doesn't scroll horizontally */}
         <div
-          className="sticky left-0 z-22 shrink-0 self-start flex flex-col border-r bg-background"
+          className="sticky left-0 z-22 shrink-0 flex flex-col border-r bg-background"
           style={{
             width: sidebarCollapsed ? 0 : sidebarWidth,
             minWidth: sidebarCollapsed ? 0 : sidebarWidth,

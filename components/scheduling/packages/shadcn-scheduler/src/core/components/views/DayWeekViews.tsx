@@ -135,7 +135,7 @@ export function DayView({
   const overview = dayOverviewLayout
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <GridView
         dates={dates}
         shifts={visibleShifts}

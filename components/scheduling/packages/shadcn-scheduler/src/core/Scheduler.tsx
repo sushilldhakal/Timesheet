@@ -777,7 +777,7 @@ export function Scheduler({
 
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-150",
+            "flex min-h-0 flex-1 flex-col transition-opacity duration-150",
             isMobile && "pb-14"
           )}
           style={{ opacity: viewOpacity }}

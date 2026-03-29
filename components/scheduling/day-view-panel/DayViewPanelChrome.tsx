@@ -107,7 +107,7 @@ export function DayViewPanelChrome({
   }, [shifts, iso, settings.visibleFrom, settings.visibleTo, getTimeLabel]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 gap-1.5 border-b border-border bg-muted/40 px-3 py-2">
         {weekDates.map((d) => {
           const selected = isSameDay(d, selectedDate);
@@ -214,7 +214,7 @@ export function DayViewPanelChrome({
         </div>
       </div>
 
-      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">{children}</div>
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">{children}</div>
     </div>
   );
 }
