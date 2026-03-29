@@ -116,7 +116,8 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                             data-dashboard-shell
                             className={cn(
                                 'flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 transition-[max-width] duration-300 min-w-0',
-                                layoutFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
+
+                                isFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
                             )}
                         >
                             {/* Content Container */}
