@@ -897,8 +897,7 @@ export default function SchedulingPage() {
 
   return (
     <div
-      className="flex flex-col bg-background"
-    >
+      className="flex flex-col bg-background"   >
       {/* Page header — title, locations, employee count */}
       <div className="flex shrink-0 flex-col">
         <div className="flex shrink-0 items-center justify-between p-6 pb-4">
