@@ -91,34 +91,42 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                     mobileMenuOpen={mobileMenuOpen}
                 />
 
-                {/* Main Content */}
+                {/* Main Content — h-screen + overflow-hidden creates a fixed viewport box.
+                    Every flex-1/min-h-0 child can now fill remaining height without
+                    needing calc(100vh - magic-number). */}
                 <div
                     className={cn(
-                        'flex flex-1 flex-col transition-all duration-300 min-w-0',
+                        'flex flex-1 flex-col transition-all duration-300 min-w-0 h-screen overflow-hidden',
                         sidebarCollapsed ? 'md:ml-[70px]' : 'md:ml-[280px]'
                     )}
                 >
-                    {/* Header */}
+                    {/* Header — shrink-0 so it never compresses */}
                     <DashboardHeader
                         isCollapsed={sidebarCollapsed}
                         onToggleSidebar={toggleSidebar}
                         onLogout={handleLogout}
                     />
 
-                    {/* Page Content */}
-                    <main className="flex flex-1 min-w-0">
-                        {/* Shadcn-style: one wrapper controls width */}
+                    {/* Page Content — flex-1 min-h-0 fills exactly the space below the header */}
+                    <main className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+                        {/* Full-width pages (e.g. scheduling) get no padding so the grid
+                            reaches edge-to-edge. Boxed pages keep the standard padding. */}
                         <div
                             data-dashboard-shell
                             className={cn(
-                                'flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 transition-[max-width] duration-300 min-w-0',
-                                isFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
+                                'flex flex-1 flex-col min-h-0 min-w-0 transition-[max-width] duration-300',
+                                isFullWidth
+                                    ? 'w-full max-w-none'
+                                    : 'gap-4 p-4 lg:gap-6 lg:p-6 max-w-7xl mx-auto overflow-y-auto'
                             )}
                         >
                             {/* Content Container */}
                             <div
                                 data-dashboard-page
-                                className="w-full min-w-0 flex-1 rounded-xl"
+                                className={cn(
+                                    'w-full min-w-0',
+                                    isFullWidth ? 'flex flex-1 flex-col min-h-0' : 'flex-1 rounded-xl'
+                                )}
                             >
                                 {children}
                             </div>
