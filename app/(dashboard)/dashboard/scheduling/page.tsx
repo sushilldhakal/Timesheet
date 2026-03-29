@@ -529,13 +529,18 @@ export default function SchedulingPage() {
 
   // Transform events to shifts
   useEffect(() => {
-    const ev = (eventsData as { events?: unknown[] } | undefined)?.events;
+    type ApiScheduleEvent = {
+      id: string;
+      startDate: string;
+      endDate: string;
+      roleId?: string;
+      employerBadge?: string;
+      user?: { id?: string; name?: string };
+      shiftStatus?: string;
+    };
+    const ev = (eventsData as { events?: ApiScheduleEvent[] } | undefined)?.events;
     if (ev?.length) {
-      const transformedShifts: Block[] = ev.map((event: {
-        id: string; startDate: string; endDate: string; roleId?: string;
-        employerBadge?: string; user?: { id?: string; name?: string };
-        shiftStatus?: string;
-      }) => {
+      const transformedShifts: Block[] = ev.map((event) => {
         const startDate = parseISO(event.startDate);
         const endDate = parseISO(event.endDate);
         

@@ -20,16 +20,6 @@ interface AddShiftModalProps {
   onClose: () => void
 }
 
-const LBL: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600,
-  color: "var(--muted-foreground)", marginBottom: 4,
-}
-const SEL: React.CSSProperties = {
-  width: "100%", padding: "6px 8px", border: "1px solid var(--border)",
-  borderRadius: 7, fontSize: 12, color: "var(--foreground)",
-  background: "var(--background)", cursor: "pointer", outline: "none",
-}
-
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })
 }
@@ -214,8 +204,8 @@ export function AddShiftModal({
                   </div>
                 ) : (
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label style={{ ...LBL, marginBottom: 0 }}>Break duration</label>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className={cn(LBL, "mb-0")}>Break duration</label>
                       <span style={{ fontSize: 12, fontWeight: 700, color: c.bg }}>
                         {breakDurMin >= 60 ? `${(breakDurMin / 60).toFixed(breakDurMin % 60 === 0 ? 0 : 1)}h` : `${breakDurMin}m`}
                       </span>
