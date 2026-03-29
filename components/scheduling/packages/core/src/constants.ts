@@ -191,12 +191,23 @@ export function getWeeksForBuffer(date: Date, bufferWeeks: number): Date[] {
   return weeks
 }
 
+function workingHoursWindow(
+  wh: Settings['workingHours'][number]
+): { from: number; to: number } | null {
+  if (wh == null) return null
+  const { from, to } = wh
+  if (typeof from !== 'number' || typeof to !== 'number' || Number.isNaN(from) || Number.isNaN(to)) {
+    return null
+  }
+  return { from, to }
+}
+
 export function hourBg(h: number, settings: Settings, dow: number): string {
-  const wh = settings.workingHours[dow]
+  const win = workingHoursWindow(settings.workingHours[dow])
   const inV = h >= settings.visibleFrom && h < settings.visibleTo
   if (!inV) return 'var(--muted)'
-  if (wh === null) return 'var(--muted)'
-  if (h < wh.from || h >= wh.to) return 'var(--muted)'
+  if (win == null) return 'var(--muted)'
+  if (h < win.from || h >= win.to) return 'var(--muted)'
   return 'var(--background)'
 }
 
@@ -205,9 +216,9 @@ export function isOutsideWorkingHours(
   settings: Settings,
   dow: number
 ): boolean {
-  const wh = settings.workingHours[dow]
-  if (wh === null) return false
-  return h < wh.from || h >= wh.to
+  const win = workingHoursWindow(settings.workingHours[dow])
+  if (win == null) return false
+  return h < win.from || h >= win.to
 }
 
 export const DASHED_BG = 'var(--muted)'

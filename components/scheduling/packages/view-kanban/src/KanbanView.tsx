@@ -446,8 +446,8 @@ function WeekCard({
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDoubleClick={onDoubleClick}
         onPointerEnter={handleEnter} onPointerLeave={handleLeave}
         className={cn(
-          "relative select-none overflow-hidden rounded-md py-1.5 pl-1.5 pr-[7px] transition-[opacity,box-shadow] duration-100",
-          isDraft ? "bg-transparent" : "bg-background",
+          "relative box-border flex h-[42px] min-h-[42px] max-h-[42px] shrink-0 select-none overflow-hidden rounded-md py-0 pl-1 pr-1 transition-[opacity,box-shadow] duration-100",
+          isDraft ? "bg-muted/40" : "bg-muted/30",
           beingDragged ? "cursor-grabbing opacity-35" : "cursor-grab opacity-100"
         )}
         style={{
@@ -455,10 +455,14 @@ function WeekCard({
             ? '1.5px solid var(--destructive)'
             : isDraft
               ? `1.5px dashed ${color.bg}`
-              : '1px solid var(--border)',
+              : '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
+          boxShadow: '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)',
         }}
-        onMouseEnter={(e) => { if (!beingDragged) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
+        onMouseEnter={(e) => { if (!beingDragged) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)' }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.boxShadow = '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)'
+        }}
       >
         {/* Break overlay */}
         {brk && (
@@ -471,7 +475,7 @@ function WeekCard({
         {/* Status dot */}
         {(isLive || !isDraft) && (
           <div
-            className="absolute top-1.5 right-1.5 z-[3] size-1.5 rounded-full"
+            className="absolute top-1 right-1 z-[3] size-1.5 rounded-full"
             style={{
               background: hasConflict
                 ? 'var(--destructive)'
@@ -482,26 +486,23 @@ function WeekCard({
           />
         )}
 
-        {/* Content */}
-        <div className="relative z-[3] flex items-center gap-[7px]">
+        {/* Content — 42px row: badge + time line + name (employer in tooltip) */}
+        <div className="relative z-[3] flex h-full items-center gap-1.5">
           <div
-            className="flex size-[26px] shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold tracking-wide text-white/95"
+            className="flex size-7 shrink-0 items-center justify-center rounded-[4px] text-[9px] font-extrabold tracking-wide text-white/95"
             style={{ background: color.bg }}
           >
             {catInitials}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1 pr-2.5">
-              <span className={cn("whitespace-nowrap text-[11px] font-bold", hasConflict ? "text-destructive" : "text-foreground")}>{fmt12(shift.startH)}</span>
-              <span className="whitespace-nowrap text-[11px] font-bold text-muted-foreground">{fmt12(shift.endH)}</span>
+          <div className="min-w-0 flex-1 pr-3">
+            <div className="flex items-center gap-1 leading-none">
+              <span className={cn("whitespace-nowrap text-[11px] font-bold leading-tight", hasConflict ? "text-destructive" : "text-foreground")}>{fmt12(shift.startH)}</span>
+              <span className="whitespace-nowrap text-[11px] font-bold leading-tight text-muted-foreground">{fmt12(shift.endH)}</span>
               {isDraft && <span className="ml-0.5 text-[8px] leading-none" style={{ color: color.bg }}>▶</span>}
               {brk && <span className="ml-px text-[9px] text-muted-foreground">☕</span>}
             </div>
-            <div className="mt-px truncate text-[10px] text-muted-foreground">
+            <div className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-muted-foreground">
               {shift.employee}
-            </div>
-            <div className="mt-0.5 truncate text-[9px] text-muted-foreground/90">
-              {employerBadgeLabel(shift)}
             </div>
           </div>
         </div>
@@ -512,6 +513,20 @@ function WeekCard({
 }
 
 // ─── Day-view layout ─────────────────────────────────────────────────────────
+
+/** Faint horizontal guides every 31px; shift cards are 42px with 11px overlap (reference week board). */
+const KANBAN_GRID_ROW_PX = 31
+const KANBAN_SHIFT_H_PX = 42
+
+const kanbanColumnGridStyle: React.CSSProperties = {
+  backgroundImage: `repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent ${KANBAN_GRID_ROW_PX - 1}px,
+    color-mix(in srgb, var(--border) 72%, transparent) ${KANBAN_GRID_ROW_PX - 1}px,
+    color-mix(in srgb, var(--border) 72%, transparent) ${KANBAN_GRID_ROW_PX}px
+  )`,
+}
 
 function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUpdate, onBlockDelete }: { date: Date } & BoardState) {
   const { categories, getColor, nextUid } = useSchedulerContext()
@@ -537,7 +552,9 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
   }
 
   return (
-    <div className="box-border flex h-full items-start gap-3 overflow-x-auto overflow-y-hidden px-4 pt-3 pb-4">
+    <>
+    <div className="box-border flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-muted/40 p-3">
+      <div className="flex min-h-0 min-w-0 flex-1 divide-x divide-border overflow-x-auto overflow-y-hidden">
       {categories.map((cat) => {
         const c = getColor(cat.colorIdx)
         const catShifts = dayShifts.filter((s) => s.categoryId === cat.id).sort((a, b) => a.startH - b.startH)
@@ -545,9 +562,9 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
         const draftN = catShifts.filter((s) => s.status === 'draft').length
         const pubN = catShifts.filter((s) => s.status === 'published').length
         return (
-          <div key={cat.id} className="flex max-h-full w-[250px] min-w-[250px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-muted">
+          <div key={cat.id} className="flex max-h-full w-[250px] min-w-[250px] shrink-0 flex-col overflow-hidden bg-background first:rounded-l-md last:rounded-r-md">
             <div
-              className="shrink-0 border-b border-border px-3.5 pb-2.5 pt-3"
+              className="shrink-0 border-b border-border px-3.5 pb-2.5 pt-3 shadow-[inset_0_1px_0_0_color-mix(in_srgb,var(--border)_80%,transparent)]"
               style={{ borderTop: `3px solid ${c.bg}`, background: `${c.bg}07` }}
             >
               <div className="flex items-center gap-[7px]">
@@ -571,23 +588,31 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
               onDragOver={setDropKey} onDragLeave={() => setDropKey(null)}
               onDrop={(k) => { const id = dragRef.current; if (!id) return; setShifts((p) => p.map((s) => s.id === id ? { ...s, categoryId: k } : s)); dragRef.current = null; setDragId(null); setDropKey(null) }}
               onContextMenu={(e) => { if (readOnly && !clipboard) return; e.preventDefault(); setCellMenu({ clientX: e.clientX, clientY: e.clientY, date, categoryId: cat.id }) }}
-              className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2"
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2"
             >
               {catShifts.length === 0 && (
-                <div className="rounded-lg border-[1.5px] border-dashed border-border px-3 py-7 text-center text-[11px] text-muted-foreground">No shifts — right-click to add</div>
+                <div className="rounded-md border border-dashed border-border/80 bg-muted/20 px-3 py-7 text-center text-[11px] text-muted-foreground">No shifts — right-click to add</div>
               )}
+              <div
+                className={cn(
+                  "flex flex-col rounded-[2px]",
+                  catShifts.length > 0 && "[&>*]:-mb-[11px] [&>*:last-child]:mb-0"
+                )}
+                style={kanbanColumnGridStyle}
+              >
               {catShifts.map((shift) => (
                 <ShiftCtxMenu key={shift.id} shift={shift} color={c} readOnly={readOnly}
                   onEdit={() => setEditTarget({ shift, category: cat })}
                   onCopy={() => setClipboard(shift)} onCut={() => cut(shift)} onDelete={() => del(shift.id)}
                 >
-                  <DayCard shift={shift} color={c} conflictIds={conflictIds} nowH={nowH} iso={iso} dragShiftId={dragId}
+                  <WeekCard shift={shift} color={c} catInitials={getCatInitials(cat.name)} catName={cat.name} conflictIds={conflictIds} nowH={nowH} iso={iso} dragShiftId={dragId}
                     onDoubleClick={() => setEditTarget({ shift, category: cat })}
                     onDragStart={(e) => { dragRef.current = shift.id; setDragId(shift.id); e.dataTransfer.effectAllowed = 'move' }}
                     onDragEnd={() => { dragRef.current = null; setDragId(null); setDropKey(null) }}
                   />
                 </ShiftCtxMenu>
               ))}
+              </div>
             </DropZone>
 
             {!readOnly && (
@@ -611,18 +636,20 @@ function DayLayout({ date, shifts, setShifts, readOnly, onBlockCreate, onBlockUp
           </div>
         )
       })}
-
-      {cellMenu && <CellCtxMenu menu={cellMenu} readOnly={readOnly} clipboard={clipboard} onAddShift={() => setAddPrompt({ date: cellMenu.date, categoryId: cellMenu.categoryId })} onPaste={() => paste(cellMenu.date, cellMenu.categoryId!)} onClose={() => setCellMenu(null)} />}
-      {addPrompt && <AddShiftModal date={addPrompt.date} categoryId={addPrompt.categoryId} onAdd={(b) => { setShifts((p) => [...p, b]); onBlockCreate?.(b) }} onClose={() => setAddPrompt(null)} />}
-      {editTarget && (
-        <ShiftModal shift={editTarget.shift} category={editTarget.category} allShifts={shifts} onClose={() => setEditTarget(null)}
-          onPublish={(id) => setShifts((p) => p.map((s) => s.id === id ? { ...s, status: 'published' as const } : s))}
-          onUnpublish={(id) => setShifts((p) => p.map((s) => s.id === id ? { ...s, status: 'draft' as const } : s))}
-          onDelete={(id) => { del(id); setEditTarget(null) }}
-          onUpdate={(u) => { setShifts((p) => p.map((s) => s.id === u.id ? u : s)); onBlockUpdate?.(u) }}
-        />
-      )}
+      </div>
     </div>
+
+    {cellMenu && <CellCtxMenu menu={cellMenu} readOnly={readOnly} clipboard={clipboard} onAddShift={() => setAddPrompt({ date: cellMenu.date, categoryId: cellMenu.categoryId })} onPaste={() => paste(cellMenu.date, cellMenu.categoryId!)} onClose={() => setCellMenu(null)} />}
+    {addPrompt && <AddShiftModal date={addPrompt.date} categoryId={addPrompt.categoryId} onAdd={(b) => { setShifts((p) => [...p, b]); onBlockCreate?.(b) }} onClose={() => setAddPrompt(null)} />}
+    {editTarget && (
+      <ShiftModal shift={editTarget.shift} category={editTarget.category} allShifts={shifts} onClose={() => setEditTarget(null)}
+        onPublish={(id) => setShifts((p) => p.map((s) => s.id === id ? { ...s, status: 'published' as const } : s))}
+        onUnpublish={(id) => setShifts((p) => p.map((s) => s.id === id ? { ...s, status: 'draft' as const } : s))}
+        onDelete={(id) => { del(id); setEditTarget(null) }}
+        onUpdate={(u) => { setShifts((p) => p.map((s) => s.id === u.id ? u : s)); onBlockUpdate?.(u) }}
+      />
+    )}
+    </>
   )
 }
 
@@ -722,15 +749,15 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   }
 
   return (
-    <div className="box-border overflow-auto">
+    <div className="box-border overflow-auto rounded-lg border border-border bg-background">
       <div
         className="table w-full border-collapse"
         style={{ tableLayout: 'fixed', minWidth: CAT_W + dates.length * 140 }}
       >
-        {/* Header — matches screenshot: day abbrev + date circle + month + total hours */}
-        <div className="sticky top-0 z-10 table-row">
+        {/* Header — thin bottom rule + vertical rules between days (reference week board). */}
+        <div className="sticky top-0 z-10 table-row bg-background shadow-[0_1px_0_0_var(--border)]">
           <div
-            className="table-cell border-b-2 border-r border-border bg-background px-3.5 py-2.5 align-bottom text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className="table-cell border-b border-r border-border px-3.5 py-2.5 align-bottom text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
             style={{ width: CAT_W, minWidth: CAT_W }}
           >
             Category
@@ -744,9 +771,9 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                 key={i}
                 onClick={(e) => setDayPopover({ date: d, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
                 className={cn(
-                  'table-cell cursor-pointer select-none border-b-2 border-border px-2.5 py-2 align-bottom' ,
+                  'table-cell cursor-pointer select-none border-b border-border px-2.5 py-2 align-bottom',
                   i < dates.length - 1 && 'border-r border-border',
-                  today ? 'bg-primary/20' : 'bg-background'
+                  today ? 'bg-primary/15' : 'bg-background'
                 )}
               >
                 <div className="flex items-center justify-center gap-1">
@@ -797,7 +824,7 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
               <div
                 onClick={() => toggleCat(cat.id)}
                 className={cn(
-                  "table-cell cursor-pointer select-none border-r border-border align-middle",
+                  "table-cell cursor-pointer select-none border-r border-border align-middle shadow-[inset_0_-1px_0_0_var(--border)]",
                   isCollapsed ? "px-2.5 py-1.5" : "p-2.5"
                 )}
                 style={{
@@ -900,7 +927,10 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                   return (
                     <div
                       key={di}
-                      className={cn("table-cell py-1.5", di < dates.length - 1 && "border-r border-border")}
+                      className={cn(
+                        "table-cell border-b border-border py-1.5",
+                        di < dates.length - 1 && "border-r border-border"
+                      )}
                       style={{ borderBottom: borderB, background: todayBg }}
                     />
                   )
@@ -910,10 +940,19 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                     onDragOver={setDropKey} onDragLeave={() => setDropKey(null)}
                     onDrop={handleWeekCellDrop}
                     onContextMenu={(e) => { if (readOnly && !clipboard) return; e.preventDefault(); setCellMenu({ clientX: e.clientX, clientY: e.clientY, date: d, categoryId: cat.id }) }}
-                    className={cn("table-cell align-top px-2 py-[7px]", di < dates.length - 1 && "border-r border-border")}
+                    className={cn(
+                      "table-cell align-top border-b border-border px-1.5 py-1",
+                      di < dates.length - 1 && "border-r border-border"
+                    )}
                     style={{ borderBottom: borderB, background: todayBg }}
                   >
-                    <div className="flex flex-col gap-1">
+                    <div
+                      className={cn(
+                        "flex min-h-[8px] flex-col rounded-[2px]",
+                        cellShifts.length > 0 && "[&>*]:-mb-[11px] [&>*:last-child]:mb-0"
+                      )}
+                      style={kanbanColumnGridStyle}
+                    >
                       {cellShifts.map((shift) => (
                         <ShiftCtxMenu key={shift.id} shift={shift} color={c} readOnly={readOnly}
                           onEdit={() => setEditTarget({ shift, category: cat })}
@@ -935,9 +974,19 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                         <div
                           title="Right-click to add a shift"
                           className="rounded border border-dashed border-transparent transition-all duration-100"
-                          style={{ height: 4 }}
-                          onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = `${c.bg}30`; el.style.background = `${c.bg}06`; el.style.height = '28px' }}
-                          onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = 'transparent'; el.style.background = 'transparent'; el.style.height = '4px' }}
+                          style={{ minHeight: KANBAN_GRID_ROW_PX, height: 4 }}
+                          onMouseEnter={(e) => {
+                            const el = e.currentTarget as HTMLDivElement
+                            el.style.borderColor = `${c.bg}40`
+                            el.style.background = `${c.bg}08`
+                            el.style.height = `${KANBAN_SHIFT_H_PX}px`
+                          }}
+                          onMouseLeave={(e) => {
+                            const el = e.currentTarget as HTMLDivElement
+                            el.style.borderColor = 'transparent'
+                            el.style.background = 'transparent'
+                            el.style.height = '4px'
+                          }}
                         />
                       )}
                     </div>

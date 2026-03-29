@@ -437,6 +437,10 @@ function GridViewInner({
   }, [settings.visibleFrom, settings.visibleTo, dayTimeStep])
   const SLOT_W = HOUR_W * dayTimeStep
   const DAY_WIDTH = (settings.visibleTo - settings.visibleFrom) * HOUR_W
+  const isSingleDayTimeline = !isWeekView && !isDayViewMultiDay
+  const laneH = isSingleDayTimeline ? 31 : SHIFT_H
+  const blockBarInnerH = isSingleDayTimeline ? 42 : SHIFT_H - 8
+  const ghostBarH = isSingleDayTimeline ? 42 : SHIFT_H - 6
   const hasDayScrollNav = !isWeekView && !!setDate && !isDayViewMultiDay
   const TOTAL_W = isWeekView
     ? dates.length * COL_W_WEEK
@@ -806,12 +810,12 @@ function GridViewInner({
     for (const [key, dayShifts] of shiftIndex.entries()) {
       const catId = key.split(":")[0]
       if (!catId) continue
-      const h = getCategoryRowHeight(catId, dayShifts)
+      const h = getCategoryRowHeight(catId, dayShifts, laneH)
       const prev = map.get(catId) ?? 0
       if (h > prev) map.set(catId, h)
     }
     return map
-  }, [shiftIndex])
+  }, [shiftIndex, laneH])
 
   const categoryHeights = useMemo((): Record<string, number> => {
     const result: Record<string, number> = {}
@@ -825,16 +829,26 @@ function GridViewInner({
           result[key] = ROLE_HDR
         } else if (effectiveRowMode === "category" && !collapsed.has(row.category.id)) {
           // Use pre-computed max height — no inner dates.forEach loop
-          result[key] = Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + SHIFT_H)
+          result[key] = Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + laneH)
         } else {
           result[key] = ROLE_HDR
         }
         return
       }
-      result[key] = 50
+      const emp = row.employee!
+      let maxTracks = 1
+      for (const d of dates) {
+        const dayBlocks = (shiftIndex.get(`${row.category.id}:${toDateISO(d)}`) ?? []).filter((s) => s.employeeId === emp.id)
+        const sorted = [...dayBlocks].sort((a, b) => a.startH - b.startH)
+        if (sorted.length === 0) continue
+        const nums = packShifts(sorted)
+        const tc = nums.reduce((mx, t) => Math.max(mx, t + 1), 1)
+        if (tc > maxTracks) maxTracks = tc
+      }
+      result[key] = maxTracks * laneH + 16
     })
     return result
-  }, [maxTracksPerCat, flatRows, effectiveRowMode, collapsed])
+  }, [maxTracksPerCat, flatRows, effectiveRowMode, collapsed, shiftIndex, dates, laneH])
 
   // NOTE: vrTopsRef is updated from virtualizer vr.start values every render
   const vrTopsRef = useRef<Record<string, number>>({})
@@ -1389,7 +1403,7 @@ function GridViewInner({
         const blockRect = blockEl ? blockEl.getBoundingClientRect() : null
         const gRect = scrollRef.current?.getBoundingClientRect() ?? null
         const grabOffsetX = blockRect ? e.clientX - blockRect.left : 0
-        const grabOffsetY = blockRect ? e.clientY - blockRect.top  : (SHIFT_H - 6) / 2
+        const grabOffsetY = blockRect ? e.clientY - blockRect.top : ghostBarH / 2
         const { srcTrack, srcCategoryKey } = getSrcTrack(shift)
         ds.current = {
           type: "move",
@@ -1823,7 +1837,7 @@ function GridViewInner({
         left = (cs - settings.visibleFrom) * HOUR_W + 2
         width = Math.max((ce - cs) * HOUR_W - 4, 10)
       }
-      const pixelTop = top + ROLE_HDR + (ghostKey === d.srcCategoryKey ? d.srcTrack : 0) * SHIFT_H + 3
+      const pixelTop = top + ROLE_HDR + (ghostKey === d.srcCategoryKey ? d.srcTrack : 0) * laneH + 3
       const c = getColor(cat.colorIdx)
 
       // ── Snapped drop-zone ghost: real card appearance, no dashed border ──
@@ -1831,7 +1845,7 @@ function GridViewInner({
       ghostEl.style.left = "0"
       ghostEl.style.top = "0"
       ghostEl.style.width = `${width}px`
-      ghostEl.style.height = `${SHIFT_H - 6}px`
+      ghostEl.style.height = `${ghostBarH}px`
       ghostEl.style.transform = `translate(${left}px, ${pixelTop}px)`
       ghostEl.style.background = `${c.bg}22`
       ghostEl.style.border = `2px solid ${c.bg}88`
@@ -2332,7 +2346,7 @@ function GridViewInner({
       <div
         ref={scrollRef}
         onScroll={isWeekView ? onWeekScroll : onDayScroll}
-        className="relative flex min-h-0 flex-1 overflow-auto scrollbar-gutter-stable"
+        className="relative flex min-h-0 min-w-0 flex-1 overflow-auto"
       >
         {/* Sidebar — sticky left so it doesn't scroll horizontally */}
         <div
@@ -2396,9 +2410,12 @@ function GridViewInner({
                 width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
               }}
             >
-              {/* ── Date/hour header — sticky top:0, scrolls natively with grid ── */}
+              {/* ── Date / hour strip — sticky to scrollRef so it stays visible when scrolling the roster ── */}
               <div
-                className="sticky top-0 z-20 shrink-0 border-b-2 border-border bg-muted"
+                className={cn(
+                  "sticky top-0 z-25 shrink-0 border-b-2 border-border",
+                  isWeekView || isDayViewMultiDay ? "bg-muted" : "bg-background",
+                )}
                 style={{
                   width: isWeekView || isDayViewMultiDay ? TOTAL_W : DAY_WIDTH,
                 }}
@@ -3389,7 +3406,7 @@ function GridViewInner({
                 // Use category header top + total height of all employee rows in this category
                 const catHeaderTop = categoryTops[`cat:${cat.id}`] ?? 0
                 const catEmps = ALL_EMPLOYEES.filter((e) => e.categoryId === cat.id)
-                const empHeights = catEmps.reduce((sum, e) => sum + (categoryHeights[`emp:${e.id}`] ?? SHIFT_H), 0)
+                const empHeights = catEmps.reduce((sum, e) => sum + (categoryHeights[`emp:${e.id}`] ?? laneH), 0)
                 const top = catHeaderTop
                 const rowH = ROLE_HDR + empHeights
                 const dropClass = "bg-primary/10 ring-1 ring-primary/30 rounded pointer-events-none z-10"
@@ -3485,7 +3502,7 @@ function GridViewInner({
                     const rowModeForRender = effectiveRowMode as string
                     const top = rowModeForRender === "flat"
                       ? catTop + 4 + track * (ROLE_HDR - 4)
-                      : catTop + ROLE_HDR + track * SHIFT_H + 4
+                      : catTop + ROLE_HDR + track * laneH + 4
                     const variant = settings.badgeVariant ?? "both"
                     const canDrag = (variant === "drag" || variant === "both") && shift.draggable !== false
                     const showResize = !readOnly && (variant === "resize" || variant === "both") && width >= 48 && shift.resizable !== false
@@ -3497,7 +3514,7 @@ function GridViewInner({
                     const hasConflict = conflictIds.has(shift.id)
                     const isPast = shift.date < toDateISO(new Date()) || (sameDay(shift.date, new Date()) && shift.endH < nowH)
                     const isLive = sameDay(shift.date, new Date()) && nowH >= shift.startH && nowH < shift.endH
-                    const blockH = rowModeForRender === "flat" ? ROLE_HDR - 8 : SHIFT_H - 8
+                    const blockH = rowModeForRender === "flat" ? ROLE_HDR - 8 : blockBarInnerH
                     const blockStyle: React.CSSProperties = {
                       position: "absolute", left, top, width,
                       height: blockH, borderRadius: 8,
@@ -3747,19 +3764,19 @@ function GridViewInner({
                     if (!clampedSkel) return null
                     left = clampedSkel.left
                     width = clampedSkel.width
-                    const top = catTop + track * SHIFT_H + 3
+                    const top = catTop + track * laneH + 3
                     return (
                       <div
                         key={shift.id}
                         className="animate-pulse rounded-md bg-muted"
-                        style={{ position: "absolute", left, top, width, height: SHIFT_H - 6 }}
+                        style={{ position: "absolute", left, top, width, height: ghostBarH }}
                       />
                     )
                   }
                   const track = trackMap.get(shift.id) ?? 0
                   const isDraft = shift.status === "draft"
                   const isDrag = dragId === shift.id
-                  const top = catTop + track * SHIFT_H + 4
+                  const top = catTop + track * laneH + 4
                   let left: number, width: number
                   if (isWeekView) {
                     const cs = Math.max(shift.startH, settings.visibleFrom)
@@ -3799,7 +3816,7 @@ function GridViewInner({
                   const isSelected = selectedBlockIds.has(shift.id)
                   const isActivating = activatingBlockId === shift.id
                   const hasConflict = conflictIds.has(shift.id)
-                  const blockH = SHIFT_H - 8
+                  const blockH = blockBarInnerH
                   const blockStyle: React.CSSProperties = {
                     position: "absolute", left, top, width,
                     height: blockH, borderRadius: 8,
