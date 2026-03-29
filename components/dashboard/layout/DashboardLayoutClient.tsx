@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { DashboardSidebar } from './DashboardSidebar';
 import { DashboardHeader } from './DashboardHeader';
 import { BreadcrumbsProvider } from '@/components/providers/BreadcrumbsProvider';
@@ -19,7 +20,10 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
     const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, toggleMobileMenu, setMobileMenuOpen } = useDashboardStore();
     const { logout } = useAuth();
     const { isFullWidth } = useLayout();
-
+    const pathname = usePathname() ?? '';
+    const isSchedulingRoute =
+        pathname === '/dashboard/scheduling' || pathname.startsWith('/dashboard/scheduling/');
+    const layoutFullWidth = isFullWidth || isSchedulingRoute;
 
     const handleLogout = () => {
         logout();
@@ -73,7 +77,7 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
     return (
         <BreadcrumbsProvider>
             <div
-                data-dashboard-layout={isFullWidth ? 'full' : 'boxed'}
+                data-dashboard-layout={layoutFullWidth ? 'full' : 'boxed'}
                 className="flex min-h-screen w-full min-w-0 "
             >
                 {/* Mobile Overlay */}
@@ -112,7 +116,7 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                             data-dashboard-shell
                             className={cn(
                                 'flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 transition-[max-width] duration-300 min-w-0',
-                                isFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
+                                layoutFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
                             )}
                         >
                             {/* Content Container */}

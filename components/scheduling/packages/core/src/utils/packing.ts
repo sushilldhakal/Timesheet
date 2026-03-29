@@ -88,12 +88,12 @@ export function packShifts(blocks: Block[]): number[] {
   })
 }
 
-export function getCategoryRowHeight(categoryId: string, dayBlocks: Block[]): number {
+export function getCategoryRowHeight(categoryId: string, dayBlocks: Block[], lanePx: number = SHIFT_H): number {
   const rs = dayBlocks.filter(s => s.categoryId === categoryId)
-  if (rs.length === 0) return ROLE_HDR + SHIFT_H + ADD_BTN_H
+  if (rs.length === 0) return ROLE_HDR + lanePx + ADD_BTN_H
   const sorted = [...rs].sort((a, b) => a.startH - b.startH)
   const trackCount = packShifts(sorted).reduce((mx, t) => Math.max(mx, t + 1), 1)
-  return ROLE_HDR + trackCount * SHIFT_H + ADD_BTN_H
+  return ROLE_HDR + trackCount * lanePx + ADD_BTN_H
 }
 
 /**

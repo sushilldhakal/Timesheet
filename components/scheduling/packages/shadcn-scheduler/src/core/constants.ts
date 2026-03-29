@@ -194,12 +194,23 @@ export function getWeeksForBuffer(date: Date, bufferWeeks: number): Date[] {
   return weeks
 }
 
+function workingHoursWindow(
+  wh: Settings["workingHours"][number]
+): { from: number; to: number } | null {
+  if (wh == null) return null
+  const { from, to } = wh
+  if (typeof from !== "number" || typeof to !== "number" || Number.isNaN(from) || Number.isNaN(to)) {
+    return null
+  }
+  return { from, to }
+}
+
 export function hourBg(h: number, settings: Settings, dow: number): string {
-  const wh = settings.workingHours[dow]
+  const win = workingHoursWindow(settings.workingHours[dow])
   const inV = h >= settings.visibleFrom && h < settings.visibleTo
   if (!inV) return "var(--muted)"
-  if (wh === null) return "var(--muted)"
-  if (h < wh.from || h >= wh.to) return "var(--muted)"
+  if (win == null) return "var(--muted)"
+  if (h < win.from || h >= win.to) return "var(--muted)"
   return "var(--background)"
 }
 
@@ -212,11 +223,9 @@ export function hourBg(h: number, settings: Settings, dow: number): string {
  *   hours 7,8,9 → dashed; 10..14 → clear; 15,16 → dashed
  */
 export function isOutsideWorkingHours(h: number, settings: Settings, dow: number): boolean {
-  const wh = settings.workingHours[dow]
-  // Closed day — entire row is muted (handled by hourBg), not dashed
-  if (wh === null) return false
-  // Hour is within visible range but outside this day's working window → dashed
-  return h < wh.from || h >= wh.to
+  const win = workingHoursWindow(settings.workingHours[dow])
+  if (win == null) return false
+  return h < win.from || h >= win.to
 }
 
 /** CSS for off-hours background — clean flat muted tone, no visual noise */

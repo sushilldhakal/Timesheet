@@ -898,14 +898,6 @@ export default function SchedulingPage() {
   return (
     <div
       className="flex flex-col bg-background"
-      style={{
-        position: 'fixed',
-        top: 64,          // header height (h-16)
-        left: sidebarLeft,
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-      }}
     >
       {/* Page header — title, locations, employee count */}
       <div className="flex shrink-0 flex-col">
@@ -1214,7 +1206,7 @@ export default function SchedulingPage() {
             </div>
           </div>
 
-          <div className="not-prose flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="not-prose flex min-h-0 w-full min-w-0 flex-1 flex-col">
             {view.startsWith('list') ? (
               <ListView
                 shifts={filteredShifts}
