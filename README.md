@@ -89,7 +89,7 @@ A modern staff workforce management app with kiosk-style time clock — built wi
 │   │       └── profile/    # User profile
 │   ├── clock/              # Employee clock-in interface
 │   ├── login/              # Admin login
-│   └── (Public)/           # Public PIN entry page
+│   └── (public)/           # Public PIN entry page
 ├── components/             # React components
 │   ├── ui/                # shadcn/ui components
 │   ├── Home/              # PIN pad & login

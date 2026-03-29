@@ -101,6 +101,7 @@ export class SchedulingTemplateManager {
     roleIds: string[]
   }): Promise<{ shiftsCreated: number }> {
     const { templateId, targetWeekId, mode, locationId, roleIds } = params
+    const locOid = new mongoose.Types.ObjectId(locationId)
     const template = await RosterTemplate.findById(templateId)
     if (!template) {
       throw new Error("Template not found")
@@ -125,7 +126,6 @@ export class SchedulingTemplateManager {
       })
     }
 
-    const locOid = new mongoose.Types.ObjectId(locationId)
     const roleSet = new Set(roleIds.map((r) => new mongoose.Types.ObjectId(r).toString()))
 
     if (mode === "replace") {
