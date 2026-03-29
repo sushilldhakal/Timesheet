@@ -82,7 +82,6 @@ import {
 } from '@/lib/queries/scheduling-page';
 import { useSchedulingSettingsStore } from '@/lib/store/scheduling-settings-store';
 import useDashboardStore from '@/lib/store';
-import { useLayout } from '@/components/providers/LayoutProvider';
 import { startOfDay, endOfDay, format, parseISO, getISOWeek, getISOWeekYear } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils/cn';
@@ -137,18 +136,7 @@ export default function SchedulingPage() {
   const [settingsOverride, setSettingsOverride] = useState<Partial<Settings>>({})
 
   // Dashboard store for sidebar management
-  const { setSidebarCollapsed } = useDashboardStore();
-  const { isFullWidth, toggleLayout } = useLayout();
-
-  // Scheduling needs edge-to-edge layout — enable full-width mode while mounted
-  useEffect(() => {
-    if (!isFullWidth) toggleLayout();
-    return () => {
-      // Restore boxed layout when leaving the scheduling page
-      if (isFullWidth) toggleLayout();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { setSidebarCollapsed, sidebarCollapsed } = useDashboardStore();
 
   // TanStack Query hooks
   const userInfoQuery = useMe();
@@ -899,8 +887,21 @@ export default function SchedulingPage() {
 
   if (!mounted || !date) return null
 
+  // sidebarCollapsed comes from useDashboardStore — tracks sidebar width for fixed positioning
+  const sidebarLeft = sidebarCollapsed ? 70 : 280
+
   return (
-    <div className="flex flex-1 min-h-0 w-full flex-col overflow-hidden">
+    <div
+      className="flex flex-col bg-background"
+      style={{
+        position: 'fixed',
+        top: 64,          // header height (h-16)
+        left: sidebarLeft,
+        right: 0,
+        bottom: 0,
+        zIndex: 10,
+      }}
+    >
       {/* Page header — title, locations, employee count */}
       <div className="flex shrink-0 flex-col">
         <div className="flex shrink-0 items-center justify-between p-6 pb-4">
