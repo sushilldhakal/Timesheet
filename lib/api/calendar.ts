@@ -41,33 +41,26 @@ export async function getCalendarEvents(filters: CalendarEventsFilters): Promise
     params.append('publishedOnly', 'true')
   }
   
-  console.log('[getCalendarEvents] Making request with params:', params.toString())
   
   const response = await fetch(`/api/calendar/events?${params.toString()}`, {
     credentials: 'include',
   })
   
-  console.log('[getCalendarEvents] Response status:', response.status)
-  console.log('[getCalendarEvents] Response headers:', Object.fromEntries(response.headers.entries()))
   
   if (!response.ok) {
     const contentType = response.headers.get('content-type')
-    console.log('[getCalendarEvents] Error response content-type:', contentType)
     
     if (contentType?.includes('application/json')) {
       const error = await response.json()
-      console.log('[getCalendarEvents] JSON error:', error)
       throw new Error(error.error || 'Failed to fetch events')
     } else {
       // If we get HTML instead of JSON, log it for debugging
       const text = await response.text()
-      console.log('[getCalendarEvents] HTML error response:', text.substring(0, 500))
       throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}`)
     }
   }
   
   const data = await response.json()
-  console.log('[getCalendarEvents] Success response:', data)
   return data
 }
 

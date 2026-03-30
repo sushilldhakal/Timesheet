@@ -187,14 +187,14 @@ export function SchedulingWeatherDayBadge({
             <AmChartsWeatherIcon
               kind="cloud"
               forDate={date}
-              size="sm"
+              size="lg"
               className={cn('opacity-45', iconClassName)}
             />
           ) : (
             <AmChartsWeatherIcon
               kind={kind}
               forDate={date}
-              size="sm"
+              size="lg"
               className={iconClassName}
             />
           )}

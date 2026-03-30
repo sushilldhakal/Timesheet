@@ -1,6 +1,7 @@
 import React from "react";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import type { Block, Resource, FlatRow, SchedulerSlots } from '@shadcn-scheduler/core';
+import { toDateISO } from "@shadcn-scheduler/core";
 import { useSchedulerContext } from '@shadcn-scheduler/shell';
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils/cn";
@@ -70,11 +71,22 @@ export function GridViewSidebar({
   const { labels, getColor, timelineSidebarFlat, getTimeLabel } = useSchedulerContext();
   // Flat sidebar: active when config requests it AND we are in timeline (multiday) mode
   const flatSidebar = !!(timelineSidebarFlat && isDayViewMultiDay)
-
+  const loggedCatsRef = React.useRef<Set<string>>(new Set())
+  const loggedEmpsRef = React.useRef<Set<string>>(new Set())
   // Shifts for the visible date window
   const visibleShifts = React.useMemo(() => {
     const refDate = focusedDate ?? dates[0];
-    if (!refDate) return baseShifts.filter((s) => selEmps.has(s.employeeId));
+    const isEmpSelected = (empId: string): boolean => selEmps.size === 0 || selEmps.has(empId)
+    const isoForShift = (sh: Block): string => {
+      // IMPORTANT: use *local* day keys (toDateISO) so day view matches what users see
+      // in their timezone (avoids off-by-one when Date is stored as UTC midnight).
+      // Block.date isn't consistently typed across consumers, so runtime-check.
+      const d = (sh as unknown as { date: unknown }).date
+      if (typeof d === "string") return d.slice(0, 10)
+      if (d instanceof Date) return toDateISO(d)
+      return String(d).slice(0, 10)
+    }
+    if (!refDate) return baseShifts.filter((s) => isEmpSelected(s.employeeId));
     if (isWeekView) {
       const dow = refDate.getDay();
       const ws = new Date(refDate);
@@ -83,15 +95,18 @@ export function GridViewSidebar({
       const we = new Date(ws);
       we.setDate(ws.getDate() + 6);
       we.setHours(23, 59, 59, 999);
-      const s = ws.toISOString().slice(0, 10);
-      const e = we.toISOString().slice(0, 10);
+      const s = toDateISO(ws);
+      const e = toDateISO(we);
       return baseShifts.filter(
-        (sh) => selEmps.has(sh.employeeId) && sh.date >= s && sh.date <= e,
+        (sh) => {
+          const d = isoForShift(sh)
+          return isEmpSelected(sh.employeeId) && d >= s && d <= e
+        },
       );
     }
-    const iso = refDate.toISOString().slice(0, 10);
+    const iso = toDateISO(refDate);
     return baseShifts.filter(
-      (sh) => sh.date === iso && selEmps.has(sh.employeeId),
+      (sh) => isoForShift(sh) === iso && isEmpSelected(sh.employeeId),
     );
   }, [baseShifts, isWeekView, focusedDate, dates, selEmps]);
 
@@ -127,7 +142,7 @@ export function GridViewSidebar({
     <>
       {/* ── Sort header — sticky top:0, same height as grid date/hour header ── */}
       <div
-        className="sticky top-0 z-5 flex shrink-0 flex-col justify-end gap-1 border-b-2 border-border bg-primary-foreground px-2 pb-1.5"
+        className="sticky top-[64px] z-5 flex shrink-0 flex-col justify-end gap-1 border-b-2 border-border bg-primary-foreground px-2 pb-1.5"
         style={{ height: HOUR_HDR_H }}
       >
         <div className="bg-primary-foreground pl-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
@@ -191,13 +206,20 @@ export function GridViewSidebar({
             // In timeline mode: render a simple flat list row — just the name and
             // a color accent. No group chrome (progress bar, staff button, collapse).
             if (flatSidebar) {
-              const catShiftsFlat = visibleShifts.filter(
-                (s) => s.categoryId === cat.id,
-              )
-              const catHoursFlat = catShiftsFlat.reduce(
-                (sum, s) => sum + (s.endH - s.startH),
-                0,
-              )
+            const catShiftsFlat = visibleShifts.filter(
+              (s) => s.categoryId === cat.id,
+            )
+              // Debug: log once per category per reload (browser console).
+              if (!loggedCatsRef.current.has(cat.id)) {
+                loggedCatsRef.current.add(cat.id)
+                // eslint-disable-next-line no-console
+                console.log("catShiftsFlat", cat.id, catShiftsFlat)
+              }
+            const catHoursFlat = catShiftsFlat.reduce(
+              (sum, s) => sum + (s.endH - s.startH),
+              0,
+            )
+            console.log("catShiftsFlat", catShiftsFlat)
               const initials = cat.name
                 .split(" ")
                 .map((n) => n[0])
@@ -252,7 +274,7 @@ export function GridViewSidebar({
                       className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
                       style={{ color: c.text, background: c.light }}
                     >
-                      {catHoursFlat.toFixed(0)}h
+                      {catHoursFlat.toFixed(1)}h
                     </div>
                   )}
                 </div>
@@ -284,7 +306,9 @@ export function GridViewSidebar({
             return (
               <div
                 key={row.key}
-                className="pointer-events-none absolute inset-x-0 z-4 transition-colors duration-75"
+                // Keep the group background *behind* employee rows (otherwise it can cover
+                // the first row when category + employee rows overlap vertically).
+                className="pointer-events-none absolute inset-x-0 z-0 transition-colors duration-75"
                 style={{
                   top: vr.start,
                   height: catTotal,
@@ -294,7 +318,7 @@ export function GridViewSidebar({
                 }}
               >
                 <div
-                  className="bg-primary-foreground sticky z-5 flex flex-col pointer-events-auto"
+                  className="bg-primary-foreground z-5 flex flex-col pointer-events-auto"
                   style={{
                     top: HOUR_HDR_H,
                     borderBottom: `1px solid ${c.bg}25`,
@@ -356,11 +380,19 @@ export function GridViewSidebar({
                             {scheduled > 0
                               ? ` · ${scheduled} shift${scheduled !== 1 ? "s" : ""}`
                               : ""}
-                            {totalHours > 0
-                              ? ` · ${totalHours.toFixed(1)}h`
-                              : ""}
+                            {totalHours > 0 ? ` · ${totalHours.toFixed(1)}h` : ""}
                           </span>
                         </div>
+                        {totalHours > 0 && (
+                          <div
+                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                            style={{ color: c.text, background: c.light, border: `1px solid ${c.border}` }}
+                            aria-label={`${totalHours.toFixed(1)} hours`}
+                            title={`${totalHours.toFixed(1)}h`}
+                          >
+                            {totalHours.toFixed(1)}h
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => toggleCollapse(cat.id)}
@@ -431,6 +463,21 @@ export function GridViewSidebar({
           const empShifts = visibleShifts.filter(
             (s) => s.categoryId === cat.id && s.employeeId === emp.id,
           );
+          // Debug Day view staff rail: log once per employee (browser console).
+          if (dayOverviewStaffRail && !loggedEmpsRef.current.has(emp.id)) {
+            loggedEmpsRef.current.add(emp.id)
+            // eslint-disable-next-line no-console
+            console.log("dayview-sidebar", {
+              empId: emp.id,
+              empName: emp.name,
+              catId: cat.id,
+              visibleShiftsCount: visibleShifts.length,
+              empShiftsCount: empShifts.length,
+              firstShift: empShifts[0],
+              focusedDate,
+              dates0: dates[0],
+            })
+          }
           const empHours = empShifts.reduce(
             (sum, s) => sum + (s.endH - s.startH),
             0,
@@ -444,16 +491,16 @@ export function GridViewSidebar({
             .toUpperCase();
           const shiftDateIso =
             empShifts[0]?.date ?? focusedDate?.toISOString().slice(0, 10) ?? dates[0]?.toISOString().slice(0, 10) ?? "";
-          const timeRangeLabel =
+          const timeRange =
             empShifts.length > 0 && shiftDateIso
               ? (() => {
                   const starts = empShifts.map((s) => s.startH);
                   const ends = empShifts.map((s) => s.endH);
                   const lo = Math.min(...starts);
                   const hi = Math.max(...ends);
-                  return `${getTimeLabel(shiftDateIso, lo)} ${getTimeLabel(shiftDateIso, hi)}`;
+                  return { start: getTimeLabel(shiftDateIso, lo), end: getTimeLabel(shiftDateIso, hi) };
                 })()
-              : "—";
+              : null;
           return (
             <div
               key={row.key}
@@ -501,7 +548,7 @@ export function GridViewSidebar({
                 {dayOverviewStaffRail ? (
                   <>
                     <div className="truncate text-[9px] font-medium tabular-nums leading-tight text-muted-foreground">
-                      {timeRangeLabel}
+                      {timeRange ? `${timeRange.start} - ${timeRange.end}` : "—"}
                     </div>
                     <div className="truncate text-xs font-semibold leading-tight text-foreground">
                       {emp.name}

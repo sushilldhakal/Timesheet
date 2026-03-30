@@ -44,6 +44,9 @@ export interface DayViewProps {
    * When false: legacy horizontal multi-day buffer inside the grid.
    */
   dayOverviewLayout?: boolean
+  /** Match chart/sidebar rail width to the resizable grid sidebar. */
+  sidebarWidth?: number
+  onSidebarWidthChange?: (w: number) => void
 }
 
 export function DayView({
@@ -81,6 +84,8 @@ export function DayView({
   onDependenciesChange,
   availability = [],
   dayOverviewLayout = true,
+  sidebarWidth,
+  onSidebarWidthChange,
 }: DayViewProps): React.ReactElement {
   const { categories } = useSchedulerContext()
   const isMobile = useIsMobile()
@@ -178,6 +183,8 @@ export function DayView({
         dependencies={dependencies}
         onDependenciesChange={onDependenciesChange}
         availability={availability}
+        sidebarWidth={sidebarWidth}
+        onSidebarWidthChange={onSidebarWidthChange}
         dayTimelineFillContainer={overview}
       />
     </div>

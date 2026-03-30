@@ -51,6 +51,10 @@ export function AddShiftModal({
   const c = cr ? getColor(cr.colorIdx) : getColor(0)
 
   useEffect(() => {
+    // Preserve a preselected employeeId when opening from a specific grid row.
+    // Only auto-pick the first employee when the current selection is empty or not in this category.
+    const inCategory = employees.some((e) => e.id === emp && e.categoryId === category)
+    if (inCategory) return
     const e = employees.find((e) => e.categoryId === category)
     if (e) setEmp(e.id)
   }, [category, employees])
@@ -99,7 +103,7 @@ export function AddShiftModal({
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-primary/30 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}

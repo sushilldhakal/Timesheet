@@ -23,6 +23,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  BadgeCheck,
   AlignJustify,
   Columns,
   LayoutGrid,
@@ -129,6 +130,8 @@ export default function SchedulingPage() {
   const isGrid = !view.startsWith('list')
   const [selEmps, setSelEmps] = useState<Set<string>>(() => new Set())
   const [headerAddOpen, setHeaderAddOpen] = useState(false)
+  const [gridSidebarWidth, setGridSidebarWidth] = useState<number>(280)
+  const [copiedShift, setCopiedShift] = useState<Block | null>(null)
   /** Day timeline (GridView): double-click opens edit — Kanban uses the same ShiftModal pattern */
   const [dayViewShiftEdit, setDayViewShiftEdit] = useState<{ shift: Block; category: Resource } | null>(
     null,
@@ -318,6 +321,40 @@ export default function SchedulingPage() {
 
   const weekDates = useMemo(() => (date ? getWeekDates(date) : []), [date, getWeekDates])
   const filteredShifts = useMemo(() => shifts.filter((s) => selEmps.has(s.employeeId)), [shifts, selEmps])
+
+  const eventCount = useMemo((): number => {
+    if (!date) return 0
+    const base = viewBase
+    if (base === 'day') {
+      const iso = date.toISOString().slice(0, 10)
+      return filteredShifts.filter((s) => String((s as unknown as { date: unknown }).date).slice(0, 10) === iso).length
+    }
+    if (base === 'week') {
+      const wd = getWeekDates(date)
+      const s = wd[0]?.toISOString().slice(0, 10) ?? ''
+      const e = wd[6]?.toISOString().slice(0, 10) ?? ''
+      return filteredShifts.filter((sh) => {
+        const d = String((sh as unknown as { date: unknown }).date).slice(0, 10)
+        return d >= s && d <= e
+      }).length
+    }
+    if (base === 'month') {
+      const y = date.getFullYear()
+      const m = date.getMonth()
+      return filteredShifts.filter((sh) => {
+        const d = new Date(String((sh as unknown as { date: unknown }).date).slice(0, 10) + 'T12:00:00')
+        return d.getFullYear() === y && d.getMonth() === m
+      }).length
+    }
+    if (base === 'year') {
+      const y = date.getFullYear()
+      return filteredShifts.filter((sh) => {
+        const d = new Date(String((sh as unknown as { date: unknown }).date).slice(0, 10) + 'T12:00:00')
+        return d.getFullYear() === y
+      }).length
+    }
+    return 0
+  }, [date, viewBase, filteredShifts, getWeekDates])
 
   const publishShiftsList = useCallback((...ids: string[]) => {
     setShifts((prev) => {
@@ -964,98 +1001,120 @@ export default function SchedulingPage() {
         <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
           <div className="flex shrink-0 flex-col gap-2.5 border-b bg-background py-2.5">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={goToToday}
-                  title="Go to today"
-                  className="flex flex-col items-center w-11 h-11 rounded-md border bg-background overflow-hidden shadow-sm shrink-0"
-                >
-                  <span className="w-full bg-primary text-primary-foreground text-[9px] font-bold text-center py-[2px] uppercase tracking-[0.5px]">
-                    {new Date().toLocaleString('en-US', { month: 'short' })}
-                  </span>
-                  <span className="flex-1 flex items-center justify-center text-base font-bold text-foreground">
-                    {new Date().getDate()}
-                  </span>
-                </button>
-
-                <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-y-0.5 gap-x-2">
-                  <div className="col-start-2 flex items-center gap-1.5">
-                    <span className="text-[15px] font-bold text-foreground">{monthTitle}</span>
-                    <SchedulingWeatherDayBadge
-                      date={date}
-                      coords={weatherCoords}
-                      rangeStart={viewBase === 'week' && weekDates[0] ? weekDates[0] : undefined}
-                      rangeEnd={viewBase === 'week' && weekDates[6] ? weekDates[6] : undefined}
-                      iconClassName="size-4"
-                    />
+              <div className="flex items-center gap-3">
+                <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-x-2 gap-y-1">
+                  <div className="row-span-2 self-stretch">
+                    <button
+                      className="flex h-full min-h-[56px] w-12 shrink-0 cursor-pointer flex-col items-center overflow-hidden rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      onClick={goToToday}
+                      title="Go to today"
+                    >
+                      <span className="flex h-5 w-full items-center justify-center bg-primary text-primary-foreground text-[10px] font-semibold uppercase tracking-wider">
+                        {new Date().toLocaleString('en-US', { month: 'short' })}
+                      </span>
+                      <span className="flex w-full flex-1 items-center justify-center text-lg font-bold tabular-nums text-foreground">
+                        {new Date().getDate()}
+                      </span>
+                    </button>
                   </div>
-                  <div className="col-start-2 flex items-center gap-1">
-                    <button onClick={() => navigate(-1)} style={iconBtn} title="Previous"><ChevronLeft size={14} /></button>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-[13px] text-foreground px-1 min-w-[180px] text-center hover:underline"
-                          title="Pick date"
-                        >
-                          {rangeLabel}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="p-0 w-auto">
-                        {viewBase === 'year' ? (
-                          <div className="p-2.5">
-                            <div className="text-xs font-medium mb-2">Pick year</div>
-                            <div className="grid grid-cols-3 gap-2">
-                              {Array.from({ length: 12 }, (_, i) => date.getFullYear() - 5 + i).map((y) => (
-                                <button
-                                  key={y}
-                                  type="button"
-                                  className={[
-                                    "px-2 py-1 rounded-md border text-xs",
-                                    y === date.getFullYear() ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted",
-                                  ].join(" ")}
-                                  onClick={() => {
-                                    const nd = new Date(date)
-                                    nd.setFullYear(y)
-                                    nd.setMonth(0, 1)
-                                    nd.setHours(0, 0, 0, 0)
-                                    setDate(nd)
-                                  }}
-                                >
-                                  {y}
-                                </button>
-                              ))}
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base font-semibold text-foreground">{monthTitle}</span>
+                    <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      <BadgeCheck size={11} className="shrink-0" />
+                      {eventCount} {eventCount === 1 ? 'event' : 'events'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        onClick={() => navigate(-1)}
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 rounded"
+                        title="Previous"
+                      >
+                        <ChevronLeft size={14} />
+                      </Button>
+
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 min-w-0 border-transparent bg-transparent px-2 text-sm font-normal shadow-none hover:bg-muted/50 hover:text-foreground"
+                            title="Pick a date"
+                            type="button"
+                          >
+                            {rangeLabel}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="p-0 w-auto">
+                          {viewBase === 'year' ? (
+                            <div className="p-2.5">
+                              <div className="text-xs font-medium mb-2">Pick year</div>
+                              <div className="grid grid-cols-3 gap-2">
+                                {Array.from({ length: 12 }, (_, i) => date.getFullYear() - 5 + i).map((y) => (
+                                  <button
+                                    key={y}
+                                    type="button"
+                                    className={[
+                                      "px-2 py-1 rounded-md border text-xs",
+                                      y === date.getFullYear() ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                      const nd = new Date(date)
+                                      nd.setFullYear(y)
+                                      nd.setMonth(0, 1)
+                                      nd.setHours(0, 0, 0, 0)
+                                      setDate(nd)
+                                    }}
+                                  >
+                                    {y}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          viewBase === 'week' ? (
-                            <DatePickerCalendar
-                              mode="range"
-                              selected={{ from: getWeekDates(date)[0], to: getWeekDates(date)[6] }}
-                              onSelect={(sel: { from?: Date; to?: Date } | undefined) => {
-                                const from = sel?.from as Date | undefined
-                                if (!from) return
-                                const d = new Date(from)
-                                d.setHours(0, 0, 0, 0)
-                                setDate(d)
-                              }}
-                            />
                           ) : (
-                            <DatePickerCalendar
-                              mode="single"
-                              selected={date}
-                              onSelect={(d: Date | undefined) => {
-                                if (!d) return
-                                const nd = new Date(d)
-                                nd.setHours(0, 0, 0, 0)
-                                setDate(nd)
-                              }}
-                            />
-                          )
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                    <button onClick={() => navigate(1)} style={iconBtn} title="Next"><ChevronRight size={14} /></button>
+                            viewBase === 'week' ? (
+                              <DatePickerCalendar
+                                mode="range"
+                                selected={{ from: getWeekDates(date)[0], to: getWeekDates(date)[6] }}
+                                onSelect={(sel: { from?: Date; to?: Date } | undefined) => {
+                                  const from = sel?.from as Date | undefined
+                                  if (!from) return
+                                  const d = new Date(from)
+                                  d.setHours(0, 0, 0, 0)
+                                  setDate(d)
+                                }}
+                              />
+                            ) : (
+                              <DatePickerCalendar
+                                mode="single"
+                                selected={date}
+                                onSelect={(d: Date | undefined) => {
+                                  if (!d) return
+                                  const nd = new Date(d)
+                                  nd.setHours(0, 0, 0, 0)
+                                  setDate(nd)
+                                }}
+                              />
+                            )
+                          )}
+                        </PopoverContent>
+                      </Popover>
+
+                      <Button
+                        onClick={() => navigate(1)}
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 rounded"
+                        title="Next"
+                      >
+                        <ChevronRight size={14} />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1136,8 +1195,12 @@ export default function SchedulingPage() {
                   onAll={() => setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))}
                   onNone={() => setSelEmps(new Set())}
                 />
-                <div className="w-px h-6 bg-border shrink-0" />
-                <SchedulerSettings onSettingsChange={handleSettingsChange} shifts={filteredShifts} />
+                {viewBase !== 'day' && (
+                  <>
+                    <div className="w-px h-6 bg-border shrink-0" />
+                    <SchedulerSettings onSettingsChange={handleSettingsChange} shifts={filteredShifts} />
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={handleFillSchedule}
@@ -1224,6 +1287,8 @@ export default function SchedulingPage() {
                 onSelectDay={(d) => setDate(startOfDay(d))}
                 weatherCoords={weatherCoords}
                 shifts={filteredShifts}
+                onSettingsChange={handleSettingsChange}
+                gridSidebarWidth={gridSidebarWidth}
               >
                 <DayView
                   date={date}
@@ -1243,6 +1308,10 @@ export default function SchedulingPage() {
                   initialScrollToNow
                   scrollToNowRef={scrollToNowRef}
                   readOnly={false}
+                  copiedShift={copiedShift}
+                  setCopiedShift={setCopiedShift}
+                  sidebarWidth={gridSidebarWidth}
+                  onSidebarWidthChange={setGridSidebarWidth}
                 />
               </DayViewPanelChrome>
             ) : (

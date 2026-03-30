@@ -158,6 +158,10 @@ export interface GridViewProps {
   hideFloatingButtons?: boolean
   /** Single-day day view: stretch hour columns to fill the grid column width (ResizeObserver). */
   dayTimelineFillContainer?: boolean
+  /** Controlled sidebar width (px). When set, GridView uses this width. */
+  sidebarWidth?: number
+  /** Called when user resizes the sidebar width (px). */
+  onSidebarWidthChange?: (w: number) => void
 }
 
 export interface StaffPanelState {
@@ -233,6 +237,8 @@ function GridViewInner({
   availability = [],
   hideFloatingButtons = false,
   dayTimelineFillContainer = false,
+  sidebarWidth: sidebarWidthProp,
+  onSidebarWidthChange,
 }: GridViewProps): React.ReactElement {
   const { categories, employees, nextUid, getColor, labels, settings, slots, snapMinutes, allowOvernight, getTimeLabel, timelineSidebarFlat } = useSchedulerContext()
   const CATEGORIES =
@@ -267,7 +273,17 @@ function GridViewInner({
   /** Resizable sidebar width */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // sidebarWidth mirrors the panel pixel size for the header stub alignment
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_W)
+  const [sidebarWidth, _setSidebarWidth] = useState(SIDEBAR_W)
+  const setSidebarWidth = useCallback((w: number) => {
+    _setSidebarWidth(w)
+    onSidebarWidthChange?.(w)
+  }, [onSidebarWidthChange])
+  // Controlled mode: keep internal state in sync with prop.
+  useEffect(() => {
+    if (typeof sidebarWidthProp === "number" && Number.isFinite(sidebarWidthProp)) {
+      _setSidebarWidth(sidebarWidthProp)
+    }
+  }, [sidebarWidthProp])
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((c) => !c)
   }, [])
@@ -439,8 +455,9 @@ function GridViewInner({
   const DAY_WIDTH = (settings.visibleTo - settings.visibleFrom) * HOUR_W
   const isSingleDayTimeline = !isWeekView && !isDayViewMultiDay
   const laneH = isSingleDayTimeline ? 31 : SHIFT_H
-  const blockBarInnerH = isSingleDayTimeline ? 42 : SHIFT_H - 8
-  const ghostBarH = isSingleDayTimeline ? 42 : SHIFT_H - 6
+  // Single-day day view uses a compact 31px lane with a 27px bar inset by 2px top/bottom.
+  const blockBarInnerH = isSingleDayTimeline ? 27 : SHIFT_H - 8
+  const ghostBarH = isSingleDayTimeline ? 27 : SHIFT_H - 6
   const hasDayScrollNav = !isWeekView && !!setDate && !isDayViewMultiDay
   const TOTAL_W = isWeekView
     ? dates.length * COL_W_WEEK
@@ -819,6 +836,9 @@ function GridViewInner({
 
   const categoryHeights = useMemo((): Record<string, number> => {
     const result: Record<string, number> = {}
+    // Sidebar category header includes a small extra strip (progress bar area) below ROLE_HDR.
+    // If we don't account for it in the virtualized row height, it overlaps the first employee row.
+    const CAT_HDR_EXTRA_H = 10
     flatRows.forEach((row) => {
       const key = row.kind === "employee" && row.employee
         ? `emp:${row.employee.id}`
@@ -829,9 +849,9 @@ function GridViewInner({
           result[key] = ROLE_HDR
         } else if (effectiveRowMode === "category" && !collapsed.has(row.category.id)) {
           // Use pre-computed max height — no inner dates.forEach loop
-          result[key] = Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + laneH)
+          result[key] = Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + laneH) + CAT_HDR_EXTRA_H
         } else {
-          result[key] = ROLE_HDR
+          result[key] = ROLE_HDR + CAT_HDR_EXTRA_H
         }
         return
       }
@@ -845,10 +865,12 @@ function GridViewInner({
         const tc = nums.reduce((mx, t) => Math.max(mx, t + 1), 1)
         if (tc > maxTracks) maxTracks = tc
       }
-      result[key] = maxTracks * laneH + 16
+      // Employee rows: add a small vertical padding in larger views, but keep single-day
+      // day view truly compact (31px lanes) so the grid row height matches the lane height.
+      result[key] = maxTracks * laneH + (isSingleDayTimeline ? 0 : 16)
     })
     return result
-  }, [maxTracksPerCat, flatRows, effectiveRowMode, collapsed, shiftIndex, dates, laneH])
+  }, [maxTracksPerCat, flatRows, effectiveRowMode, collapsed, shiftIndex, dates, laneH, isSingleDayTimeline])
 
   // NOTE: vrTopsRef is updated from virtualizer vr.start values every render
   const vrTopsRef = useRef<Record<string, number>>({})
@@ -1837,7 +1859,11 @@ function GridViewInner({
         left = (cs - settings.visibleFrom) * HOUR_W + 2
         width = Math.max((ce - cs) * HOUR_W - 4, 10)
       }
-      const pixelTop = top + ROLE_HDR + (ghostKey === d.srcCategoryKey ? d.srcTrack : 0) * laneH + 3
+      const pixelTop =
+        top +
+        ROLE_HDR +
+        (ghostKey === d.srcCategoryKey ? d.srcTrack : 0) * laneH +
+        (isSingleDayTimeline ? 2 : 3)
       const c = getColor(cat.colorIdx)
 
       // ── Snapped drop-zone ghost: real card appearance, no dashed border ──
@@ -2346,11 +2372,11 @@ function GridViewInner({
       <div
         ref={scrollRef}
         onScroll={isWeekView ? onWeekScroll : onDayScroll}
-        className="relative flex min-h-0 min-w-0 flex-1 items-start overflow-auto"
+        className="relative flex min-h-0 min-w-0 flex-1 items-start"
       >
         {/* Sidebar — sticky left so it doesn't scroll horizontally */}
         <div
-          className="sticky left-0 z-22 shrink-0 flex flex-col border-r bg-background"
+          className="relative z-22 shrink-0 flex flex-col border-r bg-background"
           style={{
             width: sidebarCollapsed ? 0 : sidebarWidth,
             minWidth: sidebarCollapsed ? 0 : sidebarWidth,
@@ -2413,7 +2439,7 @@ function GridViewInner({
               {/* ── Date / hour strip — sticky to scrollRef so it stays visible when scrolling the roster ── */}
               <div
                 className={cn(
-                  "sticky top-0 z-25 shrink-0 border-b-2 border-border",
+                  "sticky top-[64px] z-25 shrink-0 border-b-2 border-border",
                   isWeekView || isDayViewMultiDay ? "bg-muted" : "bg-background",
                 )}
                 style={{
@@ -2647,7 +2673,7 @@ function GridViewInner({
                             key={String(h)}
                             title={getTimeLabel(toDateISO(dates[0]!), h)}
                             className={cn(
-                              "relative flex h-full shrink-0 items-end border-r border-border pb-1 pl-2 text-[11px]",
+                              "relative flex h-full shrink-0 items-end border-r border-border pb-1.5 pl-2 text-[11px]",
                               isNowHour ? "font-bold text-primary" : isWorking ? "font-semibold text-foreground" : "font-semibold text-muted-foreground",
                               isWorking ? "bg-transparent" : "bg-muted"
                             )}
@@ -2662,28 +2688,6 @@ function GridViewInner({
                         )
                       })}
                     </div>
-                    {/* Minor 30-min tick marks row */}
-                    {zoom >= 1 && (
-                      <div className="flex h-2 border-t border-border">
-                        {DAY_VISIBLE_SLOTS.map((h) => {
-                          const isHalf = !Number.isInteger(h)
-                          return (
-                            <div
-                              key={String(h)}
-                              className="flex h-full shrink-0 items-end justify-start border-r border-border/60 pb-px"
-                              style={{ width: SLOT_W }}
-                            >
-                              {isHalf && (
-                                <div
-                                  className="h-1 w-px bg-muted-foreground/40"
-                                  style={{ marginLeft: SLOT_W / 2 - 0.5 }}
-                                />
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -3502,7 +3506,7 @@ function GridViewInner({
                     const rowModeForRender = effectiveRowMode as string
                     const top = rowModeForRender === "flat"
                       ? catTop + 4 + track * (ROLE_HDR - 4)
-                      : catTop + ROLE_HDR + track * laneH + 4
+                      : catTop + ROLE_HDR + track * laneH + (isSingleDayTimeline ? 2 : 4)
                     const variant = settings.badgeVariant ?? "both"
                     const canDrag = (variant === "drag" || variant === "both") && shift.draggable !== false
                     const showResize = !readOnly && (variant === "resize" || variant === "both") && width >= 48 && shift.resizable !== false
@@ -3574,8 +3578,8 @@ function GridViewInner({
                         <div className="w-1 shrink-0 rounded-l-lg bg-black/18" />
 
                         {/* Main content */}
-                        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
-                          <div className="flex min-w-0 items-center gap-0.5">
+                        {isSingleDayTimeline ? (
+                          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden px-2">
                             {hasConflict && (
                               <AlertTriangle
                                 size={9}
@@ -3584,38 +3588,64 @@ function GridViewInner({
                             )}
                             <span
                               className={cn(
-                                "truncate text-xs font-bold leading-snug",
-                                isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
-                              )}
-                              style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
-                            >
-                              {shift.employee}
-                            </span>
-                          </div>
-                          <div className="flex min-w-0 items-center gap-1">
-                            <span
-                              className={cn(
-                                "truncate text-[10px] font-normal leading-snug",
-                                isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                                "truncate text-[11px] font-semibold leading-none",
+                                isDraft ? "text-[var(--blk-time)]" : "text-white/90"
                               )}
                               style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
                             >
                               {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
+                              {shift.breakStartH !== undefined && shift.breakEndH !== undefined && (
+                                <>
+                                  {" "}
+                                  · ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                </>
+                              )}
                             </span>
-                            {/* Break indicator inline */}
-                            {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
+                          </div>
+                        ) : (
+                          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
+                            <div className="flex min-w-0 items-center gap-0.5">
+                              {hasConflict && (
+                                <AlertTriangle
+                                  size={9}
+                                  className={cn("shrink-0", isDraft ? "text-destructive" : "text-white/90")}
+                                />
+                              )}
                               <span
                                 className={cn(
-                                  "flex shrink-0 items-center gap-0.5 text-[9px]",
-                                  isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                  "truncate text-xs font-bold leading-snug",
+                                  isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
                                 )}
-                                style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                                style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
                               >
-                                ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                {shift.employee}
                               </span>
-                            )}
+                            </div>
+                            <div className="flex min-w-0 items-center gap-1">
+                              <span
+                                className={cn(
+                                  "truncate text-[10px] font-normal leading-snug",
+                                  isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                                )}
+                                style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
+                              >
+                                {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
+                              </span>
+                              {/* Break indicator inline */}
+                              {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
+                                <span
+                                  className={cn(
+                                    "flex shrink-0 items-center gap-0.5 text-[9px]",
+                                    isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                  )}
+                                  style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                                >
+                                  ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Status badge — top right */}
                         {width >= 72 && (
@@ -3764,7 +3794,7 @@ function GridViewInner({
                     if (!clampedSkel) return null
                     left = clampedSkel.left
                     width = clampedSkel.width
-                    const top = catTop + track * laneH + 3
+                    const top = catTop + track * laneH + (isSingleDayTimeline ? 2 : 3)
                     return (
                       <div
                         key={shift.id}
@@ -3776,7 +3806,7 @@ function GridViewInner({
                   const track = trackMap.get(shift.id) ?? 0
                   const isDraft = shift.status === "draft"
                   const isDrag = dragId === shift.id
-                  const top = catTop + track * laneH + 4
+                  const top = catTop + track * laneH + (isSingleDayTimeline ? 2 : 4)
                   let left: number, width: number
                   if (isWeekView) {
                     const cs = Math.max(shift.startH, settings.visibleFrom)
@@ -3902,8 +3932,8 @@ function GridViewInner({
                           <div className="w-1 shrink-0 rounded-l-lg bg-black/18" />
 
                           {/* Main content */}
-                          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
-                            <div className="flex min-w-0 items-center gap-0.5">
+                          {isSingleDayTimeline ? (
+                            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden px-2">
                               {hasConflict && (
                                 <AlertTriangle
                                   size={9}
@@ -3912,37 +3942,63 @@ function GridViewInner({
                               )}
                               <span
                                 className={cn(
-                                  "truncate text-xs font-bold leading-snug",
-                                  isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
-                                )}
-                                style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
-                              >
-                                {shift.employee}
-                              </span>
-                            </div>
-                            <div className="flex min-w-0 items-center gap-1">
-                              <span
-                                className={cn(
-                                  "truncate text-[10px] font-normal leading-snug",
-                                  isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                                  "truncate text-[11px] font-semibold leading-none",
+                                  isDraft ? "text-[var(--blk-time)]" : "text-white/90"
                                 )}
                                 style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
                               >
                                 {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
+                                {shift.breakStartH !== undefined && shift.breakEndH !== undefined && (
+                                  <>
+                                    {" "}
+                                    · ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                  </>
+                                )}
                               </span>
-                              {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
+                            </div>
+                          ) : (
+                            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden px-2">
+                              <div className="flex min-w-0 items-center gap-0.5">
+                                {hasConflict && (
+                                  <AlertTriangle
+                                    size={9}
+                                    className={cn("shrink-0", isDraft ? "text-destructive" : "text-white/90")}
+                                  />
+                                )}
                                 <span
                                   className={cn(
-                                    "shrink-0 text-[9px]",
-                                    isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                    "truncate text-xs font-bold leading-snug",
+                                    isDraft ? "text-[var(--blk-name)]" : "text-white/[0.97]"
                                   )}
-                                  style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                                  style={isDraft ? { ['--blk-name' as string]: c.text } : undefined}
                                 >
-                                  ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                  {shift.employee}
                                 </span>
-                              )}
+                              </div>
+                              <div className="flex min-w-0 items-center gap-1">
+                                <span
+                                  className={cn(
+                                    "truncate text-[10px] font-normal leading-snug",
+                                    isDraft ? "text-[var(--blk-time)]" : "text-white/75"
+                                  )}
+                                  style={isDraft ? { ['--blk-time' as string]: c.bg } : undefined}
+                                >
+                                  {getTimeLabel(shift.date, shift.startH)}–{getTimeLabel(shift.date, shift.endH)}
+                                </span>
+                                {shift.breakStartH !== undefined && shift.breakEndH !== undefined && width >= 80 && (
+                                  <span
+                                    className={cn(
+                                      "shrink-0 text-[9px]",
+                                      isDraft ? "text-[var(--blk-brk)]" : "text-white/65"
+                                    )}
+                                    style={isDraft ? { ['--blk-brk' as string]: c.bg } : undefined}
+                                  >
+                                    ☕ {Math.round((shift.breakEndH - shift.breakStartH) * 60)}m
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {/* Status badge */}
                           {width >= 72 && (hasConflict || isDraft || isLive) && (
