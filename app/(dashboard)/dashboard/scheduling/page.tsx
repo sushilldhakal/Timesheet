@@ -312,6 +312,16 @@ export default function SchedulingPage() {
       });
   }, [employees, selectedLocationId, roleIdsForScheduling, schedulerCategories])
 
+  // API returns Added/Skipped/Needs-review only when request completes.
+  // Show an in-flight processed counter so progress doesn't feel static.
+  const autoFillPreviewTotal = schedulerEmployees.length
+  const autoFillProcessedPreview = useMemo(() => {
+    if (!(autoFillMutation.isPending || autoFillRunning)) return 0
+    if (autoFillPreviewTotal <= 0) return 0
+    const pct = Math.min(autoFillProgress, 92) / 92
+    return Math.max(0, Math.min(autoFillPreviewTotal, Math.round(autoFillPreviewTotal * pct)))
+  }, [autoFillMutation.isPending, autoFillRunning, autoFillProgress, autoFillPreviewTotal])
+
   const schedulerConfig = useMemo(
     () =>
       createSchedulerConfig({
@@ -602,10 +612,13 @@ export default function SchedulingPage() {
       breakEndH?: number;
       breakMinutes?: number;
     };
-    // getCalendarEvents returns { data: { events } } — unwrap both layers
-    const ev = (eventsData as { data?: { events?: ApiScheduleEvent[] } } | undefined)?.data?.events;
+    // getCalendarEvents returns { events } via createApiRoute; keep legacy { data: { events } } fallback.
+    const ev =
+      (eventsData as { events?: ApiScheduleEvent[] } | undefined)?.events ??
+      (eventsData as { data?: { events?: ApiScheduleEvent[] } } | undefined)?.data?.events ??
+      [];
     // Always replace shifts — even an empty array clears stale data from previous navigation
-    const transformedShifts: Block[] = (ev ?? []).map((event) => {
+    const transformedShifts: Block[] = ev.map((event) => {
       const startDate = parseISO(event.startDate);
       const endDate = parseISO(event.endDate);
 
@@ -1462,20 +1475,36 @@ export default function SchedulingPage() {
                       <p className="mt-2 text-xs text-muted-foreground">Filling shifts — please wait, do not close this window.</p>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg border bg-primary/8 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Processed</div>
+                        <div className="text-lg font-semibold text-primary">
+                          {autoFillProcessedPreview}
+                          <span className="ml-0.5 text-xs font-normal text-muted-foreground">/{autoFillPreviewTotal}</span>
+                        </div>
+                      </div>
                       <div className="rounded-lg border bg-emerald-500/10 px-3 py-2 text-center">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Added</div>
-                        <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-400">{autoFillStats.added}</div>
+                        <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+                          {autoFillProcessedPreview > 0 ? "..." : "0"}
+                        </div>
                       </div>
                       <div className="rounded-lg border bg-amber-500/10 px-3 py-2 text-center">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Skipped</div>
-                        <div className="text-lg font-semibold text-amber-700 dark:text-amber-400">{autoFillStats.skipped}</div>
+                        <div className="text-lg font-semibold text-amber-700 dark:text-amber-400">
+                          {autoFillProcessedPreview > 0 ? "..." : "0"}
+                        </div>
                       </div>
                       <div className="rounded-lg border bg-rose-500/10 px-3 py-2 text-center">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Needs review</div>
-                        <div className="text-lg font-semibold text-rose-700 dark:text-rose-400">{autoFillStats.failed}</div>
+                        <div className="text-lg font-semibold text-rose-700 dark:text-rose-400">
+                          {autoFillProcessedPreview > 0 ? "..." : "0"}
+                        </div>
                       </div>
                     </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Processed updates live. Final Added/Skipped/Needs review values appear at completion.
+                    </p>
                   </div>
                 ) : autoFillFinished ? (
                   <div className="space-y-4 p-5">

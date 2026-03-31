@@ -9,6 +9,36 @@ export interface CalendarEvent {
   status?: string
 }
 
+/**
+ * Normalize API calendar event payloads into scheduler IEvent-like shape.
+ * Supports both:
+ * - scheduler shape: { startDate, endDate, user, ... }
+ * - legacy shape: { start, end, employeeId, ... }
+ */
+export function calendarEventToIEvent(event: any) {
+  const startDate = event?.startDate ?? event?.start
+  const endDate = event?.endDate ?? event?.end
+  const user = event?.user ?? {
+    id: event?.employeeId ?? "vacant",
+    name: event?.employeeName ?? event?.title ?? "Employee",
+    picturePath: null,
+  }
+
+  return {
+    id: event?.id ?? event?._id ?? `${startDate ?? ""}-${endDate ?? ""}`,
+    startDate,
+    endDate,
+    title: event?.title ?? "",
+    color: event?.color ?? "blue",
+    description: event?.description ?? "",
+    user,
+    ...(event?.locationId ? { locationId: event.locationId } : {}),
+    ...(event?.roleId ? { roleId: event.roleId } : {}),
+    ...(event?.shiftStatus ? { shiftStatus: event.shiftStatus } : {}),
+    ...(event?.employerBadge ? { employerBadge: event.employerBadge } : {}),
+  }
+}
+
 export interface CalendarEventsResponse {
   events: CalendarEvent[]
 }
