@@ -74,6 +74,8 @@ export interface CreateCalendarEventRequest {
   endDate: string
   endTime: { hour: number; minute: number }
   breakMinutes?: number
+  breakStartH?: number
+  breakEndH?: number
   notes?: string
 }
 
@@ -119,6 +121,8 @@ export interface UpdateCalendarEventRequest {
   endDate?: string
   endTime?: { hour: number; minute: number }
   breakMinutes?: number
+  breakStartH?: number
+  breakEndH?: number
   notes?: string
 }
 

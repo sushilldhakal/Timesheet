@@ -34,6 +34,9 @@ export const calendarEventCreateSchema = z.object({
     minute: z.number().int().min(0).max(59),
   }),
   breakMinutes: z.number().int().min(0).optional(),
+  /** Explicit break window as decimal hours — takes precedence over breakMinutes */
+  breakStartH: z.number().min(0).max(24).optional(),
+  breakEndH: z.number().min(0).max(24).optional(),
   notes: z.string().optional(),
 })
 
@@ -52,6 +55,11 @@ export const calendarEventSchema = z.object({
   }),
   roleId: z.string().optional(),
   locationId: z.string().optional(),
+  shiftStatus: z.string().optional(),
+  employerBadge: z.string().optional(),
+  breakStartH: z.number().optional(),
+  breakEndH: z.number().optional(),
+  breakMinutes: z.number().optional(),
 })
 
 // Calendar events list response
@@ -73,6 +81,9 @@ export const calendarEventCreateResponseSchema = z.object({
     sourceScheduleId: z.string().nullable(),
     estimatedCost: z.number(),
     notes: z.string(),
+    breakStartTime: z.string().optional(),
+    breakEndTime: z.string().optional(),
+    breakMinutes: z.number().optional(),
   }),
   weekId: z.string(),
 })

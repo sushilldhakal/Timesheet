@@ -31,6 +31,9 @@ const updateCalendarEventSchema = z.object({
     minute: z.number().int().min(0).max(59),
   }).optional(),
   breakMinutes: z.number().int().min(0).optional(),
+  /** Explicit break window as decimal hours */
+  breakStartH: z.number().min(0).max(24).optional(),
+  breakEndH: z.number().min(0).max(24).optional(),
   notes: z.string().optional(),
 });
 
@@ -52,9 +55,7 @@ export const PUT = createApiRoute({
     404: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ params, body }) => {
-    console.log('[PUT /api/calendar/events/[id]] Params:', params);
-    console.log('[PUT /api/calendar/events/[id]] Body:', body);
+  handler: async ({ params, body }) => {;;
 
     const ctx = await getAuthWithUserLocations();
     if (!ctx) {
@@ -152,6 +153,33 @@ export const PUT = createApiRoute({
         shift.notes = updateData.notes;
       }
 
+      // Update break window — explicit hours take precedence over breakMinutes
+      if (updateData.breakStartH !== undefined && updateData.breakEndH !== undefined) {
+        const baseDate = shift.date ?? shift.startTime
+        const bst = new Date(baseDate)
+        bst.setHours(Math.floor(updateData.breakStartH), Math.round((updateData.breakStartH % 1) * 60), 0, 0)
+        const bet = new Date(baseDate)
+        bet.setHours(Math.floor(updateData.breakEndH), Math.round((updateData.breakEndH % 1) * 60), 0, 0)
+        ;(shift as any).breakStartTime = bst
+        ;(shift as any).breakEndTime   = bet
+        ;(shift as any).breakMinutes   = Math.round((bet.getTime() - bst.getTime()) / 60_000)
+      } else if (updateData.breakMinutes !== undefined) {
+        if (updateData.breakMinutes === 0) {
+          // Clear break
+          ;(shift as any).breakStartTime = undefined
+          ;(shift as any).breakEndTime   = undefined
+          ;(shift as any).breakMinutes   = 0
+        } else {
+          const s = new Date(shift.startTime)
+          const e = new Date(shift.endTime)
+          const midMs  = s.getTime() + (e.getTime() - s.getTime()) / 2
+          const halfMs = (updateData.breakMinutes / 2) * 60_000
+          ;(shift as any).breakStartTime = new Date(midMs - halfMs)
+          ;(shift as any).breakEndTime   = new Date(midMs + halfMs)
+          ;(shift as any).breakMinutes   = updateData.breakMinutes
+        }
+      }
+
       // Validate times if both are present
       if (shift.startTime && shift.endTime && shift.startTime >= shift.endTime) {
         return {
@@ -181,6 +209,9 @@ export const PUT = createApiRoute({
             sourceScheduleId: shift.sourceScheduleId,
             estimatedCost: shift.estimatedCost,
             notes: shift.notes,
+            breakStartTime: (shift as any).breakStartTime?.toISOString?.(),
+            breakEndTime:   (shift as any).breakEndTime?.toISOString?.(),
+            breakMinutes:   (shift as any).breakMinutes,
           },
           weekId: roster.weekId,
         }
@@ -220,8 +251,7 @@ export const DELETE = createApiRoute({
     404: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ params }) => {
-    console.log('[DELETE /api/calendar/events/[id]] Params:', params);
+  handler: async ({ params }) => {;
 
     const ctx = await getAuthWithUserLocations();
     if (!ctx) {

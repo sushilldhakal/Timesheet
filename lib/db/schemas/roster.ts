@@ -16,6 +16,11 @@ export interface IShift {
   sourceScheduleId: mongoose.Types.ObjectId | null // Reference to schedule that generated this (null = manual)
   estimatedCost: number // Calculated cost based on employee's award and penalty rules
   notes: string // Optional notes for the shift
+  /** Break window stored as absolute UTC Date objects */
+  breakStartTime?: Date
+  breakEndTime?: Date
+  /** Convenience total — kept in sync with breakStartTime/breakEndTime */
+  breakMinutes?: number
   
   // NEW: Enhanced shift tracking
   requiredStaffCount?: number // Number of staff required for this shift slot
@@ -134,6 +139,9 @@ export const ShiftSchema = new mongoose.Schema<IShift>(
       enum: ["draft", "published"],
       default: "draft",
     },
+    breakStartTime: { type: Date },
+    breakEndTime:   { type: Date },
+    breakMinutes:   { type: Number, min: 0 },
   },
   { _id: true }
 )

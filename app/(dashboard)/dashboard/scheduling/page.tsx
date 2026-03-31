@@ -598,6 +598,9 @@ export default function SchedulingPage() {
       employerBadge?: string;
       user?: { id?: string; name?: string };
       shiftStatus?: string;
+      breakStartH?: number;
+      breakEndH?: number;
+      breakMinutes?: number;
     };
     // getCalendarEvents returns { data: { events } } — unwrap both layers
     const ev = (eventsData as { data?: { events?: ApiScheduleEvent[] } } | undefined)?.data?.events;
@@ -616,13 +619,15 @@ export default function SchedulingPage() {
         id: event.id,
         categoryId: roleId,
         employeeId: event.user?.id || 'unassigned',
-        // startDate is already an ISO date string — slice instead of re-formatting
         date: event.startDate.slice(0, 10),
         startH,
         endH,
         employee: event.user?.name || 'Unassigned',
         status: event.shiftStatus === 'draft' ? 'draft' : 'published',
         meta: { employerBadge },
+        // Break visualisation — populated from DB when saved via ShiftModal
+        ...(event.breakStartH !== undefined && { breakStartH: event.breakStartH }),
+        ...(event.breakEndH   !== undefined && { breakEndH:   event.breakEndH }),
       };
     });
     setShifts(transformedShifts);
@@ -675,6 +680,8 @@ export default function SchedulingPage() {
             endDate: shift.date,
             endTime: et,
             notes: '',
+            ...(shift.breakStartH !== undefined && { breakStartH: shift.breakStartH }),
+            ...(shift.breakEndH   !== undefined && { breakEndH:   shift.breakEndH }),
           });
         }),
         ...deleted.map((shift) => deleteEventMutation.mutateAsync(shift.id)),
@@ -690,6 +697,10 @@ export default function SchedulingPage() {
               startTime: st,
               endDate: shift.date,
               endTime: et,
+              ...(shift.breakStartH !== undefined && { breakStartH: shift.breakStartH }),
+              ...(shift.breakEndH   !== undefined && { breakEndH:   shift.breakEndH }),
+              // Clear break when both are absent
+              ...((shift.breakStartH === undefined && shift.breakEndH === undefined) && { breakMinutes: 0 }),
             },
           });
         }),
@@ -749,6 +760,9 @@ export default function SchedulingPage() {
             startTime: { hour: startHour, minute: startMinute },
             endDate: updated.date,
             endTime: { hour: endHour, minute: endMinute },
+            ...(updated.breakStartH !== undefined && { breakStartH: updated.breakStartH }),
+            ...(updated.breakEndH   !== undefined && { breakEndH:   updated.breakEndH }),
+            ...((updated.breakStartH === undefined && updated.breakEndH === undefined) && { breakMinutes: 0 }),
           },
         });
         toast.success('Shift updated successfully');
