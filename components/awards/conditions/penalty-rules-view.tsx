@@ -345,7 +345,18 @@ export default function PenaltyRulesView({ penaltyRules, onUpdate }: PenaltyRule
                   </form>
                 </Form>
               ) : (
-                <div className="border rounded-lg p-4 flex items-center justify-between">
+                <div
+                  className="border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleEditRule(rule)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleEditRule(rule);
+                    }
+                  }}
+                >
                   <div className="flex-1">
                     <p className="font-medium">{rule.label}</p>
                     <p className="text-sm">
@@ -358,14 +369,20 @@ export default function PenaltyRulesView({ penaltyRules, onUpdate }: PenaltyRule
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleEditRule(rule)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditRule(rule);
+                      }}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteRule(rule.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRule(rule.id);
+                      }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

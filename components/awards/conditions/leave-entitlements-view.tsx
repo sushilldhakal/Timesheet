@@ -260,7 +260,18 @@ export default function LeaveEntitlementsView({
                   </form>
                 </Form>
               ) : (
-                <div className="border rounded-lg p-4 flex items-center justify-between">
+                <div
+                  className="border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleEditEntitlement(entitlement)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleEditEntitlement(entitlement);
+                    }
+                  }}
+                >
                   <div className="flex-1">
                     <p className="font-medium">{entitlement.label}</p>
                     <p className="text-sm">
@@ -272,14 +283,20 @@ export default function LeaveEntitlementsView({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleEditEntitlement(entitlement)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditEntitlement(entitlement);
+                      }}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteEntitlement(entitlement.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEntitlement(entitlement.id);
+                      }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
