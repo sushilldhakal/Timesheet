@@ -6,7 +6,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   SchedulerProvider,
-  SchedulerSettings,
   createSchedulerConfig,
   findConflicts,
   ListView,
@@ -24,6 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   BadgeCheck,
+  Loader2,
+  Sparkles,
+  CircleCheckBig,
+  CircleAlert,
   AlignJustify,
   Columns,
   LayoutGrid,
@@ -69,6 +72,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { useMe } from '@/lib/queries/auth';
 import { useCategoriesByType } from '@/lib/queries/categories';
 import { useEmployees } from '@/lib/queries/employees';
@@ -115,6 +119,12 @@ export default function SchedulingPage() {
 
   // ── Dialog state (replaces window.confirm / window.prompt) ───────────────────
   const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
+  const [autoFillRunning, setAutoFillRunning] = useState(false);
+  const [autoFillProgress, setAutoFillProgress] = useState(0);
+  const [autoFillStats, setAutoFillStats] = useState({ added: 0, skipped: 0, failed: 0 });
+  const [autoFillPhase, setAutoFillPhase] = useState('Ready to start');
+  const [autoFillFinished, setAutoFillFinished] = useState(false);
+  const [autoFillError, setAutoFillError] = useState<string | null>(null);
   const [deleteTemplateDialog, setDeleteTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
   const [applyTemplateDialog, setApplyTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
   const [saveTemplateDialog, setSaveTemplateDialog] = useState(false);
@@ -153,6 +163,37 @@ export default function SchedulingPage() {
   const publishScopedMutation = usePublishRosterScoped();
   const templatesQuery = useSchedulingTemplates();
   const setSettingsStore = useSchedulingSettingsStore((s) => s.setSchedulingSettings);
+
+  useEffect(() => {
+    const isRunning = autoFillRunning || autoFillMutation.isPending;
+    if (!isRunning) {
+      setAutoFillProgress(0);
+      return;
+    }
+
+    setAutoFillProgress((p) => (p > 6 ? p : 8));
+    const intervalId = window.setInterval(() => {
+      setAutoFillProgress((prev) => {
+        if (prev >= 92) return 92;
+        if (prev < 40) return prev + 8;
+        if (prev < 70) return prev + 5;
+        return prev + 2;
+      });
+    }, 420);
+
+    return () => window.clearInterval(intervalId);
+  }, [autoFillRunning, autoFillMutation.isPending]);
+
+  useEffect(() => {
+    if (!(autoFillRunning || autoFillMutation.isPending)) return;
+    setAutoFillPhase((prev) => {
+      if (autoFillProgress < 28) return 'Loading employees and contracted hours';
+      if (autoFillProgress < 58) return 'Calculating optimal coverage';
+      if (autoFillProgress < 88) return 'Creating draft shifts';
+      if (autoFillStats.added || autoFillStats.skipped || autoFillStats.failed) return 'Finalizing results';
+      return prev;
+    });
+  }, [autoFillProgress, autoFillRunning, autoFillMutation.isPending, autoFillStats]);
 
   const userInfo = userInfoQuery.data?.user;
 
@@ -761,6 +802,11 @@ export default function SchedulingPage() {
       toast.error('No managed roles for auto-fill');
       return;
     }
+    setAutoFillStats({ added: 0, skipped: 0, failed: 0 });
+    setAutoFillPhase('Ready to start');
+    setAutoFillProgress(0);
+    setAutoFillFinished(false);
+    setAutoFillError(null);
     setAutoFillDialogOpen(true);
   };
 
@@ -768,6 +814,11 @@ export default function SchedulingPage() {
     if (!date || !selectedLocationId) return;
     const managedRoles = [...roleIdsForScheduling];
     // Do NOT close dialog yet — keep it open in loading state to block double-submit
+    setAutoFillRunning(true);
+    setAutoFillStats({ added: 0, skipped: 0, failed: 0 });
+    setAutoFillPhase('Starting auto-fill');
+    setAutoFillFinished(false);
+    setAutoFillError(null);
     try {
       const wid = weekIdFromDate(date);
       const res = await autoFillMutation.mutateAsync({
@@ -779,12 +830,19 @@ export default function SchedulingPage() {
       const ok = res.successCount ?? 0;
       const sk = res.skippedCount ?? 0;
       const fail = res.failureCount ?? 0;
-      setAutoFillDialogOpen(false);
+      setAutoFillStats({ added: ok, skipped: sk, failed: fail });
+      setAutoFillPhase('Completed');
+      setAutoFillProgress(100);
+      setAutoFillFinished(true);
       toast.message(`Fill complete: ${ok} shifts created · ${sk} skipped · ${fail} need manual fixes`);
       await refetchEvents();
     } catch {
-      setAutoFillDialogOpen(false);
+      setAutoFillPhase('Auto-fill failed');
+      setAutoFillFinished(true);
+      setAutoFillError('Auto-fill failed. Please retry or adjust roles and contracted hours.');
       toast.error('Auto-fill failed');
+    } finally {
+      setAutoFillRunning(false);
     }
   };
 
@@ -1180,12 +1238,6 @@ export default function SchedulingPage() {
                   onAll={() => setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))}
                   onNone={() => setSelEmps(new Set())}
                 />
-                {viewBase !== 'day' && (
-                  <>
-                    <div className="w-px h-6 bg-border shrink-0" />
-                    <SchedulerSettings onSettingsChange={handleSettingsChange} shifts={filteredShifts} />
-                  </>
-                )}
                 <button
                   type="button"
                   onClick={handleFillSchedule}
@@ -1355,42 +1407,137 @@ export default function SchedulingPage() {
         open={autoFillDialogOpen}
         onOpenChange={(open) => {
           // Block closing while the mutation is running to prevent double-submit
-          if (autoFillMutation.isPending) return;
+          if (autoFillMutation.isPending || autoFillRunning) return;
           setAutoFillDialogOpen(open);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[560px] overflow-hidden border-border/70 p-0">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {autoFillMutation.isPending ? 'Running auto-fill…' : 'Run auto-fill?'}
+            <AlertDialogTitle className="sr-only">
+              {autoFillMutation.isPending || autoFillRunning
+                ? 'Running auto-fill'
+                : autoFillFinished
+                  ? 'Auto-fill results'
+                  : 'Run auto-fill'}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {autoFillMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
-                  Filling shifts — please wait, do not close this window.
-                </span>
-              ) : (
-                'This will auto-fill the current week for full-time and part-time employees based on their contracted hours. Existing draft shifts will not be replaced.'
-              )}
+            <AlertDialogDescription asChild>
+              <div>
+                {autoFillMutation.isPending || autoFillRunning ? (
+                  <div className="space-y-4 p-5">
+                    <div className="rounded-xl border border-primary/20 bg-linear-to-br from-primary/12 via-primary/6 to-background p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 rounded-md border border-primary/30 bg-background/70 p-1.5">
+                          <Sparkles className="size-4 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-base font-semibold text-foreground">Running auto-fill...</p>
+                          <p className="text-sm text-muted-foreground">Creating roster shifts from contracted hours and role coverage.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border bg-card p-4 shadow-sm">
+                      <div className="mb-2.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {autoFillPhase}
+                        </div>
+                        <span className="text-sm font-semibold text-foreground">{Math.round(autoFillProgress)}%</span>
+                      </div>
+                      <Progress value={autoFillProgress} className="h-2.5" />
+                      <p className="mt-2 text-xs text-muted-foreground">Filling shifts — please wait, do not close this window.</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg border bg-emerald-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Added</div>
+                        <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-400">{autoFillStats.added}</div>
+                      </div>
+                      <div className="rounded-lg border bg-amber-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Skipped</div>
+                        <div className="text-lg font-semibold text-amber-700 dark:text-amber-400">{autoFillStats.skipped}</div>
+                      </div>
+                      <div className="rounded-lg border bg-rose-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Needs review</div>
+                        <div className="text-lg font-semibold text-rose-700 dark:text-rose-400">{autoFillStats.failed}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : autoFillFinished ? (
+                  <div className="space-y-4 p-5">
+                    <div
+                      className={cn(
+                        "rounded-xl border p-4",
+                        autoFillError ? "border-rose-300/50 bg-rose-500/10" : "border-emerald-300/40 bg-emerald-500/10",
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 rounded-md border bg-background/70 p-1.5">
+                          {autoFillError ? (
+                            <CircleAlert className="size-4 text-rose-500" />
+                          ) : (
+                            <CircleCheckBig className="size-4 text-emerald-500" />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-base font-semibold text-foreground">
+                            {autoFillError ? "Auto-fill failed" : "Auto-fill completed"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {autoFillError ?? "Review the summary below. You can close this dialog or run again."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg border bg-emerald-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Added</div>
+                        <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-400">{autoFillStats.added}</div>
+                      </div>
+                      <div className="rounded-lg border bg-amber-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Skipped</div>
+                        <div className="text-lg font-semibold text-amber-700 dark:text-amber-400">{autoFillStats.skipped}</div>
+                      </div>
+                      <div className="rounded-lg border bg-rose-500/10 px-3 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Needs review</div>
+                        <div className="text-lg font-semibold text-rose-700 dark:text-rose-400">{autoFillStats.failed}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 p-5">
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <p className="text-base font-semibold text-foreground">Run auto-fill?</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        This will auto-fill the current week for full-time and part-time employees based on contracted hours.
+                        Existing draft shifts are kept and not replaced.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={autoFillMutation.isPending}>
-              Cancel
+          <AlertDialogFooter className="border-t border-border/70 bg-muted/10 px-5 py-4">
+            <AlertDialogCancel disabled={autoFillMutation.isPending || autoFillRunning}>
+              {autoFillFinished ? 'Close' : 'Cancel'}
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmAutoFill}
-              disabled={autoFillMutation.isPending}
+              onClick={(e) => {
+                // Prevent Radix AlertDialogAction from auto-closing immediately.
+                e.preventDefault();
+                void confirmAutoFill();
+              }}
+              disabled={autoFillMutation.isPending || autoFillRunning}
               className="min-w-[110px]"
             >
-              {autoFillMutation.isPending ? (
+              {autoFillMutation.isPending || autoFillRunning ? (
                 <span className="flex items-center gap-2">
-                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                  <Loader2 className="size-3.5 animate-spin" />
                   Running…
                 </span>
               ) : (
-                'Run auto-fill'
+                autoFillFinished ? 'Run again' : 'Run auto-fill'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
