@@ -79,7 +79,6 @@ export interface CreateCalendarEventRequest {
 
 // Create calendar event
 export async function createCalendarEvent(data: CreateCalendarEventRequest): Promise<{ success: boolean; data: CalendarEvent }> {
-  console.log('[createCalendarEvent] Creating event:', data)
   
   const response = await fetch('/api/calendar/events', {
     method: 'POST',
@@ -90,8 +89,6 @@ export async function createCalendarEvent(data: CreateCalendarEventRequest): Pro
     body: JSON.stringify(data),
   })
   
-  console.log('[createCalendarEvent] Response status:', response.status)
-  console.log('[createCalendarEvent] Response headers:', Object.fromEntries(response.headers.entries()))
   
   if (!response.ok) {
     const contentType = response.headers.get('content-type')
@@ -110,7 +107,6 @@ export async function createCalendarEvent(data: CreateCalendarEventRequest): Pro
   }
   
   const result = await response.json()
-  console.log('[createCalendarEvent] Success response:', result)
   return result
 }
 
@@ -128,7 +124,6 @@ export interface UpdateCalendarEventRequest {
 
 // Update calendar event
 export async function updateCalendarEvent(id: string, data: UpdateCalendarEventRequest): Promise<{ success: boolean; data: CalendarEvent }> {
-  console.log('[updateCalendarEvent] Updating event:', id, data)
   
   const response = await fetch(`/api/calendar/events/${id}`, {
     method: 'PUT',
@@ -139,8 +134,6 @@ export async function updateCalendarEvent(id: string, data: UpdateCalendarEventR
     body: JSON.stringify(data),
   })
   
-  console.log('[updateCalendarEvent] Response status:', response.status)
-  console.log('[updateCalendarEvent] Response headers:', Object.fromEntries(response.headers.entries()))
   
   if (!response.ok) {
     const contentType = response.headers.get('content-type')
@@ -159,21 +152,17 @@ export async function updateCalendarEvent(id: string, data: UpdateCalendarEventR
   }
   
   const result = await response.json()
-  console.log('[updateCalendarEvent] Success response:', result)
   return result
 }
 
 // Delete calendar event
 export async function deleteCalendarEvent(id: string): Promise<{ success: boolean }> {
-  console.log('[deleteCalendarEvent] Deleting event:', id)
   
   const response = await fetch(`/api/calendar/events/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   })
   
-  console.log('[deleteCalendarEvent] Response status:', response.status)
-  console.log('[deleteCalendarEvent] Response headers:', Object.fromEntries(response.headers.entries()))
   
   if (!response.ok) {
     const contentType = response.headers.get('content-type')
@@ -192,26 +181,5 @@ export async function deleteCalendarEvent(id: string): Promise<{ success: boolea
   }
   
   const result = await response.json()
-  console.log('[deleteCalendarEvent] Success response:', result)
   return result
-}
-
-// Transform CalendarEvent to IEvent format
-export function calendarEventToIEvent(event: any): any {
-  return {
-    id: event.id,
-    startDate: event.startDate,
-    endDate: event.endDate,
-    title: event.title,
-    color: event.color || 'blue',
-    description: event.description || '',
-    user: event.user || {
-      id: event.employeeId || '',
-      name: '',
-      picturePath: null,
-      location: [],
-      role: [],
-      employer: [],
-    },
-  };
 }

@@ -463,22 +463,33 @@ export default function SchedulingPage() {
     })
   }, [schedulerEmployees])
 
-  const calendarWeekRange = useMemo(() => {
+  // Fetch window expands to cover the full visible range for each view so the
+  // grid never shows blank shifts when navigating to month / year view.
+  const calendarFetchRange = useMemo(() => {
     const anchor = date ?? new Date();
-    const wd = getWeekDates(anchor);
-    const s = wd[0];
-    const e = wd[6];
-    if (!s || !e) {
-      const now = new Date();
-      const ws = startOfDay(now);
-      return { start: ws, end: endOfDay(new Date(ws.getTime() + 6 * 24 * 60 * 60 * 1000)) };
+    if (viewBase === 'day') {
+      return { start: startOfDay(anchor), end: endOfDay(anchor) };
     }
+    if (viewBase === 'week') {
+      const wd = getWeekDates(anchor);
+      const s = wd[0] ?? anchor;
+      const e = wd[6] ?? anchor;
+      return { start: startOfDay(s), end: endOfDay(e) };
+    }
+    if (viewBase === 'month') {
+      const s = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+      const e = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+      return { start: startOfDay(s), end: endOfDay(e) };
+    }
+    // year
+    const s = new Date(anchor.getFullYear(), 0, 1);
+    const e = new Date(anchor.getFullYear(), 11, 31);
     return { start: startOfDay(s), end: endOfDay(e) };
-  }, [date, getWeekDates]);
+  }, [date, viewBase, getWeekDates]);
 
   const { data: eventsData, refetch: refetchEvents, error: eventsError } = useCalendarEvents({
-    startDate: calendarWeekRange.start.toISOString(),
-    endDate: calendarWeekRange.end.toISOString(),
+    startDate: calendarFetchRange.start.toISOString(),
+    endDate: calendarFetchRange.end.toISOString(),
     userId: 'all',
     locationId: selectedLocationId || 'all',
     publishedOnly: false,
@@ -536,22 +547,6 @@ export default function SchedulingPage() {
     }));
   }, [userSchedulingSettingsQuery.data?.schedulingSettings, setSettingsStore]);
 
-  // Transform employees for CalendarProvider (IUser interface)
-  const calendarUsers = useMemo(() => {
-    return employees.map((employee: {
-      id?: string; _id?: string; name?: string; avatar?: string;
-      locations?: Array<{ name: string }>; roles?: Array<{ role?: { name?: string } }>;
-      employers?: Array<{ name: string }>;
-    }) => ({
-      id: employee.id || employee._id,
-      name: employee.name,
-      picturePath: employee.avatar || null,
-      location: employee.locations?.map((loc) => loc.name) || [],
-      role: employee.roles?.map((role) => role.role?.name ?? '') || [],
-      employer: employee.employers?.map((emp) => emp.name) || []
-    }));
-  }, [employees]);
-
   // Transform events to shifts
   useEffect(() => {
     type ApiScheduleEvent = {
@@ -563,129 +558,119 @@ export default function SchedulingPage() {
       user?: { id?: string; name?: string };
       shiftStatus?: string;
     };
-    const ev = (eventsData as { events?: ApiScheduleEvent[] } | undefined)?.events;
-    if (ev?.length) {
-      const transformedShifts: Block[] = ev.map((event) => {
-        const startDate = parseISO(event.startDate);
-        const endDate = parseISO(event.endDate);
-        
-        // Convert to hours (decimal for minutes)
-        const startH = startDate.getHours() + startDate.getMinutes() / 60;
-        const endH = endDate.getHours() + endDate.getMinutes() / 60;
+    // getCalendarEvents returns { data: { events } } — unwrap both layers
+    const ev = (eventsData as { data?: { events?: ApiScheduleEvent[] } } | undefined)?.data?.events;
+    // Always replace shifts — even an empty array clears stale data from previous navigation
+    const transformedShifts: Block[] = (ev ?? []).map((event) => {
+      const startDate = parseISO(event.startDate);
+      const endDate = parseISO(event.endDate);
 
-        // Find role/category
-        const roleId = event.roleId || roles[0]?.id || 'default';
-        
-        const employerBadge = typeof event.employerBadge === 'string' ? event.employerBadge : 'Own staff';
+      const startH = startDate.getHours() + startDate.getMinutes() / 60;
+      const endH = endDate.getHours() + endDate.getMinutes() / 60;
 
-        return {
-          id: event.id,
-          categoryId: roleId,
-          employeeId: event.user?.id || 'unassigned',
-          date: format(startDate, 'yyyy-MM-dd'), // Convert to ISO date string
-          startH,
-          endH,
-          employee: event.user?.name || 'Unassigned',
-          status: event.shiftStatus === 'draft' ? 'draft' : 'published',
-          meta: { employerBadge },
-        };
-      });
-      
-      setShifts(transformedShifts);
-    }
+      const roleId = event.roleId || roles[0]?.id || 'default';
+      const employerBadge = typeof event.employerBadge === 'string' ? event.employerBadge : 'Own staff';
+
+      return {
+        id: event.id,
+        categoryId: roleId,
+        employeeId: event.user?.id || 'unassigned',
+        // startDate is already an ISO date string — slice instead of re-formatting
+        date: event.startDate.slice(0, 10),
+        startH,
+        endH,
+        employee: event.user?.name || 'Unassigned',
+        status: event.shiftStatus === 'draft' ? 'draft' : 'published',
+        meta: { employerBadge },
+      };
+    });
+    setShifts(transformedShifts);
   }, [eventsData, roles]);
 
-  // Handle shifts change
-  const handleShiftsChange = async (newShifts: Block[]) => {
-    setShifts(newShifts);
-    
-    // Find changes and sync with backend
-    const currentShiftIds = shifts.map(s => s.id);
-    const newShiftIds = newShifts.map(s => s.id);
-    
-    // Handle new shifts (created)
-    const createdShifts = newShifts.filter(s => !currentShiftIds.includes(s.id));
-    for (const shift of createdShifts) {
-      try {
-        const employerId = employees?.find((emp: { id: string; employers?: Array<{ id: string }> }) => emp.id === shift.employeeId)?.employers?.[0]?.id || 'default';
-        
-        // Convert decimal hours back to time
-        const startHour = Math.floor(shift.startH);
-        const startMinute = Math.round((shift.startH - startHour) * 60);
-        const endHour = Math.floor(shift.endH);
-        const endMinute = Math.round((shift.endH - endHour) * 60);
-        
-        await createEventMutation.mutateAsync({
-          employeeId: shift.employeeId !== 'unassigned' ? shift.employeeId : undefined,
-          roleId: shift.categoryId,
-          locationId: selectedLocationId || locations[0]?.id,
-          employerId,
-          startDate: format(shift.date, 'yyyy-MM-dd'),
-          startTime: { hour: startHour, minute: startMinute },
-          endDate: format(shift.date, 'yyyy-MM-dd'),
-          endTime: { hour: endHour, minute: endMinute },
-          notes: ''
-        });
-        
-        toast.success('Shift created successfully');
-      } catch (error) {
-        console.error('Failed to create shift:', error);
-        toast.error('Failed to create shift');
-      }
-    }
-    
-    // Handle deleted shifts
-    const deletedShifts = shifts.filter(s => !newShiftIds.includes(s.id));
-    for (const shift of deletedShifts) {
-      try {
-        await deleteEventMutation.mutateAsync(shift.id);
-        toast.success('Shift deleted successfully');
-      } catch (error) {
-        console.error('Failed to delete shift:', error);
-        toast.error('Failed to delete shift');
-      }
-    }
-    
-    // Handle updated shifts
-    const updatedShifts = newShifts.filter(s => {
-      const original = shifts.find(orig => orig.id === s.id);
-      return original && (
-        original.startH !== s.startH ||
-        original.endH !== s.endH ||
-        original.employeeId !== s.employeeId ||
-        original.categoryId !== s.categoryId
-      );
-    });
-    
-    for (const shift of updatedShifts) {
-      try {
-        const startHour = Math.floor(shift.startH);
-        const startMinute = Math.round((shift.startH - startHour) * 60);
-        const endHour = Math.floor(shift.endH);
-        const endMinute = Math.round((shift.endH - endHour) * 60);
-        
-        await updateEventMutation.mutateAsync({
-          id: shift.id,
-          data: {
+  /** Convert decimal hours → { hour, minute } for the API */
+  const toHourMinute = (h: number) => ({
+    hour: Math.floor(h),
+    minute: Math.round((h - Math.floor(h)) * 60),
+  });
+
+  // Handle shifts change — useCallback so the reference is stable for child components.
+  // Takes a snapshot of `shifts` at call time to avoid stale-closure bugs.
+  const handleShiftsChange = useCallback(
+    async (newShifts: Block[], prevShifts: Block[] = shifts) => {
+      // Optimistic update first — UI responds immediately
+      setShifts(newShifts);
+
+      const prevIds = new Set(prevShifts.map((s) => s.id));
+      const nextIds = new Set(newShifts.map((s) => s.id));
+
+      const created = newShifts.filter((s) => !prevIds.has(s.id));
+      const deleted = prevShifts.filter((s) => !nextIds.has(s.id));
+      const updated = newShifts.filter((s) => {
+        if (!prevIds.has(s.id)) return false;
+        const orig = prevShifts.find((o) => o.id === s.id)!;
+        return (
+          orig.startH !== s.startH ||
+          orig.endH !== s.endH ||
+          orig.employeeId !== s.employeeId ||
+          orig.categoryId !== s.categoryId ||
+          orig.date !== s.date
+        );
+      });
+
+      const results = await Promise.allSettled([
+        ...created.map((shift) => {
+          const empRow = (employees as Array<{ id: string; employers?: Array<{ id: string }> }>)
+            .find((e) => e.id === shift.employeeId);
+          const employerId = empRow?.employers?.[0]?.id ?? 'default';
+          const st = toHourMinute(shift.startH);
+          const et = toHourMinute(shift.endH);
+          return createEventMutation.mutateAsync({
             employeeId: shift.employeeId !== 'unassigned' ? shift.employeeId : undefined,
             roleId: shift.categoryId,
-            startDate: format(shift.date, 'yyyy-MM-dd'),
-            startTime: { hour: startHour, minute: startMinute },
-            endDate: format(shift.date, 'yyyy-MM-dd'),
-            endTime: { hour: endHour, minute: endMinute }
-          }
-        });
-        
-        toast.success('Shift updated successfully');
-      } catch (error) {
-        console.error('Failed to update shift:', error);
-        toast.error('Failed to update shift');
+            locationId: selectedLocationId || (locations[0]?.id ?? ''),
+            employerId,
+            startDate: shift.date,
+            startTime: st,
+            endDate: shift.date,
+            endTime: et,
+            notes: '',
+          });
+        }),
+        ...deleted.map((shift) => deleteEventMutation.mutateAsync(shift.id)),
+        ...updated.map((shift) => {
+          const st = toHourMinute(shift.startH);
+          const et = toHourMinute(shift.endH);
+          return updateEventMutation.mutateAsync({
+            id: shift.id,
+            data: {
+              employeeId: shift.employeeId !== 'unassigned' ? shift.employeeId : undefined,
+              roleId: shift.categoryId,
+              startDate: shift.date,
+              startTime: st,
+              endDate: shift.date,
+              endTime: et,
+            },
+          });
+        }),
+      ]);
+
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length) {
+        toast.error(`${failures.length} shift change${failures.length > 1 ? 's' : ''} failed to save`);
+        // Revert optimistic update on any failure
+        await refetchEvents();
+      } else if (created.length || deleted.length || updated.length) {
+        const parts: string[] = [];
+        if (created.length) parts.push(`${created.length} created`);
+        if (updated.length) parts.push(`${updated.length} updated`);
+        if (deleted.length) parts.push(`${deleted.length} deleted`);
+        toast.success(parts.join(' · '));
+        await refetchEvents();
       }
-    }
-    
-    // Refetch to ensure consistency
-    await refetchEvents();
-  };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shifts, employees, selectedLocationId, locations, createEventMutation, updateEventMutation, deleteEventMutation, refetchEvents],
+  );
 
   /** GridView context-menu delete (Day / week timeline) — confirm UI is inside GridView */
   const handleDeleteShiftForGrid = useCallback(
