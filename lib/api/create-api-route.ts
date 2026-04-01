@@ -115,7 +115,7 @@ export function createApiRoute<
           return NextResponse.json(
             { 
               error: 'Invalid request body', 
-              details: error instanceof z.ZodError ? error.issues : 'Malformed JSON'
+              details: (error instanceof z.ZodError) ? (error as z.ZodError).issues : 'Malformed JSON'
             },
             { status: 400 }
           );
@@ -127,13 +127,29 @@ export function createApiRoute<
       if (config.request?.query) {
         try {
           const searchParams = req.nextUrl.searchParams;
-          const queryObject = Object.fromEntries(searchParams.entries());
+          // Build query object respecting repeated params (e.g. ?employeeId=a&employeeId=b).
+          // Object.fromEntries() would drop all but the last value for repeated keys.
+          const queryShape = config.request.query.shape;
+          const queryObject: Record<string, string | string[]> = {};
+          for (const key of Object.keys(queryShape)) {
+            const all = searchParams.getAll(key);
+            if (all.length === 0) continue;
+            // If the schema shape for this key is an array type, keep as array;
+            // otherwise collapse to a single string.
+            const fieldSchema = queryShape[key];
+            const isArrayField =
+              fieldSchema instanceof z.ZodArray ||
+              (fieldSchema instanceof z.ZodOptional && fieldSchema._def.innerType instanceof z.ZodArray) ||
+              (fieldSchema instanceof z.ZodDefault && fieldSchema._def.innerType instanceof z.ZodOptional &&
+                (fieldSchema._def.innerType as z.ZodOptional<z.ZodTypeAny>)._def.innerType instanceof z.ZodArray);
+            queryObject[key] = isArrayField ? all : all[all.length - 1]!;
+          }
           query = config.request.query.parse(queryObject) as z.infer<TQuery>;
         } catch (error) {
           return NextResponse.json(
             { 
               error: 'Invalid query parameters', 
-              details: error instanceof z.ZodError ? error.issues : 'Invalid format'
+              details: (error instanceof z.ZodError) ? (error as z.ZodError).issues : 'Invalid format'
             },
             { status: 400 }
           );
@@ -149,7 +165,7 @@ export function createApiRoute<
           return NextResponse.json(
             { 
               error: 'Invalid path parameters', 
-              details: error instanceof z.ZodError ? error.issues : 'Invalid format'
+              details: (error instanceof z.ZodError) ? (error as z.ZodError).issues : 'Invalid format'
             },
             { status: 400 }
           );

@@ -168,10 +168,13 @@ export default function TimesheetPage() {
     roles: selectedRoles.length > 0 ? selectedRoles : undefined,
   })
 
-  const timesheets = timesheetsQuery.data?.timesheets || []
-  const totalWorkingHours = timesheetsQuery.data?.totalWorkingHours || "—"
-  const totalBreakHours = timesheetsQuery.data?.totalBreakHours || "—"
-  const loading = timesheetsQuery.isLoading
+  const timesheets = timesheetsQuery.data?.timesheets ?? []
+  const totalWorkingHours = timesheetsQuery.data?.totalWorkingHours ?? "—"
+  const totalBreakHours = timesheetsQuery.data?.totalBreakHours ?? "—"
+  const loading = timesheetsQuery.isLoading || timesheetsQuery.isFetching
+  const timesheetError = timesheetsQuery.isError
+    ? (timesheetsQuery.error instanceof Error ? timesheetsQuery.error.message : "Failed to load timesheets")
+    : null
 
   // Process employees data
   const fetchFilters = useCallback(async () => {
@@ -604,8 +607,8 @@ export default function TimesheetPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {error && (
-            <p className="text-destructive text-sm mb-4">{error}</p>
+          {(error || timesheetError) && (
+            <p className="text-destructive text-sm mb-4">{timesheetError || error}</p>
           )}
           {renderCurrentView()}
         </CardContent>

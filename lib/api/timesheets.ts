@@ -55,5 +55,11 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
   const response = await fetch(`${BASE_URL}?${params.toString()}`, {
     credentials: 'include',
   })
-  return response.json()
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error((body as { error?: string }).error || `Failed to fetch timesheets (${response.status})`)
+  }
+
+  return response.json() as Promise<TimesheetResponse>
 }
