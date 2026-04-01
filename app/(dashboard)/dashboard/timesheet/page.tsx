@@ -108,6 +108,7 @@ function getDateRange(view: TimesheetView, selectedDate: Date) {
 }
 
 export default function TimesheetPage() {
+  const [isHydrated, setIsHydrated] = useState(false)
   const [view, setView] = useState<TimesheetView>("week")
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [customStartDate, setCustomStartDate] = useState("")
@@ -283,6 +284,10 @@ export default function TimesheetPage() {
 
   const fetchTimesheets = useCallback(async () => {
     // This is now handled by the useTimesheets hook
+  }, [])
+
+  useEffect(() => {
+    setIsHydrated(true)
   }, [])
 
   useEffect(() => {
@@ -466,7 +471,7 @@ export default function TimesheetPage() {
             <Button 
               variant="outline" 
               size="sm" 
-              disabled={loading || timesheets.length === 0}
+              disabled={!isHydrated || loading || timesheets.length === 0}
               onClick={handleExportCSV}
             >
               <FileDown className="size-4" />
@@ -475,7 +480,7 @@ export default function TimesheetPage() {
             <Button 
               variant="outline" 
               size="sm" 
-              disabled={loading}
+              disabled={!isHydrated || loading}
               onClick={handlePrint}
             >
               <Printer className="size-4" />
@@ -563,7 +568,7 @@ export default function TimesheetPage() {
       </Card>
 
       {/* Summary Stats */}
-      {!loading && timesheets.length > 0 && (
+      {isHydrated && !loading && timesheets.length > 0 && (
         <div className="flex gap-6 px-4 py-3 text-sm border rounded-lg bg-muted/30 print:bg-white print:border-gray-300 print:text-xs">
           <span>
             <strong>Total Break (all):</strong> {totalBreakHours}
@@ -601,7 +606,7 @@ export default function TimesheetPage() {
             <div className="mt-1">
               View: {view.charAt(0).toUpperCase() + view.slice(1)} | 
               Generated: <span suppressHydrationWarning>
-                {typeof window !== 'undefined' ? new Date().toLocaleString() : ''}
+                {isHydrated ? new Date().toLocaleString() : ""}
               </span>
             </div>
           </div>

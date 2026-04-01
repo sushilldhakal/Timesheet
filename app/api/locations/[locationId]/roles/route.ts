@@ -44,7 +44,7 @@ export const GET = createApiRoute({
       }
     }
 
-    const locationId = params?.id
+    const locationId = params?.locationId
     if (!locationId) {
       return {
         status: 400,
@@ -180,7 +180,7 @@ export const POST = createApiRoute({
       }
     }
 
-    const locationId = params?.id
+    const locationId = params?.locationId
     if (!locationId) {
       return {
         status: 400,

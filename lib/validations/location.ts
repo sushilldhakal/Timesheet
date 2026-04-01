@@ -34,7 +34,7 @@ export const locationQuerySchema = z.object({
 
 // Location ID parameter
 export const locationIdParamSchema = z.object({
-  id: objectIdSchema,
+  locationId: objectIdSchema,
 })
 
 // Role ID parameter

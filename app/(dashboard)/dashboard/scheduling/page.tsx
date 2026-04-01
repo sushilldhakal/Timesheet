@@ -141,6 +141,8 @@ export default function SchedulingPage() {
   const [resolveRunning, setResolveRunning] = useState(false);
   const [resolveFinished, setResolveFinished] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveProgress, setResolveProgress] = useState(0);
+  const [resolvePhase, setResolvePhase] = useState('Ready to resolve');
   const [resolveStats, setResolveStats] = useState({ conflictGroups: 0, shiftsToRemove: 0, hoursRemoved: 0 });
   const [resolveShiftIds, setResolveShiftIds] = useState<string[]>([]);
   const [templatesHubOpen, setTemplatesHubOpen] = useState(false);
@@ -213,6 +215,23 @@ export default function SchedulingPage() {
       return prev;
     });
   }, [autoFillProgress, autoFillRunning, autoFillMutation.isPending, autoFillStats]);
+
+  useEffect(() => {
+    if (!resolveRunning) {
+      setResolveProgress(0);
+      return;
+    }
+    setResolveProgress((p) => (p > 6 ? p : 10));
+    const intervalId = window.setInterval(() => {
+      setResolveProgress((prev) => {
+        if (prev >= 92) return 92;
+        if (prev < 45) return prev + 10;
+        if (prev < 75) return prev + 6;
+        return prev + 3;
+      });
+    }, 350);
+    return () => window.clearInterval(intervalId);
+  }, [resolveRunning]);
 
   const userInfo = userInfoQuery.data?.user;
 
@@ -901,21 +920,34 @@ export default function SchedulingPage() {
     });
     setResolveError(null);
     setResolveFinished(false);
+    setResolvePhase('Ready to resolve');
+    setResolveProgress(0);
     setResolveDialogOpen(true);
   }, [buildResolvePlan]);
 
   const confirmResolveConflicts = useCallback(async () => {
     if (resolveShiftIds.length === 0) {
+      setResolveProgress(100);
+      setResolvePhase('No conflicts to resolve');
       setResolveFinished(true);
       return;
     }
     setResolveRunning(true);
     setResolveError(null);
+    setResolveFinished(false);
+    setResolvePhase('Scanning overlapping shifts');
+    setResolveProgress(8);
     try {
+      setResolvePhase('Removing lower-duration conflicts');
       const nextShifts = shifts.filter((s) => !resolveShiftIds.includes(s.id));
+      setResolvePhase('Saving resolved schedule');
       await handleShiftsChange(nextShifts, shifts);
+      setResolveShiftIds([]);
+      setResolveProgress(100);
+      setResolvePhase('Conflict resolution complete');
       setResolveFinished(true);
     } catch {
+      setResolvePhase('Conflict resolution failed');
       setResolveError('Failed to resolve all conflicts. Please retry.');
     } finally {
       setResolveRunning(false);
@@ -1460,17 +1492,13 @@ export default function SchedulingPage() {
                       <DropdownMenuItem onClick={handleResolveConflicts}>
                         <ShieldAlert className="mr-2 size-4" /> Resolve conflicts
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setTemplatesHubOpen(true)}>
+                        <FolderOpen className="mr-2 size-4" /> Templates
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setTemplatesHubOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
-                >
-                  <FolderOpen size={14} />
-                  Templates
-                </button>
               </div>
             </div>
           </div>
@@ -1522,7 +1550,7 @@ export default function SchedulingPage() {
                 />
               </DayViewPanelChrome>
             ) : (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible">
                 <KanbanView
                   date={date}
                   shifts={filteredShifts}
@@ -1766,6 +1794,19 @@ export default function SchedulingPage() {
                   : 'Removes only the lower-hours shift in each overlap for the current view scope.'}
               </p>
             </div>
+            {resolveRunning && (
+              <div className="rounded-xl border bg-card p-4 shadow-sm">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    {resolvePhase}
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">{Math.round(resolveProgress)}%</span>
+                </div>
+                <Progress value={resolveProgress} className="h-2.5" />
+                <p className="mt-2 text-xs text-muted-foreground">Resolving conflicts — please wait, do not close this window.</p>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border bg-primary/8 px-3 py-2 text-center">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Conflict groups</div>
@@ -1792,7 +1833,7 @@ export default function SchedulingPage() {
             </Button>
             <Button
               onClick={() => void confirmResolveConflicts()}
-              disabled={resolveRunning || resolveStats.shiftsToRemove === 0}
+              disabled={resolveRunning || resolveFinished || resolveShiftIds.length === 0}
               className="min-w-[140px]"
             >
               {resolveRunning ? (

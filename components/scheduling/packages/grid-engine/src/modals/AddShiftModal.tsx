@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/cn"
 const LBL = "mb-1 block text-[11px] font-semibold text-muted-foreground"
 const SEL =
   "w-full min-w-0 cursor-pointer rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none"
+const BREAK_DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const
 
 interface AddShiftModalProps {
   date: Date
@@ -64,6 +65,7 @@ export function AddShiftModal({
   const totalHours = endH - startH
   const breakHours = hasBreak ? (splitShift ? breakEndH - breakStartH : breakDurMin / 60) : 0
   const workedHours = Math.max(0, totalHours - breakHours)
+  const breakSliderIndex = Math.max(0, BREAK_DURATION_OPTIONS.indexOf(breakDurMin as (typeof BREAK_DURATION_OPTIONS)[number]))
 
   const timeDisplay = (): string => {
     const s = fmtHourOpt(startH)
@@ -114,7 +116,6 @@ export function AddShiftModal({
         <div className="text-[15px] font-extrabold text-foreground mb-1">{labels.addShift}</div>
 
         <div className="flex flex-col gap-3">
-
           {/* Date picker */}
           <div>
             <label className={LBL}>{"Date"}</label>
@@ -215,8 +216,12 @@ export function AddShiftModal({
                       </span>
                     </div>
                     <input
-                      type="range" min={15} max={120} step={15} value={breakDurMin}
-                      onChange={(e) => setBreakDurMin(Number(e.target.value))}
+                      type="range"
+                      min={0}
+                      max={BREAK_DURATION_OPTIONS.length - 1}
+                      step={1}
+                      value={breakSliderIndex}
+                      onChange={(e) => setBreakDurMin(BREAK_DURATION_OPTIONS[Number(e.target.value)] ?? 30)}
                       style={{ width: "100%", accentColor: c.bg, cursor: "pointer" }}
                     />
                     <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">

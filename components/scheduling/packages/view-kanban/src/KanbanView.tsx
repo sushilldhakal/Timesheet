@@ -749,8 +749,8 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   }
 
   return (
-    <div className="box-border h-full min-h-0 overflow-auto rounded-lg border border-border bg-background">
-      <div className="sticky top-0 z-30 border-b border-border bg-background shadow-[0_1px_0_0_var(--border)]">
+    <div className="box-border h-full min-h-0 overflow-visible rounded-lg border border-border bg-background">
+      <div className="sticky top-16 z-30 border-b border-border bg-background shadow-[0_1px_0_0_var(--border)]">
         <div
           className="grid"
           style={{
