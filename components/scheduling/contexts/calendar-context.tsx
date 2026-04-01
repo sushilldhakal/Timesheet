@@ -3,11 +3,34 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { calculateDateRange, type DateRange } from "@/components/scheduling/utils/date-range-calculator";
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from "@/lib/queries/calendar";
-import { calendarEventToIEvent } from "@/lib/api/calendar";
 import type { CreateCalendarEventRequest, UpdateCalendarEventRequest } from "@/lib/api/calendar";
 
 import type { Dispatch, SetStateAction } from "react";
 import type { TBadgeVariant, TVisibleHours, TWorkingHours, ViewString, IEvent, IUser } from "@/components/scheduling/types";
+
+function mapCalendarEventToIEvent(event: any): IEvent {
+  const startDate = event?.startDate ?? event?.start;
+  const endDate = event?.endDate ?? event?.end;
+  const user = event?.user ?? {
+    id: event?.employeeId ?? "vacant",
+    name: event?.employeeName ?? event?.title ?? "Employee",
+    picturePath: null,
+  };
+
+  return {
+    id: event?.id ?? event?._id ?? `${startDate ?? ""}-${endDate ?? ""}`,
+    startDate,
+    endDate,
+    title: event?.title ?? "",
+    color: event?.color ?? "blue",
+    description: event?.description ?? "",
+    user,
+    ...(event?.locationId ? { locationId: event.locationId } : {}),
+    ...(event?.roleId ? { roleId: event.roleId } : {}),
+    ...(event?.shiftStatus ? { shiftStatus: event.shiftStatus } : {}),
+    ...(event?.employerBadge ? { employerBadge: event.employerBadge } : {}),
+  } as IEvent;
+}
 
 interface ICalendarContext {
   selectedDate: Date;
@@ -130,7 +153,7 @@ export function CalendarProvider({
     const raw = (eventsData as { events?: unknown[] } | undefined)?.events;
     if (!raw?.length) return [];
 
-    return raw.map((event: any) => calendarEventToIEvent(event));
+    return raw.map((event: any) => mapCalendarEventToIEvent(event));
   }, [eventsData, providedEvents]);
 
   // Filter events based on selected users

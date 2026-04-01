@@ -144,6 +144,7 @@ export async function autoFillRoster(
     locationId: string
     managedRoles: string[]
     employmentTypes?: Array<"FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT">
+    replaceDrafts?: boolean
   }
 ): Promise<
   ApiResponse<{

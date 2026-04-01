@@ -20,11 +20,18 @@ import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/Sched
 import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling/packages/grid-engine/src';
 import {
   Plus,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   BadgeCheck,
   Loader2,
   Sparkles,
+  Wand2,
+  Send,
+  ShieldAlert,
+  FolderOpen,
+  Save,
+  Trash2,
   CircleCheckBig,
   CircleAlert,
   AlignJustify,
@@ -100,6 +107,10 @@ function weekIdFromDate(d: Date): string {
   return `${y}-W${String(w).padStart(2, '0')}`;
 }
 
+function isMongoObjectId(value: string): boolean {
+  return /^[a-fA-F0-9]{24}$/.test(value);
+}
+
 const VIEW_TABS: { k: KViewBase; l: string; Icon: LucideIcon }[] = [
   { k: 'day', l: 'Day', Icon: AlignJustify },
   { k: 'week', l: 'Week', Icon: Columns },
@@ -120,11 +131,19 @@ export default function SchedulingPage() {
   // ── Dialog state (replaces window.confirm / window.prompt) ───────────────────
   const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
   const [autoFillRunning, setAutoFillRunning] = useState(false);
+  const [autoFillReplaceDrafts, setAutoFillReplaceDrafts] = useState(false);
   const [autoFillProgress, setAutoFillProgress] = useState(0);
   const [autoFillStats, setAutoFillStats] = useState({ added: 0, skipped: 0, failed: 0 });
   const [autoFillPhase, setAutoFillPhase] = useState('Ready to start');
   const [autoFillFinished, setAutoFillFinished] = useState(false);
   const [autoFillError, setAutoFillError] = useState<string | null>(null);
+  const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
+  const [resolveRunning, setResolveRunning] = useState(false);
+  const [resolveFinished, setResolveFinished] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveStats, setResolveStats] = useState({ conflictGroups: 0, shiftsToRemove: 0, hoursRemoved: 0 });
+  const [resolveShiftIds, setResolveShiftIds] = useState<string[]>([]);
+  const [templatesHubOpen, setTemplatesHubOpen] = useState(false);
   const [deleteTemplateDialog, setDeleteTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
   const [applyTemplateDialog, setApplyTemplateDialog] = useState<{ open: boolean; templateId: string }>({ open: false, templateId: '' });
   const [saveTemplateDialog, setSaveTemplateDialog] = useState(false);
@@ -676,6 +695,7 @@ export default function SchedulingPage() {
         );
       });
 
+      const persistedDeleted = deleted.filter((s) => isMongoObjectId(String(s.id)));
       const results = await Promise.allSettled([
         ...created.map((shift) => {
           const empRow = (employees as Array<{ id: string; employers?: Array<{ id: string }> }>)
@@ -697,7 +717,7 @@ export default function SchedulingPage() {
             ...(shift.breakEndH   !== undefined && { breakEndH:   shift.breakEndH }),
           });
         }),
-        ...deleted.map((shift) => deleteEventMutation.mutateAsync(shift.id)),
+        ...persistedDeleted.map((shift) => deleteEventMutation.mutateAsync(shift.id)),
         ...updated.map((shift) => {
           const st = toHourMinute(shift.startH);
           const et = toHourMinute(shift.endH);
@@ -743,7 +763,9 @@ export default function SchedulingPage() {
       setShifts((prev) => prev.filter((s) => s.id !== shiftId));
       setDayViewShiftEdit((e) => (e?.shift.id === shiftId ? null : e));
       try {
-        await deleteEventMutation.mutateAsync(shiftId);
+        if (isMongoObjectId(shiftId)) {
+          await deleteEventMutation.mutateAsync(shiftId);
+        }
         toast.success('Shift deleted successfully');
         await refetchEvents();
       } catch (error) {
@@ -794,6 +816,111 @@ export default function SchedulingPage() {
     // This would copy shifts from the previous week
     toast.info('Copy last week functionality to be implemented');
   };
+
+  const isShiftInCurrentView = useCallback((shift: Block) => {
+    if (!date) return false;
+    const iso = String((shift as unknown as { date: unknown }).date).slice(0, 10);
+    if (viewBase === 'day') {
+      return iso === format(date, 'yyyy-MM-dd');
+    }
+    if (viewBase === 'week') {
+      const weekIso = new Set(getWeekDates(date).map((d) => format(d, 'yyyy-MM-dd')));
+      return weekIso.has(iso);
+    }
+    if (viewBase === 'month') {
+      const d = new Date(`${iso}T12:00:00`);
+      return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth();
+    }
+    if (viewBase === 'year') {
+      const d = new Date(`${iso}T12:00:00`);
+      return d.getFullYear() === date.getFullYear();
+    }
+    return false;
+  }, [date, viewBase, getWeekDates]);
+
+  const buildResolvePlan = useCallback(() => {
+    const scoped = filteredShifts.filter(isShiftInCurrentView);
+    const byEmpDay = new Map<string, Block[]>();
+    for (const shift of scoped) {
+      const key = `${shift.employeeId}|${shift.date}`;
+      const arr = byEmpDay.get(key) ?? [];
+      arr.push(shift);
+      byEmpDay.set(key, arr);
+    }
+
+    const toRemove = new Set<string>();
+    const duration = (s: Block) => Math.max(0, s.endH - s.startH);
+    const overlaps = (a: Block, b: Block) => a.startH < b.endH && b.startH < a.endH;
+
+    for (const group of byEmpDay.values()) {
+      if (group.length < 2) continue;
+      const sorted = [...group].sort((a, b) => a.startH - b.startH || a.endH - b.endH);
+      let active = sorted[0]!;
+      for (let i = 1; i < sorted.length; i++) {
+        const cur = sorted[i]!;
+        if (!overlaps(active, cur)) {
+          active = cur;
+          continue;
+        }
+
+        const aDur = duration(active);
+        const cDur = duration(cur);
+        if (aDur === cDur) {
+          const loser = active.id < cur.id ? cur : active;
+          toRemove.add(loser.id);
+          active = loser.id === active.id ? cur : active;
+          continue;
+        }
+
+        if (aDur < cDur) {
+          toRemove.add(active.id);
+          active = cur;
+        } else {
+          toRemove.add(cur.id);
+        }
+      }
+    }
+
+    const removed = shifts.filter((s) => toRemove.has(s.id));
+    const removedHours = removed.reduce((sum, s) => sum + Math.max(0, s.endH - s.startH), 0);
+    return {
+      shiftIds: [...toRemove],
+      conflictGroups: [...byEmpDay.values()].filter((group) => group.length > 1).length,
+      shiftsToRemove: toRemove.size,
+      hoursRemoved: Number(removedHours.toFixed(1)),
+    };
+  }, [filteredShifts, isShiftInCurrentView, shifts]);
+
+  const handleResolveConflicts = useCallback(() => {
+    const plan = buildResolvePlan();
+    setResolveShiftIds(plan.shiftIds);
+    setResolveStats({
+      conflictGroups: plan.conflictGroups,
+      shiftsToRemove: plan.shiftsToRemove,
+      hoursRemoved: plan.hoursRemoved,
+    });
+    setResolveError(null);
+    setResolveFinished(false);
+    setResolveDialogOpen(true);
+  }, [buildResolvePlan]);
+
+  const confirmResolveConflicts = useCallback(async () => {
+    if (resolveShiftIds.length === 0) {
+      setResolveFinished(true);
+      return;
+    }
+    setResolveRunning(true);
+    setResolveError(null);
+    try {
+      const nextShifts = shifts.filter((s) => !resolveShiftIds.includes(s.id));
+      await handleShiftsChange(nextShifts, shifts);
+      setResolveFinished(true);
+    } catch {
+      setResolveError('Failed to resolve all conflicts. Please retry.');
+    } finally {
+      setResolveRunning(false);
+    }
+  }, [handleShiftsChange, resolveShiftIds, shifts]);
 
   const handlePublishScoped = async () => {
     if (!date || !selectedLocationId) {
@@ -853,6 +980,7 @@ export default function SchedulingPage() {
         locationId: selectedLocationId,
         managedRoles,
         employmentTypes: ['FULL_TIME', 'PART_TIME'],
+        replaceDrafts: autoFillReplaceDrafts,
       });
       const ok = res.successCount ?? 0;
       const sk = res.skippedCount ?? 0;
@@ -861,15 +989,15 @@ export default function SchedulingPage() {
       setAutoFillPhase('Completed');
       setAutoFillProgress(100);
       setAutoFillFinished(true);
+      setAutoFillRunning(false);
       toast.message(`Fill complete: ${ok} shifts created · ${sk} skipped · ${fail} need manual fixes`);
-      await refetchEvents();
+      void refetchEvents();
     } catch {
       setAutoFillPhase('Auto-fill failed');
       setAutoFillFinished(true);
       setAutoFillError('Auto-fill failed. Please retry or adjust roles and contracted hours.');
-      toast.error('Auto-fill failed');
-    } finally {
       setAutoFillRunning(false);
+      toast.error('Auto-fill failed');
     }
   };
 
@@ -962,6 +1090,45 @@ export default function SchedulingPage() {
       toast.error('Apply failed');
     }
   };
+
+  const applyTemplateNow = useCallback(async (templateId: string, mode: 'replace' | 'add') => {
+    if (!date || !selectedLocationId) return;
+    try {
+      const wid = weekIdFromDate(date);
+      const res = await fetch(`/api/scheduling/templates/${templateId}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          targetWeekId: wid,
+          mode,
+          locationId: selectedLocationId,
+          roleIds: [...roleIdsForScheduling],
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      const n = j?.data?.shiftsCreated ?? 0;
+      toast.success(`Applied template (${n} shifts)`);
+      await refetchEvents();
+    } catch {
+      toast.error('Apply failed');
+    }
+  }, [date, selectedLocationId, roleIdsForScheduling, refetchEvents]);
+
+  const deleteTemplateNow = useCallback(async (templateId: string) => {
+    try {
+      const res = await fetch(`/api/scheduling/templates/${templateId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Template deleted');
+      await templatesQuery.refetch();
+    } catch {
+      toast.error('Could not delete template');
+    }
+  }, [templatesQuery]);
 
   if (!isHydrated) {
     return (
@@ -1265,68 +1432,44 @@ export default function SchedulingPage() {
                   onAll={() => setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))}
                   onNone={() => setSelEmps(new Set())}
                 />
+                <div className="flex shrink-0 overflow-hidden rounded-lg border border-primary/30">
+                  <button
+                    onClick={() => setHeaderAddOpen(true)}
+                    className="flex items-center gap-1.5 bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground"
+                  >
+                    <Plus size={15} /> Add Shift
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex items-center justify-center border-l border-primary/40 bg-primary px-2.5 text-primary-foreground"
+                        title="More actions"
+                        aria-label="More actions"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[260px] max-h-[min(480px,70vh)] overflow-y-auto">
+                      <DropdownMenuItem onClick={handleFillSchedule}>
+                        <Wand2 className="mr-2 size-4" /> Fill schedule
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handlePublishScoped}>
+                        <Send className="mr-2 size-4" /> Publish
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleResolveConflicts}>
+                        <ShieldAlert className="mr-2 size-4" /> Resolve conflicts
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 <button
                   type="button"
-                  onClick={handleFillSchedule}
-                  className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
+                  onClick={() => setTemplatesHubOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
                 >
-                  Fill schedule
-                </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
-                    >
-                      Templates ▾
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[240px] max-h-[min(420px,70vh)] overflow-y-auto">
-                    <DropdownMenuItem onClick={handleSaveWeekTemplate}>
-                      Save current week as template…
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {(templatesQuery.data?.templates as
-                      | Array<{ _id?: string; name?: string; createdBy?: string | { toString(): string } }>
-                      | undefined)?.map((t) => {
-                      const id = t._id ? String(t._id) : '';
-                      const created =
-                        t.createdBy != null && typeof t.createdBy === 'object' && 'toString' in t.createdBy
-                          ? (t.createdBy as { toString(): string }).toString()
-                          : String(t.createdBy ?? '');
-                      return (
-                        <div key={id || t.name} className="flex flex-col gap-0 py-1">
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => id && handleApplyTemplate(id)}
-                          >
-                            Apply: {t.name ?? id}
-                          </DropdownMenuItem>
-                          {id && canDeleteTemplate(created) && (
-                            <DropdownMenuItem
-                              className="cursor-pointer text-destructive focus:text-destructive"
-                              onClick={() => handleDeleteTemplate(id)}
-                            >
-                              Delete: {t.name ?? id}
-                            </DropdownMenuItem>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <button
-                  type="button"
-                  onClick={handlePublishScoped}
-                  className="px-3 py-1.5 rounded-lg border text-[13px] font-medium shrink-0"
-                >
-                  Publish
-                </button>
-                <button
-                  onClick={() => setHeaderAddOpen(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-[13px] font-semibold shrink-0"
-                >
-                  <Plus size={15} /> Add Shift
+                  <FolderOpen size={14} />
+                  Templates
                 </button>
               </div>
             </div>
@@ -1379,7 +1522,7 @@ export default function SchedulingPage() {
                 />
               </DayViewPanelChrome>
             ) : (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <KanbanView
                   date={date}
                   shifts={filteredShifts}
@@ -1548,13 +1691,24 @@ export default function SchedulingPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4 p-5">
+                <div className="space-y-4 p-5">
                     <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
                       <p className="text-base font-semibold text-foreground">Run auto-fill?</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         This will auto-fill the current week for full-time and part-time employees based on contracted hours.
-                        Existing draft shifts are kept and not replaced.
+                      {autoFillReplaceDrafts
+                        ? ' Existing draft shifts in the selected location/role scope will be replaced.'
+                        : ' Existing draft shifts are kept and not replaced.'}
                       </p>
+                    <label className="mt-3 flex items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={autoFillReplaceDrafts}
+                        onChange={(e) => setAutoFillReplaceDrafts(e.target.checked)}
+                      />
+                      Replace existing draft shifts in this location/role scope before auto-fill
+                    </label>
                     </div>
                   </div>
                 )}
@@ -1586,6 +1740,135 @@ export default function SchedulingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={resolveDialogOpen}
+        onOpenChange={(open) => {
+          if (resolveRunning) return;
+          setResolveDialogOpen(open);
+          if (!open) {
+            setResolveFinished(false);
+            setResolveError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-[560px] overflow-hidden border-border/70 p-0">
+          <DialogHeader className="px-5 pt-5">
+            <DialogTitle className="text-base font-semibold">
+              {resolveRunning ? 'Resolving conflicts…' : resolveFinished ? 'Conflict resolution complete' : 'Resolve conflicts?'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 px-5 pb-4">
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <p className="text-sm text-muted-foreground">
+                {resolveRunning
+                  ? 'Scanning overlapping shifts and keeping the longer one in each conflict.'
+                  : 'Removes only the lower-hours shift in each overlap for the current view scope.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border bg-primary/8 px-3 py-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Conflict groups</div>
+                <div className="text-lg font-semibold text-primary">{resolveStats.conflictGroups}</div>
+              </div>
+              <div className="rounded-lg border bg-rose-500/10 px-3 py-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Shifts removed</div>
+                <div className="text-lg font-semibold text-rose-700 dark:text-rose-400">{resolveStats.shiftsToRemove}</div>
+              </div>
+              <div className="rounded-lg border bg-amber-500/10 px-3 py-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Hours removed</div>
+                <div className="text-lg font-semibold text-amber-700 dark:text-amber-400">{resolveStats.hoursRemoved.toFixed(1)}h</div>
+              </div>
+            </div>
+            {resolveError && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {resolveError}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="border-t border-border/70 bg-muted/10 px-5 py-4">
+            <Button variant="outline" disabled={resolveRunning} onClick={() => setResolveDialogOpen(false)}>
+              {resolveFinished ? 'Close' : 'Cancel'}
+            </Button>
+            <Button
+              onClick={() => void confirmResolveConflicts()}
+              disabled={resolveRunning || resolveStats.shiftsToRemove === 0}
+              className="min-w-[140px]"
+            >
+              {resolveRunning ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Resolving…
+                </span>
+              ) : (
+                'Resolve now'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templatesHubOpen} onOpenChange={setTemplatesHubOpen}>
+        <DialogContent className="max-w-[620px] border-border/70">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <FolderOpen className="size-4" />
+              Templates
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <p className="mb-3 text-sm text-muted-foreground">Save current week as a reusable template.</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Template name"
+                  value={templateNameInput}
+                  onChange={(e) => setTemplateNameInput(e.target.value)}
+                />
+                <Button onClick={confirmSaveTemplate} disabled={!templateNameInput.trim()}>
+                  <Save className="mr-1 size-4" />
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-[45vh] space-y-2 overflow-y-auto rounded-xl border border-border/70 p-3">
+              {(templatesQuery.data?.templates as
+                | Array<{ _id?: string; name?: string; createdBy?: string | { toString(): string } }>
+                | undefined)?.length ? (
+                (templatesQuery.data?.templates as Array<{ _id?: string; name?: string; createdBy?: string | { toString(): string } }>).map((t) => {
+                  const id = t._id ? String(t._id) : '';
+                  const created =
+                    t.createdBy != null && typeof t.createdBy === 'object' && 'toString' in t.createdBy
+                      ? (t.createdBy as { toString(): string }).toString()
+                      : String(t.createdBy ?? '');
+                  return (
+                    <div key={id || t.name} className="flex items-center justify-between rounded-lg border border-border/70 bg-background p-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{t.name ?? id}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => id && void applyTemplateNow(id, 'add')}>
+                          Add
+                        </Button>
+                        <Button size="sm" onClick={() => id && void applyTemplateNow(id, 'replace')}>
+                          Replace
+                        </Button>
+                        {id && canDeleteTemplate(created) && (
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deleteTemplateNow(id)}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="py-4 text-center text-sm text-muted-foreground">No templates yet.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete template confirm dialog ───────────────────────────────────── */}
       <AlertDialog

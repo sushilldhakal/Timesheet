@@ -52,6 +52,20 @@ function shiftHours(start: Date, end: Date): number {
 }
 
 /**
+ * Convert a JS day index (0=Sun..6=Sat) to a concrete date inside the roster week.
+ * Supports both Sunday-start and Monday-start roster boundaries.
+ */
+function shiftDateForDayOfWeek(weekStartDate: Date, dayOfWeek: number): Date {
+  const weekStartJsDay = weekStartDate.getDay()
+  // If week starts on Sunday, use direct JS day offset.
+  if (weekStartJsDay === 0) {
+    return addDays(weekStartDate, dayOfWeek)
+  }
+  // If week starts on Monday, map Monday(1)->0 ... Sunday(0)->6.
+  return addDays(weekStartDate, dayOfWeek === 0 ? 6 : dayOfWeek - 1)
+}
+
+/**
  * Auto-Fill Engine — scoped by location + managed roles; uses ERA, hours budget, location hours, availability.
  */
 export class AutoFillEngine {
@@ -75,7 +89,8 @@ export class AutoFillEngine {
     rosterId: string,
     locationId: string,
     managedRoleIds: string[],
-    employmentTypes: EmploymentType[] = ["FULL_TIME", "PART_TIME"]
+    employmentTypes: EmploymentType[] = ["FULL_TIME", "PART_TIME"],
+    options?: { replaceDrafts?: boolean }
   ): Promise<RosterFillResult> {
     const result: RosterFillResult = {
       successCount: 0,
@@ -104,6 +119,21 @@ export class AutoFillEngine {
     const locationStartHour = location.openingHour ?? 0
     const locationEndHour = location.closingHour ?? 24
     const locationWorkingDays = location.workingDays?.length ? location.workingDays : [1, 2, 3, 4, 5]
+
+    if (options?.replaceDrafts) {
+      const before = roster.shifts.length
+      roster.shifts = roster.shifts.filter((s) => {
+        const sameLocation = s.locationId?.toString() === locOid.toString()
+        const sameRole = roleOids.some((r) => r.toString() === s.roleId?.toString())
+        const isDraft = s.status === "draft"
+        // Keep everything outside this scoped auto-fill target.
+        return !(sameLocation && sameRole && isDraft)
+      })
+      // Save immediately so subsequent reads/refetch reflect replacement intent.
+      if (roster.shifts.length !== before) {
+        await roster.save()
+      }
+    }
 
     const assignments = await EmployeeRoleAssignment.find({
       locationId: locOid,
@@ -214,6 +244,22 @@ export class AutoFillEngine {
     const weekStartDate = new Date(roster.weekStartDate)
     const weekEndDate = new Date(roster.weekEndDate)
     const empKey = employee._id.toString()
+
+    // Seed weekly used hours from shifts already present on the roster so reruns
+    // top-up gaps instead of repeatedly targeting already-scheduled days.
+    if (!hoursUsedThisWeek.has(empKey)) {
+      const existingHours = roster.shifts
+        .filter((s) => s.employeeId?.toString() === empKey)
+        .reduce((sum, s) => sum + shiftHours(new Date(s.startTime), new Date(s.endTime)), 0)
+      hoursUsedThisWeek.set(empKey, existingHours)
+    }
+
+    const scheduledDays = new Set<number>(
+      roster.shifts
+        .filter((s) => s.employeeId?.toString() === empKey)
+        .map((s) => new Date(s.date).getDay())
+    )
+
     let roleDays: number[] = []
     let roleStartHour = 9
     let roleEndHour = 17
@@ -272,25 +318,30 @@ export class AutoFillEngine {
     const hoursPerFullShift = shiftEndHour - shiftStartHour
     const employmentType = (employee.employmentType || "").toUpperCase()
     const isCasual = employmentType.includes("CASUAL")
+    const isFullTime = employmentType.includes("FULL") && !employmentType.includes("PART")
+    const targetHours = isCasual
+      ? Number.POSITIVE_INFINITY
+      : isFullTime
+        ? Math.max(38, standardHoursPerWeek)
+        : standardHoursPerWeek
 
-    let shiftsNeeded: number
-    let daysToSchedule: number[]
-    if (isCasual) {
-      daysToSchedule = [...workableDays]
-      shiftsNeeded = daysToSchedule.length
-    } else {
-      shiftsNeeded = Math.min(workableDays.length, Math.ceil(standardHoursPerWeek / hoursPerFullShift))
-      daysToSchedule = workableDays.slice(0, shiftsNeeded)
-    }
+    const primaryDays = Array.from(new Set(workableDays)).sort((a, b) => a - b)
+    const fallbackDays = locationWorkingDays
+      .filter((d) => !primaryDays.includes(d))
+      .sort((a, b) => a - b)
+    const daysToSchedule = [...primaryDays, ...fallbackDays]
 
     for (const dayOfWeek of daysToSchedule) {
       let used = hoursUsedThisWeek.get(empKey) ?? 0
-      if (used >= standardHoursPerWeek - 1e-6 && !isCasual) break
+      if (used >= targetHours - 1e-6 && !isCasual) break
 
-      const shiftDate = addDays(weekStartDate, dayOfWeek === 0 ? 6 : dayOfWeek - 1)
+      const shiftDate = shiftDateForDayOfWeek(weekStartDate, dayOfWeek)
       if (shiftDate < weekStartDate || shiftDate > weekEndDate) continue
 
       const jsDay = shiftDate.getDay()
+      if (scheduledDays.has(jsDay)) {
+        continue
+      }
       if (unavailable.has(jsDay)) {
         result.skippedCount++
         continue
@@ -306,7 +357,7 @@ export class AutoFillEngine {
       let blockEnd = shiftEndHour
       let durationHours = blockEnd - blockStart
       if (!isCasual) {
-        const remaining = standardHoursPerWeek - used
+        const remaining = targetHours - used
         if (remaining <= 0) break
         if (remaining < durationHours) {
           durationHours = remaining
@@ -393,8 +444,21 @@ export class AutoFillEngine {
       }
 
       roster.shifts.push(newShift)
+      scheduledDays.add(jsDay)
       hoursUsedThisWeek.set(empKey, used + shiftHours(shiftStartTime, shiftEndTime))
       result.successCount++
+    }
+
+    if (!isCasual) {
+      const usedFinal = hoursUsedThisWeek.get(empKey) ?? 0
+      if (usedFinal < targetHours - 1e-6) {
+        result.skippedEmployees.push({
+          employeeId: empKey,
+          employeeName: employee.name,
+          reason: `Could not meet weekly target hours (${usedFinal.toFixed(1)}h/${targetHours.toFixed(1)}h)`,
+        })
+        result.skippedCount++
+      }
     }
   }
 }

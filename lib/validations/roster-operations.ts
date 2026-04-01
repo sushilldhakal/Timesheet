@@ -15,6 +15,7 @@ export const autoFillRequestSchema = z.object({
   locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format"),
   managedRoles: z.array(z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format")).min(1),
   employmentTypes: z.array(z.enum(["FULL_TIME", "PART_TIME", "CASUAL", "CONTRACT"])).optional(),
+  replaceDrafts: z.boolean().optional(),
   validateAvailability: z.boolean().optional(),
   validateCompliance: z.boolean().optional()
 });

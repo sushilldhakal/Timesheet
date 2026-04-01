@@ -39,7 +39,7 @@ export const POST = createApiRoute({
     }
 
     const { weekId } = params
-    const { locationId, managedRoles, employmentTypes } = body
+    const { locationId, managedRoles, employmentTypes, replaceDrafts } = body
 
     const scope = await assertManagerSchedulingScope(ctx, locationId, managedRoles)
     if (!scope.ok) {
@@ -75,7 +75,8 @@ export const POST = createApiRoute({
         roster._id.toString(),
         locationId,
         managedRoles,
-        types
+        types,
+        { replaceDrafts: !!replaceDrafts }
       )
 
       return {

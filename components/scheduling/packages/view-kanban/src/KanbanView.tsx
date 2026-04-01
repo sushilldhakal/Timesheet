@@ -749,17 +749,16 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   }
 
   return (
-    <div className="box-border overflow-auto rounded-lg border border-border bg-background">
-      <div
-        className="table w-full border-collapse"
-        style={{ tableLayout: 'fixed', minWidth: CAT_W + dates.length * 140 }}
-      >
-        {/* Header — thin bottom rule + vertical rules between days (reference week board). */}
-        <div className="sticky top-0 z-10 table-row bg-background shadow-[0_1px_0_0_var(--border)]">
-          <div
-            className="table-cell border-b border-r border-border px-3.5 py-2.5 align-bottom text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-            style={{ width: CAT_W, minWidth: CAT_W }}
-          >
+    <div className="box-border h-full min-h-0 overflow-auto rounded-lg border border-border bg-background">
+      <div className="sticky top-0 z-30 border-b border-border bg-background shadow-[0_1px_0_0_var(--border)]">
+        <div
+          className="grid"
+          style={{
+            minWidth: CAT_W + dates.length * 140,
+            gridTemplateColumns: `${CAT_W}px repeat(${dates.length}, minmax(140px, 1fr))`,
+          }}
+        >
+          <div className="border-r border-border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             Category
           </div>
           {dates.map((d, i) => {
@@ -771,7 +770,7 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                 key={i}
                 onClick={(e) => setDayPopover({ date: d, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
                 className={cn(
-                  'table-cell cursor-pointer select-none border-b border-border px-2.5 py-2 align-bottom',
+                  'cursor-pointer select-none px-2.5 py-2',
                   i < dates.length - 1 && 'border-r border-border',
                   today ? 'bg-primary/15' : 'bg-background'
                 )}
@@ -807,6 +806,11 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
             )
           })}
         </div>
+      </div>
+      <div
+        className="table w-full border-collapse"
+        style={{ tableLayout: 'fixed', minWidth: CAT_W + dates.length * 140 }}
+      >
 
         {/* Rows — each is an accordion; click label to collapse/expand */}
         {categories.map((cat, ci) => {

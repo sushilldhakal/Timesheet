@@ -75,11 +75,13 @@ export function useAutoFillRoster() {
       locationId: string
       managedRoles: string[]
       employmentTypes?: Array<"FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT">
+      replaceDrafts?: boolean
     }) => {
       const r = (await autoFillRoster(args.weekId, {
         locationId: args.locationId,
         managedRoles: args.managedRoles,
         employmentTypes: args.employmentTypes,
+        replaceDrafts: args.replaceDrafts,
       })) as { successCount?: number; skippedCount?: number; failureCount?: number; error?: string }
       if (typeof r.successCount !== "number") {
         throw new Error(r.error || "Auto-fill failed")
