@@ -8,6 +8,7 @@ const PUBLIC_PATHS = ["/", "/forgot-password", "/reset-password", "/setup-passwo
 const AUTH_PATHS = ["/"]
 const EMPLOYEE_CLOCK_PATH = "/clock"
 const STAFF_DASHBOARD_PATHS = ["/staff"]
+const ADMIN_DASHBOARD_PATH = "/dashboard"
 const DEVICE_REQUIRED_PATHS: string[] = [] // Device authorization now handled by DeviceGuard component
 
 function isPublic(pathname: string) {
@@ -24,6 +25,10 @@ function isEmployeeClockPath(pathname: string) {
 
 function isStaffDashboardPath(pathname: string) {
   return STAFF_DASHBOARD_PATHS.some((p) => pathname.startsWith(p + "/") || pathname === p)
+}
+
+function isAdminDashboardPath(pathname: string) {
+  return pathname === ADMIN_DASHBOARD_PATH || pathname.startsWith(ADMIN_DASHBOARD_PATH + "/")
 }
 
 export default async function proxy(request: NextRequest) {
@@ -84,6 +89,18 @@ export default async function proxy(request: NextRequest) {
     }
   }
   const isAuthenticated = !!auth
+
+  // Keep authenticated users away from auth pages
+  if (isAuthPath(pathname) && isAuthenticated) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
+  // Protect admin dashboard routes on the edge to avoid rendering protected pages unauthenticated
+  if (isAdminDashboardPath(pathname) && !isAuthenticated) {
+    const loginUrl = new URL("/", request.url)
+    loginUrl.searchParams.set("redirect", pathname)
+    return NextResponse.redirect(loginUrl)
+  }
 
   // Layer 2: Employee clock route – requires employee PIN session
   if (isEmployeeClockPath(pathname)) {

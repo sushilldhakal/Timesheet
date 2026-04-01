@@ -78,8 +78,18 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
         <BreadcrumbsProvider>
             <div
                 data-dashboard-layout={layoutFullWidth ? 'full' : 'boxed'}
-                className="flex min-h-screen w-full min-w-0 "
+                className="relative flex min-h-screen w-full min-w-0 bg-linear-to-br from-background via-background to-muted/40"
             >
+                {/* Ambient accents */}
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-8 top-8 z-0 h-44 w-44 rounded-full bg-primary/10 blur-3xl"
+                />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute bottom-0 right-0 z-0 h-52 w-52 rounded-full bg-emerald-400/10 blur-3xl"
+                />
+
                 {/* Mobile Overlay */}
                 {mobileMenuOpen && (
                     <div
@@ -98,7 +108,7 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                 {/* Main Content */}
                 <div
                     className={cn(
-                        'flex flex-1 flex-col transition-all duration-300 min-w-0',
+                        'relative z-10 flex flex-1 flex-col transition-all duration-300 min-w-0',
                         sidebarCollapsed ? 'md:ml-[70px]' : 'md:ml-[280px]'
                     )}
                 >
@@ -115,14 +125,19 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                         <div
                             data-dashboard-shell
                             className={cn(
-                                'flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 transition-[max-width] duration-300 min-w-0',
+                                'flex flex-1 flex-col gap-4 p-3 sm:p-4 lg:gap-6 lg:p-6 transition-[max-width] duration-300 min-w-0',
                                 layoutFullWidth ? 'w-full max-w-none' : 'max-w-7xl mx-auto'
                             )}
                         >
                             {/* Content Container */}
                             <div
                                 data-dashboard-page
-                                className="w-full min-w-0 flex-1 rounded-xl"
+                                className={cn(
+                                    'relative w-full min-w-0 flex-1 rounded-2xl border border-border/60',
+                                    'bg-card/60 shadow-sm backdrop-blur-[2px]',
+                                    'before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-linear-to-b before:from-white/8 before:to-transparent before:content-[""]',
+                                    layoutFullWidth ? 'p-0' : 'p-3 sm:p-4 lg:p-5'
+                                )}
                             >
                                 {children}
                             </div>

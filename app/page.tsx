@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!email || !password) {
       toast.error("Please enter both email and password")
       return
@@ -45,11 +45,11 @@ export default function LoginPage() {
           }
 
           toast.success(`Welcome back!`)
-          router.push(data.redirect || '/dashboard')
+          router.push(data.redirect || "/dashboard")
         },
         onError: (error: any) => {
           toast.error(error.message || "Login failed")
-        }
+        },
       }
     )
   }
@@ -57,7 +57,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-black p-12 flex-col justify-between relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-black p-12 flex-col justify-between relative overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
@@ -71,7 +71,7 @@ export default function LoginPage() {
             </div>
             <h1 className="text-3xl font-bold text-white">Timesheet</h1>
           </div>
-          
+
           <div className="space-y-6 max-w-md">
             <h2 className="text-4xl font-bold text-white leading-tight">
               Welcome to your workforce management platform
@@ -84,7 +84,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/20">
+            <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 mt-0.5 border border-white/20">
               <ShieldCheck className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/20">
+            <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 mt-0.5 border border-white/20">
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -133,16 +133,15 @@ export default function LoginPage() {
             {/* Login Type Tabs */}
             <Tabs value={loginAs} onValueChange={(v) => setLoginAs(v as "staff" | "admin")} className="w-full">
               <TabsList className="grid w-full grid-cols-2 gap-2 bg-transparent p-0 h-auto ">
-               
-                <TabsTrigger 
-                  value="staff" 
+                <TabsTrigger
+                  value="staff"
                   className="flex items-center justify-center cursor-pointer gap-2 h-11 rounded-lg border-2 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:border-foreground data-[state=inactive]:bg-background data-[state=inactive]:border-border"
                 >
                   <Users className="h-4 w-4" />
                   <span>Staff</span>
                 </TabsTrigger>
-                 <TabsTrigger 
-                  value="admin" 
+                <TabsTrigger
+                  value="admin"
                   className="flex items-center justify-center cursor-pointer gap-2 h-11 rounded-lg border-2 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:border-foreground data-[state=inactive]:bg-background data-[state=inactive]:border-border"
                 >
                   <ShieldCheck className="h-4 w-4" />

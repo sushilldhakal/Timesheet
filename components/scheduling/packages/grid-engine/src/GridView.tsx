@@ -458,7 +458,9 @@ function GridViewInner({
   // Single-day day view uses a compact 31px lane with a 27px bar inset by 2px top/bottom.
   const blockBarInnerH = isSingleDayTimeline ? 27 : SHIFT_H - 8
   const ghostBarH = isSingleDayTimeline ? 27 : SHIFT_H - 6
-  const hasDayScrollNav = !isWeekView && !!setDate && !isDayViewMultiDay
+  // Day overview layout uses a single full-width timeline and navigates via the week strip,
+  // so we must disable hidden day-scroll buffer to keep drag coordinates aligned.
+  const hasDayScrollNav = !timelineFillActive && !isWeekView && !!setDate && !isDayViewMultiDay
   const TOTAL_W = isWeekView
     ? dates.length * COL_W_WEEK
     : isDayViewMultiDay
@@ -1859,9 +1861,13 @@ function GridViewInner({
         left = (cs - settings.visibleFrom) * HOUR_W + 2
         width = Math.max((ce - cs) * HOUR_W - 4, 10)
       }
+      const isEmployeeGhostRow = ghostKey.startsWith("emp:")
+      // In individual/flat rows there is no category header above the lane content.
+      // Adding ROLE_HDR there causes the drag ghost to sit too low in Day view.
+      const headerOffset = !isEmployeeGhostRow && effectiveRowMode === "category" ? ROLE_HDR : 0
       const pixelTop =
         top +
-        ROLE_HDR +
+        headerOffset +
         (ghostKey === d.srcCategoryKey ? d.srcTrack : 0) * laneH +
         (isSingleDayTimeline ? 2 : 3)
       const c = getColor(cat.colorIdx)

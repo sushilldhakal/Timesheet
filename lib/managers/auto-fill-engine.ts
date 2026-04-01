@@ -329,7 +329,13 @@ export class AutoFillEngine {
     const fallbackDays = locationWorkingDays
       .filter((d) => !primaryDays.includes(d))
       .sort((a, b) => a - b)
-    const daysToSchedule = [...primaryDays, ...fallbackDays]
+    // For full-time / part-time, respect role/location pattern days (e.g. Mon-Fri)
+    // and distribute weekly target across those days. Casual keeps broader fallback behavior.
+    const daysToSchedule = isCasual ? [...primaryDays, ...fallbackDays] : [...primaryDays]
+    const distributedDayCount = Math.max(1, primaryDays.length)
+    const distributedDailyHours = !isCasual
+      ? Math.min(hoursPerFullShift, targetHours / distributedDayCount)
+      : null
 
     for (const dayOfWeek of daysToSchedule) {
       let used = hoursUsedThisWeek.get(empKey) ?? 0
@@ -356,19 +362,34 @@ export class AutoFillEngine {
       let blockStart = shiftStartHour
       let blockEnd = shiftEndHour
       let durationHours = blockEnd - blockStart
+      if (distributedDailyHours !== null) {
+        durationHours = Math.min(durationHours, distributedDailyHours)
+      }
       if (!isCasual) {
         const remaining = targetHours - used
         if (remaining <= 0) break
         if (remaining < durationHours) {
           durationHours = remaining
-          blockEnd = blockStart + durationHours
         }
       }
+      blockEnd = blockStart + durationHours
 
       const shiftStartTime = new Date(shiftDate)
       shiftStartTime.setHours(Math.floor(blockStart), Math.round((blockStart % 1) * 60), 0, 0)
       const shiftEndTime = new Date(shiftDate)
       shiftEndTime.setHours(Math.floor(blockEnd), Math.round((blockEnd % 1) * 60), 0, 0)
+
+      // Add a default 30-minute break for long shifts.
+      let breakStartTime: Date | undefined
+      let breakEndTime: Date | undefined
+      let breakMinutes: number | undefined
+      if (durationHours >= 6) {
+        breakMinutes = 30
+        const midMs = (shiftStartTime.getTime() + shiftEndTime.getTime()) / 2
+        const halfBreakMs = (breakMinutes / 2) * 60_000
+        breakStartTime = new Date(midMs - halfBreakMs)
+        breakEndTime = new Date(midMs + halfBreakMs)
+      }
 
       const validation = await this.schedulingValidator.validateShift(
         employee._id,
@@ -437,6 +458,9 @@ export class AutoFillEngine {
         sourceScheduleId: null,
         estimatedCost,
         notes: "",
+        ...(breakStartTime && { breakStartTime }),
+        ...(breakEndTime && { breakEndTime }),
+        ...(breakMinutes !== undefined && { breakMinutes }),
         requiredStaffCount: 1,
         currentStaffCount: 1,
         isUnderstaffed: false,

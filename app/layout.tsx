@@ -36,7 +36,12 @@ export default async function RootLayout({
   const theme = themeCookie === "dark" || themeCookie === "light" ? themeCookie : "light";
 
   return (
-    <html lang="en" className={cn(inter.variable, theme)} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={cn(inter.variable, theme)}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/web-app-manifest-192x192.png" />

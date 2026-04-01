@@ -671,7 +671,8 @@ export default function SchedulingPage() {
         id: event.id,
         categoryId: roleId,
         employeeId: event.user?.id || 'unassigned',
-        date: event.startDate.slice(0, 10),
+        // Normalize to local calendar date so Day and Week views match.
+        date: format(startDate, 'yyyy-MM-dd'),
         startH,
         endH,
         employee: event.user?.name || 'Unassigned',
@@ -1374,12 +1375,11 @@ export default function SchedulingPage() {
                           ) : (
                             viewBase === 'week' ? (
                               <DatePickerCalendar
-                                mode="range"
-                                selected={{ from: getWeekDates(date)[0], to: getWeekDates(date)[6] }}
-                                onSelect={(sel: { from?: Date; to?: Date } | undefined) => {
-                                  const from = sel?.from as Date | undefined
-                                  if (!from) return
-                                  const d = new Date(from)
+                                mode="single"
+                                selected={date}
+                                onSelect={(picked: Date | undefined) => {
+                                  if (!picked) return
+                                  const d = new Date(picked)
                                   d.setHours(0, 0, 0, 0)
                                   setDate(d)
                                 }}
