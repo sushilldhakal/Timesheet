@@ -22,9 +22,6 @@ export function useCreateCalendarEvent() {
   
   return useMutation({
     mutationFn: calendarApi.createCalendarEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: calendarKeys.all })
-    },
   })
 }
 
@@ -35,9 +32,6 @@ export function useUpdateCalendarEvent() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: calendarApi.UpdateCalendarEventRequest }) => 
       calendarApi.updateCalendarEvent(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: calendarKeys.all })
-    },
   })
 }
 
@@ -47,8 +41,12 @@ export function useDeleteCalendarEvent() {
   
   return useMutation({
     mutationFn: calendarApi.deleteCalendarEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: calendarKeys.all })
-    },
+  })
+}
+// Bulk delete — single DB round-trip, used by conflict resolution
+// Does NOT auto-invalidate: caller explicitly calls refetchEvents() once done
+export function useBulkDeleteCalendarEvents() {
+  return useMutation({
+    mutationFn: (ids: string[]) => calendarApi.bulkDeleteCalendarEvents(ids),
   })
 }

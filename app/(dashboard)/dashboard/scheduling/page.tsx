@@ -83,7 +83,7 @@ import { Progress } from '@/components/ui/progress';
 import { useMe } from '@/lib/queries/auth';
 import { useCategoriesByType } from '@/lib/queries/categories';
 import { useEmployees } from '@/lib/queries/employees';
-import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '@/lib/queries/calendar';
+import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent, useBulkDeleteCalendarEvents } from '@/lib/queries/calendar';
 import {
   useLocationRolesForScheduling,
   useUserSchedulingSettings,
@@ -596,6 +596,7 @@ export default function SchedulingPage() {
   const createEventMutation = useCreateCalendarEvent();
   const updateEventMutation = useUpdateCalendarEvent();
   const deleteEventMutation = useDeleteCalendarEvent();
+  const bulkDeleteMutation = useBulkDeleteCalendarEvents();
 
   // Hydration check
   useEffect(() => {
@@ -938,21 +939,46 @@ export default function SchedulingPage() {
     setResolvePhase('Scanning overlapping shifts');
     setResolveProgress(8);
     try {
-      setResolvePhase('Removing lower-duration conflicts');
-      const nextShifts = shifts.filter((s) => !resolveShiftIds.includes(s.id));
-      setResolvePhase('Saving resolved schedule');
-      await handleShiftsChange(nextShifts, shifts);
+      // Separate persisted (MongoDB ObjectId) from optimistic-only shifts
+      const persistedIds = resolveShiftIds.filter((id) => isMongoObjectId(id));
+      const optimisticIds = new Set(resolveShiftIds.filter((id) => !isMongoObjectId(id)));
+
+      // Optimistic update — remove from local state immediately
+      setShifts((prev) => prev.filter((s) => !resolveShiftIds.includes(s.id)));
+
+      setResolvePhase('Removing conflicts from database');
+      setResolveProgress(40);
+
+      if (persistedIds.length > 0) {
+        // ONE bulk API call → ONE DB round-trip, then ONE refetch
+        // Previously: N individual deletes × invalidateQueries = N GET requests
+        const result = await bulkDeleteMutation.mutateAsync(persistedIds);
+        if (result.notFound > 0) {
+          console.warn(`[resolve] ${result.notFound} shifts not found in DB (may have been deleted already)`);
+        }
+      }
+
+      setResolveProgress(85);
+      setResolvePhase('Refreshing schedule');
+
+      // Single refetch — the only network request after the bulk delete
+      await refetchEvents();
+
       setResolveShiftIds([]);
       setResolveProgress(100);
-      setResolvePhase('Conflict resolution complete');
+      setResolvePhase(`Resolved ${resolveShiftIds.length} conflict${resolveShiftIds.length !== 1 ? 's' : ''}`);
       setResolveFinished(true);
-    } catch {
+      toast.success(`${resolveShiftIds.length} conflicting shift${resolveShiftIds.length !== 1 ? 's' : ''} removed`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       setResolvePhase('Conflict resolution failed');
-      setResolveError('Failed to resolve all conflicts. Please retry.');
+      setResolveError(`Failed to resolve conflicts: ${msg}`);
+      // Revert optimistic update
+      await refetchEvents();
     } finally {
       setResolveRunning(false);
     }
-  }, [handleShiftsChange, resolveShiftIds, shifts]);
+  }, [bulkDeleteMutation, resolveShiftIds, refetchEvents]);
 
   const handlePublishScoped = async () => {
     if (!date || !selectedLocationId) {

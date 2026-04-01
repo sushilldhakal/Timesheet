@@ -217,3 +217,20 @@ export async function deleteCalendarEvent(id: string): Promise<{ success: boolea
   const result = await response.json()
   return result
 }
+
+// Bulk delete calendar events (for conflict resolution — avoids N×GET amplification)
+export async function bulkDeleteCalendarEvents(
+  ids: string[]
+): Promise<{ deleted: number; notFound: number }> {
+  const response = await fetch('/api/calendar/events/bulk', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error((body as { error?: string }).error || `Bulk delete failed (${response.status})`)
+  }
+  return response.json()
+}
