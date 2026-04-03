@@ -37,6 +37,25 @@ interface TimesheetMonthViewProps {
   data: MonthViewData[]
   selectedDate: Date
   loading?: boolean
+  preAggregated?: boolean
+  aggregatedRows?: MonthAggApiRow[]
+}
+
+/** Row shape from GET /api/timesheets?view=month */
+export interface MonthAggApiRow {
+  employeeId: string
+  name: string
+  pin: string
+  employer: string
+  role: string
+  location: string
+  daysWorked: number
+  totalMinutes: number
+  breakMinutes: number
+  totalHours: string
+  totalBreak: string
+  employersList: string
+  locationsList: string
 }
 
 function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
@@ -131,7 +150,7 @@ function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
   ]
 }
 
-export function TimesheetMonthView({ data, selectedDate, loading }: TimesheetMonthViewProps) {
+export function TimesheetMonthView({ data, selectedDate, loading, preAggregated, aggregatedRows }: TimesheetMonthViewProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     // Keep all columns visible by default for month view
   })
@@ -139,8 +158,49 @@ export function TimesheetMonthView({ data, selectedDate, loading }: TimesheetMon
   const monthData = useMemo(() => {
     const monthStart = startOfMonth(selectedDate)
     const monthEnd = endOfMonth(selectedDate)
-    
-    // Group data by employee
+    const totalDaysInMonth = monthEnd.getDate()
+
+    if (preAggregated) {
+      const rows = aggregatedRows ?? []
+      const employees: MonthViewEmployee[] = rows.map((row) => ({
+        employeeId: row.employeeId,
+        name: row.name,
+        pin: row.pin,
+        daysWorked: row.daysWorked,
+        daysAbsent: Math.max(0, totalDaysInMonth - row.daysWorked),
+        totalHours: row.totalHours,
+        totalBreak: row.totalBreak,
+        totalMinutes: row.totalMinutes,
+        totalBreakMinutes: row.breakMinutes,
+        employersList: row.employersList || row.employer || "—",
+        locationsList: row.locationsList || row.location || "—",
+      }))
+
+      const grandTotalDaysWorked = employees.reduce((sum, emp) => sum + emp.daysWorked, 0)
+      const grandTotalDaysAbsent = employees.reduce((sum, emp) => sum + emp.daysAbsent, 0)
+      const grandTotalMinutes = employees.reduce((sum, emp) => sum + emp.totalMinutes, 0)
+      const grandTotalBreakMinutes = employees.reduce((sum, emp) => sum + emp.totalBreakMinutes, 0)
+
+      const formatMinutes = (minutes: number) => {
+        const h = Math.floor(minutes / 60)
+        const m = minutes % 60
+        return m > 0 ? `${h}h ${m}m` : `${h}h`
+      }
+
+      return {
+        monthStart,
+        monthEnd,
+        employees,
+        grandTotals: {
+          daysWorked: grandTotalDaysWorked,
+          daysAbsent: grandTotalDaysAbsent,
+          totalHours: formatMinutes(grandTotalMinutes),
+          totalBreak: formatMinutes(grandTotalBreakMinutes),
+        },
+      }
+    }
+
+    // Group raw shift rows by employee
     const employeeMap = new Map<string, {
       employeeId: string
       name: string
@@ -198,8 +258,6 @@ export function TimesheetMonthView({ data, selectedDate, loading }: TimesheetMon
         }
       })
       
-      // Get total days in month for absence calculation
-      const totalDaysInMonth = monthEnd.getDate()
       const daysAbsent = Math.max(0, totalDaysInMonth - daysWorked)
       
       // Format totals
@@ -245,7 +303,7 @@ export function TimesheetMonthView({ data, selectedDate, loading }: TimesheetMon
         totalBreak: formatMinutes(grandTotalBreakMinutes)
       }
     }
-  }, [data, selectedDate])
+  }, [data, selectedDate, preAggregated, aggregatedRows])
 
   const columns = useMemo(() => getMonthViewColumns(), [])
 

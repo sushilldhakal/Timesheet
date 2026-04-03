@@ -59,11 +59,26 @@ export const GET = createApiRoute({
       employer: employers = [],
       location: locations = [],
       role: roles = [],
+      view = 'day',
       limit = 50,
       offset = 0,
       sortBy = 'date',
       order = 'asc'
     } = query || {}
+
+    const dateFormatEnv = process.env.NEXT_PUBLIC_DATE_FORMAT || process.env.DATE_FORMAT || "dd-MM-yyyy"
+
+    const rowDisplayDateToYmd = (dateStr: string): string => {
+      try {
+        const d1 = parse(dateStr, dateFormatEnv, new Date())
+        if (isValid(d1)) return format(d1, "yyyy-MM-dd")
+        const d2 = parse(dateStr, "yyyy-MM-dd", new Date())
+        if (isValid(d2)) return format(d2, "yyyy-MM-dd")
+      } catch {
+        /* ignore */
+      }
+      return dateStr
+    }
 
     let start: Date
     let end: Date
@@ -290,6 +305,161 @@ export const GET = createApiRoute({
 
       const totalWorkingMinutes = rows.reduce((s, r) => s + r.totalMinutes, 0)
       const totalBreakMinutes = rows.reduce((s, r) => s + r.breakMinutes, 0)
+
+      if (view === "week") {
+        type Row = (typeof rows)[number]
+        const byEmp = new Map<
+          string,
+          {
+            employeeId: string
+            name: string
+            pin: string
+            comment: string
+            employer: string
+            role: string
+            location: string
+            dailyMinutes: Record<string, number>
+            breakMinutes: number
+          }
+        >()
+
+        for (const r of rows as Row[]) {
+          const id = r.employeeId
+          if (!id) continue
+          if (!byEmp.has(id)) {
+            byEmp.set(id, {
+              employeeId: id,
+              name: r.name,
+              pin: r.pin,
+              comment: r.comment ?? "",
+              employer: r.employer,
+              role: r.role,
+              location: r.location,
+              dailyMinutes: {},
+              breakMinutes: 0,
+            })
+          }
+          const agg = byEmp.get(id)!
+          const ymd = rowDisplayDateToYmd(r.date)
+          agg.dailyMinutes[ymd] = (agg.dailyMinutes[ymd] ?? 0) + r.totalMinutes
+          agg.breakMinutes += r.breakMinutes
+        }
+
+        const weekRows = Array.from(byEmp.values())
+          .map((e) => {
+            const totalMinutes = Object.values(e.dailyMinutes).reduce((a, b) => a + b, 0)
+            return {
+              employeeId: e.employeeId,
+              name: e.name,
+              pin: e.pin,
+              comment: e.comment,
+              employer: e.employer,
+              role: e.role,
+              location: e.location,
+              dailyMinutes: e.dailyMinutes,
+              totalMinutes,
+              breakMinutes: e.breakMinutes,
+            }
+          })
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        const n = weekRows.length
+        return {
+          status: 200,
+          data: {
+            timesheets: weekRows,
+            total: n,
+            limit: n,
+            offset: 0,
+            totalWorkingMinutes,
+            totalBreakMinutes,
+            totalWorkingHours: minutesToHours(totalWorkingMinutes),
+            totalBreakHours: minutesToHours(totalBreakMinutes),
+          },
+        }
+      }
+
+      if (view === "month") {
+        type Row = (typeof rows)[number]
+        const byEmp = new Map<
+          string,
+          {
+            employeeId: string
+            name: string
+            pin: string
+            employer: string
+            role: string
+            location: string
+            datesWithWork: Set<string>
+            totalMinutes: number
+            breakMinutes: number
+            employers: Set<string>
+            locations: Set<string>
+          }
+        >()
+
+        for (const r of rows as Row[]) {
+          const id = r.employeeId
+          if (!id) continue
+          if (!byEmp.has(id)) {
+            byEmp.set(id, {
+              employeeId: id,
+              name: r.name,
+              pin: r.pin,
+              employer: r.employer,
+              role: r.role,
+              location: r.location,
+              datesWithWork: new Set(),
+              totalMinutes: 0,
+              breakMinutes: 0,
+              employers: new Set(),
+              locations: new Set(),
+            })
+          }
+          const agg = byEmp.get(id)!
+          agg.totalMinutes += r.totalMinutes
+          agg.breakMinutes += r.breakMinutes
+          const ymd = rowDisplayDateToYmd(r.date)
+          if (r.totalMinutes > 0) agg.datesWithWork.add(ymd)
+          if (r.employer) agg.employers.add(r.employer)
+          if (r.location) agg.locations.add(r.location)
+        }
+
+        const monthRows = Array.from(byEmp.values())
+          .map((e) => ({
+            employeeId: e.employeeId,
+            name: e.name,
+            pin: e.pin,
+            employer: e.employer,
+            role: e.role,
+            location: e.location,
+            daysWorked: e.datesWithWork.size,
+            totalMinutes: e.totalMinutes,
+            breakMinutes: e.breakMinutes,
+            totalHours: minutesToHours(e.totalMinutes),
+            totalBreak: minutesToHours(e.breakMinutes),
+            employersList: [...e.employers].join(", "),
+            locationsList: [...e.locations].join(", "),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        const n = monthRows.length
+        return {
+          status: 200,
+          data: {
+            timesheets: monthRows,
+            total: n,
+            limit: n,
+            offset: 0,
+            totalWorkingMinutes,
+            totalBreakMinutes,
+            totalWorkingHours: minutesToHours(totalWorkingMinutes),
+            totalBreakHours: minutesToHours(totalBreakMinutes),
+          },
+        }
+      }
+
+      // view === "day": paginate raw shift rows
       const total = rows.length
       const paginated = rows.slice(offset, offset + limit)
 
@@ -304,7 +474,7 @@ export const GET = createApiRoute({
           totalBreakMinutes,
           totalWorkingHours: minutesToHours(totalWorkingMinutes),
           totalBreakHours: minutesToHours(totalBreakMinutes),
-        }
+        },
       }
     } catch (err) {
       console.error("[api/timesheets GET]", err)

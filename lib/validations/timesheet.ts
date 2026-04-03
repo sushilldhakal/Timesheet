@@ -78,7 +78,9 @@ export const timesheetDashboardQuerySchema = z.object({
   employer: z.array(z.string()).optional(),
   location: z.array(z.string()).optional(),
   role: z.array(z.string()).optional(),
-  limit: z.coerce.number().int().min(1).max(500).optional().default(50),
+  /** day: raw shift rows (paginated). week/month: server-aggregated rows (not paginated). */
+  view: z.enum(["day", "week", "month"]).optional().default("day"),
+  limit: z.coerce.number().int().min(1).max(2000).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
   sortBy: z.enum(['date', 'name', 'comment', 'employer', 'role', 'location', 'clockIn', 'breakIn', 'breakOut', 'clockOut', 'breakHours', 'totalHours']).optional().default('date'),
   order: z.enum(['asc', 'desc']).optional().default('asc'),
@@ -112,9 +114,9 @@ export const dashboardTimesheetRowSchema = z.object({
   clockOutDeviceLocation: z.string().optional(),
 })
 
-// Dashboard timesheets response
+// Dashboard timesheets response (timesheets shape depends on requested `view`)
 export const timesheetsDashboardResponseSchema = z.object({
-  timesheets: z.array(dashboardTimesheetRowSchema),
+  timesheets: z.array(z.record(z.string(), z.unknown())),
   total: z.number(),
   limit: z.number(),
   offset: z.number(),

@@ -34,6 +34,29 @@ interface TimesheetWeekViewProps {
   data: WeekViewData[]
   selectedDate: Date
   loading?: boolean
+  /** When true, `data` is ignored; pass server-aggregated rows in `aggregatedRows` instead. */
+  preAggregated?: boolean
+  aggregatedRows?: WeekAggApiRow[]
+}
+
+/** Row shape from GET /api/timesheets?view=week */
+export interface WeekAggApiRow {
+  employeeId: string
+  name: string
+  pin: string
+  comment: string
+  employer: string
+  role: string
+  location: string
+  dailyMinutes: Record<string, number>
+  totalMinutes: number
+  breakMinutes: number
+}
+
+function formatMinutesLabel(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
 function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
@@ -100,7 +123,7 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
   return columns
 }
 
-export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeekViewProps) {
+export function TimesheetWeekView({ data, selectedDate, loading, preAggregated, aggregatedRows }: TimesheetWeekViewProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     role: false,
   })
@@ -115,8 +138,50 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
     const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 })
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
-    
-    // Group data by employee
+
+    if (preAggregated) {
+      const rows = aggregatedRows ?? []
+      const employees: WeekViewEmployee[] = rows.map((row) => {
+        const dailyHours: string[] = weekDays.map((day) => {
+          const ymd = format(day, "yyyy-MM-dd")
+          const mins = row.dailyMinutes[ymd] ?? 0
+          return mins > 0 ? formatMinutesLabel(mins) : "—"
+        })
+        const totalFormatted = formatMinutesLabel(row.totalMinutes)
+        return {
+          employeeId: row.employeeId,
+          name: row.name,
+          pin: row.pin,
+          role: row.role,
+          dailyHours,
+          totalFormatted,
+          totalMinutes: row.totalMinutes,
+        }
+      })
+
+      const dailyTotals = weekDays.map((day) => {
+        const ymd = format(day, "yyyy-MM-dd")
+        let dayTotal = 0
+        for (const row of rows) {
+          dayTotal += row.dailyMinutes[ymd] ?? 0
+        }
+        return formatMinutesLabel(dayTotal)
+      })
+
+      const grandTotal = employees.reduce((sum, emp) => sum + emp.totalMinutes, 0)
+      const grandTotalFormatted = formatMinutesLabel(grandTotal)
+
+      return {
+        weekStart,
+        weekEnd,
+        weekDays,
+        employees,
+        dailyTotals,
+        grandTotalFormatted,
+      }
+    }
+
+    // Group raw shift rows by employee (legacy client aggregation)
     const employeeMap = new Map<string, {
       employeeId: string
       name: string
@@ -124,10 +189,10 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
       role: string
       dailyHours: Map<string, string>
     }>()
-    
+
     data.forEach(row => {
-      let dateKey = row.date
-      
+      const dateKey = row.date
+
       if (!employeeMap.has(row.employeeId)) {
         employeeMap.set(row.employeeId, {
           employeeId: row.employeeId,
@@ -139,17 +204,16 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
       }
       employeeMap.get(row.employeeId)!.dailyHours.set(dateKey, row.totalHours)
     })
-    
-    // Calculate totals
+
     const employees = Array.from(employeeMap.values()).map(emp => {
       let totalMinutes = 0
       const dailyHours: string[] = []
-      
+
       weekDays.forEach(day => {
-        const dateKey = format(day, "dd-MM-yyyy") // Match the date format from API
+        const dateKey = format(day, "dd-MM-yyyy")
         const hours = emp.dailyHours.get(dateKey) || "—"
         dailyHours.push(hours)
-        
+
         if (hours && hours !== "—") {
           const match = hours.match(/(\d+)h\s*(\d+)?m?/)
           if (match) {
@@ -159,11 +223,11 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
           }
         }
       })
-      
+
       const totalHours = Math.floor(totalMinutes / 60)
       const remainingMinutes = totalMinutes % 60
       const totalFormatted = remainingMinutes > 0 ? `${totalHours}h ${remainingMinutes}m` : `${totalHours}h`
-      
+
       return {
         ...emp,
         dailyHours,
@@ -171,12 +235,11 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
         totalMinutes
       }
     })
-    
-    // Calculate daily totals
+
     const dailyTotals = weekDays.map(day => {
-      const dateKey = format(day, "dd-MM-yyyy") // Match the date format from API
+      const dateKey = format(day, "dd-MM-yyyy")
       let dayTotal = 0
-      
+
       employees.forEach(emp => {
         const hours = emp.dailyHours[weekDays.findIndex(d => format(d, "dd-MM-yyyy") === dateKey)]
         if (hours && hours !== "—") {
@@ -188,17 +251,17 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
           }
         }
       })
-      
+
       const hours = Math.floor(dayTotal / 60)
       const minutes = dayTotal % 60
       return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
     })
-    
+
     const grandTotal = employees.reduce((sum, emp) => sum + emp.totalMinutes, 0)
     const grandTotalHours = Math.floor(grandTotal / 60)
     const grandTotalMinutes = grandTotal % 60
     const grandTotalFormatted = grandTotalMinutes > 0 ? `${grandTotalHours}h ${grandTotalMinutes}m` : `${grandTotalHours}h`
-    
+
     return {
       weekStart,
       weekEnd,
@@ -207,7 +270,7 @@ export function TimesheetWeekView({ data, selectedDate, loading }: TimesheetWeek
       dailyTotals,
       grandTotalFormatted
     }
-  }, [data, selectedDate])
+  }, [data, selectedDate, preAggregated, aggregatedRows])
 
   const columns = useMemo(() => getWeekViewColumns(weekData.weekDays), [weekData.weekDays])
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, isValid, parseISO } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, isValid, parseISO, eachDayOfInterval } from "date-fns"
 import {
   Card,
   CardContent,
@@ -16,14 +16,15 @@ import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetTodayButton } from "@/components/timesheet/timesheet-today-button"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
-import { TimesheetWeekView } from "@/components/timesheet/timesheet-week-view"
-import { TimesheetMonthView } from "@/components/timesheet/timesheet-month-view"
+import { TimesheetWeekView, type WeekAggApiRow } from "@/components/timesheet/timesheet-week-view"
+import { TimesheetMonthView, type MonthAggApiRow } from "@/components/timesheet/timesheet-month-view"
 import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageShell"
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
 import { useMe } from "@/lib/queries/auth"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCategoriesByType } from "@/lib/queries/categories"
 import { useTimesheets } from "@/lib/queries/timesheets"
+import { getTimesheets } from "@/lib/api/timesheets"
 
 interface DashboardTimesheetRow {
   date: string
@@ -56,26 +57,6 @@ interface EmployeeOption {
   pin: string
   employer: string[]
   location: string[]
-}
-
-function buildTimesheetUrl(params: {
-  startDate: string
-  endDate: string
-  employeeIds?: string[]
-  employers?: string[]
-  locations?: string[]
-  roles?: string[]
-}) {
-  const sp = new URLSearchParams()
-  sp.set("startDate", params.startDate)
-  sp.set("endDate", params.endDate)
-  sp.set("limit", "500") // Get more data for aggregation (API max limit)
-  sp.set("offset", "0")
-  params.employeeIds?.forEach((id) => sp.append("employeeId", id))
-  params.employers?.forEach((e) => sp.append("employer", e))
-  params.locations?.forEach((l) => sp.append("location", l))
-  params.roles?.forEach((r) => sp.append("role", r))
-  return `/api/timesheets?${sp.toString()}`
 }
 
 function getDateRange(view: TimesheetView, selectedDate: Date) {
@@ -126,6 +107,8 @@ export default function TimesheetPage() {
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [userPermissions, setUserPermissions] = useState<{locations: string[], managedRoles: string[], role: string} | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   // Calculate date range first
   const { startDate, endDate } = useMemo(() => {
@@ -162,16 +145,35 @@ export default function TimesheetPage() {
   const locationsQuery = useCategoriesByType('location')
   const rolesQuery = useCategoriesByType('role')
 
-  const timesheetsQuery = useTimesheets({
-    startDate,
-    endDate,
-    employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
-    employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
-    locations: selectedLocations.length > 0 ? selectedLocations : undefined,
-    roles: selectedRoles.length > 0 ? selectedRoles : undefined,
-  })
+  const timesheetFilters = useMemo(
+    () => ({
+      startDate,
+      endDate,
+      view: view as "day" | "week" | "month",
+      employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+      employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
+      locations: selectedLocations.length > 0 ? selectedLocations : undefined,
+      roles: selectedRoles.length > 0 ? selectedRoles : undefined,
+      limit: view === "day" ? pageSize : 2000,
+      offset: view === "day" ? pageIndex * pageSize : 0,
+    }),
+    [
+      startDate,
+      endDate,
+      view,
+      selectedEmployeeIds,
+      selectedEmployers,
+      selectedLocations,
+      selectedRoles,
+      pageSize,
+      pageIndex,
+    ],
+  )
+
+  const timesheetsQuery = useTimesheets(timesheetFilters)
 
   const timesheets = timesheetsQuery.data?.timesheets ?? []
+  const timesheetTotal = timesheetsQuery.data?.total ?? 0
   const totalWorkingHours = timesheetsQuery.data?.totalWorkingHours ?? "—"
   const totalBreakHours = timesheetsQuery.data?.totalBreakHours ?? "—"
   const loading = timesheetsQuery.isLoading || timesheetsQuery.isFetching
@@ -312,6 +314,21 @@ export default function TimesheetPage() {
     }
   }, [selectedEmployeeIds, filteredEmployees])
 
+  useEffect(() => {
+    setPageIndex(0)
+  }, [
+    view,
+    startDate,
+    endDate,
+    useCustomRange,
+    customStartDate,
+    customEndDate,
+    selectedEmployeeIds,
+    selectedEmployers,
+    selectedLocations,
+    selectedRoles,
+  ])
+
   const handleCustomRangeChange = (start: string, end: string) => {
     setCustomStartDate(start)
     setCustomEndDate(end)
@@ -321,73 +338,157 @@ export default function TimesheetPage() {
     setUseCustomRange(isValid(s) && isValid(e))
   }
 
-  const handleExportCSV = () => {
-    if (timesheets.length === 0) return
+  const exportFilterBase = useMemo(
+    () => ({
+      startDate,
+      endDate,
+      employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+      employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
+      locations: selectedLocations.length > 0 ? selectedLocations : undefined,
+      roles: selectedRoles.length > 0 ? selectedRoles : undefined,
+    }),
+    [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocations, selectedRoles],
+  )
 
-    // Always export all available data regardless of view
-    const headers = [
-      "Date", "Employee ID", "Name", "PIN", "Role", "Employer", "Location", 
-      "Clock In", "Break In", "Break Out", "Clock Out", 
-      "Break Hours", "Total Hours", "Total Minutes", "Comment"
-    ]
-    
-    const rows = timesheets.map(row => [
-      row.date || "—",
-      row.employeeId || "—",
-      row.name || "—",
-      row.pin || "—",
-      row.role || "—",
-      row.employer || "—",
-      row.location || "—",
-      row.clockIn || "—",
-      row.breakIn || "—",
-      row.breakOut || "—",
-      row.clockOut || "—",
-      row.breakHours || "—",
-      row.totalHours || "—",
-      row.totalMinutes?.toString() || "0",
-      row.comment || "—"
-    ])
+  const escapeCsvCell = (cell: unknown) => {
+    const cellStr = String(cell).replace(/"/g, '""')
+    return cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n") ? `"${cellStr}"` : cellStr
+  }
 
-    // Create CSV content with proper escaping
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => 
-        row.map(cell => {
-          // Escape quotes and wrap in quotes if contains comma, quote, or newline
-          const cellStr = String(cell).replace(/"/g, '""')
-          return cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') 
-            ? `"${cellStr}"` 
-            : cellStr
-        }).join(",")
-      )
-    ].join("\n")
-
-    // Add BOM for proper UTF-8 encoding in Excel
-    const BOM = "\uFEFF"
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
-    
-    // Create download link
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    
-    // Generate filename with current filters
+  const handleExportCSV = async () => {
     const filterSuffix = [
       selectedEmployers.length > 0 ? `emp-${selectedEmployers.length}` : "",
       selectedLocations.length > 0 ? `loc-${selectedLocations.length}` : "",
       selectedRoles.length > 0 ? `role-${selectedRoles.length}` : "",
-      selectedEmployeeIds.length > 0 ? `staff-${selectedEmployeeIds.length}` : ""
-    ].filter(Boolean).join("-")
-    
+      selectedEmployeeIds.length > 0 ? `staff-${selectedEmployeeIds.length}` : "",
+    ]
+      .filter(Boolean)
+      .join("-")
     const filename = `timesheet-${view}-${startDate}-to-${endDate}${filterSuffix ? `-${filterSuffix}` : ""}.csv`
-    link.setAttribute("download", filename)
-    link.style.visibility = "hidden"
-    
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+
+    const download = (headers: string[], rows: string[][]) => {
+      const csvContent = [headers.join(","), ...rows.map((row) => row.map(escapeCsvCell).join(","))].join("\n")
+      const BOM = "\uFEFF"
+      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", filename)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }
+
+    try {
+      if (view === "day") {
+        const all: DashboardTimesheetRow[] = []
+        let offset = 0
+        const limit = 2000
+        while (true) {
+          const res = await getTimesheets({ ...exportFilterBase, view: "day", limit, offset })
+          const chunk = res.timesheets as DashboardTimesheetRow[]
+          all.push(...chunk)
+          if (all.length >= res.total || chunk.length < limit) break
+          offset += limit
+        }
+        if (all.length === 0) return
+        const headers = [
+          "Date",
+          "Employee ID",
+          "Name",
+          "PIN",
+          "Role",
+          "Employer",
+          "Location",
+          "Clock In",
+          "Break In",
+          "Break Out",
+          "Clock Out",
+          "Break Hours",
+          "Total Hours",
+          "Total Minutes",
+          "Comment",
+        ]
+        const rows = all.map((row) => [
+          row.date || "—",
+          row.employeeId || "—",
+          row.name || "—",
+          row.pin || "—",
+          row.role || "—",
+          row.employer || "—",
+          row.location || "—",
+          row.clockIn || "—",
+          row.breakIn || "—",
+          row.breakOut || "—",
+          row.clockOut || "—",
+          row.breakHours || "—",
+          row.totalHours || "—",
+          row.totalMinutes?.toString() || "0",
+          row.comment || "—",
+        ])
+        download(headers, rows)
+        return
+      }
+
+      if (view === "week") {
+        const res = await getTimesheets({ ...exportFilterBase, view: "week", limit: 2000, offset: 0 })
+        const agg = res.timesheets as WeekAggApiRow[]
+        if (agg.length === 0) return
+        const rangeStart = parseISO(exportFilterBase.startDate)
+        const rangeEnd = parseISO(exportFilterBase.endDate)
+        const dayKeys =
+          isValid(rangeStart) && isValid(rangeEnd)
+            ? eachDayOfInterval({ start: rangeStart, end: rangeEnd }).map((d) => format(d, "yyyy-MM-dd"))
+            : [...new Set(agg.flatMap((r) => Object.keys(r.dailyMinutes ?? {})))].sort()
+        const headers = ["Employee ID", "Name", "PIN", "Role", "Employer", "Location", ...dayKeys, "Total Minutes", "Break Minutes"]
+        const rows = agg.map((row) => [
+          row.employeeId,
+          row.name,
+          row.pin,
+          row.role,
+          row.employer,
+          row.location,
+          ...dayKeys.map((k) => String(row.dailyMinutes[k] ?? 0)),
+          String(row.totalMinutes),
+          String(row.breakMinutes),
+        ])
+        download(headers, rows)
+        return
+      }
+
+      const res = await getTimesheets({ ...exportFilterBase, view: "month", limit: 2000, offset: 0 })
+      const agg = res.timesheets as MonthAggApiRow[]
+      if (agg.length === 0) return
+      const headers = [
+        "Employee ID",
+        "Name",
+        "PIN",
+        "Employer",
+        "Location",
+        "Days Worked",
+        "Total Hours",
+        "Total Break",
+        "Total Minutes",
+        "Break Minutes",
+      ]
+      const rows = agg.map((row) => [
+        row.employeeId,
+        row.name,
+        row.pin,
+        row.employersList || row.employer || "—",
+        row.locationsList || row.location || "—",
+        String(row.daysWorked),
+        row.totalHours,
+        row.totalBreak,
+        String(row.totalMinutes),
+        String(row.breakMinutes),
+      ])
+      download(headers, rows)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Export failed")
+    }
   }
 
   const handleTodayClick = () => {
@@ -401,23 +502,36 @@ export default function TimesheetPage() {
 
   const renderCurrentView = () => {
     switch (view) {
-      case "day":
+      case "day": {
         const safeRangeStart = useCustomRange ? parseISO(customStartDate) : null
         const safeRangeEnd = useCustomRange ? parseISO(customEndDate) : null
-        const safeSelectedDate = (useCustomRange && safeRangeStart && isValid(safeRangeStart)) ? safeRangeStart : selectedDate
-        const safeEndDate = (useCustomRange && safeRangeEnd && isValid(safeRangeEnd)) ? safeRangeEnd : undefined
+        const safeSelectedDate = useCustomRange && safeRangeStart && isValid(safeRangeStart) ? safeRangeStart : selectedDate
+        const safeEndDate = useCustomRange && safeRangeEnd && isValid(safeRangeEnd) ? safeRangeEnd : undefined
         return (
           <TimesheetDayView
-            data={timesheets}
+            data={timesheets as DashboardTimesheetRow[]}
             selectedDate={safeSelectedDate}
             endDate={safeEndDate}
             loading={loading}
+            serverPagination={{
+              totalCount: timesheetTotal,
+              pageIndex,
+              pageSize,
+              onPageChange: setPageIndex,
+              onPageSizeChange: (s) => {
+                setPageSize(s)
+                setPageIndex(0)
+              },
+            }}
           />
         )
+      }
       case "week":
         return (
           <TimesheetWeekView
-            data={timesheets}
+            data={[]}
+            preAggregated
+            aggregatedRows={timesheets as WeekAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />
@@ -425,7 +539,9 @@ export default function TimesheetPage() {
       case "month":
         return (
           <TimesheetMonthView
-            data={timesheets}
+            data={[]}
+            preAggregated
+            aggregatedRows={timesheets as MonthAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />
@@ -504,8 +620,8 @@ export default function TimesheetPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!isHydrated || loading || timesheets.length === 0}
-                onClick={handleExportCSV}
+                disabled={!isHydrated || loading || timesheetTotal === 0}
+                onClick={() => void handleExportCSV()}
               >
                 <FileDown className="size-4" />
                 Export CSV
@@ -605,7 +721,7 @@ export default function TimesheetPage() {
         </Card>
 
         {/* Summary Stats */}
-        {isHydrated && !loading && timesheets.length > 0 && (
+        {isHydrated && !loading && timesheetTotal > 0 && (
           <div className="flex gap-6 rounded-lg border bg-muted/30 px-4 py-3 text-sm print:border-gray-300 print:bg-white print:text-xs">
             <span>
               <strong>Total Break (all):</strong> {totalBreakHours}
@@ -614,7 +730,8 @@ export default function TimesheetPage() {
               <strong>Total Hours (all):</strong> {totalWorkingHours}
             </span>
             <span className="hidden print:block">
-              <strong>Total Records:</strong> {timesheets.length}
+              <strong>Total Records:</strong> {timesheetTotal}
+              {view === "day" && timesheets.length !== timesheetTotal ? ` (showing ${timesheets.length} on this page)` : ""}
             </span>
           </div>
         )}

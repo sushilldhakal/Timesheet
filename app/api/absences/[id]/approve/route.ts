@@ -61,11 +61,16 @@ export const PATCH = createApiRoute({
           })),
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[api/absences/[id]/approve PATCH]", err)
+      const message = err instanceof Error ? err.message : ""
 
-      if (err.message?.includes("not found")) {
-        return { status: 404, data: { error: err.message } }
+      if (message.includes("not found")) {
+        return { status: 404, data: { error: message } }
+      }
+
+      if (message.includes("PENDING")) {
+        return { status: 400, data: { error: message } }
       }
 
       return {

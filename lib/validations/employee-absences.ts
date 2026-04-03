@@ -15,7 +15,7 @@ export const absencesQuerySchema = z.object({
 export const leaveRecordCreateSchema = z.object({
   startDate: z.string().refine((date) => !isNaN(Date.parse(date)), "Invalid start date"),
   endDate: z.string().refine((date) => !isNaN(Date.parse(date)), "Invalid end date"),
-  leaveType: z.enum(['sick', 'vacation', 'personal', 'bereavement', 'jury_duty', 'other']),
+  leaveType: z.enum(['ANNUAL', 'SICK', 'UNPAID', 'PUBLIC_HOLIDAY']),
   notes: z.string().optional()
 });
 

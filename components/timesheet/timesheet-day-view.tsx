@@ -26,11 +26,21 @@ interface DayViewRow {
   location: string
 }
 
+export interface TimesheetDayServerPagination {
+  totalCount: number
+  pageIndex: number
+  pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
+}
+
 interface TimesheetDayViewProps {
   data: DayViewRow[]
   selectedDate: Date
   endDate?: Date
   loading?: boolean
+  /** When set, table uses server pagination (one page of rows in `data`). */
+  serverPagination?: TimesheetDayServerPagination
 }
 
 function formatTimeOnly(value: string): string {
@@ -179,7 +189,7 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
   return columns
 }
 
-export function TimesheetDayView({ data, selectedDate, endDate, loading }: TimesheetDayViewProps) {
+export function TimesheetDayView({ data, selectedDate, endDate, loading, serverPagination }: TimesheetDayViewProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     comment: false,
     employer: false,
@@ -243,28 +253,64 @@ export function TimesheetDayView({ data, selectedDate, endDate, loading }: Times
         )}
       </div>
       
-      <DataTable
-        mode="client"
-        columns={columns}
-        data={data}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        emptyMessage={isDateRange ? "No timesheet entries for the selected date range." : "No timesheet entries for this date."}
-        getRowId={(row) => `timesheet-${row.employeeId}-${row.date}-${row.clockIn}`}
-        initialPageSize={50}
-        toolbar={(table) => (
-          <div className="flex items-center justify-between">
-            <div className="flex flex-1 items-center space-x-2">
-              {isDateRange && (
+      {serverPagination ? (
+        <DataTable
+          mode="server"
+          columns={columns}
+          data={data}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          emptyMessage={isDateRange ? "No timesheet entries for the selected date range." : "No timesheet entries for this date."}
+          getRowId={(row) => `timesheet-${row.employeeId}-${row.date}-${row.clockIn}`}
+          loading={loading}
+          totalCount={serverPagination.totalCount}
+          pageIndex={serverPagination.pageIndex}
+          pageSize={serverPagination.pageSize}
+          onPageChange={serverPagination.onPageChange}
+          onPageSizeChange={serverPagination.onPageSizeChange}
+          pageSizeOptions={[25, 50, 100, 200]}
+          showSearch={false}
+          searchValue=""
+          onSearchChange={() => {}}
+          toolbar={(table) => (
+            <div className="flex items-center justify-between">
+              <div className="flex flex-1 items-center space-x-2">
                 <span className="text-sm text-muted-foreground">
-                  {data.length} entries across {Math.ceil((safeEndDate!.getTime() - safeSelectedDate!.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
+                  {serverPagination.totalCount === 0
+                    ? "No rows"
+                    : isDateRange
+                      ? `Showing ${data.length} of ${serverPagination.totalCount} entries`
+                      : `${serverPagination.totalCount} row(s) total`}
                 </span>
-              )}
+              </div>
+              <DataTableViewOptions table={table} />
             </div>
-            <DataTableViewOptions table={table} />
-          </div>
-        )}
-      />
+          )}
+        />
+      ) : (
+        <DataTable
+          mode="client"
+          columns={columns}
+          data={data}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          emptyMessage={isDateRange ? "No timesheet entries for the selected date range." : "No timesheet entries for this date."}
+          getRowId={(row) => `timesheet-${row.employeeId}-${row.date}-${row.clockIn}`}
+          initialPageSize={50}
+          toolbar={(table) => (
+            <div className="flex items-center justify-between">
+              <div className="flex flex-1 items-center space-x-2">
+                {isDateRange && (
+                  <span className="text-sm text-muted-foreground">
+                    {data.length} entries across {Math.ceil((safeEndDate!.getTime() - safeSelectedDate!.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
+                  </span>
+                )}
+              </div>
+              <DataTableViewOptions table={table} />
+            </div>
+          )}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
-import { ApiResponse } from '@/lib/utils/api/api-response'
-
 const BASE_URL = '/api/timesheets'
+
+export type TimesheetDashboardView = 'day' | 'week' | 'month'
 
 export interface TimesheetRow {
   date: string
@@ -24,6 +24,7 @@ export interface TimesheetRow {
 export interface TimesheetFilters {
   startDate: string
   endDate: string
+  view?: TimesheetDashboardView
   employeeIds?: string[]
   employers?: string[]
   locations?: string[]
@@ -33,10 +34,15 @@ export interface TimesheetFilters {
 }
 
 export interface TimesheetResponse {
-  timesheets: TimesheetRow[]
+  /** Shape depends on `view`: day = raw rows; week/month = server-aggregated rows */
+  timesheets: TimesheetRow[] | Record<string, unknown>[]
   totalWorkingHours: string
   totalBreakHours: string
   total: number
+  limit: number
+  offset: number
+  totalWorkingMinutes?: number
+  totalBreakMinutes?: number
 }
 
 // Get timesheets with filters
@@ -44,9 +50,10 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
   const params = new URLSearchParams()
   params.set('startDate', filters.startDate)
   params.set('endDate', filters.endDate)
-  params.set('limit', (filters.limit || 500).toString()) // API max limit is 500
-  params.set('offset', (filters.offset || 0).toString())
-  
+  params.set('view', filters.view ?? 'day')
+  params.set('limit', String(filters.limit ?? 50))
+  params.set('offset', String(filters.offset ?? 0))
+
   filters.employeeIds?.forEach(id => params.append('employeeId', id))
   filters.employers?.forEach(emp => params.append('employer', emp))
   filters.locations?.forEach(loc => params.append('location', loc))

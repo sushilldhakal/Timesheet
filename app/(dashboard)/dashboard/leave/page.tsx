@@ -34,20 +34,46 @@ import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageS
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
-import { AlignJustify, Columns, LayoutGrid, RefreshCw, Search } from "lucide-react"
+import { AlignJustify, Columns, LayoutGrid, Plus, RefreshCw, Search, X } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+
+const LEAVE_TYPE_OPTIONS = ["ANNUAL", "SICK", "UNPAID", "PUBLIC_HOLIDAY"] as const
 
 type LeaveRecordLike = {
   _id?: string
   id?: string
   employeeId?: string
+  employeeName?: string
+  employeePin?: string
   startDate?: string
   endDate?: string
   leaveType?: string
   status?: string
   notes?: string
+  approvedBy?: string
+  approvedAt?: string
+  deniedBy?: string
+  deniedAt?: string
+  denialReason?: string
   createdAt?: string
   updatedAt?: string
+}
+
+type AffectedShift = {
+  shiftId: string
+  date: string
+  startTime: string
+  endTime: string
 }
 
 function statusBadge(statusRaw: string | undefined): { label: string; className: string } {
@@ -64,7 +90,20 @@ function statusBadge(statusRaw: string | undefined): { label: string; className:
   return { label: statusRaw || "Unknown", className: "border-border bg-muted text-muted-foreground" }
 }
 
-const FETCH_CHUNK = 25
+function displayEmployee(a: LeaveRecordLike, fallback?: { name: string; pin: string } | undefined) {
+  if (a.employeeName) {
+    return a.employeePin ? `${a.employeeName} (${a.employeePin})` : a.employeeName
+  }
+  if (a.employeeId && fallback) {
+    return `${fallback.name} (${fallback.pin})`
+  }
+  return "Employee"
+}
+
+function isLeaveFinalStatus(status: string | undefined) {
+  const u = (status || "").toUpperCase()
+  return u === "APPROVED" || u === "DENIED"
+}
 
 export default function LeavePage() {
   const { user, userRole, isHydrated } = useAuth()
@@ -88,6 +127,24 @@ export default function LeavePage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
+
+  const [addLeaveOpen, setAddLeaveOpen] = useState(false)
+  const [addEmployeeId, setAddEmployeeId] = useState("")
+  const [addStart, setAddStart] = useState("")
+  const [addEnd, setAddEnd] = useState("")
+  const [addType, setAddType] = useState<(typeof LEAVE_TYPE_OPTIONS)[number]>("ANNUAL")
+  const [addNotes, setAddNotes] = useState("")
+  const [addSubmitting, setAddSubmitting] = useState(false)
+
+  const [denyOpen, setDenyOpen] = useState(false)
+  const [denyReason, setDenyReason] = useState("")
+  const [denySubmitting, setDenySubmitting] = useState(false)
+
+  const [postApproveShifts, setPostApproveShifts] = useState<{
+    absenceId: string
+    shifts: AffectedShift[]
+  } | null>(null)
+  const [affectedBannerDismissed, setAffectedBannerDismissed] = useState(false)
 
   const { startDate, endDate } = useMemo(() => {
     if (useCustomRange && customStartDate && customEndDate) {
@@ -119,12 +176,6 @@ export default function LeavePage() {
     setUseCustomRange(isValid(s) && isValid(e))
   }
 
-  const employeeIdsToQuery = useMemo(() => {
-    if (!employees.length) return [] as string[]
-    if (selectedEmployeeIds.length > 0) return selectedEmployeeIds
-    return employees.map((e) => e.id)
-  }, [employees, selectedEmployeeIds])
-
   const employeeById = useMemo(() => {
     const m = new Map<string, { name: string; pin: string }>()
     for (const e of employees) {
@@ -134,8 +185,12 @@ export default function LeavePage() {
   }, [employees])
 
   useEffect(() => {
+    setPostApproveShifts(null)
+  }, [selectedAbsenceId])
+
+  useEffect(() => {
     if (!isHydrated || !isAdmin) return
-    if (!employeeIdsToQuery.length) {
+    if (!employees.length) {
       setAbsences([])
       setSelectedAbsenceId(null)
       return
@@ -147,29 +202,26 @@ export default function LeavePage() {
       setLoading(true)
       setError(null)
       try {
-        const merged: LeaveRecordLike[] = []
-        for (let i = 0; i < employeeIdsToQuery.length; i += FETCH_CHUNK) {
-          if (controller.signal.aborted) return
-          const chunk = employeeIdsToQuery.slice(i, i + FETCH_CHUNK)
-          const chunkResults = await Promise.all(
-            chunk.map(async (employeeId) => {
-              const url = `/api/employees/${employeeId}/absences?startDate=${encodeURIComponent(
-                startDate,
-              )}&endDate=${encodeURIComponent(endDate)}`
-              const res = await fetch(url, {
-                credentials: "include",
-                signal: controller.signal,
-              })
-              const json = await res.json().catch(() => ({} as Record<string, unknown>))
-              if (!res.ok) {
-                throw new Error((json as { error?: string }).error || "Failed to load leave records")
-              }
-              const list = ((json as { absences?: LeaveRecordLike[] }).absences ?? []) as LeaveRecordLike[]
-              return list.map((a) => ({ ...a, employeeId }))
-            }),
-          )
-          for (const arr of chunkResults) merged.push(...arr)
+        const sp = new URLSearchParams()
+        sp.set("startDate", startDate)
+        sp.set("endDate", endDate)
+        for (const id of selectedEmployeeIds) {
+          sp.append("employeeId", id)
         }
+        const url = `/api/absences?${sp.toString()}`
+        const res = await fetch(url, {
+          credentials: "include",
+          signal: controller.signal,
+        })
+        const json = await res.json().catch(() => ({} as Record<string, unknown>))
+        if (!res.ok) {
+          throw new Error((json as { error?: string }).error || "Failed to load leave records")
+        }
+        const rows = ((json as { absences?: LeaveRecordLike[] }).absences ?? []) as LeaveRecordLike[]
+        const merged = rows.map((a) => {
+          const oid = (a.id ?? a._id) as string | undefined
+          return { ...a, _id: oid, id: oid }
+        })
         merged.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
         setAbsences(merged)
         setSelectedAbsenceId((prev) => {
@@ -188,7 +240,7 @@ export default function LeavePage() {
 
     void run()
     return () => controller.abort()
-  }, [employeeIdsToQuery, startDate, endDate, refreshNonce, isAdmin, isHydrated])
+  }, [employees.length, selectedEmployeeIds, startDate, endDate, refreshNonce, isAdmin, isHydrated])
 
   const approveLeave = async (absence: LeaveRecordLike) => {
     if (!user?.id) return
@@ -208,18 +260,43 @@ export default function LeavePage() {
 
       const json = await res.json().catch(() => ({} as Record<string, unknown>))
       if (!res.ok) {
-        throw new Error((json as { error?: string }).error || "Failed to approve leave")
+        const msg = (json as { error?: string }).error || "Failed to approve leave"
+        toast.error(msg)
+        throw new Error(msg)
       }
 
-      const updated = (json as { leaveRecord?: LeaveRecordLike }).leaveRecord
+      const updated = (json as { leaveRecord?: Record<string, unknown> }).leaveRecord
+      const affected = ((json as { affectedShifts?: AffectedShift[] }).affectedShifts ?? []) as AffectedShift[]
+
       setAbsences((prev) => {
         const next = prev.filter((r) => (r._id ?? r.id) !== absenceId)
-        if (updated) {
-          const emp = absence.employeeId
-          return [...next, { ...updated, employeeId: emp }]
+        if (!updated) return next
+        const newId = String(updated._id ?? updated.id ?? absenceId)
+        const row: LeaveRecordLike = {
+          ...absence,
+          _id: newId,
+          id: newId,
+          startDate:
+            updated.startDate != null
+              ? new Date(updated.startDate as string | Date).toISOString()
+              : absence.startDate,
+          endDate:
+            updated.endDate != null
+              ? new Date(updated.endDate as string | Date).toISOString()
+              : absence.endDate,
+          leaveType: String(updated.leaveType ?? absence.leaveType),
+          status: String(updated.status ?? absence.status),
+          notes: typeof updated.notes === "string" ? updated.notes : absence.notes,
         }
-        return next
+        return [...next, row]
       })
+
+      if (affected.length > 0) {
+        setPostApproveShifts({ absenceId, shifts: affected })
+        setAffectedBannerDismissed(false)
+      }
+
+      toast.success("Leave approved")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to approve leave")
     } finally {
@@ -227,8 +304,143 @@ export default function LeavePage() {
     }
   }
 
+  const denyLeave = async () => {
+    if (!user?.id || !selectedAbsence) return
+    const absenceId = selectedAbsence._id ?? selectedAbsence.id
+    if (!absenceId || !denyReason.trim()) {
+      toast.error("Please enter a denial reason")
+      return
+    }
+
+    setError(null)
+    setDenySubmitting(true)
+    setLoading(true)
+
+    try {
+      const res = await fetch(`/api/absences/${absenceId}/deny`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ denierId: user.id, reason: denyReason.trim() }),
+      })
+
+      const json = await res.json().catch(() => ({} as Record<string, unknown>))
+      if (!res.ok) {
+        const msg = (json as { error?: string }).error || "Failed to deny leave"
+        toast.error(msg)
+        throw new Error(msg)
+      }
+
+      const updated = (json as { leaveRecord?: Record<string, unknown> }).leaveRecord
+      setAbsences((prev) => {
+        const next = prev.filter((r) => (r._id ?? r.id) !== absenceId)
+        if (!updated) return next
+        const newId = String(updated._id ?? updated.id ?? absenceId)
+        const row: LeaveRecordLike = {
+          ...selectedAbsence,
+          _id: newId,
+          id: newId,
+          startDate:
+            updated.startDate != null
+              ? new Date(updated.startDate as string | Date).toISOString()
+              : selectedAbsence.startDate,
+          endDate:
+            updated.endDate != null
+              ? new Date(updated.endDate as string | Date).toISOString()
+              : selectedAbsence.endDate,
+          leaveType: String(updated.leaveType ?? selectedAbsence.leaveType),
+          status: String(updated.status ?? selectedAbsence.status),
+          notes: typeof updated.notes === "string" ? updated.notes : selectedAbsence.notes,
+          denialReason:
+            typeof updated.denialReason === "string" ? updated.denialReason : selectedAbsence.denialReason,
+        }
+        return [...next, row]
+      })
+
+      setDenyOpen(false)
+      setDenyReason("")
+      toast.success("Leave denied")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to deny leave")
+    } finally {
+      setDenySubmitting(false)
+      setLoading(false)
+    }
+  }
+
+  const submitAddLeave = async () => {
+    if (!addEmployeeId) {
+      toast.error("Select an employee")
+      return
+    }
+    if (!addStart || !addEnd) {
+      toast.error("Start and end dates are required")
+      return
+    }
+    if (addEnd < addStart) {
+      toast.error("End date must be on or after start date")
+      return
+    }
+
+    setAddSubmitting(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/employees/${addEmployeeId}/absences`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          startDate: addStart,
+          endDate: addEnd,
+          leaveType: addType,
+          notes: addNotes.trim() || undefined,
+        }),
+      })
+
+      const json = await res.json().catch(() => ({} as Record<string, unknown>))
+      if (!res.ok) {
+        const msg = (json as { error?: string }).error || "Failed to create leave"
+        toast.error(msg)
+        throw new Error(msg)
+      }
+
+      setAddLeaveOpen(false)
+      setRefreshNonce((n) => n + 1)
+      toast.success("Leave request created")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create leave")
+    } finally {
+      setAddSubmitting(false)
+    }
+  }
+
+  const openAddLeave = () => {
+    setAddEmployeeId(employees[0]?.id ?? "")
+    setAddStart(startDate)
+    setAddEnd(endDate)
+    setAddType("ANNUAL")
+    setAddNotes("")
+    setAddLeaveOpen(true)
+  }
+
+  const formatAffectedShiftLine = (s: AffectedShift) => {
+    const dateStr = s.date != null ? String(s.date) : ""
+    let dateLabel = dateStr
+    try {
+      if (dateStr) {
+        const raw = dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`
+        const d = parseISO(raw)
+        if (isValid(d)) dateLabel = format(d, "EEE d MMM")
+      }
+    } catch {
+      /* keep raw */
+    }
+    return `${dateLabel}  ${s.startTime}–${s.endTime}`
+  }
+
   const leaveTypes = useMemo(() => {
-    const s = new Set<string>()
+    const s = new Set<string>(LEAVE_TYPE_OPTIONS)
     for (const a of absences) {
       const v = (a.leaveType || "").trim()
       if (v) s.add(v)
@@ -243,13 +455,15 @@ export default function LeavePage() {
       .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
       .filter((a) => {
         if (statusFilter !== "all") {
-          const s = (a.status || "").toLowerCase()
-          if (!s.includes(statusFilter)) return false
+          const s = (a.status || "").toUpperCase()
+          if (statusFilter === "pending" && s !== "PENDING") return false
+          if (statusFilter === "approve" && s !== "APPROVED") return false
+          if (statusFilter === "reject" && s !== "DENIED") return false
         }
         if (typeFilter !== "all" && (a.leaveType || "") !== typeFilter) return false
         if (q) {
           const emp = a.employeeId ? employeeById.get(a.employeeId) : undefined
-          const hay = `${a.leaveType || ""} ${a.status || ""} ${a.notes || ""} ${a.startDate || ""} ${a.endDate || ""} ${emp?.name || ""} ${emp?.pin || ""}`.toLowerCase()
+          const hay = `${a.leaveType || ""} ${a.status || ""} ${a.notes || ""} ${a.startDate || ""} ${a.endDate || ""} ${a.employeeName || ""} ${a.employeePin || ""} ${a.employeeId || ""} ${emp?.name || ""} ${emp?.pin || ""}`.toLowerCase()
           if (!hay.includes(q)) return false
         }
         return true
@@ -369,11 +583,15 @@ export default function LeavePage() {
           actions={
             isAdmin ? (
               <div className="flex items-center gap-2">
+                <Button type="button" size="sm" disabled={!employees.length} onClick={openAddLeave}>
+                  <Plus className="size-4" />
+                  Add Leave
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={loading || !employeeIdsToQuery.length}
+                  disabled={loading || !employees.length}
                   onClick={() => setRefreshNonce((n) => n + 1)}
                 >
                   <RefreshCw className="size-4" />
@@ -385,6 +603,7 @@ export default function LeavePage() {
         />
       }
     >
+      <>
       <div className="space-y-4 py-4">
         {!isAdmin && (
           <Card>
@@ -489,7 +708,7 @@ export default function LeavePage() {
                       const isActive = !!id && id === selectedAbsenceId
                       const st = statusBadge(a.status)
                       const emp = a.employeeId ? employeeById.get(a.employeeId) : undefined
-                      const displayName = emp ? `${emp.name} (${emp.pin})` : "Employee"
+                      const displayName = displayEmployee(a, emp)
                       return (
                         <button
                           key={id ?? `${a.startDate}-${a.endDate}-${a.leaveType}`}
@@ -532,11 +751,13 @@ export default function LeavePage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <CardTitle className="text-base">
-                        {selectedAbsence?.employeeId
-                          ? (() => {
-                              const emp = employeeById.get(selectedAbsence.employeeId!)
-                              return emp ? `${emp.name} (${emp.pin})` : "—"
-                            })()
+                        {selectedAbsence
+                          ? displayEmployee(
+                              selectedAbsence,
+                              selectedAbsence.employeeId
+                                ? employeeById.get(selectedAbsence.employeeId)
+                                : undefined,
+                            )
                           : "—"}
                       </CardTitle>
                       <CardDescription>
@@ -580,13 +801,58 @@ export default function LeavePage() {
                         </div>
                       </div>
 
+                      {selectedAbsence.denialReason?.trim() ? (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-muted-foreground">Denial reason</div>
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                            {selectedAbsence.denialReason}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {postApproveShifts &&
+                        postApproveShifts.absenceId === (selectedAbsence._id ?? selectedAbsence.id) &&
+                        postApproveShifts.shifts.length > 0 &&
+                        !affectedBannerDismissed && (
+                          <div className="relative rounded-lg border border-sky-500/30 bg-sky-500/10 p-4 text-sm">
+                            <button
+                              type="button"
+                              className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                              aria-label="Dismiss"
+                              onClick={() => setAffectedBannerDismissed(true)}
+                            >
+                              <X className="size-4" />
+                            </button>
+                            <p className="pr-8 font-medium text-foreground">
+                              ℹ️ {postApproveShifts.shifts.length} scheduled shift
+                              {postApproveShifts.shifts.length === 1 ? " was" : "s were"} affected by this approval.
+                            </p>
+                            <ul className="mt-2 space-y-1 text-muted-foreground">
+                              {postApproveShifts.shifts.map((s) => (
+                                <li key={s.shiftId}>{formatAffectedShiftLine(s)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
-                          disabled={loading || (selectedAbsence.status ?? "").toLowerCase().includes("approve")}
+                          disabled={loading || isLeaveFinalStatus(selectedAbsence.status)}
                           onClick={() => void approveLeave(selectedAbsence)}
                         >
                           Approve
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={loading || isLeaveFinalStatus(selectedAbsence.status)}
+                          onClick={() => {
+                            setDenyReason("")
+                            setDenyOpen(true)
+                          }}
+                        >
+                          Deny
                         </Button>
                         <Button type="button" variant="outline" disabled={loading} onClick={() => setRefreshNonce((n) => n + 1)}>
                           Refresh
@@ -600,6 +866,107 @@ export default function LeavePage() {
           </>
         )}
       </div>
+
+      <Dialog open={addLeaveOpen} onOpenChange={setAddLeaveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add leave</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="add-leave-employee">Employee</Label>
+              <Select value={addEmployeeId} onValueChange={setAddEmployeeId}>
+                <SelectTrigger id="add-leave-employee">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name} ({e.pin})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="add-leave-start">Start date</Label>
+                <Input id="add-leave-start" type="date" value={addStart} onChange={(e) => setAddStart(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-leave-end">End date</Label>
+                <Input id="add-leave-end" type="date" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-leave-type">Leave type</Label>
+              <Select value={addType} onValueChange={(v) => setAddType(v as (typeof LEAVE_TYPE_OPTIONS)[number])}>
+                <SelectTrigger id="add-leave-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAVE_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-leave-notes">Notes (optional)</Label>
+              <Textarea
+                id="add-leave-notes"
+                value={addNotes}
+                onChange={(e) => setAddNotes(e.target.value)}
+                placeholder="Optional notes"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAddLeaveOpen(false)} disabled={addSubmitting}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submitAddLeave()} disabled={addSubmitting}>
+              {addSubmitting ? "Saving…" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={denyOpen} onOpenChange={setDenyOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deny leave</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="deny-reason">Denial reason</Label>
+            <Textarea
+              id="deny-reason"
+              value={denyReason}
+              onChange={(e) => setDenyReason(e.target.value)}
+              placeholder="Explain why this request is denied"
+              rows={4}
+              minLength={1}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDenyOpen(false)} disabled={denySubmitting}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={denySubmitting || !denyReason.trim()}
+              onClick={() => void denyLeave()}
+            >
+              {denySubmitting ? "Denying…" : "Confirm deny"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </>
     </CalendarPageShell>
   )
 }
