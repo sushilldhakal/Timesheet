@@ -13,6 +13,7 @@ import {
   Lock,
   Mail,
   Tablet,
+  Clock,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/lib/types/dashboard';
 
@@ -32,14 +33,30 @@ export const baseNavigationItems: NavigationItem[] = [
     icon: Users,
   },
   {
-    href: '/dashboard/timesheet',
-    label: 'Timesheet',
-    icon: CalendarCheck,
-  },
-  {
-    href: '/dashboard/scheduling',
-    label: 'Scheduling / Rostering',
-    icon: Calendar,
+    label: 'Time & Attendance',
+    icon: Clock,
+    children: [
+      {
+        href: '/dashboard/scheduling',
+        label: 'Scheduling',
+        icon: Calendar,
+      },
+      {
+        href: '/dashboard/timesheet',
+        label: 'Timesheet',
+        icon: CalendarCheck,
+      },
+      {
+        href: '/dashboard/leave',
+        label: 'Leave',
+        icon: CalendarCheck,
+      },
+      {
+        href: '/dashboard/unavailability',
+        label: 'Unavailability',
+        icon: List,
+      },
+    ],
   },
   {
     href: '/dashboard/category',

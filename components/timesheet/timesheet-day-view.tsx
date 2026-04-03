@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { format } from "date-fns"
+import { format, isValid } from "date-fns"
 import type { ColumnDef, VisibilityState } from "@tanstack/react-table"
 
 import { DataTable } from "@/components/ui/data-table/data-table"
@@ -188,7 +188,9 @@ export function TimesheetDayView({ data, selectedDate, endDate, loading }: Times
     breakHours: false,
   })
 
-  const isDateRange = endDate && endDate.getTime() !== selectedDate.getTime()
+  const safeSelectedDate = isValid(selectedDate) ? selectedDate : null
+  const safeEndDate = endDate && isValid(endDate) ? endDate : undefined
+  const isDateRange = !!(safeSelectedDate && safeEndDate && safeEndDate.getTime() !== safeSelectedDate.getTime())
   const columns = useMemo(() => getDayViewColumns(isDateRange), [isDateRange])
 
   const totalHours = useMemo(() => {
@@ -213,10 +215,11 @@ export function TimesheetDayView({ data, selectedDate, endDate, loading }: Times
   }
 
   const getDateRangeTitle = () => {
+    if (!safeSelectedDate) return "—"
     if (isDateRange) {
-      return `${format(selectedDate, "d MMM")} - ${format(endDate, "d MMM yyyy")}`
+      return `${format(safeSelectedDate, "d MMM")} - ${format(safeEndDate!, "d MMM yyyy")}`
     }
-    return format(selectedDate, "EEEE, d MMMM yyyy")
+    return format(safeSelectedDate, "EEEE, d MMMM yyyy")
   }
 
   if (loading) {
@@ -254,7 +257,7 @@ export function TimesheetDayView({ data, selectedDate, endDate, loading }: Times
             <div className="flex flex-1 items-center space-x-2">
               {isDateRange && (
                 <span className="text-sm text-muted-foreground">
-                  {data.length} entries across {Math.ceil((endDate.getTime() - selectedDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
+                  {data.length} entries across {Math.ceil((safeEndDate!.getTime() - safeSelectedDate!.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
                 </span>
               )}
             </div>

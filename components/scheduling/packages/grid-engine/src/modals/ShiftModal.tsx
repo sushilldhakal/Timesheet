@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import type { Block, Resource } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
 import { HOURS, SNAP, toDateISO, parseBlockDate } from '@shadcn-scheduler/core'
@@ -371,7 +372,7 @@ export function ShiftModal({
 
   if (variant === "sheet") return content
 
-  return (
+  const overlay = (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
@@ -379,4 +380,6 @@ export function ShiftModal({
       {content}
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(overlay, document.body) : overlay
 }

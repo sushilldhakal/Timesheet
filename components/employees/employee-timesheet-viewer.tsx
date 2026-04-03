@@ -10,17 +10,18 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileDown, Printer, Clock, MapPin, ChevronDown, ChevronRight, Calendar, Coffee } from "lucide-react"
+import { FileDown, Printer, Clock, MapPin, ChevronDown, ChevronRight, Calendar, Coffee, AlignJustify, Columns, LayoutGrid } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import { TimesheetViewTabs, type TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
+import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetTodayButton } from "@/components/timesheet/timesheet-today-button"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { useEmployeeTimesheet } from "@/lib/queries/employees"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { cn } from "@/lib/utils/cn"
+import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
 
 interface TimesheetRow {
   date: string
@@ -217,7 +218,7 @@ function SingleDayView({ data }: { data: TimesheetRow[] }) {
   return (
     <div className="space-y-6 p-6">
       {/* Summary Card */}
-      <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+      <Card className="bg-linear-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="flex items-center gap-4">
@@ -765,7 +766,7 @@ function MonthView({ data, startDate, endDate }: { data: TimesheetRow[], startDa
   return (
     <div className="space-y-6 p-6">
       {/* Grand Summary */}
-      <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+      <Card className="bg-linear-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -1293,71 +1294,87 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <TimesheetTodayButton
-              onTodayClick={handleTodayClick}
-            />
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold">
-                  {format(selectedDate, "MMMM yyyy")}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {view === "day" || view === "week" || view === "month" ? (
-                  <DateRangePicker
-                    value={{ 
-                      startDate: useCustomRange ? customStartDate : startDate, 
-                      endDate: useCustomRange ? customEndDate : endDate 
-                    }}
-                    onChange={handleCustomRangeChange}
-                    placeholder={
-                      view === "day" ? "Select date or range" : 
-                      view === "week" ? "Select week range" :
-                      "Select month range (min 6 months)"
-                    }
-                  />
-                ) : (
-                  <TimesheetDateNavigator
-                    view={view}
-                    selectedDate={selectedDate}
-                    onDateChange={(date) => {
-                      setSelectedDate(date)
-                      setUseCustomRange(false)
-                    }}
-                  />
-                )}
-              </div>
+        <UnifiedCalendarTopbar
+          onToday={handleTodayClick}
+          title={format(selectedDate, "MMMM yyyy")}
+          nav={
+            <div className="flex items-center gap-2">
+              {view === "day" || view === "week" || view === "month" ? (
+                <DateRangePicker
+                  value={{
+                    startDate: useCustomRange ? customStartDate : startDate,
+                    endDate: useCustomRange ? customEndDate : endDate,
+                  }}
+                  onChange={handleCustomRangeChange}
+                  placeholder={
+                    view === "day" ? "Select date or range" :
+                    view === "week" ? "Select week range" :
+                    "Select month range (min 6 months)"
+                  }
+                />
+              ) : (
+                <TimesheetDateNavigator
+                  view={view}
+                  selectedDate={selectedDate}
+                  onDateChange={(date) => {
+                    setSelectedDate(date)
+                    setUseCustomRange(false)
+                  }}
+                />
+              )}
             </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:justify-between">
-            <div className="flex w-full items-center gap-2">
-              <TimesheetViewTabs view={view} onViewChange={setView} />
+          }
+          viewSwitcher={
+            <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
+              {([
+                { k: "day" as const, l: "Day", Icon: AlignJustify },
+                { k: "week" as const, l: "Week", Icon: Columns },
+                { k: "month" as const, l: "Month", Icon: LayoutGrid },
+              ] satisfies { k: TimesheetView; l: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[]).map(({ k, l, Icon }) => {
+                const active = view === k
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setView(k)}
+                    title={l}
+                    className={[
+                      "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
+                      active ? "w-[76px] bg-background font-semibold text-foreground shadow-sm" : "w-8 bg-transparent font-normal text-muted-foreground",
+                    ].join(" ")}
+                    type="button"
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    <span
+                      className={[
+                        "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
+                        active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
+                      ].join(" ")}
+                    >
+                      {l}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-            <div className="flex w-full sm:w-auto gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={loading || timesheets.length === 0}
                 onClick={handleExportCSV}
               >
                 <FileDown className="size-4" />
                 Export CSV
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={loading}
-                onClick={handlePrint}
-              >
+              <Button variant="outline" size="sm" disabled={loading} onClick={handlePrint}>
                 <Printer className="size-4" />
                 Print
               </Button>
             </div>
-          </div>
-        </div>
+          }
+        />
       </CardHeader>
       <CardContent className="p-0">
         {renderView()}

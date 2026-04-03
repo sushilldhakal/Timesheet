@@ -2027,6 +2027,9 @@ function GridViewInner({
       stopEdgeScroll()
       if (ghostRef.current) ghostRef.current.style.display = "none"
           if (resizeLabelRef.current) resizeLabelRef.current.style.display = "none"
+      // React guard: never call setState (setCategoryWarn) inside another setState updater.
+      // We capture the warning payload while mapping, then commit it after setShifts finishes.
+      let categoryWarnPayload: CategoryWarnState | null = null
       setShifts((prev) => {
         const next = prev.map((s) => {
           if (s.id !== d.id) return s
@@ -2052,7 +2055,7 @@ function GridViewInner({
               isWeekView || isDayViewMultiDay ? toDateISO(dates[newDateIdx]) : s.date
 
             if (newCat.id !== s.categoryId && origEmp && origEmp.categoryId !== newCat.id) {
-              setCategoryWarn({ shift: s, newCategoryId: newCat.id, ns, ne: ns + d.dur, newDate })
+              categoryWarnPayload = { shift: s, newCategoryId: newCat.id, ns, ne: ns + d.dur, newDate }
               return s
             }
             const updated = { ...s, startH: ns, endH: ns + d.dur, categoryId: newCat.id, date: newDate }
@@ -2080,6 +2083,9 @@ function GridViewInner({
         }
         return next
       })
+
+      // Commit the warning after state update evaluation to avoid "setState during render" warnings.
+      if (categoryWarnPayload) setCategoryWarn(categoryWarnPayload)
     },
     [
       getGridXY,

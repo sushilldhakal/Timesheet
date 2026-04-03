@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, isValid, parseISO } from "date-fns"
 import {
   Card,
   CardContent,
@@ -11,13 +11,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import { FileDown, Printer } from "lucide-react"
-import { TimesheetViewTabs, type TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
+import { FileDown, Printer, AlignJustify, Columns, LayoutGrid } from "lucide-react"
+import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetTodayButton } from "@/components/timesheet/timesheet-today-button"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
 import { TimesheetWeekView } from "@/components/timesheet/timesheet-week-view"
 import { TimesheetMonthView } from "@/components/timesheet/timesheet-month-view"
+import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageShell"
+import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
 import { useMe } from "@/lib/queries/auth"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCategoriesByType } from "@/lib/queries/categories"
@@ -313,7 +315,10 @@ export default function TimesheetPage() {
   const handleCustomRangeChange = (start: string, end: string) => {
     setCustomStartDate(start)
     setCustomEndDate(end)
-    setUseCustomRange(true)
+    // Only enable range mode once both ends are valid ISO dates.
+    const s = parseISO(String(start || ""))
+    const e = parseISO(String(end || ""))
+    setUseCustomRange(isValid(s) && isValid(e))
   }
 
   const handleExportCSV = () => {
@@ -397,11 +402,15 @@ export default function TimesheetPage() {
   const renderCurrentView = () => {
     switch (view) {
       case "day":
+        const safeRangeStart = useCustomRange ? parseISO(customStartDate) : null
+        const safeRangeEnd = useCustomRange ? parseISO(customEndDate) : null
+        const safeSelectedDate = (useCustomRange && safeRangeStart && isValid(safeRangeStart)) ? safeRangeStart : selectedDate
+        const safeEndDate = (useCustomRange && safeRangeEnd && isValid(safeRangeEnd)) ? safeRangeEnd : undefined
         return (
           <TimesheetDayView
             data={timesheets}
-            selectedDate={useCustomRange ? new Date(customStartDate) : selectedDate}
-            endDate={useCustomRange ? new Date(customEndDate) : undefined}
+            selectedDate={safeSelectedDate}
+            endDate={safeEndDate}
             loading={loading}
           />
         )
@@ -427,23 +436,20 @@ export default function TimesheetPage() {
   }
 
   return (
-    <div className="space-y-4 print:space-y-0 print:text-sm">
-      {/* Header */}
-      <div className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between print:hidden">
-        <div className="flex items-center gap-3">
-          <TimesheetTodayButton onTodayClick={handleTodayClick} />
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold">
-                {format(selectedDate, "MMMM yyyy")}
-              </span>
-            </div>
+    <CalendarPageShell
+      containerClassName="px-4 sm:px-6"
+      toolbar={
+        <UnifiedCalendarTopbar
+          className="print:hidden"
+          onToday={handleTodayClick}
+          title={format(selectedDate, "MMMM yyyy")}
+          nav={
             <div className="flex items-center gap-2">
               {view === "day" ? (
                 <DateRangePicker
-                  value={{ 
-                    startDate: useCustomRange ? customStartDate : startDate, 
-                    endDate: useCustomRange ? customEndDate : endDate 
+                  value={{
+                    startDate: useCustomRange ? customStartDate : startDate,
+                    endDate: useCustomRange ? customEndDate : endDate,
                   }}
                   onChange={handleCustomRangeChange}
                   placeholder="Select date or range"
@@ -459,165 +465,187 @@ export default function TimesheetPage() {
                 />
               )}
             </div>
-          </div>
-        </div>
+          }
+          viewSwitcher={
+            <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
+              {([
+                { k: "day" as const, l: "Day", Icon: AlignJustify },
+                { k: "week" as const, l: "Week", Icon: Columns },
+                { k: "month" as const, l: "Month", Icon: LayoutGrid },
+              ] satisfies { k: TimesheetView; l: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[]).map(({ k, l, Icon }) => {
+                const active = view === k
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setView(k)}
+                    title={l}
+                    className={[
+                      "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
+                      active ? "w-[76px] bg-background font-semibold text-foreground shadow-sm" : "w-8 bg-transparent font-normal text-muted-foreground",
+                    ].join(" ")}
+                    type="button"
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    <span
+                      className={[
+                        "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
+                        active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
+                      ].join(" ")}
+                    >
+                      {l}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!isHydrated || loading || timesheets.length === 0}
+                onClick={handleExportCSV}
+              >
+                <FileDown className="size-4" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!isHydrated || loading}
+                onClick={handlePrint}
+              >
+                <Printer className="size-4" />
+                Print
+              </Button>
+            </div>
+          }
+        />
+      }
+    >
+      <div className="space-y-4 py-4 print:space-y-0 print:py-0 print:text-sm">
+        {/* Filters */}
+        <Card className="print:hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Filters</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Employer filter - show if multiple employers exist OR if admin */}
+              {(employers.length > 1 ||
+                (userPermissions &&
+                  (userPermissions.role === "admin" || userPermissions.role === "super_admin") &&
+                  employers.length > 0)) && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-muted-foreground">Employer</label>
+                  <MultiSelect
+                    options={employers.map((c) => ({ label: c.name, value: c.name }))}
+                    defaultValue={selectedEmployers}
+                    onValueChange={setSelectedEmployers}
+                    placeholder="All employers"
+                    searchable
+                    className="min-w-[180px] max-w-[220px]"
+                  />
+                </div>
+              )}
 
-        <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:justify-between">
-          <div className="flex w-full items-center gap-2">
-            <TimesheetViewTabs view={view} onViewChange={setView} />
-          </div>
+              {/* Location filter - show for admin users (if any exist) OR if regular user has multiple locations */}
+              {userPermissions &&
+                ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
+                  ? locations.length > 0
+                  : userPermissions.locations.length > 1) && (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Location</label>
+                    <MultiSelect
+                      options={locations.map((c) => ({ label: c.name, value: c.name }))}
+                      defaultValue={selectedLocations}
+                      onValueChange={setSelectedLocations}
+                      placeholder="All locations"
+                      searchable
+                      className="min-w-[180px] max-w-[220px]"
+                    />
+                  </div>
+                )}
 
-          <div className="flex w-full sm:w-auto gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              disabled={!isHydrated || loading || timesheets.length === 0}
-              onClick={handleExportCSV}
-            >
-              <FileDown className="size-4" />
-              Export CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              disabled={!isHydrated || loading}
-              onClick={handlePrint}
-            >
-              <Printer className="size-4" />
-              Print
-            </Button>
+              {/* Role filter - show for admin users (if any exist) OR if regular user has multiple managed roles */}
+              {userPermissions &&
+                ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
+                  ? roles.length > 0
+                  : userPermissions.managedRoles.length > 1) && (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Role</label>
+                    <MultiSelect
+                      options={roles.map((c) => ({ label: c.name, value: c.name }))}
+                      defaultValue={selectedRoles}
+                      onValueChange={setSelectedRoles}
+                      placeholder="All roles"
+                      searchable
+                      className="min-w-[180px] max-w-[220px]"
+                    />
+                  </div>
+                )}
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-muted-foreground">Employee</label>
+                <MultiSelect
+                  options={filteredEmployees.map((e) => ({
+                    label: `${e.name} (${e.pin})`,
+                    value: e.id,
+                  }))}
+                  defaultValue={selectedEmployeeIds}
+                  onValueChange={setSelectedEmployeeIds}
+                  placeholder="All employees"
+                  searchable
+                  className="min-w-[200px] max-w-[240px]"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Summary Stats */}
+        {isHydrated && !loading && timesheets.length > 0 && (
+          <div className="flex gap-6 rounded-lg border bg-muted/30 px-4 py-3 text-sm print:border-gray-300 print:bg-white print:text-xs">
+            <span>
+              <strong>Total Break (all):</strong> {totalBreakHours}
+            </span>
+            <span>
+              <strong>Total Hours (all):</strong> {totalWorkingHours}
+            </span>
+            <span className="hidden print:block">
+              <strong>Total Records:</strong> {timesheets.length}
+            </span>
           </div>
-        </div>
+        )}
+
+        {/* Content */}
+        <Card>
+          <CardHeader className="hidden print:block print:border-b print:pb-4">
+            <CardTitle className="text-sm print:text-base print:font-bold">
+              Timesheet Report: {startDate} – {endDate}
+            </CardTitle>
+            <div className="text-xs print:mt-2 print:text-sm print:text-gray-600">
+              <div className="flex flex-wrap gap-4">
+                {selectedEmployers.length > 0 && <span>Employers: {selectedEmployers.join(", ")}</span>}
+                {selectedLocations.length > 0 && <span>Locations: {selectedLocations.join(", ")}</span>}
+                {selectedRoles.length > 0 && <span>Roles: {selectedRoles.join(", ")}</span>}
+                {selectedEmployeeIds.length > 0 && <span>Employees: {selectedEmployeeIds.length} selected</span>}
+              </div>
+              <div className="mt-1">
+                View: {view.charAt(0).toUpperCase() + view.slice(1)} | Generated:{" "}
+                <span suppressHydrationWarning>{isHydrated ? new Date().toLocaleString() : ""}</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            {(error || timesheetError) && (
+              <p className="mb-4 text-sm text-destructive">{timesheetError || error}</p>
+            )}
+            {renderCurrentView()}
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Filters */}
-      <Card className="print:hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-4">
-            {/* Employer filter - show if multiple employers exist OR if admin */}
-            {(employers.length > 1 || (userPermissions && (userPermissions.role === "admin" || userPermissions.role === "super_admin") && employers.length > 0)) && (
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground block text-xs font-medium">
-                  Employer
-                </label>
-                <MultiSelect
-                  options={employers.map((c) => ({ label: c.name, value: c.name }))}
-                  defaultValue={selectedEmployers}
-                  onValueChange={setSelectedEmployers}
-                  placeholder="All employers"
-                  searchable
-                  className="min-w-[180px] max-w-[220px]"
-                />
-              </div>
-            )}
-           
-            {/* Location filter - show for admin users (if any exist) OR if regular user has multiple locations */}
-            {userPermissions && (
-              (userPermissions.role === "admin" || userPermissions.role === "super_admin") ? 
-              locations.length > 0 : userPermissions.locations.length > 1
-            ) && (
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground block text-xs font-medium">Location</label>
-                <MultiSelect
-                  options={locations.map((c) => ({ label: c.name, value: c.name }))}
-                  defaultValue={selectedLocations}
-                  onValueChange={setSelectedLocations}
-                  placeholder="All locations"
-                  searchable
-                  className="min-w-[180px] max-w-[220px]"
-                />
-              </div>
-            )}
-            
-            {/* Role filter - show for admin users (if any exist) OR if regular user has multiple managed roles */}
-            {userPermissions && (
-              (userPermissions.role === "admin" || userPermissions.role === "super_admin") ? 
-              roles.length > 0 : userPermissions.managedRoles.length > 1
-            ) && (
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground block text-xs font-medium">Role</label>
-                <MultiSelect
-                  options={roles.map((c) => ({ label: c.name, value: c.name }))}
-                  defaultValue={selectedRoles}
-                  onValueChange={setSelectedRoles}
-                  placeholder="All roles"
-                  searchable
-                  className="min-w-[180px] max-w-[220px]"
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground block text-xs font-medium">Employee</label>
-              <MultiSelect
-                options={filteredEmployees.map((e) => ({
-                  label: `${e.name} (${e.pin})`,
-                  value: e.id,
-                }))}
-                defaultValue={selectedEmployeeIds}
-                onValueChange={setSelectedEmployeeIds}
-                placeholder="All employees"
-                searchable
-                className="min-w-[200px] max-w-[240px]"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Stats */}
-      {isHydrated && !loading && timesheets.length > 0 && (
-        <div className="flex gap-6 px-4 py-3 text-sm border rounded-lg bg-muted/30 print:bg-white print:border-gray-300 print:text-xs">
-          <span>
-            <strong>Total Break (all):</strong> {totalBreakHours}
-          </span>
-          <span>
-            <strong>Total Hours (all):</strong> {totalWorkingHours}
-          </span>
-          <span className="print:block hidden">
-            <strong>Total Records:</strong> {timesheets.length}
-          </span>
-        </div>
-      )}
-
-      {/* Content */}
-      <Card>
-        <CardHeader className="hidden print:block print:border-b print:pb-4">
-          <CardTitle className="text-sm print:text-base print:font-bold">
-            Timesheet Report: {startDate} – {endDate}
-          </CardTitle>
-          <div className="text-xs print:text-sm print:mt-2 print:text-gray-600">
-            <div className="flex flex-wrap gap-4">
-              {selectedEmployers.length > 0 && (
-                <span>Employers: {selectedEmployers.join(", ")}</span>
-              )}
-              {selectedLocations.length > 0 && (
-                <span>Locations: {selectedLocations.join(", ")}</span>
-              )}
-              {selectedRoles.length > 0 && (
-                <span>Roles: {selectedRoles.join(", ")}</span>
-              )}
-              {selectedEmployeeIds.length > 0 && (
-                <span>Employees: {selectedEmployeeIds.length} selected</span>
-              )}
-            </div>
-            <div className="mt-1">
-              View: {view.charAt(0).toUpperCase() + view.slice(1)} | 
-              Generated: <span suppressHydrationWarning>
-                {isHydrated ? new Date().toLocaleString() : ""}
-              </span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {(error || timesheetError) && (
-            <p className="text-destructive text-sm mb-4">{timesheetError || error}</p>
-          )}
-          {renderCurrentView()}
-        </CardContent>
-      </Card>
-    </div>
+    </CalendarPageShell>
   )
 }

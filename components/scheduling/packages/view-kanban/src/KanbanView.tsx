@@ -24,7 +24,7 @@ import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent,
   ContextMenuItem, ContextMenuSeparator, ContextMenuLabel,
 } from '@shadcn-scheduler/grid-engine'
-import { Pencil, Copy, Scissors, Trash2, Plus, ClipboardPaste, GripVertical } from 'lucide-react'
+import { Pencil, Copy, Scissors, Trash2, Plus, ClipboardPaste } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge'
 
@@ -358,10 +358,12 @@ const TOOLTIP_LEAVE = 120
 
 function WeekCard({
   shift, color, catInitials, catName, conflictIds, nowH, iso, dragShiftId, onDoubleClick, onDragStart, onDragEnd,
+  selectedEmployeeId,
 }: {
   shift: Block; color: { bg: string; text: string }; catInitials: string; catName: string
   conflictIds: Set<string>; nowH: number; iso: string; dragShiftId: string | null
   onDoubleClick: () => void; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void
+  selectedEmployeeId?: string | null
 }) {
   const isDraft = shift.status === 'draft'
   const hasConflict = conflictIds.has(shift.id)
@@ -370,6 +372,7 @@ function WeekCard({
   const brk = breakOverlayProps(shift)
   const dur = shift.endH - shift.startH
   const hrs = dur % 1 === 0 ? `${dur}h` : `${dur.toFixed(1)}h`
+  const isSelectedStaff = selectedEmployeeId ? shift.employeeId === selectedEmployeeId : false
 
   const cardRef = useRef<HTMLDivElement>(null)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -448,20 +451,28 @@ function WeekCard({
         className={cn(
           "relative box-border flex h-[42px] min-h-[42px] max-h-[42px] shrink-0 select-none overflow-hidden rounded-md py-0 pl-1 pr-1 transition-[opacity,box-shadow] duration-100",
           isDraft ? "bg-muted/40" : "bg-muted/30",
-          beingDragged ? "cursor-grabbing opacity-35" : "cursor-grab opacity-100"
+          beingDragged ? "cursor-grabbing opacity-35" : "cursor-grab opacity-100",
+          // keep this class list stable; actual highlight is applied in inline styles below
+          isSelectedStaff && "opacity-100"
         )}
         style={{
           border: hasConflict
             ? '1.5px solid var(--destructive)'
-            : isDraft
-              ? `1.5px dashed ${color.bg}`
-              : '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
-          boxShadow: '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)',
+            : isSelectedStaff
+              ? '1px solid var(--sidebar-foreground)'
+              : isDraft
+                ? `1.5px dashed ${color.bg}`
+                : '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
+          boxShadow: isSelectedStaff
+            ? '0 0 0 2px color-mix(in srgb, var(--primary-foreground) 70%, transparent), 0 10px 22px rgba(59,130,246,0.22)'
+            : '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)',
         }}
         onMouseEnter={(e) => { if (!beingDragged) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)' }}
         onMouseLeave={(e) => {
           const el = e.currentTarget as HTMLDivElement
-          el.style.boxShadow = '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)'
+          el.style.boxShadow = isSelectedStaff
+            ? '0 0 0 2px color-mix(in srgb, var(--primary-foreground) 70%, transparent), 0 10px 22px rgba(59,130,246,0.22)'
+            : '0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent)'
         }}
       >
         {/* Break overlay */}
@@ -685,6 +696,15 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
 
   const weekShifts = useMemo(() => shifts.filter((s) => dates.some((d) => toDateISO(d) === s.date)), [shifts, dates])
   const conflictIds = useConflicts(weekShifts)
+  const weekEmployeeHours = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const s of weekShifts) {
+      const id = s.employeeId
+      const dur = s.endH - s.startH
+      m.set(id, (m.get(id) ?? 0) + dur)
+    }
+    return m
+  }, [weekShifts])
 
   const [addPrompt, setAddPrompt] = useState<AddPrompt | null>(null)
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
@@ -697,6 +717,8 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
   const [dropKey, setDropKey] = useState<string | null>(null)
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
   const [dayPopover, setDayPopover] = useState<{ date: Date; rect: DOMRect } | null>(null)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+  const dayPopoverOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleWeekCellDrop = useCallback(
     (cellKey: string) => {
@@ -768,7 +790,24 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
             return (
               <div
                 key={i}
-                onClick={(e) => setDayPopover({ date: d, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
+                onClick={(e) => {
+                  // Delay popover so double-click can cancel it (prevents popover flashing).
+                  if (dayPopoverOpenTimerRef.current) clearTimeout(dayPopoverOpenTimerRef.current)
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+                  dayPopoverOpenTimerRef.current = setTimeout(() => {
+                    setDayPopover({ date: d, rect })
+                    dayPopoverOpenTimerRef.current = null
+                  }, 180)
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  if (dayPopoverOpenTimerRef.current) {
+                    clearTimeout(dayPopoverOpenTimerRef.current)
+                    dayPopoverOpenTimerRef.current = null
+                  }
+                  setDayPopover(null)
+                  onGoToDay?.(d)
+                }}
                 className={cn(
                   'cursor-pointer select-none px-2.5 py-2',
                   i < dates.length - 1 && 'border-r border-border',
@@ -870,10 +909,18 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                   >
                     {roster.map((emp) => {
                       const ini = resourceInitialsFromName(emp.name)
+                      const totalH = weekEmployeeHours.get(emp.id) ?? 0
+                      const isStaffSelected = selectedEmployeeId === emp.id
                       return (
                         <div
                           key={emp.id}
                           draggable={!readOnly}
+                          onPointerDown={(e) => {
+                            if (readOnly) return
+                            e.stopPropagation()
+                            // Set immediately so selection works even when the browser treats it like a drag target
+                            setSelectedEmployeeId((prev) => (prev === emp.id ? null : emp.id))
+                          }}
                           title={
                             readOnly
                               ? emp.name
@@ -898,22 +945,23 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                             setDropKey(null)
                           }}
                           className={cn(
-                            'group flex items-center gap-1 rounded-md border px-1 py-0.5 transition-[background,border-color,box-shadow]',
+                            'flex items-center gap-1 rounded-md border px-0.5 py-0.5 transition-[background,border-color,box-shadow]',
                             readOnly
                               ? 'cursor-default border-transparent'
                               : 'cursor-grab border-transparent bg-muted/30 active:cursor-grabbing hover:border-border hover:bg-muted/70 hover:shadow-sm',
                             dragId === `__roster__${emp.id}` && 'opacity-40 ring-1 ring-primary/30',
+                            isStaffSelected && 'bg-primary/15 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
                           )}
+                          style={{
+                            borderColor: isStaffSelected ? 'var(--primary-foreground)' : undefined,
+                          }}
                         >
-                          {!readOnly && (
-                            <GripVertical
-                              className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-muted-foreground"
-                              aria-hidden
-                            />
-                          )}
                           <Av initials={ini} color={c.bg} size={20} />
                           <span className="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-foreground">
                             {emp.name}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-semibold leading-none text-muted-foreground">
+                            {totalH % 1 === 0 ? totalH : totalH.toFixed(1)}h
                           </span>
                         </div>
                       )
@@ -963,6 +1011,7 @@ function WeekLayout({ dates, shifts, setShifts, readOnly, onBlockCreate, onBlock
                           onCopy={() => setClipboard(shift)} onCut={() => cut(shift)} onDelete={() => del(shift.id)}
                         >
                           <WeekCard shift={shift} color={c} catInitials={getCatInitials(cat.name)} catName={cat.name} conflictIds={conflictIds} nowH={nowH} iso={iso} dragShiftId={dragId}
+                            selectedEmployeeId={selectedEmployeeId}
                             onDoubleClick={() => setEditTarget({ shift, category: cat })}
                             onDragStart={(e) => {
                               rosterDragRef.current = null

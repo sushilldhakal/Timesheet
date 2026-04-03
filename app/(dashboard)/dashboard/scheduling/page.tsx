@@ -18,6 +18,7 @@ import { DayView } from '@/components/scheduling/packages/view-day/src/DayView';
 import { DayViewPanelChrome } from '@/components/scheduling/day-view-panel/DayViewPanelChrome';
 import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge';
 import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling/packages/grid-engine/src';
+import { UnifiedCalendarTopbar } from '@/components/dashboard/calendar/UnifiedCalendarTopbar';
 import {
   Plus,
   ChevronDown,
@@ -1295,239 +1296,216 @@ export default function SchedulingPage() {
 
       <SchedulerProvider categories={schedulerCategories} employees={schedulerEmployees} config={schedulerConfig}>
         <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
-          <div className="flex shrink-0 flex-col gap-2.5 border-b bg-background py-2.5">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-x-2 gap-y-1">
-                  <div className="row-span-2 self-stretch">
-                    <button
-                      className="flex h-full min-h-[56px] w-12 shrink-0 cursor-pointer flex-col items-center overflow-hidden rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      onClick={goToToday}
-                      title="Go to today"
-                    >
-                      <span className="flex h-5 w-full items-center justify-center bg-primary text-primary-foreground text-[10px] font-semibold uppercase tracking-wider">
-                        {new Date().toLocaleString('en-US', { month: 'short' })}
-                      </span>
-                      <span className="flex w-full flex-1 items-center justify-center text-lg font-bold tabular-nums text-foreground">
-                        {new Date().getDate()}
-                      </span>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base font-semibold text-foreground">{monthTitle}</span>
-                    <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      <BadgeCheck size={11} className="shrink-0" />
-                      {eventCount} {eventCount === 1 ? 'event' : 'events'}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        onClick={() => navigate(-1)}
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 rounded"
-                        title="Previous"
-                      >
-                        <ChevronLeft size={14} />
-                      </Button>
-
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 min-w-0 border-transparent bg-transparent px-2 text-sm font-normal shadow-none hover:bg-muted/50 hover:text-foreground"
-                            title="Pick a date"
-                            type="button"
-                          >
-                            {rangeLabel}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="start" className="p-0 w-auto">
-                          {viewBase === 'year' ? (
-                            <div className="p-2.5">
-                              <div className="text-xs font-medium mb-2">Pick year</div>
-                              <div className="grid grid-cols-3 gap-2">
-                                {Array.from({ length: 12 }, (_, i) => date.getFullYear() - 5 + i).map((y) => (
-                                  <button
-                                    key={y}
-                                    type="button"
-                                    className={[
-                                      "px-2 py-1 rounded-md border text-xs",
-                                      y === date.getFullYear() ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted",
-                                    ].join(" ")}
-                                    onClick={() => {
-                                      const nd = new Date(date)
-                                      nd.setFullYear(y)
-                                      nd.setMonth(0, 1)
-                                      nd.setHours(0, 0, 0, 0)
-                                      setDate(nd)
-                                    }}
-                                  >
-                                    {y}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            viewBase === 'week' ? (
-                              <DatePickerCalendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(picked: Date | undefined) => {
-                                  if (!picked) return
-                                  const d = new Date(picked)
-                                  d.setHours(0, 0, 0, 0)
-                                  setDate(d)
-                                }}
-                              />
-                            ) : (
-                              <DatePickerCalendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(d: Date | undefined) => {
-                                  if (!d) return
-                                  const nd = new Date(d)
-                                  nd.setHours(0, 0, 0, 0)
-                                  setDate(nd)
-                                }}
-                              />
-                            )
-                          )}
-                        </PopoverContent>
-                      </Popover>
-
-                      <Button
-                        onClick={() => navigate(1)}
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 rounded"
-                        title="Next"
-                      >
-                        <ChevronRight size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+          <UnifiedCalendarTopbar
+            onToday={goToToday}
+            title={monthTitle}
+            titleBadge={
+              <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <BadgeCheck size={11} className="shrink-0" />
+                {eventCount} {eventCount === 1 ? 'event' : 'events'}
               </div>
-
-              <div className="flex-1" />
-
-              <div className="flex items-center gap-2">
-                {(viewBase === 'day' || viewBase === 'week') && (
-                  <div className="mr-1 flex items-center gap-1">
-                    <Button variant="outline" size="sm" type="button" onClick={handleNow}>
-                      Now
-                    </Button>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                <div className="flex items-center gap-0.5 bg-muted rounded-lg p-1">
-                  {VIEW_TABS.map(({ k, l, Icon }) => {
-                    const active = viewBase === k
-                    return (
-                      <button
-                        key={k}
-                        onClick={() =>
-                          setView((v) => (v.startsWith('list') ? `list${k}` : k) as KView)
-                        }
-                        title={l}
-                        className={[
-                          "flex items-center justify-center rounded-md h-7 overflow-hidden transition-all duration-200 ease-in-out gap-1 text-xs",
-                          active ? "w-[76px] bg-background text-foreground shadow-sm font-semibold" : "w-8 bg-transparent text-muted-foreground font-normal",
-                        ].join(" ")}
-                      >
-                        <Icon size={14} className="shrink-0" />
-                        <span
-                          className={[
-                            "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
-                            active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
-                          ].join(" ")}
-                        >
-                          {l}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <div className="h-6 w-px shrink-0 bg-border" aria-hidden />
-
+            }
+            nav={
+              <div className="flex items-center gap-1.5">
                 <Button
+                  onClick={() => navigate(-1)}
                   variant="outline"
                   size="icon"
+                  className="h-7 w-7 shrink-0 rounded"
+                  title="Previous"
                   type="button"
-                  className="relative h-9 w-9 shrink-0 overflow-hidden text-muted-foreground hover:text-foreground"
-                  onClick={toggleGridList}
-                  title={isGrid ? 'Switch to List view' : 'Switch to Grid view'}
                 >
-                  <div
-                    className={cn(
-                      'absolute flex items-center justify-center transition-all duration-300',
-                      isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 rotate-90 opacity-0',
-                    )}
-                  >
-                    <List size={16} />
-                  </div>
-                  <div
-                    className={cn(
-                      'absolute flex items-center justify-center transition-all duration-300',
-                      !isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 -rotate-90 opacity-0',
-                    )}
-                  >
-                    <LayoutGrid size={16} />
-                  </div>
+                  <ChevronLeft size={14} />
                 </Button>
-                </div>
 
-                <div className="w-px h-6 bg-border shrink-0" />
-                <UserSelect
-                  selEmps={selEmps}
-                  onToggle={toggleEmp}
-                  onAll={() => setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))}
-                  onNone={() => setSelEmps(new Set())}
-                />
-                <div className="flex shrink-0 overflow-hidden rounded-lg border border-primary/30">
-                  <button
-                    onClick={() => setHeaderAddOpen(true)}
-                    className="flex items-center gap-1.5 bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground"
-                  >
-                    <Plus size={15} /> Add Shift
-                  </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex items-center justify-center border-l border-primary/40 bg-primary px-2.5 text-primary-foreground"
-                        title="More actions"
-                        aria-label="More actions"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[260px] max-h-[min(480px,70vh)] overflow-y-auto">
-                      <DropdownMenuItem onClick={handleFillSchedule}>
-                        <Wand2 className="mr-2 size-4" /> Fill schedule
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handlePublishScoped}>
-                        <Send className="mr-2 size-4" /> Publish
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleResolveConflicts}>
-                        <ShieldAlert className="mr-2 size-4" /> Resolve conflicts
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setTemplatesHubOpen(true)}>
-                        <FolderOpen className="mr-2 size-4" /> Templates
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 min-w-0 border-transparent bg-transparent px-2 text-sm font-normal shadow-none hover:bg-muted/50 hover:text-foreground"
+                      title="Pick a date"
+                      type="button"
+                    >
+                      {rangeLabel}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    {viewBase === 'year' ? (
+                      <div className="p-2.5">
+                        <div className="mb-2 text-xs font-medium">Pick year</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {Array.from({ length: 12 }, (_, i) => date.getFullYear() - 5 + i).map((y) => (
+                            <button
+                              key={y}
+                              type="button"
+                              className={[
+                                "rounded-md border px-2 py-1 text-xs",
+                                y === date.getFullYear() ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted",
+                              ].join(" ")}
+                              onClick={() => {
+                                const nd = new Date(date)
+                                nd.setFullYear(y)
+                                nd.setMonth(0, 1)
+                                nd.setHours(0, 0, 0, 0)
+                                setDate(nd)
+                              }}
+                            >
+                              {y}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : viewBase === 'week' ? (
+                      <DatePickerCalendar
+                        mode="single"
+                        selected={date}
+                        onSelect={(picked: Date | undefined) => {
+                          if (!picked) return
+                          const d = new Date(picked)
+                          d.setHours(0, 0, 0, 0)
+                          setDate(d)
+                        }}
+                      />
+                    ) : (
+                      <DatePickerCalendar
+                        mode="single"
+                        selected={date}
+                        onSelect={(d: Date | undefined) => {
+                          if (!d) return
+                          const nd = new Date(d)
+                          nd.setHours(0, 0, 0, 0)
+                          setDate(nd)
+                        }}
+                      />
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                <Button
+                  onClick={() => navigate(1)}
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 rounded"
+                  title="Next"
+                  type="button"
+                >
+                  <ChevronRight size={14} />
+                </Button>
               </div>
-            </div>
-          </div>
+            }
+            quickAction={
+              (viewBase === 'day' || viewBase === 'week') ? (
+                <div className="mr-1 flex items-center gap-1">
+                  <Button variant="outline" size="sm" type="button" onClick={handleNow}>
+                    Now
+                  </Button>
+                </div>
+              ) : null
+            }
+            viewSwitcher={
+              <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
+                {VIEW_TABS.map(({ k, l, Icon }) => {
+                  const active = viewBase === k
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => setView((v) => (v.startsWith('list') ? `list${k}` : k) as KView)}
+                      title={l}
+                      className={[
+                        "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
+                        active ? "w-[76px] bg-background font-semibold text-foreground shadow-sm" : "w-8 bg-transparent font-normal text-muted-foreground",
+                      ].join(" ")}
+                      type="button"
+                    >
+                      <Icon size={14} className="shrink-0" />
+                      <span
+                        className={[
+                          "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
+                          active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
+                        ].join(" ")}
+                      >
+                        {l}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            }
+            gridListToggle={
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                className="relative h-9 w-9 shrink-0 overflow-hidden text-muted-foreground hover:text-foreground"
+                onClick={toggleGridList}
+                title={isGrid ? 'Switch to List view' : 'Switch to Grid view'}
+              >
+                <div
+                  className={cn(
+                    'absolute flex items-center justify-center transition-all duration-300',
+                    isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 rotate-90 opacity-0',
+                  )}
+                >
+                  <List size={16} />
+                </div>
+                <div
+                  className={cn(
+                    'absolute flex items-center justify-center transition-all duration-300',
+                    !isGrid ? 'scale-100 rotate-0 opacity-100' : 'scale-50 -rotate-90 opacity-0',
+                  )}
+                >
+                  <LayoutGrid size={16} />
+                </div>
+              </Button>
+            }
+            peopleSelect={
+              <UserSelect
+                selEmps={selEmps}
+                onToggle={toggleEmp}
+                onAll={() => setSelEmps(new Set(schedulerEmployees.map((e) => e.id)))}
+                onNone={() => setSelEmps(new Set())}
+              />
+            }
+            actions={
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-primary/30">
+                <button
+                  onClick={() => setHeaderAddOpen(true)}
+                  className="flex items-center gap-1.5 bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground"
+                  type="button"
+                >
+                  <Plus size={15} /> Add Shift
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center border-l border-primary/40 bg-primary px-2.5 text-primary-foreground"
+                      title="More actions"
+                      aria-label="More actions"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-[min(480px,70vh)] min-w-[260px] overflow-y-auto">
+                    <DropdownMenuItem onClick={handleFillSchedule}>
+                      <Wand2 className="mr-2 size-4" /> Fill schedule
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handlePublishScoped}>
+                      <Send className="mr-2 size-4" /> Publish
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleResolveConflicts}>
+                      <ShieldAlert className="mr-2 size-4" /> Resolve conflicts
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setTemplatesHubOpen(true)}>
+                      <FolderOpen className="mr-2 size-4" /> Templates
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            }
+          />
 
           <div className="not-prose flex min-h-0 w-full min-w-0 flex-1 flex-col">
             {view.startsWith('list') ? (

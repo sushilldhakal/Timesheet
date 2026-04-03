@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import type { Block } from "../../types"
 import { useSchedulerContext } from "../../context"
 import { HOURS, fmtHourOpt, toDateISO } from "../../constants"
@@ -96,7 +97,7 @@ export function AddShiftModal({
     onClose()
   }
 
-  return (
+  const content = (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -253,4 +254,6 @@ export function AddShiftModal({
       </div>
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content
 }

@@ -1,4 +1,5 @@
 import React from "react"
+import { createPortal } from "react-dom"
 import type { Block, Resource } from "../../types"
 import { useSchedulerContext } from "../../context"
 import { fmt12 } from "../../constants"
@@ -44,10 +45,10 @@ export function DayShiftsDialog({
     year: "numeric",
   })
 
-  return (
+  const content = (
     <div
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -114,4 +115,6 @@ export function DayShiftsDialog({
       </div>
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content
 }
