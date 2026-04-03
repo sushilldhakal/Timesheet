@@ -80,7 +80,7 @@ export const timesheetDashboardQuerySchema = z.object({
   role: z.array(z.string()).optional(),
   /** day: raw shift rows (paginated). week/month: server-aggregated rows (not paginated). */
   view: z.enum(["day", "week", "month"]).optional().default("day"),
-  limit: z.coerce.number().int().min(1).max(2000).optional().default(50),
+  limit: z.coerce.number().int().min(1).max(5000).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
   sortBy: z.enum(['date', 'name', 'comment', 'employer', 'role', 'location', 'clockIn', 'breakIn', 'breakOut', 'clockOut', 'breakHours', 'totalHours']).optional().default('date'),
   order: z.enum(['asc', 'desc']).optional().default('asc'),

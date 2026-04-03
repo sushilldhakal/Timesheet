@@ -232,7 +232,7 @@ export function TimesheetDayView({ data, selectedDate, endDate, loading, serverP
     return format(safeSelectedDate, "EEEE, d MMMM yyyy")
   }
 
-  if (loading) {
+  if (loading && !serverPagination) {
     return (
       <div className="flex items-center justify-center h-32">
         <p className="text-muted-foreground">Loading...</p>

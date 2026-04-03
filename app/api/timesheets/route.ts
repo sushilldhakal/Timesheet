@@ -459,16 +459,17 @@ export const GET = createApiRoute({
         }
       }
 
-      // view === "day": paginate raw shift rows
+      // view === "day": paginate raw shift rows (cap page size at 2000)
       const total = rows.length
-      const paginated = rows.slice(offset, offset + limit)
+      const dayLimit = Math.min(limit, 2000)
+      const paginated = rows.slice(offset, offset + dayLimit)
 
       return {
         status: 200,
         data: {
           timesheets: paginated,
           total,
-          limit,
+          limit: dayLimit,
           offset,
           totalWorkingMinutes,
           totalBreakMinutes,

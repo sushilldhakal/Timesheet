@@ -13,7 +13,6 @@ import { MultiSelect } from "@/components/ui/MultiSelect"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { FileDown, Printer, AlignJustify, Columns, LayoutGrid } from "lucide-react"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
-import { TimesheetTodayButton } from "@/components/timesheet/timesheet-today-button"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
 import { TimesheetWeekView, type WeekAggApiRow } from "@/components/timesheet/timesheet-week-view"
@@ -57,37 +56,6 @@ interface EmployeeOption {
   pin: string
   employer: string[]
   location: string[]
-}
-
-function getDateRange(view: TimesheetView, selectedDate: Date) {
-  switch (view) {
-    case "day":
-      const dayStart = startOfDay(selectedDate)
-      const dayEnd = endOfDay(selectedDate)
-      return {
-        startDate: format(dayStart, "yyyy-MM-dd"),
-        endDate: format(dayEnd, "yyyy-MM-dd"),
-      }
-    case "week":
-      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
-      const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 })
-      return {
-        startDate: format(weekStart, "yyyy-MM-dd"),
-        endDate: format(weekEnd, "yyyy-MM-dd"),
-      }
-    case "month":
-      const monthStart = startOfMonth(selectedDate)
-      const monthEnd = endOfMonth(selectedDate)
-      return {
-        startDate: format(monthStart, "yyyy-MM-dd"),
-        endDate: format(monthEnd, "yyyy-MM-dd"),
-      }
-    default:
-      return {
-        startDate: format(selectedDate, "yyyy-MM-dd"),
-        endDate: format(selectedDate, "yyyy-MM-dd"),
-      }
-  }
 }
 
 export default function TimesheetPage() {
@@ -154,7 +122,7 @@ export default function TimesheetPage() {
       employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
       locations: selectedLocations.length > 0 ? selectedLocations : undefined,
       roles: selectedRoles.length > 0 ? selectedRoles : undefined,
-      limit: view === "day" ? pageSize : 2000,
+      limit: view === "day" ? pageSize : 5000,
       offset: view === "day" ? pageIndex * pageSize : 0,
     }),
     [
@@ -433,8 +401,8 @@ export default function TimesheetPage() {
       }
 
       if (view === "week") {
-        const res = await getTimesheets({ ...exportFilterBase, view: "week", limit: 2000, offset: 0 })
-        const agg = res.timesheets as WeekAggApiRow[]
+        const res = await getTimesheets({ ...exportFilterBase, view: "week", limit: 5000, offset: 0 })
+        const agg = res.timesheets as unknown as WeekAggApiRow[]
         if (agg.length === 0) return
         const rangeStart = parseISO(exportFilterBase.startDate)
         const rangeEnd = parseISO(exportFilterBase.endDate)
@@ -458,8 +426,8 @@ export default function TimesheetPage() {
         return
       }
 
-      const res = await getTimesheets({ ...exportFilterBase, view: "month", limit: 2000, offset: 0 })
-      const agg = res.timesheets as MonthAggApiRow[]
+      const res = await getTimesheets({ ...exportFilterBase, view: "month", limit: 5000, offset: 0 })
+      const agg = res.timesheets as unknown as MonthAggApiRow[]
       if (agg.length === 0) return
       const headers = [
         "Employee ID",
@@ -531,7 +499,7 @@ export default function TimesheetPage() {
           <TimesheetWeekView
             data={[]}
             preAggregated
-            aggregatedRows={timesheets as WeekAggApiRow[]}
+            aggregatedRows={timesheets as unknown as WeekAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />
@@ -541,7 +509,7 @@ export default function TimesheetPage() {
           <TimesheetMonthView
             data={[]}
             preAggregated
-            aggregatedRows={timesheets as MonthAggApiRow[]}
+            aggregatedRows={timesheets as unknown as MonthAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />

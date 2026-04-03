@@ -46,7 +46,7 @@ export interface MonthAggApiRow {
   employeeId: string
   name: string
   pin: string
-  employer: string
+  employer?: string
   role: string
   location: string
   daysWorked: number
