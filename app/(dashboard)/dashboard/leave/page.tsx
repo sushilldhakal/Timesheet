@@ -3,8 +3,18 @@
 import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { useEmployees } from "@/lib/queries/employees"
-import { format, endOfMonth, startOfMonth } from "date-fns"
-import { useEffect, useMemo, useState } from "react"
+import {
+  format,
+  endOfMonth,
+  startOfMonth,
+  startOfWeek,
+  endOfWeek,
+  startOfDay,
+  endOfDay,
+  isValid,
+  parseISO,
+} from "date-fns"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,13 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/MultiSelect"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageShell"
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
-import { Calendar, RefreshCw, Search, User } from "lucide-react"
+import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
+import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
+import { AlignJustify, Columns, LayoutGrid, RefreshCw, Search } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 
 type LeaveRecordLike = {
@@ -51,6 +64,8 @@ function statusBadge(statusRaw: string | undefined): { label: string; className:
   return { label: statusRaw || "Unknown", className: "border-border bg-muted text-muted-foreground" }
 }
 
+const FETCH_CHUNK = 25
+
 export default function LeavePage() {
   const { user, userRole, isHydrated } = useAuth()
   const isAdmin = isHydrated && isAdminOrSuperAdmin(userRole)
@@ -58,17 +73,14 @@ export default function LeavePage() {
   const employeesQuery = useEmployees(500)
   const employees = employeesQuery.data?.employees ?? []
 
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
-  const [refreshNonce, setRefreshNonce] = useState(0)
-  const defaultStart = useMemo(() => format(startOfMonth(new Date()), "yyyy-MM-dd"), [])
-  const defaultEnd = useMemo(() => format(endOfMonth(new Date()), "yyyy-MM-dd"), [])
-  const [startDate, setStartDate] = useState<string>(defaultStart)
-  const [endDate, setEndDate] = useState<string>(defaultEnd)
-  const selectedEmployee = useMemo(
-    () => employees.find((e) => e.id === selectedEmployeeId) ?? null,
-    [employees, selectedEmployeeId],
-  )
+  const [view, setView] = useState<TimesheetView>("week")
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
+  const [useCustomRange, setUseCustomRange] = useState(false)
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
 
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [absences, setAbsences] = useState<LeaveRecordLike[]>([])
@@ -77,15 +89,57 @@ export default function LeavePage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
 
-  useEffect(() => {
-    if (!employees.length) return
-    setSelectedEmployeeId((prev) => prev ?? employees[0]!.id)
+  const { startDate, endDate } = useMemo(() => {
+    if (useCustomRange && customStartDate && customEndDate) {
+      return { startDate: customStartDate, endDate: customEndDate }
+    }
+    if (view === "day") {
+      return {
+        startDate: format(startOfDay(selectedDate), "yyyy-MM-dd"),
+        endDate: format(endOfDay(selectedDate), "yyyy-MM-dd"),
+      }
+    }
+    if (view === "week") {
+      return {
+        startDate: format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        endDate: format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+      }
+    }
+    return {
+      startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"),
+      endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd"),
+    }
+  }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
+
+  const handleCustomRangeChange = (start: string, end: string) => {
+    setCustomStartDate(start)
+    setCustomEndDate(end)
+    const s = parseISO(String(start || ""))
+    const e = parseISO(String(end || ""))
+    setUseCustomRange(isValid(s) && isValid(e))
+  }
+
+  const employeeIdsToQuery = useMemo(() => {
+    if (!employees.length) return [] as string[]
+    if (selectedEmployeeIds.length > 0) return selectedEmployeeIds
+    return employees.map((e) => e.id)
+  }, [employees, selectedEmployeeIds])
+
+  const employeeById = useMemo(() => {
+    const m = new Map<string, { name: string; pin: string }>()
+    for (const e of employees) {
+      m.set(e.id, { name: e.name ?? "", pin: e.pin ?? "" })
+    }
+    return m
   }, [employees])
 
   useEffect(() => {
-    if (!selectedEmployeeId) return
-    if (!isHydrated) return
-    if (!isAdmin) return
+    if (!isHydrated || !isAdmin) return
+    if (!employeeIdsToQuery.length) {
+      setAbsences([])
+      setSelectedAbsenceId(null)
+      return
+    }
 
     const controller = new AbortController()
 
@@ -93,36 +147,48 @@ export default function LeavePage() {
       setLoading(true)
       setError(null)
       try {
-        const url = `/api/employees/${selectedEmployeeId}/absences?startDate=${encodeURIComponent(
-          startDate,
-        )}&endDate=${encodeURIComponent(endDate)}`
-
-        const res = await fetch(url, {
-          credentials: "include",
-          signal: controller.signal,
-        })
-
-        const json = await res.json().catch(() => ({} as any))
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load leave records")
+        const merged: LeaveRecordLike[] = []
+        for (let i = 0; i < employeeIdsToQuery.length; i += FETCH_CHUNK) {
+          if (controller.signal.aborted) return
+          const chunk = employeeIdsToQuery.slice(i, i + FETCH_CHUNK)
+          const chunkResults = await Promise.all(
+            chunk.map(async (employeeId) => {
+              const url = `/api/employees/${employeeId}/absences?startDate=${encodeURIComponent(
+                startDate,
+              )}&endDate=${encodeURIComponent(endDate)}`
+              const res = await fetch(url, {
+                credentials: "include",
+                signal: controller.signal,
+              })
+              const json = await res.json().catch(() => ({} as Record<string, unknown>))
+              if (!res.ok) {
+                throw new Error((json as { error?: string }).error || "Failed to load leave records")
+              }
+              const list = ((json as { absences?: LeaveRecordLike[] }).absences ?? []) as LeaveRecordLike[]
+              return list.map((a) => ({ ...a, employeeId }))
+            }),
+          )
+          for (const arr of chunkResults) merged.push(...arr)
         }
-
-        const next = (json?.absences ?? []) as LeaveRecordLike[]
-        setAbsences(next)
-        setSelectedAbsenceId((prev) => prev ?? (next[0]?._id ?? next[0]?.id ?? null))
+        merged.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
+        setAbsences(merged)
+        setSelectedAbsenceId((prev) => {
+          if (prev && merged.some((x) => (x._id ?? x.id) === prev)) return prev
+          return merged[0]?._id ?? merged[0]?.id ?? null
+        })
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return
         setError(e instanceof Error ? e.message : "Failed to load leave records")
         setAbsences([])
         setSelectedAbsenceId(null)
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
 
     void run()
     return () => controller.abort()
-  }, [selectedEmployeeId, startDate, endDate, refreshNonce, isAdmin, isHydrated])
+  }, [employeeIdsToQuery, startDate, endDate, refreshNonce, isAdmin, isHydrated])
 
   const approveLeave = async (absence: LeaveRecordLike) => {
     if (!user?.id) return
@@ -140,15 +206,19 @@ export default function LeavePage() {
         body: JSON.stringify({ approverId: user.id }),
       })
 
-      const json = await res.json().catch(() => ({} as any))
+      const json = await res.json().catch(() => ({} as Record<string, unknown>))
       if (!res.ok) {
-        throw new Error(json?.error || "Failed to approve leave")
+        throw new Error((json as { error?: string }).error || "Failed to approve leave")
       }
 
-      const updated = json?.leaveRecord ? ([json.leaveRecord] as LeaveRecordLike[]) : []
+      const updated = (json as { leaveRecord?: LeaveRecordLike }).leaveRecord
       setAbsences((prev) => {
         const next = prev.filter((r) => (r._id ?? r.id) !== absenceId)
-        return [...next, ...updated]
+        if (updated) {
+          const emp = absence.employeeId
+          return [...next, { ...updated, employeeId: emp }]
+        }
+        return next
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to approve leave")
@@ -178,17 +248,86 @@ export default function LeavePage() {
         }
         if (typeFilter !== "all" && (a.leaveType || "") !== typeFilter) return false
         if (q) {
-          const hay = `${a.leaveType || ""} ${a.status || ""} ${a.notes || ""} ${a.startDate || ""} ${a.endDate || ""}`.toLowerCase()
+          const emp = a.employeeId ? employeeById.get(a.employeeId) : undefined
+          const hay = `${a.leaveType || ""} ${a.status || ""} ${a.notes || ""} ${a.startDate || ""} ${a.endDate || ""} ${emp?.name || ""} ${emp?.pin || ""}`.toLowerCase()
           if (!hay.includes(q)) return false
         }
         return true
       })
-  }, [absences, search, statusFilter, typeFilter])
+  }, [absences, search, statusFilter, typeFilter, employeeById])
 
   const selectedAbsence = useMemo(() => {
     if (!selectedAbsenceId) return null
     return filtered.find((a) => (a._id ?? a.id) === selectedAbsenceId) ?? null
   }, [filtered, selectedAbsenceId])
+
+  const handleTodayClick = () => {
+    setSelectedDate(new Date())
+    setUseCustomRange(false)
+  }
+
+  const viewSwitcher = (
+    <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
+      {(
+        [
+          { k: "day" as const, l: "Day", Icon: AlignJustify },
+          { k: "week" as const, l: "Week", Icon: Columns },
+          { k: "month" as const, l: "Month", Icon: LayoutGrid },
+        ] satisfies { k: TimesheetView; l: string; Icon: ComponentType<{ size?: number; className?: string }> }[]
+      ).map(({ k, l, Icon }) => {
+        const active = view === k
+        return (
+          <button
+            key={k}
+            type="button"
+            title={l}
+            onClick={() => {
+              setView(k)
+              setUseCustomRange(false)
+            }}
+            className={[
+              "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
+              active ? "w-[76px] bg-background font-semibold text-foreground shadow-sm" : "w-8 bg-transparent font-normal text-muted-foreground",
+            ].join(" ")}
+          >
+            <Icon size={14} className="shrink-0" />
+            <span
+              className={[
+                "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
+                active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
+              ].join(" ")}
+            >
+              {l}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  const topbarNav = (
+    <div className="flex items-center gap-2">
+      {view === "day" ? (
+        <DateRangePicker
+          value={{
+            startDate: useCustomRange ? customStartDate : startDate,
+            endDate: useCustomRange ? customEndDate : endDate,
+          }}
+          onChange={handleCustomRangeChange}
+          placeholder="Select date or range"
+        />
+      ) : (
+        <TimesheetDateNavigator
+          view={view}
+          selectedDate={selectedDate}
+          onDateChange={(date) => {
+            setSelectedDate(date)
+            setUseCustomRange(false)
+          }}
+        />
+      )}
+    </div>
+  )
 
   if (!isHydrated) {
     return (
@@ -197,19 +336,10 @@ export default function LeavePage() {
         toolbar={
           <UnifiedCalendarTopbar
             className="print:hidden"
-            onToday={() => {
-              // no-op until hydrated
-            }}
-            title={
-              <span className="flex items-center gap-2">
-                <span className="inline-flex size-9 items-center justify-center rounded-md border bg-muted/30">
-                  <Calendar className="size-4 text-primary" />
-                </span>
-                <span className="text-base font-semibold text-foreground">Leave Requests</span>
-              </span>
-            }
-            nav={<DateRangePicker value={{ startDate, endDate }} onChange={() => {}} placeholder="Date range" />}
-            peopleSelect={null}
+            onToday={() => {}}
+            title={<span suppressHydrationWarning>{format(selectedDate, "MMMM yyyy")}</span>}
+            nav={topbarNav}
+            viewSwitcher={viewSwitcher}
             actions={null}
           />
         }
@@ -232,67 +362,24 @@ export default function LeavePage() {
       toolbar={
         <UnifiedCalendarTopbar
           className="print:hidden"
-          onToday={() => {
-            setStartDate(defaultStart)
-            setEndDate(defaultEnd)
-          }}
-          title={
-            <span className="flex items-center gap-2">
-              <span className="inline-flex size-9 items-center justify-center rounded-md border bg-muted/30">
-                <Calendar className="size-4 text-primary" />
-              </span>
-              <span className="text-base font-semibold text-foreground">Leave Requests</span>
-            </span>
-          }
-          titleBadge={
-            isAdmin ? (
-              <Badge variant="outline" className="rounded-full">
-                {filtered.length} request{filtered.length === 1 ? "" : "s"}
-              </Badge>
-            ) : undefined
-          }
-          nav={
-            <DateRangePicker
-              value={{ startDate, endDate }}
-              onChange={(s, e) => {
-                setStartDate(s)
-                setEndDate(e)
-              }}
-              placeholder="Date range"
-            />
-          }
-          peopleSelect={
-            isAdmin ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex size-9 items-center justify-center rounded-md border bg-muted/30">
-                  <User className="size-4 text-muted-foreground" />
-                </span>
-                <Select value={selectedEmployeeId ?? undefined} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Select employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.name} ({e.pin})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null
-          }
+          onToday={handleTodayClick}
+          title={format(selectedDate, "MMMM yyyy")}
+          nav={topbarNav}
+          viewSwitcher={viewSwitcher}
           actions={
             isAdmin ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading || !selectedEmployeeId}
-                onClick={() => setRefreshNonce((n) => n + 1)}
-              >
-                <RefreshCw className="mr-2 size-4" />
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || !employeeIdsToQuery.length}
+                  onClick={() => setRefreshNonce((n) => n + 1)}
+                >
+                  <RefreshCw className="size-4" />
+                  Refresh
+                </Button>
+              </div>
             ) : null
           }
         />
@@ -315,19 +402,42 @@ export default function LeavePage() {
 
         {isAdmin && (
           <>
-            <Card>
-              <CardContent className="pt-5">
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[240px] flex-1">
-                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">Search</div>
+            <Card className="print:hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Filters</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Employee</label>
+                    <MultiSelect
+                      options={employees.map((e) => ({
+                        label: `${e.name} (${e.pin})`,
+                        value: e.id,
+                      }))}
+                      defaultValue={selectedEmployeeIds}
+                      onValueChange={setSelectedEmployeeIds}
+                      placeholder="All employees"
+                      searchable
+                      className="min-w-[200px] max-w-[280px]"
+                    />
+                  </div>
+
+                  <div className="min-w-[200px] flex-1 space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Search</label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by notes, type, status…" className="pl-9" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Notes, type, status, name…"
+                        className="pl-9"
+                      />
                     </div>
                   </div>
 
-                  <div className="w-[200px]">
-                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">Leave type</div>
+                  <div className="w-[200px] space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Leave type</label>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="All types" />
@@ -343,8 +453,8 @@ export default function LeavePage() {
                     </Select>
                   </div>
 
-                  <div className="w-[180px]">
-                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">Status</div>
+                  <div className="w-[180px] space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">Status</label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="All" />
@@ -373,11 +483,13 @@ export default function LeavePage() {
                 </CardHeader>
                 <Separator />
                 <ScrollArea className="h-[520px]">
-                  <div className="p-2 space-y-2">
+                  <div className="space-y-2 p-2">
                     {filtered.map((a) => {
                       const id = (a._id ?? a.id) as string | undefined
                       const isActive = !!id && id === selectedAbsenceId
                       const st = statusBadge(a.status)
+                      const emp = a.employeeId ? employeeById.get(a.employeeId) : undefined
+                      const displayName = emp ? `${emp.name} (${emp.pin})` : "Employee"
                       return (
                         <button
                           key={id ?? `${a.startDate}-${a.endDate}-${a.leaveType}`}
@@ -390,9 +502,7 @@ export default function LeavePage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-semibold text-foreground">
-                                {selectedEmployee?.name ?? "Employee"}
-                              </div>
+                              <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
                               <div className="mt-0.5 text-xs text-muted-foreground">
                                 {a.startDate ?? "—"} → {a.endDate ?? "—"}
                               </div>
@@ -422,7 +532,12 @@ export default function LeavePage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <CardTitle className="text-base">
-                        {selectedEmployee ? `${selectedEmployee.name} (${selectedEmployee.pin})` : "—"}
+                        {selectedAbsence?.employeeId
+                          ? (() => {
+                              const emp = employeeById.get(selectedAbsence.employeeId!)
+                              return emp ? `${emp.name} (${emp.pin})` : "—"
+                            })()
+                          : "—"}
                       </CardTitle>
                       <CardDescription>
                         {selectedAbsence
@@ -488,4 +603,3 @@ export default function LeavePage() {
     </CalendarPageShell>
   )
 }
-
