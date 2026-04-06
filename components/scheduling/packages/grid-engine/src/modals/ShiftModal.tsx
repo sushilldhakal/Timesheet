@@ -375,7 +375,7 @@ export function ShiftModal({
   const overlay = (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[3px]"
     >
       {content}
     </div>

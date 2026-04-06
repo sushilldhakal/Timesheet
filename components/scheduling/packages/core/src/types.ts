@@ -100,7 +100,7 @@ export interface WorkingHours {
   to: number
 }
 
-export type BadgeVariant = 'drag' | 'resize' | 'both'
+export type BadgeVariant = 'none' | 'drag' | 'resize' | 'both'
 
 export interface Settings {
   visibleFrom: number

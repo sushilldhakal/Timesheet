@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import Link from "next/link"
+import { cn } from "@/lib/utils/cn"
 
 interface WeekViewData {
   employeeId: string
@@ -96,11 +97,20 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
           <span className="text-xs text-muted-foreground">{format(day, "d")}</span>
         </div>
       ),
-      cell: ({ row }) => (
-        <div className="text-center text-sm">
-          {row.original.dailyHours[index]}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const val = row.original.dailyHours[index]
+        const hasHours = val !== "—"
+        return (
+          <div className={cn(
+            "text-center text-sm",
+            hasHours
+              ? "font-semibold text-emerald-600 dark:text-emerald-400"
+              : "text-muted-foreground/40"
+          )}>
+            {val}
+          </div>
+        )
+      },
       enableHiding: true,
     })
   })
@@ -114,7 +124,7 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
     ),
     enableSorting: true,
     cell: ({ row }) => (
-      <div className="text-center font-medium">
+      <div className="text-center font-bold text-foreground">
         {row.original.totalFormatted}
       </div>
     ),
@@ -310,6 +320,25 @@ export function TimesheetWeekView({ data, selectedDate, loading, preAggregated, 
           </div>
         )}
       />
+
+      {/* Daily totals footer */}
+      {weekData.employees.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-4 py-3 print:border-gray-300">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Daily Totals</span>
+          <div className="flex flex-wrap items-center gap-5">
+            {weekData.weekDays.map((day, i) => (
+              <div key={i} className="text-center">
+                <div className="text-xs text-muted-foreground">{format(day, "EEE d")}</div>
+                <div className="text-sm font-bold">{weekData.dailyTotals[i]}</div>
+              </div>
+            ))}
+            <div className="border-l pl-5 text-center">
+              <div className="text-xs text-muted-foreground">Grand Total</div>
+              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{weekData.grandTotalFormatted}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

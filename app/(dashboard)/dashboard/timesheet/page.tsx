@@ -78,6 +78,9 @@ export default function TimesheetPage() {
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(50)
 
+  const assignedLocations = userPermissions?.locations ?? []
+  const isSingleLocationUser = assignedLocations.length === 1
+
   // Calculate date range first
   const { startDate, endDate } = useMemo(() => {
     if (useCustomRange && customStartDate && customEndDate) {
@@ -211,13 +214,22 @@ export default function TimesheetPage() {
         let locationsArray: Category[] = []
         let rolesArray: Category[] = []
 
-        if (userPermissions?.role === "admin" || userPermissions?.role === "super_admin") {
-          // Admin users: Use categories from queries
-          locationsArray = locationsQuery.data?.categories?.map((loc: any) => ({ 
-            id: loc.id, 
-            name: loc.name, 
-            type: "location" 
-          })) || []
+        const isAdminUser = userPermissions?.role === "admin" || userPermissions?.role === "super_admin"
+
+        if (isAdminUser) {
+          // Admin users: Use categories from queries, unless they are explicitly restricted to 1 location.
+          const restrictedToOne = (userPermissions?.locations?.length ?? 0) === 1
+          if (restrictedToOne) {
+            const only = userPermissions!.locations[0]!
+            locationsArray = [{ id: only, name: only, type: "location" }]
+          } else {
+            locationsArray =
+              locationsQuery.data?.categories?.map((loc: any) => ({
+                id: loc.id,
+                name: loc.name,
+                type: "location",
+              })) || []
+          }
           
           rolesArray = rolesQuery.data?.categories?.map((role: any) => ({ 
             id: role.id, 
@@ -242,6 +254,14 @@ export default function TimesheetPage() {
       setError("Failed to load filters")
     }
   }, [userQuery.data, employeesQuery.data, locationsQuery.data, rolesQuery.data])
+
+  // If user is restricted to exactly one location, force-select it and keep it selected.
+  useEffect(() => {
+    if (!isSingleLocationUser) return
+    const only = assignedLocations[0]
+    if (!only) return
+    setSelectedLocations((prev) => (prev.length === 1 && prev[0] === only ? prev : [only]))
+  }, [isSingleLocationUser, assignedLocations])
 
   const filteredEmployees = useMemo(() => {
     if (selectedEmployers.length === 0 && selectedLocations.length === 0 && selectedRoles.length === 0) return employees
@@ -585,6 +605,21 @@ export default function TimesheetPage() {
           }
           actions={
             <div className="flex items-center gap-2">
+              <div className="hidden md:block">
+                <MultiSelect
+                  options={filteredEmployees.map((e) => ({
+                    label: `${e.name} (${e.pin})`,
+                    value: e.id,
+                  }))}
+                  defaultValue={selectedEmployeeIds}
+                  onValueChange={setSelectedEmployeeIds}
+                  placeholder="All employees"
+                  searchable
+                  avatarView
+                  maxCount={5}
+                  className="min-w-[220px] max-w-[260px]"
+                />
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -636,6 +671,7 @@ export default function TimesheetPage() {
 
               {/* Location filter - show for admin users (if any exist) OR if regular user has multiple locations */}
               {userPermissions &&
+                !isSingleLocationUser &&
                 ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
                   ? locations.length > 0
                   : userPermissions.locations.length > 1) && (
@@ -669,39 +705,42 @@ export default function TimesheetPage() {
                     />
                   </div>
                 )}
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-muted-foreground">Employee</label>
-                <MultiSelect
-                  options={filteredEmployees.map((e) => ({
-                    label: `${e.name} (${e.pin})`,
-                    value: e.id,
-                  }))}
-                  defaultValue={selectedEmployeeIds}
-                  onValueChange={setSelectedEmployeeIds}
-                  placeholder="All employees"
-                  searchable
-                  className="min-w-[200px] max-w-[240px]"
-                />
-              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Summary Stats */}
         {isHydrated && !loading && timesheetTotal > 0 && (
-          <div className="flex gap-6 rounded-lg border bg-muted/30 px-4 py-3 text-sm print:border-gray-300 print:bg-white print:text-xs">
-            <span>
-              <strong>Total Break (all):</strong> {totalBreakHours}
-            </span>
-            <span>
-              <strong>Total Hours (all):</strong> {totalWorkingHours}
-            </span>
-            <span className="hidden print:block">
-              <strong>Total Records:</strong> {timesheetTotal}
-              {view === "day" && timesheets.length !== timesheetTotal ? ` (showing ${timesheets.length} on this page)` : ""}
-            </span>
-          </div>
+          <>
+            {/* Screen stat cards */}
+            <div className="grid grid-cols-3 gap-3 print:hidden">
+              <div className="rounded-lg border-l-4 border-l-emerald-500 bg-card px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Hours</p>
+                <p className="mt-0.5 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalWorkingHours}</p>
+                <p className="text-xs text-muted-foreground">All employees combined</p>
+              </div>
+              <div className="rounded-lg border-l-4 border-l-amber-500 bg-card px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Break</p>
+                <p className="mt-0.5 text-2xl font-bold text-amber-600 dark:text-amber-400">{totalBreakHours}</p>
+                <p className="text-xs text-muted-foreground">Break time this period</p>
+              </div>
+              <div className="rounded-lg border-l-4 border-l-blue-500 bg-card px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {view === "day" ? "Total Shifts" : "Employees"}
+                </p>
+                <p className="mt-0.5 text-2xl font-bold text-blue-600 dark:text-blue-400">{timesheetTotal}</p>
+                <p className="text-xs text-muted-foreground">
+                  {view === "day" ? "Clock-in records" : "With hours this period"}
+                </p>
+              </div>
+            </div>
+            {/* Print-only compact version */}
+            <div className="hidden print:flex gap-6 rounded-lg border border-gray-300 bg-white px-4 py-3 text-xs">
+              <span><strong>Total Break:</strong> {totalBreakHours}</span>
+              <span><strong>Total Hours:</strong> {totalWorkingHours}</span>
+              <span><strong>Records:</strong> {timesheetTotal}{view === "day" && timesheets.length !== timesheetTotal ? ` (showing ${timesheets.length} on this page)` : ""}</span>
+            </div>
+          </>
         )}
 
         {/* Content */}

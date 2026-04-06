@@ -114,7 +114,11 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       id: "clockIn",
       accessorKey: "clockIn",
       header: "Clock In",
-      cell: ({ row }) => formatTimeOnly(row.original.clockIn),
+      cell: ({ row }) => (
+        <span className="font-medium text-blue-600 dark:text-blue-400">
+          {formatTimeOnly(row.original.clockIn)}
+        </span>
+      ),
     },
     {
       id: "break",
@@ -122,17 +126,21 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       cell: ({ row }) => {
         const breakIn = formatTimeOnly(row.original.breakIn)
         const breakOut = formatTimeOnly(row.original.breakOut)
-        if (breakIn === "—" && breakOut === "—") return "—"
-        if (breakIn === "—") return `—${breakOut}`
-        if (breakOut === "—") return `${breakIn}—`
-        return `${breakIn}-${breakOut}`
+        if (breakIn === "—" && breakOut === "—") return <span className="text-muted-foreground/40">—</span>
+        if (breakIn === "—") return <span className="text-amber-600 dark:text-amber-400">—{breakOut}</span>
+        if (breakOut === "—") return <span className="text-amber-600 dark:text-amber-400">{breakIn}—</span>
+        return <span className="text-amber-600 dark:text-amber-400">{breakIn}–{breakOut}</span>
       },
     },
     {
       id: "clockOut",
       accessorKey: "clockOut",
       header: "Clock Out",
-      cell: ({ row }) => formatTimeOnly(row.original.clockOut),
+      cell: ({ row }) => (
+        <span className="font-medium text-orange-600 dark:text-orange-400">
+          {formatTimeOnly(row.original.clockOut)}
+        </span>
+      ),
     },
     {
       id: "totalHours",
@@ -141,6 +149,11 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
         <DataTableColumnHeader column={column} title="Total" />
       ),
       enableSorting: true,
+      cell: ({ row }) => (
+        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+          {row.original.totalHours || "—"}
+        </span>
+      ),
     },
     // Hidden columns for column visibility
     {

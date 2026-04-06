@@ -1993,11 +1993,13 @@ function GridViewInner({
           ? toDateISO(dates[newDateIdx])
           : (() => {
               // Single-day view: dragging past the right edge → next day, past left edge → prev day
+              // x is relative to the scroll container which includes the sidebar, so offset by sidebar width
               if (!origShift) return ""
               const origD = new Date(origShift.date + "T12:00:00")
-              if (x > DAY_WIDTH) {
+              const effectiveSidebarW = sidebarCollapsed ? 0 : sidebarWidth
+              if (x > effectiveSidebarW + DAY_WIDTH) {
                 origD.setDate(origD.getDate() + 1)
-              } else if (x < 0) {
+              } else if (x < effectiveSidebarW) {
                 origD.setDate(origD.getDate() - 1)
               }
               return toDateISO(origD)
@@ -2109,6 +2111,8 @@ function GridViewInner({
       getHourAtX,
       collapsed,
       stopEdgeScroll,
+      sidebarCollapsed,
+      sidebarWidth,
     ]
   )
 
@@ -3519,9 +3523,16 @@ function GridViewInner({
                     const top = rowModeForRender === "flat"
                       ? catTop + 4 + track * (ROLE_HDR - 4)
                       : catTop + ROLE_HDR + track * laneH + (isSingleDayTimeline ? 2 : 4)
-                    const variant = settings.badgeVariant ?? "both"
-                    const canDrag = (variant === "drag" || variant === "both") && shift.draggable !== false
-                    const showResize = !readOnly && (variant === "resize" || variant === "both") && width >= 48 && shift.resizable !== false
+                    const rawVariant = settings.badgeVariant ?? "both"
+                    // Day view: keep drag, disable resize (requested). Treat "none" as drag-only visual.
+                    const variant = !isWeekView && !isDayViewMultiDay ? "drag" : rawVariant
+                    const canDrag = (variant === "none" || variant === "drag" || variant === "both") && shift.draggable !== false
+                    const showResize =
+                      !readOnly &&
+                      !(!isWeekView && !isDayViewMultiDay) &&
+                      (variant === "resize" || variant === "both") &&
+                      width >= 48 &&
+                      shift.resizable !== false
                     const isDeleting = deletingIds.has(shift.id)
                     const isNew = newlyAddedIds.has(shift.id)
                     const isDropConflict = dropConflictId === shift.id
@@ -3847,9 +3858,16 @@ function GridViewInner({
                   if (!clampedInd) return null
                   left = clampedInd.left
                   width = clampedInd.width
-                  const variant = settings.badgeVariant ?? "both"
-                  const canDrag = (variant === "drag" || variant === "both") && shift.draggable !== false
-                  const showResize = !readOnly && (variant === "resize" || variant === "both") && width >= 48 && shift.resizable !== false
+                  const rawVariant = settings.badgeVariant ?? "both"
+                  // Day view: keep drag, disable resize (requested). Treat "none" as drag-only visual.
+                  const variant = !isWeekView && !isDayViewMultiDay ? "drag" : rawVariant
+                  const canDrag = (variant === "none" || variant === "drag" || variant === "both") && shift.draggable !== false
+                  const showResize =
+                    !readOnly &&
+                    !(!isWeekView && !isDayViewMultiDay) &&
+                    (variant === "resize" || variant === "both") &&
+                    width >= 48 &&
+                    shift.resizable !== false
                   const isLive = sameDay(shift.date, new Date()) && nowH >= shift.startH && nowH < shift.endH
                   const isPast = shift.date < toDateISO(new Date()) || (sameDay(shift.date, new Date()) && shift.endH < nowH)
                   const isDeleting = deletingIds.has(shift.id)
@@ -4148,7 +4166,7 @@ function GridViewInner({
             onPointerEnter={() => { if (tooltipLeaveTimerRef.current) clearTimeout(tooltipLeaveTimerRef.current) }}
             onPointerLeave={() => { tooltipLeaveTimerRef.current = setTimeout(() => setTooltipBlockId(null), TOOLTIP_LEAVE_MS) }}
             className={cn(
-              "pointer-events-auto fixed z-99999 -translate-x-1/2 overflow-hidden rounded-[10px] border border-border bg-popover text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)]",
+              "pointer-events-auto fixed z-[99999] -translate-x-1/2 overflow-hidden rounded-[10px] border border-border bg-popover text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)]",
               !slots.tooltip && "min-w-[190px] max-w-[280px] px-[14px] py-[10px]",
             )}
             style={{
@@ -4192,7 +4210,7 @@ function GridViewInner({
       {/* Marker label input — shown immediately after placing a marker */}
       {pendingMarker && onMarkersChange && createPortal(
         <div
-          className="fixed z-999999 flex min-w-[180px] flex-col gap-1.5 rounded-lg border border-border bg-popover p-2.5 shadow-lg"
+          className="fixed z-[999999] flex min-w-[180px] flex-col gap-1.5 rounded-lg border border-border bg-popover p-2.5 shadow-lg"
           style={{
             top: pendingMarker.clientY + 12,
             left: pendingMarker.clientX,
@@ -4236,9 +4254,9 @@ function GridViewInner({
       {/* Grid right-click context menu — right-click on any empty cell */}
       {gridContextMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-999998" onPointerDown={() => setGridContextMenu(null)} />
+          <div className="fixed inset-0 z-[999998]" onPointerDown={() => setGridContextMenu(null)} />
           <div
-            className="fixed z-999999 min-w-[180px] overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg"
+            className="fixed z-[999999] min-w-[180px] overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg"
             style={{
               top: gridContextMenu.clientY + 4,
               left: gridContextMenu.clientX,
@@ -4298,11 +4316,11 @@ function GridViewInner({
         <>
           {/* Backdrop to close */}
           <div
-            className="fixed inset-0 z-999998"
+            className="fixed inset-0 z-[999998]"
             onPointerDown={() => setHeaderPopover(null)}
           />
           <div
-            className="fixed z-999999 min-w-[200px] overflow-hidden rounded-[10px] border border-border bg-popover py-1 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+            className="fixed z-[999999] min-w-[200px] overflow-hidden rounded-[10px] border border-border bg-popover py-1 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
             style={{
               top: headerPopover.clientY + 4,
               left: headerPopover.clientX,

@@ -1,4 +1,5 @@
 import React from "react"
+import { createPortal } from "react-dom"
 import type { Resource } from '@shadcn-scheduler/core'
 import { useSchedulerContext } from '@shadcn-scheduler/shell'
 import { AlertTriangle } from "lucide-react"
@@ -32,10 +33,10 @@ export function RoleWarningModal({
     e.stopPropagation()
   }
 
-  return (
+  const content = (
     <div
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[4px]"
+      className="fixed inset-0 z-10000 flex items-center justify-center bg-black/45 backdrop-blur-xs"
     >
       <div
         onClick={handleModalClick}
@@ -80,4 +81,6 @@ export function RoleWarningModal({
       </div>
     </div>
   )
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content
 }

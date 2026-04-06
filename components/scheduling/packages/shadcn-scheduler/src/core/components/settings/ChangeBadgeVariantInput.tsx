@@ -10,6 +10,7 @@ interface ChangeBadgeVariantInputProps {
 }
 
 const OPTIONS: { value: BadgeVariant; label: string; description: string }[] = [
+  { value: "none", label: "None", description: "No resize handles (drag by bar)" },
   { value: "drag", label: "Drag & drop", description: "Drag shifts only, no resize" },
   { value: "resize", label: "Resizable", description: "Resize shifts only, no drag" },
   { value: "both", label: "Both", description: "Drag and resize shifts" },

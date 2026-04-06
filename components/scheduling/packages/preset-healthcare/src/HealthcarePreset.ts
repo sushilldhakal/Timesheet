@@ -1,1 +1,0 @@
-export { createHealthcareConfig } from './config'

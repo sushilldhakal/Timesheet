@@ -133,9 +133,8 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
                             <div
                                 data-dashboard-page
                                 className={cn(
-                                    'relative w-full min-w-0 flex-1 rounded-2xl border border-border/60',
-                                    'bg-card/60 shadow-sm backdrop-blur-[2px]',
-                                    'before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-linear-to-b before:from-white/8 before:to-transparent before:content-[""]',
+                                    'relative w-full min-w-0 flex-1 rounded-2xl',
+                                    'shadow-sm backdrop-blur-[2px]',
                                     layoutFullWidth ? 'p-0' : 'p-3 sm:p-4 lg:p-5'
                                 )}
                             >

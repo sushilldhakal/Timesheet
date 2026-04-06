@@ -552,7 +552,7 @@ export default function EmployeesPage() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-none ring-0">
         <CardHeader>
           <CardTitle>All Employees</CardTitle>
           <CardDescription>

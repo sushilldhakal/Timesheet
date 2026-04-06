@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import Link from "next/link"
+import { cn } from "@/lib/utils/cn"
 
 interface MonthViewData {
   employeeId: string
@@ -109,7 +110,9 @@ function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
       ),
       enableSorting: true,
       cell: ({ row }) => (
-        <div className="text-center">{row.original.daysWorked}</div>
+        <div className="text-center font-semibold text-emerald-600 dark:text-emerald-400">
+          {row.original.daysWorked}
+        </div>
       ),
     },
     {
@@ -121,7 +124,14 @@ function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
       enableSorting: true,
       enableHiding: true,
       cell: ({ row }) => (
-        <div className="text-center">{row.original.daysAbsent}</div>
+        <div className={cn(
+          "text-center",
+          row.original.daysAbsent > 0
+            ? "font-medium text-rose-500 dark:text-rose-400"
+            : "text-muted-foreground"
+        )}>
+          {row.original.daysAbsent}
+        </div>
       ),
     },
     {
@@ -133,7 +143,7 @@ function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
       enableSorting: true,
       enableHiding: true,
       cell: ({ row }) => (
-        <div className="text-center">{row.original.totalBreak}</div>
+        <div className="text-center text-amber-600 dark:text-amber-400">{row.original.totalBreak}</div>
       ),
     },
     {
@@ -144,7 +154,7 @@ function getMonthViewColumns(): ColumnDef<MonthViewEmployee>[] {
       ),
       enableSorting: true,
       cell: ({ row }) => (
-        <div className="text-center font-medium">{row.original.totalHours}</div>
+        <div className="text-center font-bold text-emerald-600 dark:text-emerald-400">{row.original.totalHours}</div>
       ),
     },
   ]
@@ -343,6 +353,28 @@ export function TimesheetMonthView({ data, selectedDate, loading, preAggregated,
           </div>
         )}
       />
+
+      {/* Grand totals footer */}
+      {monthData.employees.length > 0 && (
+        <div className="grid grid-cols-4 gap-4 rounded-md border bg-muted/40 px-4 py-3 print:border-gray-300">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employees</div>
+            <div className="mt-0.5 text-lg font-bold">{monthData.employees.length}</div>
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Days Worked</div>
+            <div className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">{monthData.grandTotals.daysWorked}</div>
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Break</div>
+            <div className="mt-0.5 text-lg font-bold text-amber-600 dark:text-amber-400">{monthData.grandTotals.totalBreak}</div>
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Hours</div>
+            <div className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">{monthData.grandTotals.totalHours}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

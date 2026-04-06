@@ -138,8 +138,9 @@ export interface WorkingHours {
   to: number
 }
 
-/** "drag" = drag only, "resize" = resize only, "both" = drag + resize */
-export type BadgeVariant = "drag" | "resize" | "both"
+/** "none" = no resize handles (drag by bar), "drag" = drag only, "resize" = resize only, "both" = drag + resize */
+export type BadgeVariant = "none" | "drag" | "resize" | "both"
+
 
 /** "category" = one row per category, shifts stacked (default, scales to 200+ staff).
  *  "individual" = one row per employee under each category header. */

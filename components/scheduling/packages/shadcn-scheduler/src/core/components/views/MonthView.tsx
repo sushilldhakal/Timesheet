@@ -334,7 +334,7 @@ function MonthViewInner({
           const overflowShifts = shifts.filter((s) => sameDay(s.date, hoverMore.date)).slice(3)
           return (
             <div
-              className="fixed z-9998 ml-2 max-w-[220px] rounded-lg border border-border bg-popover p-2 text-[11px] text-popover-foreground shadow-lg"
+              className="fixed z-[9998] ml-2 max-w-[220px] rounded-lg border border-border bg-popover p-2 text-[11px] text-popover-foreground shadow-lg"
               style={{ left: hoverMore.rect.right, top: hoverMore.rect.top }}
             >
               {overflowShifts.map((s) => {
@@ -372,7 +372,7 @@ function MonthViewInner({
             const c = getColor(categoryMap[s.categoryId]?.colorIdx ?? 0)
             return (
               <div
-                className="pointer-events-none fixed z-9999 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-bold shadow-lg text-background"
+                className="pointer-events-none fixed z-[9999] whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-bold shadow-lg text-background"
                 style={{ left: gPos.x + 12, top: gPos.y - 10, background: c.bg }}
               >
                 {s.employee.split(" ")[0]} · {fmt12(s.startH)}–{fmt12(s.endH)}

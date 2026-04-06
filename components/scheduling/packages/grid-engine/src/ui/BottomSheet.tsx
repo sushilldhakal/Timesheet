@@ -38,7 +38,7 @@ export function BottomSheet({
       role="dialog"
       aria-modal="true"
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-9999 flex items-end justify-center bg-black/40 backdrop-blur-[3px]"
+      className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/40 backdrop-blur-[3px]"
     >
       <div
         onClick={(e) => e.stopPropagation()}

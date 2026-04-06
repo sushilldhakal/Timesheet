@@ -106,7 +106,7 @@ export function AddShiftModal({
   const content = (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      className="fixed inset-0 z-9999 flex items-center justify-center bg-primary/30 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-primary/30 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}

@@ -55,9 +55,6 @@ const staffStepChartConfig = {
   },
 } satisfies ChartConfig;
 
-/**
- * Week strip (Mon–Sun) above the day grid. Time labels come from GridView’s own header.
- */
 function staffCountAtTime(dayShifts: Block[], t: number, step: number): number {
   const ids = new Set<string>();
   for (const s of dayShifts) {
@@ -111,7 +108,6 @@ export function DayViewPanelChrome({
     const maxC = Math.max(1, ...chartData.map((d) => d.staff), 1);
     const totalH = dayShifts.reduce((a, s) => a + (s.endH - s.startH), 0);
     const uniqueStaff = new Set(dayShifts.map((s) => s.employeeId)).size;
-    // Match the grid: show one tick per hour, aligned to visibleFrom/visibleTo.
     const xTicks = Array.from(
       { length: Math.max(0, Math.floor(to) - Math.ceil(from) + 1) },
       (_, i) => Math.ceil(from) + i,
@@ -127,7 +123,9 @@ export function DayViewPanelChrome({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex shrink-0 gap-1.5 border-b border-border bg-muted/40 px-3 py-1.5">
+
+      {/* ── Week strip ──────────────────────────────────────────────────── */}
+      <div className="flex shrink-0 gap-1 border-b border-border bg-muted/40 px-2 py-1">
         {weekDates.map((d) => {
           const selected = isSameDay(d, selectedDate);
           const today = isTodayFn(d);
@@ -138,157 +136,156 @@ export function DayViewPanelChrome({
               type="button"
               onClick={() => onSelectDay(startOfDay(d))}
               className={cn(
-                'flex min-w-0 flex-1 flex-col items-center rounded-xl border px-2 py-1.5 text-center transition-all',
+                'relative flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-center transition-all',
                 selected
                   ? 'border-primary bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/25'
                   : 'border-transparent bg-background hover:bg-muted/90',
                 today && !selected && 'ring-1 ring-muted-foreground/20'
               )}
             >
-              <div className="flex items-center justify-center gap-0.5">
-                <span className="flex items-center text-[14px] font-bold tabular-nums">
-                {dow}  {d.getDate()} {MONTHS_SHORT[d.getMonth()]}
-                <span
-                  className="inline-flex shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                 <SchedulingWeatherDayBadge
-                    date={d}
-                    coords={weatherCoords ?? null}
-                    rangeStart={rangeStart}
-                    rangeEnd={rangeEnd}
-                    iconClassName="size-8"
-                  />
-                </span>
-                {today && (
-                <span className="mt-0.5 text-[9px] font-medium text-primary">Today</span>
+              <span className="text-[12px] font-semibold tabular-nums leading-none">
+                {dow} {d.getDate()}
+              </span>
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                {MONTHS_SHORT[d.getMonth()]}
+              </span>
+              {today && (
+                <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />
               )}
-                </span>
-              </div>
+              <span
+                className="inline-flex shrink-0"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <SchedulingWeatherDayBadge
+                  date={d}
+                  coords={weatherCoords ?? null}
+                  rangeStart={rangeStart}
+                  rangeEnd={rangeEnd}
+                  iconClassName="size-4"
+                />
+              </span>
             </button>
           );
         })}
       </div>
 
-      <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 border-b border-border bg-muted/20 py-3 md:flex-row md:items-stretch">
+      {/* ── Stats + chart panel ─────────────────────────────────────────── */}
+      <div className="flex w-full min-w-0 shrink-0 items-stretch border-b border-border bg-muted/20 md:flex-row">
+
+        {/* Left: compact stats + settings popover, width-aligned with grid sidebar */}
         <div
-          className="flex w-full min-w-0 shrink-0 flex-col justify-center gap-0.5 px-3 md:shrink-0 md:py-1"
+          className="flex shrink-0 flex-col justify-center gap-2 px-3 py-2"
           style={
             gridSidebarWidth
               ? { width: gridSidebarWidth, minWidth: gridSidebarWidth }
               : { width: 140, minWidth: 140 }
           }
         >
-          <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Day summary</div>
-          <div className="text-[10px] font-semibold leading-tight text-foreground">{uniqueStaff} on roster</div>
-          <div className="text-[10px] leading-tight text-muted-foreground">
-            {totalH % 1 === 0 ? totalH : totalH.toFixed(1)}h · peak {maxC}
+          {/* Stats */}
+          <div className="flex flex-col gap-0.5 leading-tight">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Day summary</span>
+            <span className="text-[11px] font-semibold text-foreground">{uniqueStaff} on roster</span>
+            <span className="text-[10px] text-muted-foreground">
+              {totalH % 1 === 0 ? totalH : totalH.toFixed(1)}h &middot; peak {maxC}
+            </span>
           </div>
+
           {onSettingsChange && (
-            <div className="pt-3">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-foreground">Shift style</label>
-                  <Select
-                    value={(settings.badgeVariant ?? 'both') as BadgeVariant}
-                    onValueChange={(v) => onSettingsChange({ badgeVariant: v as BadgeVariant })}
-                  >
-                    <SelectTrigger className="h-8 w-full text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="drag">Drag &amp; drop</SelectItem>
-                      <SelectItem value="resize">Resizable</SelectItem>
-                      <SelectItem value="both">Both</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-foreground">Row layout</label>
-                  <p className="text-[10px] text-muted-foreground">
-                    Category view stacks all shifts per department. Individual view shows one row per employee.
-                  </p>
-                  <Select
-                    value={(settings.rowMode ?? 'category') as RowMode}
-                    onValueChange={(v) => onSettingsChange({ rowMode: v as RowMode })}
-                  >
-                    <SelectTrigger className="h-8 w-full text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="category">By category</SelectItem>
-                      <SelectItem value="individual">By employee</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <ChangeVisibleHoursInput
-                  visibleFrom={settings.visibleFrom}
-                  visibleTo={settings.visibleTo}
-                  onChange={(from, to) => onSettingsChange({ visibleFrom: from, visibleTo: to })}
-                  label="Visible hours"
-                />
+            <>
+              {/* Shift style */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-muted-foreground">Shift style</label>
+                <Select
+                  value={(settings.badgeVariant ?? 'both') as BadgeVariant}
+                  onValueChange={(v) => onSettingsChange({ badgeVariant: v as BadgeVariant })}
+                >
+                  <SelectTrigger className="h-7 w-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="drag">Drag &amp; drop</SelectItem>
+                    <SelectItem value="resize">Resizable</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="pt-4">
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      title="Working hours"
-                      aria-label="Working hours"
-                    >
-                      <SettingsIcon size={14} />
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[360px] p-0">
-                    <div className="p-5">
-                      <SheetHeader className="mb-4">
-                        <SheetTitle className="text-sm">Working hours</SheetTitle>
-                      </SheetHeader>
+              {/* Row layout */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-muted-foreground">Row layout</label>
+                <Select
+                  value={(settings.rowMode ?? 'category') as RowMode}
+                  onValueChange={(v) => onSettingsChange({ rowMode: v as RowMode })}
+                >
+                  <SelectTrigger className="h-7 w-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="category">By category</SelectItem>
+                    <SelectItem value="individual">By employee</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Gear → Sheet for visible hours + working hours */}
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    title="Visible &amp; working hours"
+                    aria-label="Visible &amp; working hours"
+                  >
+                    <SettingsIcon size={13} />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[360px] p-0">
+                  <div className="p-5">
+                    <SheetHeader className="mb-4">
+                      <SheetTitle className="text-sm">Hours settings</SheetTitle>
+                    </SheetHeader>
+                    <div className="space-y-5">
+                      <ChangeVisibleHoursInput
+                        visibleFrom={settings.visibleFrom}
+                        visibleTo={settings.visibleTo}
+                        onChange={(from, to) => onSettingsChange({ visibleFrom: from, visibleTo: to })}
+                        label="Visible hours"
+                        className="space-y-1.5"
+                      />
                       <ChangeWorkingHoursInput
                         workingHours={settings.workingHours}
                         onChange={(wh) => onSettingsChange({ workingHours: wh })}
                         label="Working hours"
                       />
                     </div>
-                  </SheetContent>
-                </Sheet>
-              </div>
-            </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
           )}
         </div>
-        <div className="min-h-0 min-w-0 flex-1 px-2 md:px-3">
-          <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate">Staff count (step)</span>
-              <span className="tabular-nums">0–{maxC}</span>
-            </div>
+
+        {/* Right: full 250px chart */}
+        <div className="min-h-0 min-w-0 flex-1 px-2 py-2 md:px-3">
+          <div className="mb-1 flex items-center gap-2 text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
+            <span>Staff count</span>
+            <span className="tabular-nums">0–{maxC}</span>
           </div>
           <div className="relative">
-            {/* Y-axis overlay (doesn't affect plot width, so hour gridlines stay aligned) */}
             <div className="pointer-events-none absolute left-0 top-[8px] bottom-[22px] w-10 text-[10px] text-muted-foreground">
-              <div className="absolute left-0 top-0"> {maxC} </div>
+              <div className="absolute left-0 top-0">{maxC}</div>
               <div className="absolute left-0 top-1/2 -translate-y-1/2">{Math.max(0, Math.round(maxC / 2))}</div>
               <div className="absolute left-0 bottom-0">0</div>
-              <div
-                className="absolute left-[-18px] top-1/2 -translate-y-1/2 -rotate-90 text-[9px] font-semibold tracking-wide text-muted-foreground/80"
-                style={{ transformOrigin: 'left center' }}
-              >
-                Staff count
-              </div>
             </div>
-
             <ChartContainer
               config={staffStepChartConfig}
               className="aspect-auto h-[250px] w-full max-w-full [&_.recharts-surface]:outline-none"
             >
               <LineChart
                 data={lineData}
-                // Keep plot area aligned with the grid hour columns:
-                // remove left/right margins and keep axes out of layout.
                 margin={{ left: 0, right: 0, top: 8, bottom: 0 }}
                 accessibilityLayer
               >
@@ -334,6 +331,7 @@ export function DayViewPanelChrome({
         </div>
       </div>
 
+      {/* ── Grid ────────────────────────────────────────────────────────── */}
       <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">{children}</div>
     </div>
   );
