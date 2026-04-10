@@ -18,13 +18,12 @@ import { Input } from "@/components/ui/input"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, RefreshCw, User, Briefcase, Award, Zap } from "lucide-react"
-import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useLocations, useLocationTeams } from "@/lib/queries/locations"
+import { useTeams } from "@/lib/queries/teams"
 import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { useCreateEmployee, useGeneratePin, useCheckPin } from "@/lib/queries/employees"
 import { useUploadImage } from "@/lib/queries/upload"
-import { useLocationRoles } from "@/lib/queries/locations"
 
 type Props = {
   open: boolean
@@ -88,7 +87,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [generatingPin, setGeneratingPin] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const employersQuery = useEmployers()
   const locationsQuery = useLocations()
   const awardsQuery = useAwards()
@@ -103,20 +102,18 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     return firstLoc?.id || null
   }, [location, locationsQuery.data?.locations])
   
-  const locationRolesQuery = useLocationRoles(firstLocationId)
+  const locationTeamsQuery = useLocationTeams(firstLocationId)
 
   const roleOptions = useMemo(() => {
-    const allRoles = rolesQuery.data?.roles?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
+    const allRoles = teamsQuery.data?.teams?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
     
-    // If no location selected, return all roles
     if (location.length === 0) return allRoles
     
-    // If location selected, filter by enabled roles
-    const enabledRoleIds = locationRolesQuery.data?.data?.roles?.map(r => r.roleId) || []
-    if (enabledRoleIds.length === 0) return allRoles // Fallback to all if no data yet
+    const enabledTeamIds = locationTeamsQuery.data?.teams?.map((t) => t.teamId) || []
+    if (enabledTeamIds.length === 0) return allRoles
     
-    return allRoles.filter(role => enabledRoleIds.includes(role.id))
-  }, [rolesQuery.data?.roles, location, locationRolesQuery.data])
+    return allRoles.filter((role) => enabledTeamIds.includes(role.id))
+  }, [teamsQuery.data?.teams, location, locationTeamsQuery.data])
   
   const employerOptions = useMemo(() => 
     employersQuery.data?.employers?.map((c: any) => ({ value: c.name, label: c.name })) || []
@@ -139,21 +136,19 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     }
   }, [employerOptions])
   
-  // Clear roles when location changes
   useEffect(() => {
-    if (location.length > 0 && locationRolesQuery.data?.data?.roles) {
-      const enabledRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
+    if (location.length > 0 && locationTeamsQuery.data?.teams) {
+      const enabledTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
       
-      // Filter out roles that are not enabled for the selected location
-      setRole(prev => {
-        const validRoles = prev.filter(roleName => {
-          const roleData = rolesQuery.data?.roles?.find((c: any) => c.name === roleName) as any
-          return roleData && enabledRoleIds.includes(roleData.id || roleData._id)
+      setRole((prev) => {
+        const validRoles = prev.filter((roleName) => {
+          const roleData = teamsQuery.data?.teams?.find((c: any) => c.name === roleName) as any
+          return roleData && enabledTeamIds.includes(roleData.id || roleData._id)
         })
         return validRoles
       })
     }
-  }, [location, locationRolesQuery.data, rolesQuery.data])
+  }, [location, locationTeamsQuery.data, teamsQuery.data])
   
   const awardOptions = useMemo(() => 
     awardsQuery.data?.awards?.map((a: any) => ({

@@ -40,49 +40,64 @@ export async function remove(id: string): Promise<{ success: boolean }> {
   return apiFetch<{ success: boolean }>(`/api/locations/${id}`, { method: 'DELETE' })
 }
 
-export interface LocationRole {
-  roleId: string
-  roleName: string
-  roleColor?: string
+export interface LocationTeam {
+  teamId: string
+  teamName: string
+  teamColor?: string
   effectiveFrom: string
   effectiveTo?: string | null
   isActive: boolean
   employeeCount: number
 }
 
-export interface LocationRolesResponse {
-  success: boolean
-  data: {
-    roles: LocationRole[]
-  }
-  metadata?: {
-    count: number
-    locationId: string
-    date: string
-  }
+/** @deprecated use LocationTeam */
+export type LocationRole = LocationTeam
+
+export interface LocationTeamsResponse {
+  teams: LocationTeam[]
 }
 
-export interface EnableRoleRequest {
-  roleId: string
+/** @deprecated use LocationTeamsResponse */
+export type LocationRolesResponse = LocationTeamsResponse
+
+export interface EnableTeamRequest {
+  teamId: string
   effectiveFrom: string
   effectiveTo?: string | null
 }
 
-// Get roles for a location
-export async function getLocationRoles(locationId: string): Promise<LocationRolesResponse> {
-  return apiFetch<LocationRolesResponse>(`/api/locations/${locationId}/roles`)
+/** @deprecated use EnableTeamRequest */
+export type EnableRoleRequest = EnableTeamRequest
+
+export async function getLocationTeams(locationId: string): Promise<LocationTeamsResponse> {
+  return apiFetch<LocationTeamsResponse>(`/api/locations/${locationId}/teams`)
 }
 
-// Enable role for location
-export async function enableLocationRole(locationId: string, data: EnableRoleRequest): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(`/api/locations/${locationId}/roles`, {
+/** @deprecated use getLocationTeams */
+export const getLocationRoles = getLocationTeams
+
+export async function enableLocationTeam(
+  locationId: string,
+  data: EnableTeamRequest
+): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`/api/locations/${locationId}/teams`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
 }
 
-// Disable role for location
-export async function disableLocationRole(locationId: string, roleId: string): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(`/api/locations/${locationId}/roles/${roleId}`, { method: 'DELETE' })
+/** @deprecated use enableLocationTeam */
+export const enableLocationRole = enableLocationTeam
+
+export async function disableLocationTeam(
+  locationId: string,
+  teamId: string
+): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`/api/locations/${locationId}/teams/${teamId}`, {
+    method: 'DELETE',
+  })
 }
+
+/** @deprecated use disableLocationTeam */
+export const disableLocationRole = disableLocationTeam

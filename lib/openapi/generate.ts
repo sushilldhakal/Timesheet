@@ -86,7 +86,7 @@ function generateOpenAPISpec() {
     'Rosters': 'Roster and shift scheduling',
     'Schedules': 'Schedule templates and management',
     'Timesheets': 'Timesheet tracking and management',
-    'Roles': 'Role management and availability',
+    'Teams': 'Team management and availability',
     'Calendar': 'Calendar events and scheduling',
     'Awards': 'Award and recognition management',
     'Devices': 'Device registration and management',

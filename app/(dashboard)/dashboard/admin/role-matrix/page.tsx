@@ -6,10 +6,13 @@ import type { ILocationRoleEnablement } from "@/components/locations/LocationRol
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
-import { useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
-import { getLocationRoles } from "@/lib/api/locations"
+import {
+  useLocations,
+  useEnableLocationTeam,
+  useDisableLocationTeam,
+} from "@/lib/queries/locations"
+import { useTeams } from "@/lib/queries/teams"
+import { getLocationTeams } from "@/lib/api/locations"
 
 function RoleMatrixPage() {
   const router = useRouter()
@@ -18,12 +21,12 @@ function RoleMatrixPage() {
   const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
-  const rolesQuery = useRoles()
-  const enableLocationRoleMutation = useEnableLocationRole()
-  const disableLocationRoleMutation = useDisableLocationRole()
+  const teamsQuery = useTeams()
+  const enableLocationTeamMutation = useEnableLocationTeam()
+  const disableLocationTeamMutation = useDisableLocationTeam()
 
   const locations = locationsQuery.data?.locations || []
-  const roles = rolesQuery.data?.roles || []
+  const roles = teamsQuery.data?.teams || []
 
   // Fetch all enablements
   const fetchEnablements = async () => {
@@ -37,15 +40,15 @@ function RoleMatrixPage() {
           const locationId = (location as any)._id || location.id
           
           // Use the API function directly
-          const apiData = await getLocationRoles(locationId)
-          return (apiData.data?.roles || []).map((role: any) => ({
-            _id: `${locationId}-${role.roleId}`,
+          const apiData = await getLocationTeams(locationId)
+          return (apiData.teams || []).map((team: any) => ({
+            _id: `${locationId}-${team.teamId}`,
             locationId: locationId,
-            roleId: role.roleId,
-            effectiveFrom: role.effectiveFrom,
-            effectiveTo: role.effectiveTo,
-            isActive: role.isActive,
-            employeeCount: role.employeeCount,
+            roleId: team.teamId,
+            effectiveFrom: team.effectiveFrom,
+            effectiveTo: team.effectiveTo,
+            isActive: team.isActive,
+            employeeCount: team.employeeCount,
           }))
         } catch {
           return []
@@ -77,12 +80,12 @@ function RoleMatrixPage() {
 
     try {
       if (isEnabled) {
-        await disableLocationRoleMutation.mutateAsync({ locationId, roleId })
+        await disableLocationTeamMutation.mutateAsync({ locationId, teamId: roleId })
       } else {
-        await enableLocationRoleMutation.mutateAsync({
+        await enableLocationTeamMutation.mutateAsync({
           locationId,
           data: {
-            roleId,
+            teamId: roleId,
             effectiveFrom: new Date().toISOString(),
             effectiveTo: null,
           }
@@ -102,10 +105,10 @@ function RoleMatrixPage() {
     try {
       // Enable role at each location
       const promises = locationIds.map((locationId) =>
-        enableLocationRoleMutation.mutateAsync({
+        enableLocationTeamMutation.mutateAsync({
           locationId,
           data: {
-            roleId,
+            teamId: roleId,
             effectiveFrom: new Date().toISOString(),
             effectiveTo: null,
           }
@@ -122,7 +125,7 @@ function RoleMatrixPage() {
     }
   }
 
-  const isLoading = locationsQuery.isLoading || rolesQuery.isLoading || loading
+  const isLoading = locationsQuery.isLoading || teamsQuery.isLoading || loading
 
   return (
     <div className="flex flex-col space-y-4 p-4 lg:p-8">
@@ -136,9 +139,9 @@ function RoleMatrixPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Role-Location Matrix</h1>
+          <h1 className="text-2xl font-bold">Team–location matrix</h1>
           <p className="text-sm text-muted-foreground">
-            Manage role enablement across all locations
+            Manage team enablement across all locations
           </p>
         </div>
       </div>

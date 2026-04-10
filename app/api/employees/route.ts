@@ -68,7 +68,7 @@ export const GET = createApiRoute({
       await connectDB()
 
       const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-      const { Role, Location, Employer } = await import("@/lib/db")
+      const { Team, Location, Employer } = await import("@/lib/db")
 
       const andConditions: Record<string, unknown>[] = []
       const locFilter = employeeLocationFilter(ctx.userLocations)
@@ -93,7 +93,7 @@ export const GET = createApiRoute({
 
       // Add role filters if provided - need to check role assignments
       if (roleFilters.length > 0) {
-        const roleCategories = await Role.find({
+        const roleCategories = await Team.find({
           name: { $in: roleFilters },
         }).lean()
         
@@ -465,7 +465,7 @@ export const POST = createApiRoute({
 
     try {
       await connectDB()
-      const { Role, Location } = await import("@/lib/db")
+      const { Team, Location } = await import("@/lib/db")
 
       // Check email uniqueness if email provided
       if (body.email) {
@@ -529,7 +529,7 @@ export const POST = createApiRoute({
       
       if (body.role && body.role.length > 0 && body.location && body.location.length > 0) {
         // Fetch role and location IDs from names
-        const roleCategories = await Role.find({
+        const roleCategories = await Team.find({
           name: { $in: body.role },
         }).lean()
         

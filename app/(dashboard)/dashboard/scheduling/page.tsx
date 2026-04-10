@@ -12,12 +12,12 @@ import {
   type Block,
   type Settings,
   type Resource,
-} from '@/components/scheduling/packages/shadcn-scheduler/src';
-import { KanbanView } from '@/components/scheduling/packages/view-kanban/src/KanbanView';
-import { DayView } from '@/components/scheduling/packages/view-day/src/DayView';
-import { DayViewPanelChrome } from '@/components/scheduling/day-view-panel/DayViewPanelChrome';
+} from '@/components/scheduling';
+import { KanbanView } from '@/components/scheduling/views/KanbanView';
+import { DayView } from '@/components/scheduling/views/DayView';
+import { DayViewPanelChrome } from '@/components/scheduling/views/DayViewPanelChrome';
 import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge';
-import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling/packages/grid-engine/src';
+import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling';
 import { UnifiedCalendarTopbar } from '@/components/dashboard/calendar/UnifiedCalendarTopbar';
 import {
   Plus,
@@ -83,11 +83,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useMe } from '@/lib/queries/auth';
 import { useLocations } from '@/lib/queries/locations';
-import { useRoles } from '@/lib/queries/roles';
+import { useTeams } from '@/lib/queries/teams';
 import { useEmployees } from '@/lib/queries/employees';
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent, useBulkDeleteCalendarEvents } from '@/lib/queries/calendar';
 import {
-  useLocationRolesForScheduling,
+  useLocationTeamsForScheduling,
   useUserSchedulingSettings,
   usePatchSchedulingSettings,
   useAutoFillRoster,
@@ -123,7 +123,7 @@ const VIEW_TABS: { k: KViewBase; l: string; Icon: LucideIcon }[] = [
 /** Stable fallbacks — inline `[]` from `data ?? []` is a new reference every render and breaks useMemo / effects. */
 const EMPTY_CATEGORIES: { id: string; name: string }[] = []
 const EMPTY_EMPLOYEES: unknown[] = []
-const EMPTY_LOCATION_ROLES: { roleId: string; roleName: string }[] = []
+const EMPTY_LOCATION_TEAMS: { teamId: string; teamName: string }[] = []
 
 export default function SchedulingPage() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
@@ -177,9 +177,9 @@ export default function SchedulingPage() {
   // TanStack Query hooks
   const userInfoQuery = useMe();
   const locationsQuery = useLocations();
-  const rolesQuery = useRoles();
+  const teamsQuery = useTeams();
   const employeesQuery = useEmployees(1000);
-  const locationRolesQuery = useLocationRolesForScheduling(selectedLocationId || null);
+  const locationTeamsQuery = useLocationTeamsForScheduling(selectedLocationId || null);
   const userSchedulingSettingsQuery = useUserSchedulingSettings();
   const patchSettings = usePatchSchedulingSettings();
   const autoFillMutation = useAutoFillRoster();
@@ -238,11 +238,11 @@ export default function SchedulingPage() {
   const userInfo = userInfoQuery.data?.user;
 
   const locations = locationsQuery.data?.locations ?? EMPTY_CATEGORIES;
-  const roles = rolesQuery.data?.roles ?? EMPTY_CATEGORIES;
+  const roles = teamsQuery.data?.teams ?? EMPTY_CATEGORIES;
   const employees = (employeesQuery.data?.employees ?? EMPTY_EMPLOYEES) as NonNullable<
     typeof employeesQuery.data
   >['employees'];
-  const locationRoleRows = locationRolesQuery.data?.roles ?? EMPTY_LOCATION_ROLES;
+  const locationTeamRows = locationTeamsQuery.data?.teams ?? EMPTY_LOCATION_TEAMS;
 
   const locationOptions = useMemo(() => {
     const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
@@ -267,21 +267,21 @@ export default function SchedulingPage() {
 
   const visibleRoleIds = useMemo(() => {
     const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
-    const ids = new Set(locationRoleRows.map((r) => r.roleId));
+    const ids = new Set(locationTeamRows.map((r) => r.teamId));
     if (isAdmin || !userInfo?.managedRoles?.length) {
       return ids;
     }
     const managed = new Set(userInfo.managedRoles.map((n) => String(n).trim().toLowerCase()));
     const filtered = new Set<string>();
-    for (const row of locationRoleRows) {
-      if (managed.has(String(row.roleName).trim().toLowerCase())) {
-        filtered.add(row.roleId);
+    for (const row of locationTeamRows) {
+      if (managed.has(String(row.teamName).trim().toLowerCase())) {
+        filtered.add(row.teamId);
       }
     }
     return filtered.size ? filtered : ids;
-  }, [locationRoleRows, userInfo]);
+  }, [locationTeamRows, userInfo]);
 
-  /** Roles shown in the grid + sidebar for the selected location. Falls back when /locations/:id/roles is empty or loading. */
+  /** Teams shown in the grid + sidebar for the selected location. Falls back when /locations/:id/teams is empty or loading. */
   const roleIdsForScheduling = useMemo(() => {
     if (visibleRoleIds.size > 0) return visibleRoleIds;
     const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'super_admin';
@@ -1202,7 +1202,7 @@ export default function SchedulingPage() {
     );
   }
 
-  if (userInfoQuery.isLoading || locationsQuery.isLoading || rolesQuery.isLoading || employeesQuery.isLoading) {
+  if (userInfoQuery.isLoading || locationsQuery.isLoading || teamsQuery.isLoading || employeesQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -1275,7 +1275,7 @@ export default function SchedulingPage() {
                 userInfo.role !== 'super_admin' &&
                 (userInfo.location?.length ?? 0) > 0 && (
                   <p className="max-w-[320px] text-[11px] text-muted-foreground">
-                    Only locations assigned to you are listed. Role scope follows your manager roles.
+                    Only locations assigned to you are listed. Team scope follows your manager roles.
                   </p>
                 )}
             </div>

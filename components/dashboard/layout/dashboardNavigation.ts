@@ -93,7 +93,6 @@ export const baseNavigationItems: NavigationItem[] = [
     icon: Settings,
     adminOnly: true,
     children: [
-      { href: '/dashboard/setting/change-password', label: 'Change Password', icon: Lock, adminOnly: false },
       { href: '/dashboard/devices', label: 'Device Management', icon: Tablet, adminOnly: true },
       { href: '/dashboard/setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
       { href: '/dashboard/setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },

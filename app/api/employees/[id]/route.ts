@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
-import { connectDB, Employee, Employer, Location, Role } from "@/lib/db"
+import { connectDB, Employee, Employer, Location, Team } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema, 
@@ -350,7 +350,7 @@ export const PATCH = createApiRoute({
         
         if (roleNames.length > 0 && locationNames.length > 0) {
           // Fetch role and location categories
-          const roleCategories = await Role.find({
+          const roleCategories = await Team.find({
             name: { $in: roleNames },
           }).lean()
           

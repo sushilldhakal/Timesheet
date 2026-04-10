@@ -4,7 +4,7 @@ import { Roster, IShift } from "../db/schemas/roster"
 import { Employee, IEmployeeDocument } from "../db/schemas/employee"
 import { EmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
 import { Location } from "../db/schemas/location"
-import { Role } from "../db/schemas/role"
+import { Team } from "../db/schemas/team"
 import { AvailabilityConstraint } from "../db/schemas/availability-constraint"
 import { WorkingHoursHierarchy, WorkingHoursConfig } from "./working-hours-hierarchy"
 import { AvailabilityManager } from "./availability-manager"
@@ -191,7 +191,7 @@ export class AutoFillEngine {
       for (const a of empAssignments) {
         if (!roleOids.some((r) => r.equals(a.roleId as mongoose.Types.ObjectId))) continue
 
-        const role = await Role.findById(a.roleId)
+        const role = await Team.findById(a.roleId)
         if (!role) continue
 
         await this.fillForAssignment({

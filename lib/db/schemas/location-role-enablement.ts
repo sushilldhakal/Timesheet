@@ -2,11 +2,11 @@ import mongoose from "mongoose"
 
 /**
  * Tracks which roles are enabled at which locations
- * Junction table between Location and Role (both are Categories)
+ * Junction table between Location and Team (scheduling capacity)
  */
 export interface ILocationRoleEnablement {
   locationId: mongoose.Types.ObjectId  // ref: Location
-  roleId: mongoose.Types.ObjectId      // ref: Role
+  roleId: mongoose.Types.ObjectId      // ref: Team
   effectiveFrom: Date                  // When this enablement starts
   effectiveTo: Date | null             // When this enablement ends (null = indefinite)
   isActive: boolean                    // Computed: current date within range
@@ -26,7 +26,7 @@ const locationRoleEnablementSchema = new mongoose.Schema<ILocationRoleEnablement
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Role",
+      ref: "Team",
       required: true,
     },
     effectiveFrom: {

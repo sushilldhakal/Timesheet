@@ -15,6 +15,10 @@ import { Input } from "@/components/ui/input"
 import { Shield, MapPin, Briefcase, CheckCircle2 } from "lucide-react"
 import { RIGHT_LABELS, type Right } from "@/lib/config/rights"
 import { useUpdateUser } from "@/lib/queries/users"
+import { ChangePasswordCard } from "@/components/profile/change-password-card"
+import { useMutation } from "@tanstack/react-query"
+import { changePassword } from "@/lib/api/auth"
+import { toast } from "sonner"
 
 function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
@@ -24,6 +28,23 @@ function ProfilePage() {
   const [success, setSuccess] = useState(false)
 
   const updateUserMutation = useUpdateUser()
+  
+  const changePasswordMutation = useMutation({
+    mutationFn: changePassword,
+    onSuccess: () => {
+      toast.success("Password changed successfully")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    }
+  })
+
+  const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
+    return changePasswordMutation.mutateAsync({
+      currentPassword,
+      newPassword,
+    })
+  }
 
   useEffect(() => {
     if (user) {
@@ -226,6 +247,11 @@ function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <ChangePasswordCard 
+        onSubmit={handlePasswordChange}
+        isLoading={changePasswordMutation.isPending}
+      />
 
       <Card className="max-w-2xl">
         <CardHeader>

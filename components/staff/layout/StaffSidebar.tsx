@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Package2, Home, Clock, Calendar, User, Lock, PanelLeft, PanelLeftClose } from "lucide-react"
+import { Package2, Home, Clock, Calendar, CalendarCheck, CalendarX, PanelLeft, PanelLeftClose } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { useState, useEffect } from "react"
 import {
@@ -36,14 +36,14 @@ const navigationItems = [
     icon: Calendar,
   },
   {
-    label: "My Profile",
-    href: "/staff/profile",
-    icon: User,
+    label: "Leave",
+    href: "/staff/leave",
+    icon: CalendarCheck,
   },
   {
-    label: "Change Password",
-    href: "/staff/change-password",
-    icon: Lock,
+    label: "Unavailability",
+    href: "/staff/unavailability",
+    icon: CalendarX,
   },
 ]
 

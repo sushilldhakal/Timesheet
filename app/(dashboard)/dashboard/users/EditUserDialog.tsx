@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useTeams } from "@/lib/queries/teams"
 import { useUser } from "@/lib/queries/users"
 import { useEmployees } from "@/lib/queries/employees"
 import { useUpdateUser } from "@/lib/queries/users"
@@ -51,7 +51,7 @@ export function EditUserDialog({
   const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const userQuery = useUser(user.id)
   const employeesQuery = useEmployees(1000)
   const updateUserMutation = useUpdateUser()
@@ -61,7 +61,7 @@ export function EditUserDialog({
     label: c.name,
   })) || []
 
-  const allRoles = rolesQuery.data?.roles || []
+  const allRoles = teamsQuery.data?.teams || []
 
   // Compute role options based on selected locations
   const roleOptions = useMemo(() => {

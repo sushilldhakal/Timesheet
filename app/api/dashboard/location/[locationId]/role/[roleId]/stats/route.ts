@@ -27,7 +27,7 @@ export const GET = createApiRoute({
   },
   handler: async ({ params, query }) => {
     const { getAuthWithUserLocations } = await import('@/lib/auth/auth-api')
-    const { connectDB, Location, Role } = await import('@/lib/db')
+    const { connectDB, Location, Team } = await import('@/lib/db')
     const { dashboardCache } = await import('@/lib/utils/dashboard/dashboard-cache')
     const { 
       getUserPermissionContext, 
@@ -142,7 +142,7 @@ export const GET = createApiRoute({
         }
       }
 
-      const role = await Role.findById(roleId)
+      const role = await Team.findById(roleId)
         .select('name color')
         .lean()
       

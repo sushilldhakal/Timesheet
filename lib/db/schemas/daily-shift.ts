@@ -72,7 +72,7 @@ export interface IDailyShift {
   
   // Context fields for scoped access
   locationId: mongoose.Types.ObjectId | null // ref: Location
-  roleId: mongoose.Types.ObjectId | null // ref: Role
+  roleId: mongoose.Types.ObjectId | null // ref: Team
   employerId?: mongoose.Types.ObjectId | null // ref: Employer
   employeeId: mongoose.Types.ObjectId | null // Reference to Employee document
   rosterShiftId?: mongoose.Types.ObjectId // ref: 'Roster' shift subdocument
@@ -203,7 +203,7 @@ const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
     
     // Context fields for scoped access
     locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", default: null },
-    roleId: { type: mongoose.Schema.Types.ObjectId, ref: "Role", default: null },
+    roleId: { type: mongoose.Schema.Types.ObjectId, ref: "Team", default: null },
     employerId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", default: null },
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null }, // Reference to Employee document
     rosterShiftId: { type: mongoose.Schema.Types.ObjectId }, // ref: 'Roster' shift subdocument

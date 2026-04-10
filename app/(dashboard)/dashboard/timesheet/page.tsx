@@ -22,7 +22,7 @@ import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCa
 import { useMe } from "@/lib/queries/auth"
 import { useEmployees } from "@/lib/queries/employees"
 import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useTeams } from "@/lib/queries/teams"
 import { useTimesheets } from "@/lib/queries/daily-shifts"
 import { getTimesheets } from "@/lib/api/daily-shifts"
 import { AwardEnhancedRow } from "@/components/timesheet/award-enhanced-row"
@@ -211,7 +211,7 @@ export default function TimesheetPage() {
   const userQuery = useMe()
   const employeesQuery = useEmployees(500)
   const locationsQuery = useLocations()
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
 
   const timesheetFilters = useMemo(
     () => ({
@@ -341,10 +341,10 @@ export default function TimesheetPage() {
               })) || []
           }
           
-          rolesArray = rolesQuery.data?.roles?.map((role: any) => ({ 
-            id: role.id, 
-            name: role.name, 
-            type: "role" 
+          rolesArray = teamsQuery.data?.teams?.map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            type: "role",
           })) || []
         } else {
           // Regular users: Use their assigned permissions
@@ -363,7 +363,7 @@ export default function TimesheetPage() {
       console.error("Error in fetchFilters:", error)
       setError("Failed to load filters")
     }
-  }, [userQuery.data, employeesQuery.data, locationsQuery.data, rolesQuery.data])
+  }, [userQuery.data, employeesQuery.data, locationsQuery.data, teamsQuery.data])
 
   // If user is restricted to exactly one location, force-select it and keep it selected.
   useEffect(() => {

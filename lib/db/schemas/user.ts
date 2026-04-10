@@ -100,7 +100,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       type: [String],
       default: [],
     },
-    managedRoleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Role" }],
+    managedRoleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Team" }],
     createdBy: {
       type: String,
       default: null,

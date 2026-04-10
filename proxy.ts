@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { getTokenFromRequest, verifyAuthToken } from "@/lib/auth/auth"
+import { getTokenFromRequest, verifyAuthToken } from "@/lib/auth/auth-helpers"
 import { getEmployeeTokenFromRequest, getEmployeeWebTokenFromRequest, verifyEmployeeToken } from "@/lib/auth/employee-auth"
 import { logStaffSessionFailure } from "@/lib/auth/auth-logger"
 

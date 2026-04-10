@@ -2,11 +2,11 @@ import mongoose from "mongoose"
 
 /**
  * Tracks employee role assignments at specific locations
- * Replaces legacy Employee.role field
+ * Replaces legacy Employee.role field (roleId references Team documents)
  */
 export interface IEmployeeRoleAssignment {
   employeeId: mongoose.Types.ObjectId  // ref: Employee
-  roleId: mongoose.Types.ObjectId      // ref: Role
+  roleId: mongoose.Types.ObjectId      // ref: Team (scheduling team id)
   locationId: mongoose.Types.ObjectId  // ref: Location
   isPrimary: boolean                   // Primary assignment for employee
   validFrom: Date                      // When assignment starts
@@ -36,7 +36,7 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Role",
+      ref: "Team",
       required: [true, "Role ID is required"],
       validate: {
         validator: function(v: mongoose.Types.ObjectId) {

@@ -36,7 +36,7 @@ export function CategoriesTable({
           cell: ({ row }) => {
             const c = row.original
             // Show color badge with name for roles and employers
-            if ((type === "role" || type === "employer") && c.color) {
+            if ((type === "team" || type === "employer") && c.color) {
               return (
                 <div className="flex items-center gap-2">
                   <div 
@@ -52,8 +52,8 @@ export function CategoriesTable({
         },
       ]
       
-      // Add detailed columns for roles
-      if (type === "role") {
+      // Add detailed columns for teams
+      if (type === "team") {
         base.push(
           {
             id: "hours",
@@ -207,16 +207,16 @@ export function CategoriesTable({
           const c = row.original
           return (
             <div className="flex gap-1">
-              {/* Manage Roles button for locations */}
+              {/* Manage teams button for locations */}
               {type === "location" && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-8 gap-1"
-                  onClick={() => router.push(`/dashboard/locations/${c.id}/roles`)}
+                  onClick={() => router.push(`/dashboard/locations/${c.id}/teams`)}
                 >
                   <Settings className="h-4 w-4" />
-                  Manage Roles
+                  Manage Teams
                 </Button>
               )}
               <Button

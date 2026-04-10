@@ -29,22 +29,28 @@ export const locationIdParamSchema = z.object({
   id: objectIdSchema,
 })
 
-// ---- Location-role enablement (used by /api/locations/[locationId]/roles/*) ----
+// ---- Location-team enablement (used by /api/locations/[locationId]/teams/*) ----
 
 export const locationIdPathParamSchema = z.object({
   locationId: objectIdSchema,
 })
 
-export const locationRoleParamsSchema = z.object({
+export const locationTeamParamsSchema = z.object({
   locationId: objectIdSchema,
-  roleId: objectIdSchema,
+  teamId: objectIdSchema,
 })
 
-export const enableRoleSchema = z.object({
-  roleId: objectIdSchema,
+/** @deprecated use locationTeamParamsSchema */
+export const locationRoleParamsSchema = locationTeamParamsSchema
+
+export const enableTeamSchema = z.object({
+  teamId: objectIdSchema,
   effectiveFrom: z.string().datetime().optional(),
   effectiveTo: z.string().datetime().nullable().optional(),
 })
+
+/** @deprecated use enableTeamSchema */
+export const enableRoleSchema = enableTeamSchema
 
 export const updateEnablementSchema = z.object({
   effectiveFrom: z.string().datetime().optional(),
@@ -56,29 +62,38 @@ export const roleEnablementQuerySchema = z.object({
   includeInactive: z.coerce.boolean().optional().default(false),
 })
 
-export const roleEnablementSchema = z.object({
-  roleId: z.string(),
-  roleName: z.string(),
-  roleColor: z.string().optional(),
+export const teamEnablementSchema = z.object({
+  teamId: z.string(),
+  teamName: z.string(),
+  teamColor: z.string().optional(),
   effectiveFrom: z.any(),
   effectiveTo: z.any().nullable(),
   isActive: z.boolean(),
   employeeCount: z.number().optional(),
 })
 
-export const locationRolesResponseSchema = z.object({
-  roles: z.array(roleEnablementSchema),
+export const locationTeamsResponseSchema = z.object({
+  teams: z.array(teamEnablementSchema),
 })
 
-export const roleEnablementResponseSchema = z.object({
+export const teamEnablementResponseSchema = z.object({
   enablement: z.object({
     id: z.string(),
     locationId: z.string(),
-    roleId: z.string(),
-    roleName: z.string(),
-    roleColor: z.string().optional(),
+    teamId: z.string(),
+    teamName: z.string(),
+    teamColor: z.string().optional(),
     effectiveFrom: z.any(),
     effectiveTo: z.any().nullable(),
     isActive: z.boolean(),
   }),
 })
+
+/** @deprecated use teamEnablementSchema */
+export const roleEnablementSchema = teamEnablementSchema
+
+/** @deprecated use locationTeamsResponseSchema */
+export const locationRolesResponseSchema = locationTeamsResponseSchema
+
+/** @deprecated use teamEnablementResponseSchema */
+export const roleEnablementResponseSchema = teamEnablementResponseSchema

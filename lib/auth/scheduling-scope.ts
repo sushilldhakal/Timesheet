@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import type { AuthWithLocations } from "./auth-api"
-import { Location, Role } from "@/lib/db"
+import { Location, Team } from "@/lib/db"
 
 export type ScopeCheckResult =
   | { ok: true }
@@ -66,7 +66,7 @@ export async function assertManagerSchedulingScope(
     return { ok: false, status: 400, error: "managedRoles is required for your account" }
   }
 
-  const roles = await Role.find({
+  const roles = await Team.find({
     _id: { $in: managedRoleIds.map((id) => new mongoose.Types.ObjectId(id)) },
   })
     .select("name")

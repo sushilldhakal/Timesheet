@@ -2,7 +2,7 @@ import mongoose from "mongoose"
 import { EmployeeRoleAssignment, IEmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
 import { Employee } from "../db/schemas/employee"
 import { Location } from "../db/schemas/location"
-import { Role } from "../db/schemas/role"
+import { Team } from "../db/schemas/team"
 import { RoleEnablementManager } from "./role-enablement-manager"
 
 export interface AssignRoleParams {
@@ -677,7 +677,7 @@ export class RoleAssignmentManager {
       }
 
       // Verify role exists
-      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         return {
           valid: false,

@@ -106,10 +106,10 @@ export async function getFilteredEmployeeIdsByRole(
   try {
     await connectDB()
     const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-    const { Role, Location } = await import("@/lib/db")
+    const { Team, Location } = await import("@/lib/db")
 
     // Get role IDs from role names
-    const roleCategories = await Role.find({
+    const roleCategories = await Team.find({
       name: { $in: managedRoles },
     })
       .select("_id")

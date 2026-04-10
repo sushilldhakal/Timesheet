@@ -1,21 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Briefcase, MapPin, UserCircle, Plus, CircleDollarSign } from "lucide-react"
 import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useTeams } from "@/lib/queries/teams"
 import { useEmployers } from "@/lib/queries/employers"
 import { CategoriesTable } from "./CategoriesTable"
 import { AddCategoryDialog } from "./AddCategoryDialog"
 import { EditCategoryDialog } from "./EditCategoryDialog"
 import { DeleteCategoryDialog } from "./DeleteCategoryDialog"
 
-export type EntityType = "role" | "employer" | "location"
+export type EntityType = "team" | "employer" | "location"
 
 const ENTITY_LABELS: Record<EntityType, string> = {
-  role: "Role",
+  team: "Team",
   employer: "Employer",
   location: "Location",
 }
@@ -41,36 +41,48 @@ export type CategoryRow = {
 }
 
 const categoryTabs = [
-  { id: "role" as EntityType, label: ENTITY_LABELS.role, icon: UserCircle },
+  { id: "team" as EntityType, label: "Teams", icon: UserCircle },
   { id: "employer" as EntityType, label: ENTITY_LABELS.employer, icon: Briefcase },
   { id: "location" as EntityType, label: ENTITY_LABELS.location, icon: MapPin },
 ]
 
 const TAB_DESCRIPTIONS: Record<EntityType, string> = {
-  role: "Roles you can assign to employees (e.g. Driver, Supervisor).",
+  team: "Teams you can assign to employees (e.g. Driver, Supervisor).",
   employer: "Employers to assign to employees.",
   location: "Locations to assign to employees (sites, offices).",
 }
 
 const ADD_BUTTON_LABELS: Record<EntityType, string> = {
-  role: "Add Role",
+  team: "Add Team",
   employer: "Add Employer",
   location: "Add Location",
 }
 
 function CategoryPage() {
-  const [activeType, setActiveType] = useState<EntityType>("role")
+  const [activeType, setActiveType] = useState<EntityType>("team")
   const [addOpen, setAddOpen] = useState(false)
   const [editCategory, setEditCategory] = useState<CategoryRow | null>(null)
   const [deleteCategory, setDeleteCategory] = useState<CategoryRow | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
 
   const locationsQuery = useLocations()
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const employersQuery = useEmployers()
 
+  const errorMessage =
+    activeType === "team"
+      ? (teamsQuery.error as Error | null)?.message
+      : activeType === "employer"
+      ? (employersQuery.error as Error | null)?.message
+      : (locationsQuery.error as Error | null)?.message
+
   const rawData =
-    activeType === "role"
-      ? rolesQuery.data?.roles
+    activeType === "team"
+      ? teamsQuery.data?.teams
       : activeType === "employer"
       ? employersQuery.data?.employers
       : locationsQuery.data?.locations
@@ -78,14 +90,16 @@ function CategoryPage() {
   const categories: CategoryRow[] = (rawData ?? []).map((item) => ({ ...item, type: activeType }))
 
   const loading =
-    activeType === "role"
-      ? rolesQuery.isLoading
+    activeType === "team"
+      ? teamsQuery.isLoading
       : activeType === "employer"
       ? employersQuery.isLoading
       : locationsQuery.isLoading
 
+  const showLoading = !hydrated || loading
+
   const refetchCategories = () => {
-    if (activeType === "role") rolesQuery.refetch()
+    if (activeType === "team") teamsQuery.refetch()
     else if (activeType === "employer") employersQuery.refetch()
     else locationsQuery.refetch()
   }
@@ -131,8 +145,10 @@ function CategoryPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {showLoading ? (
                 <p className="py-8 text-center text-muted-foreground">Loading...</p>
+              ) : errorMessage ? (
+                <p className="py-8 text-center text-destructive">{errorMessage}</p>
               ) : (
                 <CategoriesTable
                   type={activeType}

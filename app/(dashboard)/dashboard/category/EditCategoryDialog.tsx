@@ -22,13 +22,13 @@ import {
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { useUpdateLocation, useLocationRoles, useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
-import { useRoles, useUpdateRole } from "@/lib/queries/roles"
+import { useUpdateLocation, useLocationTeams, useEnableLocationTeam, useDisableLocationTeam } from "@/lib/queries/locations"
+import { useTeams, useUpdateTeam } from "@/lib/queries/teams"
 import { useUpdateEmployer } from "@/lib/queries/employers"
 import type { CategoryRow } from "./page"
 
-const TYPE_LABELS: Record<"role" | "employer" | "location", string> = {
-  role: "Role",
+const TYPE_LABELS: Record<"team" | "employer" | "location", string> = {
+  team: "Team",
   employer: "Employer",
   location: "Location",
 }
@@ -63,15 +63,15 @@ export function EditCategoryDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const updateLocationMutation = useUpdateLocation()
-  const updateRoleMutation = useUpdateRole()
+  const updateTeamMutation = useUpdateTeam()
   const updateEmployerMutation = useUpdateEmployer()
-  const locationRolesQuery = useLocationRoles(category.id)
-  const enableLocationRoleMutation = useEnableLocationRole()
-  const disableLocationRoleMutation = useDisableLocationRole()
+  const locationTeamsQuery = useLocationTeams(category.id)
+  const enableLocationTeamMutation = useEnableLocationTeam()
+  const disableLocationTeamMutation = useDisableLocationTeam()
 
-  const allRoles = rolesQuery.data?.roles ?? []
+  const allTeams = teamsQuery.data?.teams ?? []
 
   useEffect(() => {
     if (open && category) {
@@ -91,12 +91,12 @@ export function EditCategoryDialog({
       setShiftDescription(category.defaultScheduleTemplate?.shiftPattern?.description ?? 'Standard business hours')
       setError(null)
 
-      // Set enabled roles for locations
-      if (category.type === "location" && locationRolesQuery.data?.data?.roles) {
-        setSelectedRoleIds(locationRolesQuery.data.data.roles.map(r => r.roleId))
+      // Set enabled teams for locations
+      if (category.type === "location" && locationTeamsQuery.data?.teams) {
+        setSelectedRoleIds(locationTeamsQuery.data.teams.map((t) => t.teamId))
       }
     }
-  }, [open, category, locationRolesQuery.data])
+  }, [open, category, locationTeamsQuery.data])
 
   const handleMapLinkChange = (value: string) => {
     setMapLink(value)
@@ -121,8 +121,8 @@ export function EditCategoryDialog({
         body.openingHour = openingHour
         body.closingHour = closingHour
         await updateLocationMutation.mutateAsync({ id: category.id, data: body as any })
-      } else if (category.type === "role") {
-        await updateRoleMutation.mutateAsync({
+      } else if (category.type === "team") {
+        await updateTeamMutation.mutateAsync({
           id: category.id,
           data: {
             name: name.trim(),
@@ -137,34 +137,31 @@ export function EditCategoryDialog({
         await updateEmployerMutation.mutateAsync({ id: category.id, data: { name: name.trim(), color } })
       }
 
-      // If location, sync role enablements
-      if (category.type === "location" && locationRolesQuery.data?.data?.roles) {
-        const currentRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
+      // If location, sync team enablements
+      if (category.type === "location" && locationTeamsQuery.data?.teams) {
+        const currentTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
 
-        // Determine roles to enable and disable
-        const rolesToEnable = selectedRoleIds.filter((id) => !currentRoleIds.includes(id))
-        const rolesToDisable = currentRoleIds.filter((id: string) => !selectedRoleIds.includes(id))
+        const teamsToEnable = selectedRoleIds.filter((id) => !currentTeamIds.includes(id))
+        const teamsToDisable = currentTeamIds.filter((id: string) => !selectedRoleIds.includes(id))
 
-        // Enable new roles
         await Promise.all(
-          rolesToEnable.map((roleId) =>
-            enableLocationRoleMutation.mutateAsync({
+          teamsToEnable.map((teamId) =>
+            enableLocationTeamMutation.mutateAsync({
               locationId: category.id,
               data: {
-                roleId,
+                teamId,
                 effectiveFrom: new Date().toISOString(),
                 effectiveTo: null,
-              }
+              },
             })
           )
         )
 
-        // Disable removed roles
         await Promise.all(
-          rolesToDisable.map((roleId: string) =>
-            disableLocationRoleMutation.mutateAsync({
+          teamsToDisable.map((teamId: string) =>
+            disableLocationTeamMutation.mutateAsync({
               locationId: category.id,
-              roleId
+              teamId,
             })
           )
         )
@@ -178,7 +175,7 @@ export function EditCategoryDialog({
   }
 
   const typeLabel = TYPE_LABELS[category.type]
-  const loading = updateLocationMutation.isPending || updateRoleMutation.isPending || updateEmployerMutation.isPending || enableLocationRoleMutation.isPending || disableLocationRoleMutation.isPending
+  const loading = updateLocationMutation.isPending || updateTeamMutation.isPending || updateEmployerMutation.isPending || enableLocationTeamMutation.isPending || disableLocationTeamMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,7 +197,7 @@ export function EditCategoryDialog({
                 required
               />
             </Field>
-            {(category.type === "role" || category.type === "employer") && (
+            {(category.type === "team" || category.type === "employer") && (
               <>
                 <Field>
                   <FieldLabel htmlFor="edit-color">Color</FieldLabel>
@@ -234,7 +231,7 @@ export function EditCategoryDialog({
                     </SelectContent>
                   </Select>
                 </Field>
-                {category.type === "role" && (
+                {category.type === "team" && (
                   <>
                     <Field>
                       <FieldLabel htmlFor="edit-standard-hours">Standard Hours per Week</FieldLabel>
@@ -248,7 +245,7 @@ export function EditCategoryDialog({
                         onChange={(e) => setStandardHours(Number(e.target.value) || 38)}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Default working hours for this role (used in roster generation)
+                        Default working hours for this team (used in roster generation)
                       </p>
                     </Field>
 
@@ -283,7 +280,7 @@ export function EditCategoryDialog({
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Select the days this role typically works
+                        Select the days this team typically works
                       </p>
                     </Field>
 
@@ -427,18 +424,18 @@ export function EditCategoryDialog({
                 <Field>
                   <FieldLabel>Enabled Roles</FieldLabel>
                   <MultiSelect
-                    options={allRoles.map(role => ({
-                      label: role.name,
-                      value: role.id,
-                      style: role.color ? { badgeColor: role.color } : undefined
+                    options={allTeams.map((team) => ({
+                      label: team.name,
+                      value: team.id,
+                      style: team.color ? { badgeColor: team.color } : undefined
                     }))}
                     onValueChange={setSelectedRoleIds}
                     defaultValue={selectedRoleIds}
-                    placeholder="Select roles for this location..."
+                    placeholder="Select teams for this location..."
                     disabled={loading}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Select which roles are available at this location
+                    Select which teams are available at this location
                   </p>
                 </Field>
               </>

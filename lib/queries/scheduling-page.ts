@@ -3,23 +3,26 @@ import type { IUserSchedulingSettings } from "@/lib/db/schemas/user"
 import { autoFillRoster, publishRosterScoped } from "@/lib/api/rosters"
 
 export const schedulingPageKeys = {
-  locationRoles: (locationId: string) => ["scheduling", "locationRoles", locationId] as const,
+  locationTeams: (locationId: string) => ["scheduling", "locationTeams", locationId] as const,
   templates: ["scheduling", "templates"] as const,
   userSchedulingSettings: ["scheduling", "userSettings"] as const,
 }
 
-export function useLocationRolesForScheduling(locationId: string | null) {
+export function useLocationTeamsForScheduling(locationId: string | null) {
   return useQuery({
-    queryKey: locationId ? schedulingPageKeys.locationRoles(locationId) : ["scheduling", "locationRoles", "none"],
+    queryKey: locationId ? schedulingPageKeys.locationTeams(locationId) : ["scheduling", "locationTeams", "none"],
     queryFn: async () => {
-      const res = await fetch(`/api/locations/${locationId}/roles`, { credentials: "include" })
-      if (!res.ok) throw new Error("Failed to load location roles")
-      return res.json() as Promise<{ roles: Array<{ roleId: string; roleName: string }> }>
+      const res = await fetch(`/api/locations/${locationId}/teams`, { credentials: "include" })
+      if (!res.ok) throw new Error("Failed to load location teams")
+      return res.json() as Promise<{ teams: Array<{ teamId: string; teamName: string }> }>
     },
     enabled: !!locationId,
     staleTime: 60_000,
   })
 }
+
+/** @deprecated use useLocationTeamsForScheduling */
+export const useLocationRolesForScheduling = useLocationTeamsForScheduling
 
 export function useSchedulingTemplates() {
   return useQuery({

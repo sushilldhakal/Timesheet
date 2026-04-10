@@ -196,10 +196,10 @@ export default function StaffDashboardPage() {
             <Button 
               variant="outline" 
               className="w-full justify-start"
-              onClick={() => router.push("/staff/change-password")}
+              onClick={() => router.push("/staff/profile")}
             >
               <Settings className="mr-2 h-4 w-4" />
-              Change Password
+              View Profile & Settings
             </Button>
           </CardContent>
         </Card>

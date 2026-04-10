@@ -143,7 +143,7 @@ export function LocationRoleMatrix({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Location-Role Matrix</CardTitle>
+            <CardTitle>Location–team matrix</CardTitle>
             <CardDescription>
               View and manage role enablement across all locations. Click cells to toggle.
             </CardDescription>
@@ -212,7 +212,7 @@ export function LocationRoleMatrix({
           <div className="py-8 text-center text-muted-foreground">
             {locations.length === 0
               ? "No locations available. Create locations first."
-              : "No roles available. Create roles first."}
+              : "No teams available. Create teams first."}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -34,13 +34,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/lib/utils/toast"
 import { CheckCircle2, MapPin, Briefcase, Loader2 } from "lucide-react"
 import { useLocations } from "@/lib/queries/locations"
-import { useRolesAvailability } from "@/lib/queries/roles"
+import { useTeamsAvailability } from "@/lib/queries/teams"
 import { useCreateEmployeeRole } from "@/lib/queries/employees"
 
 // Validation schema
 const assignmentSchema = z.object({
   locationId: z.string().min(1, "Location is required"),
-  roleId: z.string().min(1, "Role is required"),
+  roleId: z.string().min(1, "Team is required"),
   validFrom: z.date({
     message: "Valid from date is required",
   }),
@@ -65,14 +65,6 @@ interface Location {
   _id: string
   id?: string
   name: string
-}
-
-interface Role {
-  roleId: string
-  roleName: string
-  roleColor?: string
-  employeeCount: number
-  isEnabled: boolean
 }
 
 interface EmployeeRoleAssignmentDialogProps {
@@ -107,13 +99,13 @@ export function EmployeeRoleAssignmentDialog({
   // TanStack Query hooks
   const { data: locationsData, isLoading: loadingLocations } = useLocations()
   const selectedLocationId = form.watch("locationId")
-  const { data: rolesData, isLoading: loadingRoles } = useRolesAvailability({ 
+  const { data: teamsData, isLoading: loadingRoles } = useTeamsAvailability({ 
     locationId: selectedLocationId 
   })
   const createRoleMutation = useCreateEmployeeRole()
 
   const locations = locationsData?.locations || []
-  const roles = rolesData?.roles || []
+  const teams = (teamsData as { teams?: Array<{ teamId: string; teamName: string; teamColor?: string }> })?.teams || []
 
   const selectedRoleId = form.watch("roleId")
 
@@ -152,11 +144,11 @@ export function EmployeeRoleAssignmentDialog({
             const selectedLocation = locations.find(
               (l: any) => (l._id || l.id) === data.locationId
             )
-            const selectedRole = roles.find((r: any) => r.roleId === data.roleId)
+            const selectedRole = teams.find((t: { teamId: string }) => t.teamId === data.roleId)
             
             toast.success({
-              title: "Role Assigned",
-              description: `${employeeName} has been assigned to ${selectedRole?.roleName || "role"} at ${selectedLocation?.name || "location"}.`,
+              title: "Team assigned",
+              description: `${employeeName} has been assigned to ${(selectedRole as { teamName?: string })?.teamName || "team"} at ${selectedLocation?.name || "location"}.`,
             })
           }, 1500)
         },
@@ -178,8 +170,8 @@ export function EmployeeRoleAssignmentDialog({
             )
           } else {
             toast.error({
-              title: "Failed to Assign Role",
-              description: result.message || "An error occurred while assigning the role.",
+              title: "Failed to assign team",
+              description: result.message || "An error occurred while assigning the team.",
             })
           }
         },
@@ -198,7 +190,7 @@ export function EmployeeRoleAssignmentDialog({
   const selectedLocation = locations.find(
     (l: any) => (l._id || l.id) === selectedLocationId
   )
-  const selectedRole = roles.find((r: any) => r.roleId === selectedRoleId)
+  const selectedRole = teams.find((t: { teamId: string }) => t.teamId === selectedRoleId)
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -210,9 +202,9 @@ export function EmployeeRoleAssignmentDialog({
               <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-semibold">Role Assigned Successfully!</h3>
+              <h3 className="text-lg font-semibold">Team assigned successfully</h3>
               <p className="text-sm text-muted-foreground">
-                {employeeName} can now work as {selectedRole?.roleName} at{" "}
+                {employeeName} can now work as {(selectedRole as { teamName?: string })?.teamName} at{" "}
                 {selectedLocation?.name}
               </p>
             </div>
@@ -221,10 +213,10 @@ export function EmployeeRoleAssignmentDialog({
           // Form view
           <>
             <DialogHeader>
-              <DialogTitle>Assign Role to Employee</DialogTitle>
+              <DialogTitle>Assign team to employee</DialogTitle>
               <DialogDescription>
                 Assign <span className="font-medium text-foreground">{employeeName}</span> to
-                a role at a specific location
+                a team at a specific location
               </DialogDescription>
             </DialogHeader>
 
@@ -294,13 +286,13 @@ export function EmployeeRoleAssignmentDialog({
                     )}
                   />
 
-                  {/* Role Dropdown (filtered by location) */}
+                  {/* Team dropdown (filtered by location) */}
                   <FormField
                     control={form.control}
                     name="roleId"
                     render={({ field }: { field: any }) => (
                       <FormItem>
-                        <FormLabel>Role *</FormLabel>
+                        <FormLabel>Team *</FormLabel>
                         <FormControl>
                           <Select
                             value={field.value}
@@ -312,19 +304,19 @@ export function EmployeeRoleAssignmentDialog({
                                 !selectedLocationId
                                   ? "Select a location first"
                                   : loadingRoles
-                                  ? "Loading roles..."
-                                  : "Select a role"
+                                  ? "Loading teams..."
+                                  : "Select a team"
                               }>
                                 {field.value && selectedRole && (
                                   <div className="flex items-center gap-2">
-                                    {selectedRole.roleColor && (
+                                    {(selectedRole as { teamColor?: string }).teamColor && (
                                       <div
                                         className="w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: selectedRole.roleColor }}
+                                        style={{ backgroundColor: (selectedRole as { teamColor?: string }).teamColor }}
                                       />
                                     )}
                                     <Briefcase className="h-4 w-4 text-muted-foreground" />
-                                    <span>{selectedRole.roleName}</span>
+                                    <span>{(selectedRole as { teamName?: string }).teamName}</span>
                                   </div>
                                 )}
                               </SelectValue>
@@ -333,25 +325,25 @@ export function EmployeeRoleAssignmentDialog({
                               {loadingRoles ? (
                                 <div className="p-2 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                  Loading roles...
+                                  Loading teams...
                                 </div>
-                              ) : roles.length === 0 ? (
+                              ) : teams.length === 0 ? (
                                 <div className="p-2 text-sm text-muted-foreground text-center">
-                                  No roles enabled at this location
+                                  No teams enabled at this location
                                 </div>
                               ) : (
-                                roles.map((role: any) => (
-                                  <SelectItem key={role.roleId} value={role.roleId}>
+                                teams.map((team: { teamId: string; teamName: string; teamColor?: string; employeeCount?: number }) => (
+                                  <SelectItem key={team.teamId} value={team.teamId}>
                                     <div className="flex items-center gap-2">
-                                      {role.roleColor && (
+                                      {team.teamColor && (
                                         <div
                                           className="w-3 h-3 rounded-full shrink-0"
-                                          style={{ backgroundColor: role.roleColor }}
+                                          style={{ backgroundColor: team.teamColor }}
                                         />
                                       )}
-                                      <span>{role.roleName}</span>
+                                      <span>{team.teamName}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        ({role.employeeCount} assigned)
+                                        ({team.employeeCount} assigned)
                                       </span>
                                     </div>
                                   </SelectItem>
@@ -361,7 +353,7 @@ export function EmployeeRoleAssignmentDialog({
                           </Select>
                         </FormControl>
                         <FormDescription>
-                          Only roles enabled at the selected location are shown
+                          Only teams enabled at the selected location are shown
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -454,7 +446,7 @@ export function EmployeeRoleAssignmentDialog({
                         Assigning...
                       </>
                     ) : (
-                      "Assign Role"
+                      "Assign team"
                     )}
                   </Button>
                 </DialogFooter>

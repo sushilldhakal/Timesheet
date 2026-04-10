@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useTeams } from "@/lib/queries/teams"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCreateUser } from "@/lib/queries/users"
 import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
@@ -50,7 +50,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
   const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const employeesQuery = useEmployees(1000)
   const createUserMutation = useCreateUser()
 
@@ -59,7 +59,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
     label: c.name,
   })) || []
 
-  const allRoles = rolesQuery.data?.roles || []
+  const allRoles = teamsQuery.data?.teams || []
 
   // All available roles to show in dropdown
   const allRoleOptions = useMemo(() => {

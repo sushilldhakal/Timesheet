@@ -109,11 +109,17 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     renderExpandedRow,
   } = props
 
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const mode = props.mode || "client"
 
   if (mode === "server") {
     const serverProps = props as ServerDataTableProps<TData, TValue>
-    return <ServerDataTableImpl {...serverProps} />
+    return <ServerDataTableImpl {...serverProps} mounted={mounted} />
   }
 
   const clientProps = props as ClientDataTableProps<TData, TValue>
@@ -190,6 +196,29 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     getExpandedRowModel: hasExpansion ? getExpandedRowModel() : undefined,
     ...(getRowId && { getRowId }),
   })
+
+  if (!mounted) {
+    return (
+      <div className="flex flex-col">
+        <div className="overflow-hidden border rounded-md">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Loading...</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="h-24 text-center">
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col">
@@ -317,7 +346,8 @@ function ServerDataTableImpl<TData, TValue>({
   onExpandedChange,
   getRowCanExpand,
   renderExpandedRow,
-}: ServerDataTableProps<TData, TValue>) {
+  mounted,
+}: ServerDataTableProps<TData, TValue> & { mounted: boolean }) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [clientColumnVisibility, setClientColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})

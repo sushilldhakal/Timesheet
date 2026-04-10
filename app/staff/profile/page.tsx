@@ -7,15 +7,17 @@ import { Briefcase } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { useEmployeeProfile } from "@/lib/queries/employee-clock"
+import { useEmployeeProfile, useChangeEmployeePassword } from "@/lib/queries/employee-clock"
 import { EmployeeInfoSidebarCard } from "@/components/employees/employee-info-sidebar-card"
 import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"
+import { ChangePasswordCard } from "@/components/profile/change-password-card"
 
 export default function StaffProfilePage() {
   const router = useRouter()
   
   const employeeProfileQuery = useEmployeeProfile()
+  const changePasswordMutation = useChangeEmployeePassword()
 
   useEffect(() => {
     if (employeeProfileQuery.isError) {
@@ -47,6 +49,37 @@ export default function StaffProfilePage() {
 
   const employee = employeeProfileQuery.data?.data?.employee
   const employeeId = employee?.id || ""
+
+  const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
+    return new Promise<void>((resolve, reject) => {
+      changePasswordMutation.mutate(
+        { currentPassword, newPassword },
+        {
+          onSuccess: (response) => {
+            if (response?.success) {
+              toast.success(response.data?.message || "Password changed successfully!")
+            } else if ((response as any)?.message) {
+              toast.success((response as any).message)
+            } else {
+              toast.success("Password changed successfully!")
+            }
+            resolve()
+          },
+          onError: (error: any) => {
+            if (error?.details && Array.isArray(error.details)) {
+              const validationErrors = error.details.map((detail: any) => detail.message).join(', ')
+              toast.error(validationErrors)
+            } else if (error?.error) {
+              toast.error(error.error)
+            } else {
+              toast.error(typeof error === 'string' ? error : error?.message || "Failed to change password")
+            }
+            reject(error)
+          }
+        }
+      )
+    })
+  }
 
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8">
@@ -102,6 +135,10 @@ export default function StaffProfilePage() {
                   // no-op for staff read-only view
                 }}
                 readOnly
+              />
+              <ChangePasswordCard 
+                onSubmit={handlePasswordChange}
+                isLoading={changePasswordMutation.isPending}
               />
             </>
           )}

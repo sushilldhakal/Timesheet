@@ -3,7 +3,7 @@ import { IShift } from "../db/schemas/roster"
 import { RoleEnablementManager } from "../managers/role-enablement-manager"
 import { RoleAssignmentManager } from "../managers/role-assignment-manager"
 import { Location } from "../db/schemas/location"
-import { Role } from "../db/schemas/role"
+import { Team } from "../db/schemas/team"
 import { Employee } from "../db/schemas/employee"
 
 export interface ShiftValidationResult {
@@ -50,7 +50,7 @@ export class SchedulingValidator {
     shiftDate: Date
   ): Promise<ShiftValidationResult> {
     // Verify role exists
-    const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString())).lean()
+    const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString())).lean()
     if (!role) {
       return {
         valid: false,
@@ -222,7 +222,7 @@ export class SchedulingValidator {
             locationId
           )
           if (employees.length === 0) {
-            const role = await Role.findById(enablement.roleId).lean()
+            const role = await Team.findById(enablement.roleId).lean()
             warnings.push(
               `Role "${role?.name}" at "${location.name}" has no assigned employees. Shifts for this role will be vacant.`
             )
@@ -247,7 +247,7 @@ export class SchedulingValidator {
               location._id
             )
             if (employees.length === 0) {
-            const role = await Role.findById(enablement.roleId).lean()
+            const role = await Team.findById(enablement.roleId).lean()
               warnings.push(
                 `Role "${role?.name}" at "${location.name}" has no assigned employees. Shifts for this role will be vacant.`
               )

@@ -5,7 +5,7 @@ import type { UpdateLocationRequest } from '@/lib/types'
 export const locationKeys = {
   all: ['locations'] as const,
   detail: (id: string) => [...locationKeys.all, 'detail', id] as const,
-  roles: (locationId: string) => [...locationKeys.all, locationId, 'roles'] as const,
+  teams: (locationId: string) => [...locationKeys.all, locationId, 'teams'] as const,
 }
 
 export function useLocations() {
@@ -60,16 +60,19 @@ export function useDeleteLocation() {
   })
 }
 
-export function useLocationRoles(locationId: string | null) {
+export function useLocationTeams(locationId: string | null) {
   return useQuery({
-    queryKey: locationKeys.roles(locationId || ''),
-    queryFn: () => locationsApi.getLocationRoles(locationId!),
+    queryKey: locationKeys.teams(locationId || ''),
+    queryFn: () => locationsApi.getLocationTeams(locationId!),
     enabled: !!locationId,
     staleTime: 2 * 60 * 1000,
   })
 }
 
-export function useEnableLocationRole() {
+/** @deprecated use useLocationTeams */
+export const useLocationRoles = useLocationTeams
+
+export function useEnableLocationTeam() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -78,22 +81,28 @@ export function useEnableLocationRole() {
       data,
     }: {
       locationId: string
-      data: locationsApi.EnableRoleRequest
-    }) => locationsApi.enableLocationRole(locationId, data),
+      data: locationsApi.EnableTeamRequest
+    }) => locationsApi.enableLocationTeam(locationId, data),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: locationKeys.roles(variables.locationId) })
+      queryClient.invalidateQueries({ queryKey: locationKeys.teams(variables.locationId) })
     },
   })
 }
 
-export function useDisableLocationRole() {
+/** @deprecated use useEnableLocationTeam */
+export const useEnableLocationRole = useEnableLocationTeam
+
+export function useDisableLocationTeam() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ locationId, roleId }: { locationId: string; roleId: string }) =>
-      locationsApi.disableLocationRole(locationId, roleId),
+    mutationFn: ({ locationId, teamId }: { locationId: string; teamId: string }) =>
+      locationsApi.disableLocationTeam(locationId, teamId),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: locationKeys.roles(variables.locationId) })
+      queryClient.invalidateQueries({ queryKey: locationKeys.teams(variables.locationId) })
     },
   })
 }
+
+/** @deprecated use useDisableLocationTeam */
+export const useDisableLocationRole = useDisableLocationTeam

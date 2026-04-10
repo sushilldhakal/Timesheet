@@ -1,7 +1,7 @@
 import mongoose from "mongoose"
 import { LocationRoleEnablement, ILocationRoleEnablement } from "../db/schemas/location-role-enablement"
 import { Location } from "../db/schemas/location"
-import { Role } from "../db/schemas/role"
+import { Team } from "../db/schemas/team"
 
 export interface EnableRoleParams {
   locationId: mongoose.Types.ObjectId | string
@@ -101,7 +101,7 @@ export class RoleEnablementManager {
       }
 
       // Verify role exists
-      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,
@@ -631,7 +631,7 @@ export class RoleEnablementManager {
       }
 
       // Verify role exists
-      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,

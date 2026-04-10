@@ -35,9 +35,9 @@ export default function LoginPage() {
             toast.info("Please change your password")
             // Redirect based on user type
             if (data.userType === "employee") {
-              router.push("/staff/change-password")
+              router.push("/staff/profile")
             } else {
-              router.push("/dashboard/setting/change-password")
+              router.push("/dashboard/profile")
             }
             return
           }

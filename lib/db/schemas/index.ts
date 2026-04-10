@@ -16,7 +16,7 @@ export * from "./device"
 
 // Core master-data schemas
 export * from "./location"
-export * from "./role"
+export * from "./team"
 export * from "./employer"
 
 // New schemas for enhanced scheduling

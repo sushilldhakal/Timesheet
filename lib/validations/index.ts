@@ -49,5 +49,5 @@ export * from "./employee-clock"
 export * from "./awards"
 
 // Master data schemas
-export * from "./role"
+export * from "./team"
 export * from "./employer"

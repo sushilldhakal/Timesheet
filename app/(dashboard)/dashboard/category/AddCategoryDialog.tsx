@@ -22,13 +22,13 @@ import {
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { useCreateLocation, useEnableLocationRole } from "@/lib/queries/locations"
-import { useCreateRole, useRoles } from "@/lib/queries/roles"
+import { useCreateLocation, useEnableLocationTeam } from "@/lib/queries/locations"
+import { useCreateTeam, useTeams } from "@/lib/queries/teams"
 import { useCreateEmployer } from "@/lib/queries/employers"
 import type { EntityType } from "./page"
 
 const TYPE_LABELS: Record<EntityType, string> = {
-  role: "Role",
+  team: "Team",
   employer: "Employer",
   location: "Location",
 }
@@ -63,13 +63,13 @@ export function AddCategoryDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const createLocationMutation = useCreateLocation()
-  const createRoleMutation = useCreateRole()
+  const createTeamMutation = useCreateTeam()
   const createEmployerMutation = useCreateEmployer()
-  const enableLocationRoleMutation = useEnableLocationRole()
+  const enableLocationTeamMutation = useEnableLocationTeam()
 
-  const allRoles = rolesQuery.data?.roles ?? []
+  const allTeams = teamsQuery.data?.teams ?? []
 
   const reset = () => {
     setName("")
@@ -119,16 +119,16 @@ export function AddCategoryDialog({
         const result = await createLocationMutation.mutateAsync(body as any)
         if (selectedRoleIds.length > 0 && result.location?.id) {
           await Promise.all(
-            selectedRoleIds.map((roleId) =>
-              enableLocationRoleMutation.mutateAsync({
+            selectedRoleIds.map((teamId) =>
+              enableLocationTeamMutation.mutateAsync({
                 locationId: result.location!.id,
-                data: { roleId, effectiveFrom: new Date().toISOString(), effectiveTo: null },
+                data: { teamId, effectiveFrom: new Date().toISOString(), effectiveTo: null },
               })
             )
           )
         }
-      } else if (type === "role") {
-        await createRoleMutation.mutateAsync({
+      } else if (type === "team") {
+        await createTeamMutation.mutateAsync({
           name: name.trim(),
           color,
           defaultScheduleTemplate: {
@@ -148,7 +148,7 @@ export function AddCategoryDialog({
   }
 
   const typeLabel = TYPE_LABELS[type]
-  const loading = createLocationMutation.isPending || createRoleMutation.isPending || createEmployerMutation.isPending || enableLocationRoleMutation.isPending
+  const loading = createLocationMutation.isPending || createTeamMutation.isPending || createEmployerMutation.isPending || enableLocationTeamMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -167,11 +167,11 @@ export function AddCategoryDialog({
                 id="add-category-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={`e.g. ${type === "role" ? "Driver" : type === "employer" ? "Acme Corp" : "Site A"}`}
+                placeholder={`e.g. ${type === "team" ? "Driver" : type === "employer" ? "Acme Corp" : "Site A"}`}
                 required
               />
             </Field>
-            {(type === "role" || type === "employer") && (
+            {(type === "team" || type === "employer") && (
               <>
                 <Field>
                   <FieldLabel htmlFor="add-color">Color</FieldLabel>
@@ -205,7 +205,7 @@ export function AddCategoryDialog({
                     </SelectContent>
                   </Select>
                 </Field>
-                {type === "role" && (
+                {type === "team" && (
                   <>
                     <Field>
                       <FieldLabel htmlFor="add-standard-hours">Standard Hours per Week</FieldLabel>
@@ -219,7 +219,7 @@ export function AddCategoryDialog({
                         onChange={(e) => setStandardHours(Number(e.target.value) || 38)}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Default working hours for this role (used in roster generation)
+                        Default working hours for this team (used in roster generation)
                       </p>
                     </Field>
 
@@ -254,7 +254,7 @@ export function AddCategoryDialog({
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Select the days this role typically works
+                        Select the days this team typically works
                       </p>
                     </Field>
 
@@ -395,18 +395,18 @@ export function AddCategoryDialog({
                 <Field>
                   <FieldLabel>Enabled Roles</FieldLabel>
                   <MultiSelect
-                    options={allRoles.map(role => ({
-                      label: role.name,
-                      value: role.id,
-                      style: role.color ? { badgeColor: role.color } : undefined
+                    options={allTeams.map((team) => ({
+                      label: team.name,
+                      value: team.id,
+                      style: team.color ? { badgeColor: team.color } : undefined
                     }))}
                     onValueChange={setSelectedRoleIds}
                     defaultValue={selectedRoleIds}
-                    placeholder="Select roles for this location..."
+                    placeholder="Select teams for this location..."
                     disabled={loading}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Select which roles are available at this location
+                    Select which teams are available at this location
                   </p>
                 </Field>
               </>

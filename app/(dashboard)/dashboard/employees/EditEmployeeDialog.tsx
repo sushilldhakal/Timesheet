@@ -19,12 +19,12 @@ import { MultiSelect } from "@/components/ui/MultiSelect"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, User, Briefcase, Award } from "lucide-react"
 import { useLocations } from "@/lib/queries/locations"
-import { useRoles } from "@/lib/queries/roles"
+import { useTeams } from "@/lib/queries/teams"
 import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { useUpdateEmployee } from "@/lib/queries/employees"
 import { useUploadImage } from "@/lib/queries/upload"
-import { useLocationRoles } from "@/lib/queries/locations"
+import { useLocationTeams } from "@/lib/queries/locations"
 import type { Employee } from "@/lib/api/employees"
 
 type EmployeeRow = Employee
@@ -93,7 +93,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const rolesQuery = useRoles()
+  const teamsQuery = useTeams()
   const employersQuery = useEmployers()
   const locationsQuery = useLocations()
   const awardsQuery = useAwards()
@@ -107,24 +107,23 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
     return firstLoc?.id || null
   }, [location, locationsQuery.data?.locations])
   
-  const locationRolesQuery = useLocationRoles(firstLocationId)
+  const locationTeamsQuery = useLocationTeams(firstLocationId)
 
   const roleOptions = useMemo(() => {
-    const allRoles = rolesQuery.data?.roles?.map((c: any, index) => ({
+    const allRoles = teamsQuery.data?.teams?.map((c: any, index) => ({
       value: c.name,
       label: c.name,
       id: c.id || c._id || `role-${index}`
     })) || []
     
-    // If no location selected, return all roles
+    // If no location selected, return all teams
     if (location.length === 0) return allRoles
     
-    // If location selected, filter by enabled roles
-    const enabledRoleIds = locationRolesQuery.data?.data?.roles?.map(r => r.roleId) || []
-    if (enabledRoleIds.length === 0) return allRoles // Fallback to all if no data yet
+    const enabledTeamIds = locationTeamsQuery.data?.teams?.map((t) => t.teamId) || []
+    if (enabledTeamIds.length === 0) return allRoles
     
-    return allRoles.filter(role => enabledRoleIds.includes(role.id))
-  }, [rolesQuery.data?.roles, location, locationRolesQuery.data])
+    return allRoles.filter((role) => enabledTeamIds.includes(role.id))
+  }, [teamsQuery.data?.teams, location, locationTeamsQuery.data])
 
   const employerOptions = useMemo(() => 
     employersQuery.data?.employers?.map((c: any, index) => ({
@@ -234,21 +233,19 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
     }
   }, [roleOptions, employerOptions, locationOptions])
   
-  // Clear roles when location changes and filter by enabled roles
   useEffect(() => {
-    if (location.length > 0 && locationRolesQuery.data?.data?.roles) {
-      const enabledRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
+    if (location.length > 0 && locationTeamsQuery.data?.teams) {
+      const enabledTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
       
-      // Filter out roles that are not enabled for the selected location
-      setRole(prev => {
-        const validRoles = prev.filter(roleName => {
-          const roleData = rolesQuery.data?.roles?.find((c: any) => c.name === roleName) as any
-          return roleData && enabledRoleIds.includes(roleData.id || roleData._id)
+      setRole((prev) => {
+        const validRoles = prev.filter((roleName) => {
+          const roleData = teamsQuery.data?.teams?.find((c: any) => c.name === roleName) as any
+          return roleData && enabledTeamIds.includes(roleData.id || roleData._id)
         })
         return validRoles
       })
     }
-  }, [location, locationRolesQuery.data, rolesQuery.data])
+  }, [location, locationTeamsQuery.data, teamsQuery.data])
 
   // Update available levels when award changes
   useEffect(() => {
