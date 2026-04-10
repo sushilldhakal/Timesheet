@@ -1,17 +1,18 @@
 import { z } from 'zod'
+import { objectIdSchema } from './common'
 
 // Common parameter schemas
 export const dashboardLocationIdParamSchema = z.object({
-  locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format"),
+  locationId: objectIdSchema,
 })
 
 export const dashboardRoleIdParamSchema = z.object({
-  roleId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format"),
+  roleId: objectIdSchema,
 })
 
 export const dashboardLocationRoleParamsSchema = z.object({
-  locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format"),
-  roleId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format"),
+  locationId: objectIdSchema,
+  roleId: objectIdSchema,
 })
 
 // Query schemas

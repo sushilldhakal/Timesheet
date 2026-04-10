@@ -7,7 +7,7 @@ export const POST = createApiRoute({
   method: 'POST',
   path: '/api/auth/login',
   summary: 'User login',
-  description: 'Authenticate user with username and password',
+  description: 'Authenticate user with email and password',
   tags: ['Auth'],
   security: 'none',
   request: {
@@ -29,18 +29,18 @@ export const POST = createApiRoute({
         };
       }
       
-      const { username, password } = body;
-      const normalizedUsername = username.trim().toLowerCase();
+      const { email, password } = body;
+      const normalizedEmail = email.trim().toLowerCase();
 
       await connectDB();
-      const user = await User.findOne({ username: normalizedUsername })
+      const user = await User.findOne({ email: normalizedEmail })
         .select("+password")
         .lean();
 
       if (!user || !user.password) {
         return {
           status: 401,
-          data: { error: "Invalid username or password" }
+          data: { error: "Invalid email or password" }
         };
       }
 
@@ -49,13 +49,13 @@ export const POST = createApiRoute({
       if (!passwordMatch) {
         return {
           status: 401,
-          data: { error: "Invalid username or password" }
+          data: { error: "Invalid email or password" }
         };
       }
 
       const token = await createAuthToken({
         sub: String(user._id),
-        username: user.username,
+        email: user.email,
         role: user.role,
         location: Array.isArray(user.location) ? user.location[0] ?? "" : (user.location ?? ""),
       });
@@ -71,7 +71,7 @@ export const POST = createApiRoute({
           user: {
             id: String(user._id),
             name: user.name ?? "",
-            username: user.username,
+            email: user.email,
             role: user.role,
             location,
             rights: (user.rights ?? []).map(right => String(right)),

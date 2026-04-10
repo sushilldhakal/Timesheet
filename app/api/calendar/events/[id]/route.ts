@@ -11,6 +11,7 @@ import {
 } from "@/lib/validations/calendar";
 import { errorResponseSchema } from "@/lib/validations/auth";
 import { z } from "zod";
+import { setTimeFromDecimalHours } from "@/lib/utils/format/decimal-hours";
 
 const idParamSchema = z.object({
   id: z.string().min(1, "ID is required"),
@@ -157,9 +158,9 @@ export const PUT = createApiRoute({
       if (updateData.breakStartH !== undefined && updateData.breakEndH !== undefined) {
         const baseDate = shift.date ?? shift.startTime
         const bst = new Date(baseDate)
-        bst.setHours(Math.floor(updateData.breakStartH), Math.round((updateData.breakStartH % 1) * 60), 0, 0)
+        setTimeFromDecimalHours(bst, updateData.breakStartH)
         const bet = new Date(baseDate)
-        bet.setHours(Math.floor(updateData.breakEndH), Math.round((updateData.breakEndH % 1) * 60), 0, 0)
+        setTimeFromDecimalHours(bet, updateData.breakEndH)
         ;(shift as any).breakStartTime = bst
         ;(shift as any).breakEndTime   = bet
         ;(shift as any).breakMinutes   = Math.round((bet.getTime() - bst.getTime()) / 60_000)

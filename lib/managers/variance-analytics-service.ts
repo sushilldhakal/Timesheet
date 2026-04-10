@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import { Roster, IRoster, IShift } from "../db/schemas/roster"
-import { Timesheet, ITimesheetDocument } from "../db/schemas/timesheet"
+import { DailyShift, IDailyShiftDocument } from "../db/schemas/daily-shift"
 import { Employee, IEmployeeDocument } from "../db/schemas/employee"
 import Award from "../db/schemas/award"
 
@@ -11,7 +11,7 @@ import Award from "../db/schemas/award"
 export class VarianceAnalyticsService {
   /**
    * Calculate variance between scheduled and actual worked hours for a shift
-   * Supports multiple timesheets per shift (sums all linked timesheet hours)
+   * Uses DailyShift records to determine actual hours worked
    * @param shiftId - Shift ID
    * @returns Variance data or error
    */
@@ -51,34 +51,22 @@ export class VarianceAnalyticsService {
       // Calculate scheduled hours from shift times
       const scheduledHours = (shift.endTime.getTime() - shift.startTime.getTime()) / (1000 * 60 * 60)
 
-      // Find all timesheets linked to this shift
-      const timesheets = await Timesheet.find({ scheduleShiftId: shiftId })
-
-      // Calculate total actual hours from all linked timesheets
+      // Find DailyShift record for this shift date and employee
       let actualHours = 0
-      for (const timesheet of timesheets) {
-        // Find the corresponding clock-out entry
-        const clockIn = timesheet.type === "in" ? timesheet : null
-        if (clockIn && clockIn.time) {
-          // Find matching clock-out for this clock-in
-          const clockOut = await Timesheet.findOne({
-            pin: timesheet.pin,
-            date: timesheet.date,
-            type: "out",
-            time: { $gte: clockIn.time },
-          }).sort({ time: 1 })
-
-          if (clockOut && clockOut.time) {
-            // Parse times and calculate hours
-            const [inHours, inMinutes] = clockIn.time.split(":").map(Number)
-            const [outHours, outMinutes] = clockOut.time.split(":").map(Number)
-
-            const inTotalMinutes = inHours * 60 + inMinutes
-            const outTotalMinutes = outHours * 60 + outMinutes
-
-            const workedMinutes = outTotalMinutes - inTotalMinutes
-            actualHours += workedMinutes / 60
-          }
+      let dailyShiftCount = 0
+      
+      if (shift.employeeId) {
+        const shiftDate = new Date(shift.date)
+        shiftDate.setHours(0, 0, 0, 0)
+        
+        const dailyShift = await DailyShift.findOne({
+          employeeId: shift.employeeId,
+          date: shiftDate,
+        })
+        
+        if (dailyShift && dailyShift.totalWorkingHours) {
+          actualHours = dailyShift.totalWorkingHours
+          dailyShiftCount = 1
         }
       }
 
@@ -90,7 +78,7 @@ export class VarianceAnalyticsService {
         scheduledHours: Math.round(scheduledHours * 100) / 100,
         actualHours: Math.round(actualHours * 100) / 100,
         variance,
-        timesheetCount: timesheets.length,
+        timesheetCount: dailyShiftCount,
       }
     } catch (error) {
       return {
@@ -141,11 +129,19 @@ export class VarianceAnalyticsService {
           continue
         }
 
-        // Check if any timesheets are linked to this shift
-        const timesheetCount = await Timesheet.countDocuments({ scheduleShiftId: shift._id })
+        // Check if DailyShift exists for this employee and date
+        if (shift.employeeId) {
+          const shiftDate = new Date(shift.date)
+          shiftDate.setHours(0, 0, 0, 0)
+          
+          const dailyShift = await DailyShift.findOne({
+            employeeId: shift.employeeId,
+            date: shiftDate,
+          })
 
-        if (timesheetCount === 0) {
-          noShows.push(shift)
+          if (!dailyShift || !dailyShift.clockIn) {
+            noShows.push(shift)
+          }
         }
       }
 
@@ -199,27 +195,34 @@ export class VarianceAnalyticsService {
         }
       }
 
-      // Find the first clock-in timesheet for this shift
-      const clockInTimesheet = await Timesheet.findOne({
-        scheduleShiftId: shiftId,
-        type: "in",
-      }).sort({ time: 1 })
-
-      if (!clockInTimesheet || !clockInTimesheet.time) {
+      // Find the DailyShift for this employee and date
+      if (!shift.employeeId) {
         return {
           success: false,
-          error: "NO_TIMESHEET",
-          message: "No clock-in timesheet found for this shift",
+          error: "NO_EMPLOYEE",
+          message: "No employee assigned to this shift",
         }
       }
 
-      // Parse clock-in time
-      const [clockInHours, clockInMinutes] = clockInTimesheet.time.split(":").map(Number)
-      const clockInDate = new Date(shift.date)
-      clockInDate.setUTCHours(clockInHours, clockInMinutes, 0, 0)
+      const shiftDate = new Date(shift.date)
+      shiftDate.setHours(0, 0, 0, 0)
+      
+      const dailyShift = await DailyShift.findOne({
+        employeeId: shift.employeeId,
+        date: shiftDate,
+      })
+
+      if (!dailyShift || !dailyShift.clockIn?.time) {
+        return {
+          success: false,
+          error: "NO_TIMESHEET",
+          message: "No clock-in found for this shift",
+        }
+      }
 
       // Calculate time difference in minutes
-      const diffMs = clockInDate.getTime() - shift.startTime.getTime()
+      const clockInTime = new Date(dailyShift.clockIn.time)
+      const diffMs = clockInTime.getTime() - shift.startTime.getTime()
       const diffMinutes = Math.round(diffMs / (1000 * 60))
 
       // Determine status

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { mongoIdSchema } from "./common"
+import { mongoIdSchema, objectIdSchema } from "./common"
 
 export const userCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -76,5 +76,5 @@ export const userSelfUpdateSchema = z.object({
 })
 
 export const userIdParamSchema = z.object({
-  id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid MongoDB ObjectId"),
+  id: objectIdSchema,
 })

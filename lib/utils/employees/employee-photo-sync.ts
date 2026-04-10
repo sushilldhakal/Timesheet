@@ -1,7 +1,7 @@
-import { connectDB, Employee, Timesheet } from "@/lib/db";
+import { connectDB, Employee, DailyShift } from "@/lib/db";
 
 /**
- * Sync employee photo from their most recent punch record
+ * Sync employee photo from their most recent clock event
  * @param pin - Employee PIN
  * @returns The synced photo URL or null if no photo found
  */
@@ -9,26 +9,36 @@ export async function syncEmployeePhotoFromPunches(pin: string): Promise<string 
   try {
     await connectDB();
 
-    // Find most recent punch with image
-    const recentPunchWithImage = await Timesheet.findOne({
+    // Find most recent daily shift with clock-in or clock-out image
+    const recentShiftWithImage = await DailyShift.findOne({
       pin,
-      image: { $exists: true, $ne: "" }
+      $or: [
+        { "clockIn.image": { $exists: true, $ne: "" } },
+        { "clockOut.image": { $exists: true, $ne: "" } }
+      ]
     })
-      .sort({ date: -1, time: -1 })
-      .select("image")
+      .sort({ date: -1 })
+      .select("clockIn.image clockOut.image")
       .lean();
 
-    if (!recentPunchWithImage?.image) {
+    if (!recentShiftWithImage) {
+      return null;
+    }
+
+    // Prefer clock-out image (more recent), fallback to clock-in
+    const imageUrl = recentShiftWithImage.clockOut?.image || recentShiftWithImage.clockIn?.image;
+    
+    if (!imageUrl) {
       return null;
     }
 
     // Update employee photo
     await Employee.updateOne(
       { pin },
-      { $set: { img: recentPunchWithImage.image } }
+      { $set: { img: imageUrl } }
     );
 
-    return recentPunchWithImage.image;
+    return imageUrl;
   } catch (error) {
     console.error(`[syncEmployeePhotoFromPunches] Error for PIN ${pin}:`, error);
     return null;

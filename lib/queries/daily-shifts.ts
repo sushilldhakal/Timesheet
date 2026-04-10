@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import * as timesheetsApi from '@/lib/api/timesheets'
+import * as timesheetsApi from '@/lib/api/daily-shifts'
 
 // Query keys
 export const timesheetKeys = {

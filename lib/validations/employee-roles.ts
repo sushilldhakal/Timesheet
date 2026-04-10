@@ -1,13 +1,12 @@
 import { z } from 'zod';
+import { objectIdSchema } from './common';
 
-// Employee ID parameter schema
-export const employeeIdParamSchema = z.object({
-  id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid employee ID format")
-});
+// Re-export from canonical source
+export { employeeIdParamSchema } from './employee';
 
 // Assignment ID parameter schema
 export const assignmentIdParamSchema = z.object({
-  assignmentId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid assignment ID format")
+  assignmentId: objectIdSchema
 });
 
 // Role assignment query schema

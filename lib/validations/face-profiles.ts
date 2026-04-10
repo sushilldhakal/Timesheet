@@ -1,8 +1,9 @@
-import { z } from 'zod'
+import { z } from 'zod';
+import { objectIdSchema } from './common';
 
-// Parameter schemas
+// Parameter schemas (note: uses employeeId key instead of id)
 export const employeeIdParamSchema = z.object({
-  employeeId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid employee ID format"),
+  employeeId: objectIdSchema,
 })
 
 // Request schemas

@@ -1,4 +1,4 @@
-import { connectDB, Employee, Timesheet } from "@/lib/db";
+import { connectDB, Employee, DailyShift } from "@/lib/db";
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeSyncRequestSchema,
@@ -44,22 +44,30 @@ export const GET = createApiRoute({
       const pins = employeesWithoutPhotos.map(e => e.pin);
       let updatedCount = 0;
 
-      // For each employee, find their most recent punch with an image
+      // For each employee, find their most recent daily shift with an image
       for (const employee of employeesWithoutPhotos) {
-        const recentPunchWithImage = await Timesheet.findOne({
+        const recentShiftWithImage = await DailyShift.findOne({
           pin: employee.pin,
-          image: { $exists: true, $ne: "" }
+          $or: [
+            { "clockIn.image": { $exists: true, $ne: "" } },
+            { "clockOut.image": { $exists: true, $ne: "" } }
+          ]
         })
-          .sort({ date: -1, time: -1 })
-          .select("image")
+          .sort({ date: -1 })
+          .select("clockIn.image clockOut.image")
           .lean();
 
-        if (recentPunchWithImage?.image) {
-          await Employee.updateOne(
-            { _id: employee._id },
-            { $set: { img: recentPunchWithImage.image } }
-          );
-          updatedCount++;
+        if (recentShiftWithImage) {
+          // Prefer clock-out image (more recent), fallback to clock-in
+          const imageUrl = recentShiftWithImage.clockOut?.image || recentShiftWithImage.clockIn?.image;
+          
+          if (imageUrl) {
+            await Employee.updateOne(
+              { _id: employee._id },
+              { $set: { img: imageUrl } }
+            );
+            updatedCount++;
+          }
         }
       }
 
@@ -121,21 +129,42 @@ export const POST = createApiRoute({
         return { status: 404, data: { success: false, message: "Employee not found" } };
       }
 
-      // Find most recent punch with image
-      const recentPunchWithImage = await Timesheet.findOne({
+      // Find most recent daily shift with image
+      const recentShiftWithImage = await DailyShift.findOne({
         pin: employee.pin,
-        image: { $exists: true, $ne: "" }
+        $or: [
+          { "clockIn.image": { $exists: true, $ne: "" } },
+          { "clockOut.image": { $exists: true, $ne: "" } }
+        ]
       })
-        .sort({ date: -1, time: -1 })
-        .select("image date time")
+        .sort({ date: -1 })
+        .select("clockIn.image clockOut.image date")
         .lean();
 
-      if (!recentPunchWithImage?.image) {
+      if (!recentShiftWithImage) {
         return {
           status: 200,
           data: {
             success: false,
-            message: "No punch records with images found for this employee",
+            message: "No clock records with images found for this employee",
+            employee: {
+              id: employee._id.toString(),
+              name: employee.name,
+              pin: employee.pin
+            }
+          }
+        };
+      }
+
+      // Prefer clock-out image (more recent), fallback to clock-in
+      const imageUrl = recentShiftWithImage.clockOut?.image || recentShiftWithImage.clockIn?.image;
+      
+      if (!imageUrl) {
+        return {
+          status: 200,
+          data: {
+            success: false,
+            message: "No images found in recent clock records",
             employee: {
               id: employee._id.toString(),
               name: employee.name,
@@ -148,7 +177,7 @@ export const POST = createApiRoute({
       // Update employee photo
       await Employee.updateOne(
         { _id: employee._id },
-        { $set: { img: recentPunchWithImage.image } }
+        { $set: { img: imageUrl } }
       );
 
       return {
@@ -161,9 +190,8 @@ export const POST = createApiRoute({
             name: employee.name,
             pin: employee.pin,
             previousPhoto: employee.img,
-            newPhoto: recentPunchWithImage.image,
-            photoDate: recentPunchWithImage.date,
-            photoTime: recentPunchWithImage.time
+            newPhoto: imageUrl,
+            photoDate: recentShiftWithImage.date
           }
         }
       };

@@ -4,20 +4,8 @@ import { z } from "zod"
 export const mongoIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid MongoDB ObjectId")
 export const objectIdSchema = mongoIdSchema // Alias for consistency
 
-// Common parameter schemas
-export const employeeIdParamSchema = z.object({
-  id: objectIdSchema
-})
-
-export const categoryIdParamSchema = z.object({
-  id: objectIdSchema
-})
-
-export const userIdParamSchema = z.object({
-  id: objectIdSchema
-})
-
-export const awardIdParamSchema = z.object({
+// Generic ID parameter schema (can be used for any entity)
+export const idParamSchema = z.object({
   id: objectIdSchema
 })
 

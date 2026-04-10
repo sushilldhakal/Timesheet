@@ -28,7 +28,6 @@ const loginResponseSchema = z.object({
     id: z.any(),
     name: z.string(),
     email: z.string(),
-    username: z.string().optional(),
     pin: z.string().optional(),
     role: z.string().optional(),
     location: z.any().optional(),
@@ -146,7 +145,7 @@ export const POST = createApiRoute({
             // Admin/Manager found - create admin session
             const token = await createAuthToken({
               sub: String(user._id),
-              username: user.username,
+              email: user.email,
               role: user.role,
               location: Array.isArray(user.location) ? user.location[0] : user.location,
             })
@@ -163,7 +162,6 @@ export const POST = createApiRoute({
                   id: user._id,
                   name: user.name,
                   email: user.email,
-                  username: user.username,
                   role: user.role,
                   location: user.location,
                   rights: user.rights ?? [],
@@ -190,7 +188,7 @@ export const POST = createApiRoute({
         if (passwordMatch) {
           const token = await createAuthToken({
             sub: String(user._id),
-            username: user.username,
+            email: user.email,
             role: user.role,
             location: Array.isArray(user.location) ? user.location[0] : user.location,
           })
@@ -207,7 +205,6 @@ export const POST = createApiRoute({
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                username: user.username,
                 role: user.role,
                 location: user.location,
                 rights: user.rights ?? [],

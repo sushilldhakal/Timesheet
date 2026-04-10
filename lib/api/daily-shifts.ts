@@ -1,3 +1,5 @@
+import { apiFetch } from './fetch-client'
+
 const BASE_URL = '/api/timesheets'
 
 export type TimesheetDashboardView = 'day' | 'week' | 'month'
@@ -59,14 +61,5 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
   filters.locations?.forEach(loc => params.append('location', loc))
   filters.roles?.forEach(role => params.append('role', role))
 
-  const response = await fetch(`${BASE_URL}?${params.toString()}`, {
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error((body as { error?: string }).error || `Failed to fetch timesheets (${response.status})`)
-  }
-
-  return response.json() as Promise<TimesheetResponse>
+  return apiFetch<TimesheetResponse>(`${BASE_URL}?${params.toString()}`)
 }

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { objectIdSchema, dateTimeSchema, emailSchema, phoneSchema, pinSchema } from "./common"
+import { objectIdSchema, dateTimeSchema, emailSchema, phoneSchema, pinSchema, extendedPaginationSchema } from "./common"
 
 export const employeeCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -80,16 +80,14 @@ export const updateAssignmentSchema = z.object({
 })
 
 // Employee query parameters
-export const employeeQuerySchema = z.object({
+export const employeeQuerySchema = extendedPaginationSchema.extend({
   search: z.string().optional(),
   location: z.string().optional(),
   role: z.string().optional(),
   employer: z.string().optional(),
-  limit: z.coerce.number().min(1).max(1000).optional().default(50),
-  offset: z.coerce.number().min(0).optional().default(0),
+}).merge(z.object({
   sortBy: z.string().optional().default('name'),
-  order: z.enum(['asc', 'desc']).optional().default('asc'),
-})
+}))
 
 // Employee ID parameter validation
 export const employeeIdParamSchema = z.object({

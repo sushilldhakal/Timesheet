@@ -1,13 +1,12 @@
 import { z } from 'zod';
+import { objectIdSchema } from './common';
 
-// Employee ID parameter schema
-export const employeeIdParamSchema = z.object({
-  id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid employee ID format")
-});
+// Re-export from canonical source
+export { employeeIdParamSchema } from './employee';
 
 // Schedule ID parameter schema
 export const scheduleIdParamSchema = z.object({
-  scheduleId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid schedule ID format")
+  scheduleId: objectIdSchema
 });
 
 // Schedule query schema

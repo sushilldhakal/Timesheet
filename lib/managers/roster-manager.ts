@@ -5,6 +5,7 @@ import { ISchedule } from "../db/schemas/schedule"
 import { getISOWeek, getISOWeekYear, addDays } from "date-fns"
 import Award from "../db/schemas/award"
 import { SchedulingValidator } from "../validations/scheduling-validator"
+import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
 
 /**
  * Roster Manager
@@ -526,10 +527,10 @@ export class RosterManager {
 
           // Create shift times (use local time, not UTC)
           const shiftStartTime = new Date(shiftDate)
-          shiftStartTime.setHours(Math.floor(shiftStartHour), (shiftStartHour % 1) * 60, 0, 0)
+          setTimeFromDecimalHours(shiftStartTime, shiftStartHour)
 
           const shiftEndTime = new Date(shiftDate)
-          shiftEndTime.setHours(Math.floor(shiftEndHour), (shiftEndHour % 1) * 60, 0, 0)
+          setTimeFromDecimalHours(shiftEndTime, shiftEndHour)
 
           // Calculate estimated cost
           const estimatedCost = await this.calculateShiftCost(

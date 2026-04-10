@@ -1,4 +1,5 @@
 import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
 
 const BASE_URL = '/api/users'
 
@@ -36,47 +37,33 @@ export interface UpdateUserRequest {
 
 // Get all users
 export async function getUsers(): Promise<{ users: User[] }> {
-  const response = await fetch(BASE_URL, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<{ users: User[] }>(BASE_URL)
 }
 
 // Get user by ID
 export async function getUser(id: string): Promise<{ data: User }> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<{ data: User }>(`${BASE_URL}/${id}`)
 }
 
 // Create user
 export async function createUser(data: CreateUserRequest): Promise<ApiResponse<User>> {
-  const response = await fetch(BASE_URL, {
+  return apiFetch<ApiResponse<User>>(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Update user
 export async function updateUser(id: string, data: UpdateUserRequest): Promise<ApiResponse<User>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
+  return apiFetch<ApiResponse<User>>(`${BASE_URL}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Delete user
 export async function deleteUser(id: string): Promise<ApiResponse<void>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<ApiResponse<void>>(`${BASE_URL}/${id}`, { method: 'DELETE' })
 }

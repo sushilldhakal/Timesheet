@@ -1,14 +1,12 @@
 import { format, parse, isValid, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
-import { connectDB, Employee, DailyShift, Timesheet } from "@/lib/db"
+import { connectDB, Employee, DailyShift } from "@/lib/db"
 import { formatDate as formatDateDisplay } from "@/lib/utils/format/date-format"
 import { parseTimeToMinutes, minutesToHours, formatTimeString } from "@/lib/utils/format/time"
 import { 
   timesheetDashboardQuerySchema,
-  timesheetPostSchema,
   timesheetsDashboardResponseSchema,
-  timesheetCreateResponseSchema,
-} from "@/lib/validations/timesheet"
+} from "@/lib/validations/daily-shift"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 
@@ -482,105 +480,6 @@ export const GET = createApiRoute({
       return {
         status: 500,
         data: { error: "Failed to fetch timesheets" }
-      }
-    }
-  }
-})
-
-export const POST = createApiRoute({
-  method: 'POST',
-  path: '/api/timesheets',
-  summary: 'Create timesheet entry',
-  description: 'Create a new timesheet entry with automatic shift matching',
-  tags: ['Timesheets'],
-  security: 'adminAuth',
-  request: {
-    body: timesheetPostSchema,
-  },
-  responses: {
-    201: timesheetCreateResponseSchema,
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    500: errorResponseSchema,
-  },
-  handler: async ({ body }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      }
-    }
-
-    const {
-      pin,
-      type,
-      date,
-      time,
-      image,
-      lat,
-      lng,
-      where,
-      flag,
-      working,
-      source,
-      deviceId,
-      deviceLocation,
-      breakSource,
-      breakRuleRef,
-      scheduleShiftId,
-    } = body!
-
-    try {
-      await connectDB()
-
-      const { TimesheetManager } = await import("@/lib/managers/timesheet-manager")
-      const manager = new TimesheetManager()
-
-      const timesheetData: any = {
-        pin,
-        type,
-        date,
-        time,
-        image,
-        lat,
-        lng,
-        where,
-        flag,
-        working,
-        source,
-        deviceId,
-        deviceLocation,
-        breakSource,
-        breakRuleRef,
-      }
-
-      if (scheduleShiftId) {
-        const mongoose = await import("mongoose")
-        timesheetData.scheduleShiftId = new mongoose.Types.ObjectId(scheduleShiftId)
-      }
-
-      const timesheet = await Timesheet.create(timesheetData)
-
-      let shiftMatched = false
-      if (type === "in" && !scheduleShiftId) {
-        const matchResult = await manager.autoMatchTimesheetToShift(timesheet)
-        shiftMatched = matchResult.matched
-      }
-
-      return {
-        status: 201,
-        data: {
-          success: true,
-          timesheet,
-          shiftMatched,
-        }
-      }
-    } catch (err) {
-      console.error("[api/timesheets POST]", err)
-      return {
-        status: 500,
-        data: { error: "Failed to create timesheet" }
       }
     }
   }

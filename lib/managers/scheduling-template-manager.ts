@@ -6,6 +6,7 @@ import {
   IRosterTemplateDocument,
   ITemplateShift,
 } from "@/lib/db/schemas/roster-template"
+import { setTimeFromDecimalHours } from "@/lib/utils/format/decimal-hours"
 
 function shiftDateForDayOfWeek(weekStartDate: Date, dayOfWeek: number): Date {
   return addDays(new Date(weekStartDate), dayOfWeek === 0 ? 6 : dayOfWeek - 1)
@@ -150,9 +151,9 @@ export class SchedulingTemplateManager {
       const startH = ts.startHour
       const endH = ts.endHour
       const shiftStartTime = new Date(shiftDate)
-      shiftStartTime.setHours(Math.floor(startH), Math.round((startH % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(shiftStartTime, startH)
       const shiftEndTime = new Date(shiftDate)
-      shiftEndTime.setHours(Math.floor(endH), Math.round((endH % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(shiftEndTime, endH)
 
       const newShift: IShift = {
         _id: new mongoose.Types.ObjectId(),

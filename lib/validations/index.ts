@@ -31,20 +31,9 @@ export {
   employeeQuerySchema
 } from "./employee"
 
-// Timesheet schemas (excluding pinLoginSchema which conflicts with auth)
-export {
-  timesheetCreateSchema,
-  timesheetUpdateSchema,
-  clockActionSchema,
-  timesheetPostSchema,
-  timesheetQuerySchema,
-  timesheetResponseSchema
-} from "./timesheet"
-
 // Use common schemas for param validation (single source of truth)
 export { 
-  employeeIdParamSchema,
-  userIdParamSchema,
+  idParamSchema,
 } from "./common"
 
 // Other schemas without conflicts

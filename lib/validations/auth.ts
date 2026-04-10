@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 export const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  email: z.string().email("Invalid email").min(1, "Email is required"),
   password: z.string().min(1, "Password is required")
 })
 
@@ -32,7 +32,7 @@ export const setupPasswordSchema = z.object({
 export const userSchema = z.object({
   id: z.string(),
   name: z.string(),
-  username: z.string(),
+  email: z.string(),
   role: z.enum(["admin", "user", "super_admin"]),
   location: z.array(z.string()),
   rights: z.array(z.string())
@@ -41,7 +41,7 @@ export const userSchema = z.object({
 export const meUserSchema = z.object({
   id: z.string(),
   name: z.string(),
-  username: z.string(),
+  email: z.string(),
   role: z.enum(["admin", "user", "super_admin"]),
   location: z.array(z.string()),
   rights: z.array(z.string()),
@@ -91,7 +91,7 @@ export const successResponseSchema = z.object({
 export const authResponseSchema = z.object({
   user: z.object({
     id: z.string(),
-    username: z.string(),
+    email: z.string(),
     role: z.enum(["admin", "user", "super_admin"]),
     location: z.string().optional()
   }),

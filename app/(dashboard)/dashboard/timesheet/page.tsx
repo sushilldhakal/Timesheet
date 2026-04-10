@@ -23,8 +23,8 @@ import { useMe } from "@/lib/queries/auth"
 import { useEmployees } from "@/lib/queries/employees"
 import { useLocations } from "@/lib/queries/locations"
 import { useRoles } from "@/lib/queries/roles"
-import { useTimesheets } from "@/lib/queries/timesheets"
-import { getTimesheets } from "@/lib/api/timesheets"
+import { useTimesheets } from "@/lib/queries/daily-shifts"
+import { getTimesheets } from "@/lib/api/daily-shifts"
 import { AwardEnhancedRow } from "@/components/timesheet/award-enhanced-row"
 
 // 🔥 Mock award data for demonstration

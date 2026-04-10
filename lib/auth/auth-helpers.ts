@@ -13,7 +13,7 @@ import { cookies } from "next/headers"
 // Type definitions for compatibility
 export type AuthPayload = {
   sub: string
-  username: string
+  email: string
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string
 }
@@ -51,7 +51,7 @@ function getSecret() {
 
 export async function createAuthToken(payload: AuthPayload): Promise<string> {
   return new SignJWT({
-    username: payload.username,
+    email: payload.email,
     role: payload.role,
     location: payload.location ?? "",
   })
@@ -71,7 +71,7 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
     const validRole = ["admin", "manager", "supervisor", "accounts", "user", "super_admin"].includes(role) ? role : "user"
     return {
       sub,
-      username: payload.username as string,
+      email: payload.email as string,
       role: validRole as "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
     }

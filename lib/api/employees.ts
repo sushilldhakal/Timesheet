@@ -1,3 +1,5 @@
+import { apiFetch } from "./fetch-client"
+
 export interface Employee {
   id: string
   name: string
@@ -236,15 +238,7 @@ export interface EmployeeFiltersResponse {
 
 // Get employee filters
 export async function getEmployeeFilters(): Promise<EmployeeFiltersResponse> {
-  const response = await fetch('/api/employees/filters', {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch employee filters')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeFiltersResponse>('/api/employees/filters')
 }
 
 // Get all employees
@@ -261,109 +255,45 @@ export async function getEmployees(params?: GetEmployeesParams): Promise<Employe
   if (params?.employer) searchParams.set('employer', params.employer)
   
   const url = `/api/employees${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
-  
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch employees')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeesResponse>(url)
 }
 
 // Get employee by ID
 export async function getEmployee(id: string): Promise<EmployeeResponse> {
-  const response = await fetch(`/api/employees/${id}`, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch employee')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeResponse>(`/api/employees/${id}`)
 }
 
 // Create employee
 export async function createEmployee(data: CreateEmployeeRequest): Promise<EmployeeResponse> {
-  const response = await fetch('/api/employees', {
+  return apiFetch<EmployeeResponse>('/api/employees', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to create employee')
-  }
-  
-  return response.json()
 }
 
 // Update employee
 export async function updateEmployee(id: string, data: UpdateEmployeeRequest): Promise<EmployeeResponse> {
-  const response = await fetch(`/api/employees/${id}`, {
+  return apiFetch<EmployeeResponse>(`/api/employees/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to update employee')
-  }
-  
-  return response.json()
 }
 
 // Delete employee
 export async function deleteEmployee(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/employees/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to delete employee')
-  }
-  
-  return response.json()
+  return apiFetch<{ success: boolean }>(`/api/employees/${id}`, { method: 'DELETE' })
 }
 
 // Generate PIN
 export async function generatePin(): Promise<GeneratePinResponse> {
-  const response = await fetch('/api/employees/generate-pin', {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to generate PIN')
-  }
-  
-  return response.json()
+  return apiFetch<GeneratePinResponse>('/api/employees/generate-pin')
 }
 
 // Check PIN availability
 export async function checkPin(pin: string): Promise<CheckPinResponse> {
-  const response = await fetch(`/api/employees/check-pin?pin=${pin}`, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to check PIN')
-  }
-  
-  return response.json()
+  return apiFetch<CheckPinResponse>(`/api/employees/check-pin?pin=${pin}`)
 }
 
 // Get employee timesheet
@@ -371,16 +301,7 @@ export async function getEmployeeTimesheet(id: string, params?: URLSearchParams)
   const url = params 
     ? `/api/employees/${id}/timesheet?${params.toString()}`
     : `/api/employees/${id}/timesheet`
-  
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch employee timesheet')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeTimesheetResponse>(url)
 }
 
 // Update employee timesheet
@@ -388,53 +309,25 @@ export async function updateEmployeeTimesheet(
   employeeId: string, 
   data: UpdateTimesheetRequest
 ): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/employees/${employeeId}/timesheet`, {
+  return apiFetch<{ success: boolean }>(`/api/employees/${employeeId}/timesheet`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to update timesheet')
-  }
-  
-  return response.json()
 }
 
 // Get employee award history
 export async function getEmployeeAwardHistory(id: string): Promise<EmployeeAwardHistoryResponse> {
-  const response = await fetch(`/api/employees/${id}/award-history`, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch award history')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeAwardHistoryResponse>(`/api/employees/${id}/award-history`)
 }
 
 // Award employee
 export async function awardEmployee(id: string, data: AwardEmployeeRequest): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/employees/${id}/award`, {
+  return apiFetch<{ success: boolean }>(`/api/employees/${id}/award`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to award employee')
-  }
-  
-  return response.json()
 }
 
 // Create employee role assignment
@@ -442,21 +335,11 @@ export async function createEmployeeRole(
   employeeId: string, 
   data: CreateEmployeeRoleRequest
 ): Promise<EmployeeRoleAssignmentResponse> {
-  const response = await fetch(`/api/employees/${employeeId}/roles`, {
+  return apiFetch<EmployeeRoleAssignmentResponse>(`/api/employees/${employeeId}/roles`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to assign role to employee')
-  }
-  
-  return response.json()
 }
 
 // Get employee role assignments
@@ -471,17 +354,7 @@ export async function getEmployeeRoles(
   if (params?.includeInactive) searchParams.set('includeInactive', 'true')
   
   const url = `/api/employees/${employeeId}/roles${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
-  
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to fetch employee roles')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeRolesResponse>(url)
 }
 
 // Delete employee role assignment
@@ -489,17 +362,9 @@ export async function deleteEmployeeRole(
   employeeId: string,
   assignmentId: string
 ): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/employees/${employeeId}/roles/${assignmentId}`, {
+  return apiFetch<{ success: boolean }>(`/api/employees/${employeeId}/roles/${assignmentId}`, {
     method: 'DELETE',
-    credentials: 'include',
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to delete employee role assignment')
-  }
-  
-  return response.json()
 }
 
 
@@ -522,14 +387,5 @@ export async function getEmployeeAvailability(
     ? `/api/employees/${employeeId}/availability?${searchParams.toString()}`
     : `/api/employees/${employeeId}/availability`
   
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to get employee availability')
-  }
-  
-  return response.json()
+  return apiFetch<EmployeeAvailabilityResponse>(url)
 }

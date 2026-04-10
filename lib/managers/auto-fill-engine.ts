@@ -12,6 +12,7 @@ import { ComplianceManager } from "./compliance-manager"
 import { AbsenceManager } from "./absence-manager"
 import { SchedulingValidator } from "../validations/scheduling-validator"
 import { RosterManager } from "./roster-manager"
+import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
 
 export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT"
 
@@ -376,9 +377,9 @@ export class AutoFillEngine {
       blockEnd = blockStart + durationHours
 
       const shiftStartTime = new Date(shiftDate)
-      shiftStartTime.setHours(Math.floor(blockStart), Math.round((blockStart % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(shiftStartTime, blockStart)
       const shiftEndTime = new Date(shiftDate)
-      shiftEndTime.setHours(Math.floor(blockEnd), Math.round((blockEnd % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(shiftEndTime, blockEnd)
 
       // Add a default 30-minute break for long shifts.
       let breakStartTime: Date | undefined

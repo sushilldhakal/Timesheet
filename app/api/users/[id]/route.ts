@@ -66,7 +66,7 @@ export const GET = createApiRoute({
           user: {
             id: user._id,
             name: user.name ?? "",
-            username: user.username,
+            email: user.email ?? "",
             role: user.role,
             location,
             rights: user.rights ?? [],
@@ -139,18 +139,8 @@ export const PATCH = createApiRoute({
           }
         }
 
-        const { name, username, email, password, role, location, rights, managedRoles } = parsedUpdate.data
+        const { name, email, password, role, location, managedRoles } = parsedUpdate.data
 
-        if (username !== undefined) {
-          const duplicate = await User.findOne({
-            username: username.toLowerCase(),
-            _id: { $ne: id },
-          })
-          if (duplicate) {
-            return { status: 409, data: { error: "Username already exists" } }
-          }
-          existing.username = username.toLowerCase()
-        }
         if (email !== undefined) {
           const duplicate = await User.findOne({
             email: email.toLowerCase(),
@@ -165,7 +155,6 @@ export const PATCH = createApiRoute({
         if (password) existing.password = password
         if (role !== undefined) existing.role = role
         if (location !== undefined) existing.location = location
-        if (rights !== undefined) existing.rights = rights as Right[]
         if (managedRoles !== undefined) existing.managedRoles = managedRoles
 
         await existing.save()
@@ -180,8 +169,7 @@ export const PATCH = createApiRoute({
             user: {
               id: u?._id,
               name: u?.name ?? "",
-              username: u?.username,
-              email: u?.email,
+              email: u?.email ?? "",
               role: u?.role,
               location: locArr,
               rights: u?.rights ?? [],
@@ -191,7 +179,7 @@ export const PATCH = createApiRoute({
         }
       }
 
-      // User: self-update (username and password only)
+      // User: self-update (email and password only)
       const parsedSelf = userSelfUpdateSchema.safeParse(body)
       if (!parsedSelf.success) {
         return {
@@ -200,15 +188,7 @@ export const PATCH = createApiRoute({
         }
       }
 
-      const { username: newUsername, email: newEmail, password } = parsedSelf.data
-
-      const duplicate = await User.findOne({
-        username: newUsername.toLowerCase(),
-        _id: { $ne: id },
-      })
-      if (duplicate) {
-        return { status: 409, data: { error: "Username already exists" } }
-      }
+      const { email: newEmail, password } = parsedSelf.data
 
       if (newEmail) {
         const emailDuplicate = await User.findOne({
@@ -221,7 +201,6 @@ export const PATCH = createApiRoute({
         existing.email = newEmail.toLowerCase()
       }
 
-      existing.username = newUsername.toLowerCase()
       if (password) existing.password = password
       await existing.save()
 
@@ -235,8 +214,7 @@ export const PATCH = createApiRoute({
           user: {
             id: u?._id,
             name: u?.name ?? "",
-            username: u?.username,
-            email: u?.email,
+            email: u?.email ?? "",
             role: u?.role,
             location: locArr,
             rights: u?.rights ?? [],

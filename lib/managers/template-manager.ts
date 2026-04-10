@@ -2,6 +2,7 @@ import mongoose from "mongoose"
 import { ISchedule } from "../db/schemas/schedule"
 import { RosterTemplate } from "../db/schemas/roster-template"
 import type { ShiftPattern, RoleTemplate } from "./template-manager-types"
+import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
 
 export type { ShiftPattern, RoleTemplate } from "./template-manager-types"
 
@@ -83,9 +84,9 @@ export class TemplateManager {
     const newSchedules: ISchedule[] = []
     for (const g of byKey.values()) {
       const base = new Date()
-      base.setHours(Math.floor(g.startHour), Math.round((g.startHour % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(base, g.startHour)
       const baseEnd = new Date()
-      baseEnd.setHours(Math.floor(g.endHour), Math.round((g.endHour % 1) * 60), 0, 0)
+      setTimeFromDecimalHours(baseEnd, g.endHour)
       newSchedules.push({
         _id: new mongoose.Types.ObjectId(),
         dayOfWeek: [...new Set(g.dayOfWeek)].sort((a, b) => a - b),
@@ -206,7 +207,7 @@ export class TemplateManager {
 
 function syntheticTime(hour: number): Date {
   const d = new Date()
-  d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)
+  setTimeFromDecimalHours(d, hour)
   return d
 }
 

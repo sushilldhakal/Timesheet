@@ -1,9 +1,7 @@
 import { z } from 'zod';
 
-// Employee ID parameter schema
-export const employeeIdParamSchema = z.object({
-  id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid employee ID format")
-});
+// Re-export from canonical source
+export { employeeIdParamSchema } from './employee';
 
 // Nested schemas for employee detail response
 const geofenceSchema = z.object({

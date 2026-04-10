@@ -14,6 +14,7 @@ import {
   calendarEventCreateResponseSchema,
 } from "@/lib/validations/calendar";
 import { errorResponseSchema } from "@/lib/validations/auth";
+import { setTimeFromDecimalHours } from "@/lib/utils/format/decimal-hours";
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -388,9 +389,9 @@ export const POST = createApiRoute({
       let resolvedBreakMinutes: number | undefined
       if (breakStartHInput !== undefined && breakEndHInput !== undefined) {
         breakStartTime = new Date(shiftDate)
-        breakStartTime.setHours(Math.floor(breakStartHInput), Math.round((breakStartHInput % 1) * 60), 0, 0)
+        setTimeFromDecimalHours(breakStartTime, breakStartHInput)
         breakEndTime = new Date(shiftDate)
-        breakEndTime.setHours(Math.floor(breakEndHInput), Math.round((breakEndHInput % 1) * 60), 0, 0)
+        setTimeFromDecimalHours(breakEndTime, breakEndHInput)
         resolvedBreakMinutes = Math.round((breakEndTime.getTime() - breakStartTime.getTime()) / 60_000)
       } else if (breakMinutes && breakMinutes > 0) {
         const shiftDurMs = shiftEnd.getTime() - shiftStart.getTime()
