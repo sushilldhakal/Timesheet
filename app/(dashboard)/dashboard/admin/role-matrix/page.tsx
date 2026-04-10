@@ -134,7 +134,7 @@ function RoleMatrixPage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push("/dashboard/category")}
+          onClick={() => router.push("/dashboard/locations")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>

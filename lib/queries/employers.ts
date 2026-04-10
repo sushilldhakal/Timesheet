@@ -7,11 +7,15 @@ export const employerKeys = {
   detail: (id: string) => [...employerKeys.all, 'detail', id] as const,
 }
 
-export function useEmployers() {
+type UseEmployersOpts = { listMode?: boolean }
+
+export function useEmployers(opts?: UseEmployersOpts) {
+  const listMode = opts?.listMode === true
   return useQuery({
     queryKey: employerKeys.all,
     queryFn: () => employersApi.getAll(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: listMode ? 0 : 5 * 60 * 1000,
+    refetchOnMount: listMode ? 'always' : true,
   })
 }
 

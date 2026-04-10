@@ -17,6 +17,7 @@ export interface ITeam {
   name: string
   code?: string
   color?: string
+  groupId?: mongoose.Types.ObjectId // Reference to TeamGroup
   defaultScheduleTemplate?: IDefaultScheduleTemplate
   isActive: boolean
   createdBy?: mongoose.Types.ObjectId
@@ -49,6 +50,7 @@ const teamSchema = new mongoose.Schema<ITeamDocument>(
     name: { type: String, required: true, trim: true },
     code: { type: String, trim: true, default: undefined },
     color: { type: String, default: undefined },
+    groupId: { type: mongoose.Schema.Types.ObjectId, ref: "TeamGroup", default: undefined },
     defaultScheduleTemplate: { type: defaultScheduleTemplateSchema, default: undefined },
     isActive: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: undefined },

@@ -3,6 +3,12 @@ export interface Team {
   name: string
   code?: string
   color?: string
+  /** Reference to TeamGroup for organizational hierarchy */
+  groupId?: string
+  /** Distinct employees with an active assignment to this team (any location) */
+  staffCount?: number
+  /** Dashboard users (manager/supervisor) with this team in managedRoleIds */
+  managerCount?: number
   defaultScheduleTemplate?: {
     standardHoursPerWeek?: number
     shiftPattern?: {
@@ -22,6 +28,7 @@ export interface CreateTeamRequest {
   name: string
   code?: string
   color?: string
+  groupId?: string
   defaultScheduleTemplate?: {
     standardHoursPerWeek?: number
     shiftPattern?: {
@@ -38,6 +45,7 @@ export interface UpdateTeamRequest {
   name?: string
   code?: string
   color?: string
+  groupId?: string
   defaultScheduleTemplate?: {
     standardHoursPerWeek?: number
     shiftPattern?: {

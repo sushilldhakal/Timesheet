@@ -23,6 +23,7 @@ import {
 import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { useAwards } from '@/lib/queries/awards';
 import { useEmployee, useEmployeeAwardHistory, useAwardEmployee } from '@/lib/queries/employees';
@@ -212,9 +213,9 @@ export default function EmployeeProfileCard({
                         {employee.roleAssignments
                           .filter(ra => ra.isActive)
                           .map((ra) => (
-                            <a
+                            <Link
                               key={ra.id}
-                              href={`/dashboard/category?type=role`}
+                              href="/dashboard/teams"
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
                             >
                               {ra.roleColor && (
@@ -225,7 +226,7 @@ export default function EmployeeProfileCard({
                               )}
                               {ra.roleName}
                               <span className="text-muted-foreground">@ {ra.locationName}</span>
-                            </a>
+                            </Link>
                           ))}
                       </div>
                     </>
@@ -235,9 +236,9 @@ export default function EmployeeProfileCard({
                   <div className="flex items-center gap-1 flex-wrap">
                     <span>Employers:</span>
                     {employee.employerDetails.map((emp) => (
-                      <a
+                      <Link
                         key={emp.id}
-                        href={`/dashboard/category?type=employer`}
+                        href="/dashboard/employers"
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
                       >
                         {emp.color && (
@@ -247,7 +248,7 @@ export default function EmployeeProfileCard({
                           />
                         )}
                         {emp.name}
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 ) : employee.employer?.length ? (
@@ -264,9 +265,9 @@ export default function EmployeeProfileCard({
                   <div className="flex items-center gap-1 flex-wrap">
                     <span>Locations:</span>
                     {employee.locationDetails.map((loc) => (
-                      <a
+                      <Link
                         key={loc.id}
-                        href={`/dashboard/category?type=location`}
+                        href="/dashboard/locations"
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary hover:bg-secondary/80 transition-colors"
                       >
                         {loc.color && (
@@ -276,7 +277,7 @@ export default function EmployeeProfileCard({
                           />
                         )}
                         {loc.name}
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 ) : null}

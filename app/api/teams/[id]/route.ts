@@ -22,6 +22,7 @@ const teamResponseSchema = z.object({
   name: z.string(),
   code: z.string().optional(),
   color: z.string().optional(),
+  groupId: z.string().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean(),
   createdAt: z.string().datetime().nullable().optional(),
@@ -32,6 +33,7 @@ const teamUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   code: z.string().optional(),
   color: z.string().optional(),
+  groupId: z.string().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean().optional(),
 })
@@ -70,6 +72,7 @@ export const GET = createApiRoute({
           name: team.name,
           code: team.code,
           color: team.color,
+          groupId: team.groupId?.toString(),
           defaultScheduleTemplate: team.defaultScheduleTemplate,
           isActive: team.isActive ?? true,
           createdAt: team.createdAt ? new Date(team.createdAt).toISOString() : null,
@@ -122,6 +125,7 @@ export const PATCH = createApiRoute({
     if (payload.name !== undefined) team.name = payload.name.trim()
     if (payload.code !== undefined) team.code = payload.code
     if (payload.color !== undefined) team.color = payload.color
+    if (payload.groupId !== undefined) team.groupId = payload.groupId
     if (payload.defaultScheduleTemplate !== undefined)
       team.defaultScheduleTemplate = payload.defaultScheduleTemplate
     if (payload.isActive !== undefined) team.isActive = payload.isActive
@@ -136,6 +140,7 @@ export const PATCH = createApiRoute({
           name: team.name,
           code: team.code,
           color: team.color,
+          groupId: team.groupId?.toString(),
           defaultScheduleTemplate: team.defaultScheduleTemplate,
           isActive: team.isActive ?? true,
           createdAt: team.createdAt ? team.createdAt.toISOString() : null,

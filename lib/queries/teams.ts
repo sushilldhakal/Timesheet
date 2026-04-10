@@ -7,11 +7,15 @@ export const teamKeys = {
   detail: (id: string) => [...teamKeys.all, 'detail', id] as const,
 }
 
-export function useTeams() {
+type UseTeamsOpts = { /** Categories admin: refetch on every visit so list matches DB */ listMode?: boolean }
+
+export function useTeams(opts?: UseTeamsOpts) {
+  const listMode = opts?.listMode === true
   return useQuery({
     queryKey: teamKeys.all,
     queryFn: () => teamsApi.getAll(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: listMode ? 0 : 5 * 60 * 1000,
+    refetchOnMount: listMode ? 'always' : true,
   })
 }
 

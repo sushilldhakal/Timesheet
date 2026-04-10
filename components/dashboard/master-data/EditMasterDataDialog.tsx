@@ -22,10 +22,17 @@ import {
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { useUpdateLocation, useLocationTeams, useEnableLocationTeam, useDisableLocationTeam } from "@/lib/queries/locations"
+import {
+  useUpdateLocation,
+  useLocationTeams,
+  useEnableLocationTeam,
+  useDisableLocationTeam,
+} from "@/lib/queries/locations"
 import { useTeams, useUpdateTeam } from "@/lib/queries/teams"
 import { useUpdateEmployer } from "@/lib/queries/employers"
-import type { CategoryRow } from "./page"
+import { useAwards } from "@/lib/queries/awards"
+import { useTeamGroups } from "@/lib/queries/team-groups"
+import type { CategoryRow } from "./types"
 
 const TYPE_LABELS: Record<"team" | "employer" | "location", string> = {
   team: "Team",
@@ -40,12 +47,12 @@ type Props = {
   onSuccess: () => void
 }
 
-export function EditCategoryDialog({
-  category,
-  open,
-  onOpenChange,
-  onSuccess,
-}: Props) {
+function isValidEmail(value: string): boolean {
+  if (!value.trim()) return true
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }: Props) {
   const [name, setName] = useState(category.name)
   const [mapLink, setMapLink] = useState("")
   const [lat, setLat] = useState<number | undefined>(category.lat)
@@ -55,15 +62,31 @@ export function EditCategoryDialog({
   const [openingHour, setOpeningHour] = useState<number>(category.openingHour ?? 8)
   const [closingHour, setClosingHour] = useState<number>(category.closingHour ?? 18)
   const [color, setColor] = useState<string>(category.color ?? "#3b82f6")
-  const [standardHours, setStandardHours] = useState<number>(category.defaultScheduleTemplate?.standardHoursPerWeek ?? 38)
-  const [shiftDays, setShiftDays] = useState<number[]>(category.defaultScheduleTemplate?.shiftPattern?.dayOfWeek ?? [1, 2, 3, 4, 5])
-  const [shiftStartHour, setShiftStartHour] = useState<number>(category.defaultScheduleTemplate?.shiftPattern?.startHour ?? 9)
-  const [shiftEndHour, setShiftEndHour] = useState<number>(category.defaultScheduleTemplate?.shiftPattern?.endHour ?? 17)
-  const [shiftDescription, setShiftDescription] = useState<string>(category.defaultScheduleTemplate?.shiftPattern?.description ?? 'Standard business hours')
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
+  const [standardHours, setStandardHours] = useState<number>(
+    category.defaultScheduleTemplate?.standardHoursPerWeek ?? 38
+  )
+  const [shiftDays, setShiftDays] = useState<number[]>(
+    category.defaultScheduleTemplate?.shiftPattern?.dayOfWeek ?? [1, 2, 3, 4, 5]
+  )
+  const [shiftStartHour, setShiftStartHour] = useState<number>(
+    category.defaultScheduleTemplate?.shiftPattern?.startHour ?? 9
+  )
+  const [shiftEndHour, setShiftEndHour] = useState<number>(
+    category.defaultScheduleTemplate?.shiftPattern?.endHour ?? 17
+  )
+  const [shiftDescription, setShiftDescription] = useState<string>(
+    category.defaultScheduleTemplate?.shiftPattern?.description ?? "Standard business hours"
+  )
+  const [abn, setAbn] = useState(category.abn ?? "")
+  const [contactEmail, setContactEmail] = useState(category.contactEmail ?? "")
+  const [defaultAwardId, setDefaultAwardId] = useState<string>(category.defaultAwardId ?? "")
+  const [groupId, setGroupId] = useState<string>(category.groupId ?? "")
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const teamsQuery = useTeams()
+  const awardsQuery = useAwards()
+  const teamGroupsQuery = useTeamGroups()
   const updateLocationMutation = useUpdateLocation()
   const updateTeamMutation = useUpdateTeam()
   const updateEmployerMutation = useUpdateEmployer()
@@ -72,6 +95,7 @@ export function EditCategoryDialog({
   const disableLocationTeamMutation = useDisableLocationTeam()
 
   const allTeams = teamsQuery.data?.teams ?? []
+  const awards = awardsQuery.data?.awards ?? []
 
   useEffect(() => {
     if (open && category) {
@@ -88,12 +112,17 @@ export function EditCategoryDialog({
       setShiftDays(category.defaultScheduleTemplate?.shiftPattern?.dayOfWeek ?? [1, 2, 3, 4, 5])
       setShiftStartHour(category.defaultScheduleTemplate?.shiftPattern?.startHour ?? 9)
       setShiftEndHour(category.defaultScheduleTemplate?.shiftPattern?.endHour ?? 17)
-      setShiftDescription(category.defaultScheduleTemplate?.shiftPattern?.description ?? 'Standard business hours')
+      setShiftDescription(
+        category.defaultScheduleTemplate?.shiftPattern?.description ?? "Standard business hours"
+      )
+      setAbn(category.abn ?? "")
+      setContactEmail(category.contactEmail ?? "")
+      setDefaultAwardId(category.defaultAwardId ?? "")
+      setGroupId(category.groupId ?? "")
       setError(null)
 
-      // Set enabled teams for locations
       if (category.type === "location" && locationTeamsQuery.data?.teams) {
-        setSelectedRoleIds(locationTeamsQuery.data.teams.map((t) => t.teamId))
+        setSelectedTeamIds(locationTeamsQuery.data.teams.map((t) => t.teamId))
       }
     }
   }, [open, category, locationTeamsQuery.data])
@@ -111,6 +140,11 @@ export function EditCategoryDialog({
     e.preventDefault()
     setError(null)
 
+    if (category.type === "employer" && contactEmail.trim() && !isValidEmail(contactEmail)) {
+      setError("Please enter a valid contact email.")
+      return
+    }
+
     try {
       if (category.type === "location") {
         const body: Record<string, unknown> = { name: name.trim() }
@@ -127,22 +161,36 @@ export function EditCategoryDialog({
           data: {
             name: name.trim(),
             color,
+            groupId: groupId || undefined,
             defaultScheduleTemplate: {
               standardHoursPerWeek: standardHours,
-              shiftPattern: { dayOfWeek: shiftDays, startHour: shiftStartHour, endHour: shiftEndHour, description: shiftDescription },
+              shiftPattern: {
+                dayOfWeek: shiftDays,
+                startHour: shiftStartHour,
+                endHour: shiftEndHour,
+                description: shiftDescription,
+              },
             },
           },
         })
       } else {
-        await updateEmployerMutation.mutateAsync({ id: category.id, data: { name: name.trim(), color } })
+        await updateEmployerMutation.mutateAsync({
+          id: category.id,
+          data: {
+            name: name.trim(),
+            color,
+            abn: abn.trim() || undefined,
+            contactEmail: contactEmail.trim() || undefined,
+            defaultAwardId: defaultAwardId || undefined,
+          },
+        })
       }
 
-      // If location, sync team enablements
       if (category.type === "location" && locationTeamsQuery.data?.teams) {
         const currentTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
 
-        const teamsToEnable = selectedRoleIds.filter((id) => !currentTeamIds.includes(id))
-        const teamsToDisable = currentTeamIds.filter((id: string) => !selectedRoleIds.includes(id))
+        const teamsToEnable = selectedTeamIds.filter((id) => !currentTeamIds.includes(id))
+        const teamsToDisable = currentTeamIds.filter((id: string) => !selectedTeamIds.includes(id))
 
         await Promise.all(
           teamsToEnable.map((teamId) =>
@@ -175,7 +223,12 @@ export function EditCategoryDialog({
   }
 
   const typeLabel = TYPE_LABELS[category.type]
-  const loading = updateLocationMutation.isPending || updateTeamMutation.isPending || updateEmployerMutation.isPending || enableLocationTeamMutation.isPending || disableLocationTeamMutation.isPending
+  const loading =
+    updateLocationMutation.isPending ||
+    updateTeamMutation.isPending ||
+    updateEmployerMutation.isPending ||
+    enableLocationTeamMutation.isPending ||
+    disableLocationTeamMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,9 +242,9 @@ export function EditCategoryDialog({
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor="edit-category-name">Name *</FieldLabel>
+              <FieldLabel htmlFor="edit-master-name">Name *</FieldLabel>
               <Input
-                id="edit-category-name"
+                id="edit-master-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -201,10 +254,7 @@ export function EditCategoryDialog({
               <>
                 <Field>
                   <FieldLabel htmlFor="edit-color">Color</FieldLabel>
-                  <Select
-                    value={color}
-                    onValueChange={setColor}
-                  >
+                  <Select value={color} onValueChange={setColor}>
                     <SelectTrigger id="edit-color" className="w-full">
                       <SelectValue>
                         <div className="flex items-center gap-2">
@@ -212,7 +262,9 @@ export function EditCategoryDialog({
                             className="h-5 w-5 rounded border-2 border-gray-300"
                             style={{ backgroundColor: color }}
                           />
-                          <span>{TAILWIND_COLORS.find(c => c.value === color)?.name || "Select color"}</span>
+                          <span>
+                            {TAILWIND_COLORS.find((c) => c.value === color)?.name || "Select color"}
+                          </span>
                         </div>
                       </SelectValue>
                     </SelectTrigger>
@@ -231,8 +283,69 @@ export function EditCategoryDialog({
                     </SelectContent>
                   </Select>
                 </Field>
+                {category.type === "employer" && (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="edit-abn">ABN</FieldLabel>
+                      <Input id="edit-abn" value={abn} onChange={(e) => setAbn(e.target.value)} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="edit-contact-email">Contact email</FieldLabel>
+                      <Input
+                        id="edit-contact-email"
+                        type="email"
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Default award</FieldLabel>
+                      <Select
+                        value={defaultAwardId || "__none__"}
+                        onValueChange={(v) => setDefaultAwardId(v === "__none__" ? "" : v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Optional" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {awards.map((a) => (
+                            <SelectItem key={a._id} value={a._id}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </>
+                )}
                 {category.type === "team" && (
                   <>
+                    <Field>
+                      <FieldLabel>Team Group (Optional)</FieldLabel>
+                      <Select value={groupId || "__none__"} onValueChange={(v) => setGroupId(v === "__none__" ? "" : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="No group assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No group assigned</SelectItem>
+                          {(teamGroupsQuery.data?.teamGroups ?? []).map((g) => (
+                            <SelectItem key={g.id} value={g.id}>
+                              <div className="flex items-center gap-2">
+                                {g.color && (
+                                  <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{ backgroundColor: g.color }}
+                                  />
+                                )}
+                                {g.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
                     <Field>
                       <FieldLabel htmlFor="edit-standard-hours">Standard Hours per Week</FieldLabel>
                       <Input
@@ -253,13 +366,13 @@ export function EditCategoryDialog({
                       <FieldLabel>Working Days</FieldLabel>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {[
-                          { value: 0, label: 'Sun' },
-                          { value: 1, label: 'Mon' },
-                          { value: 2, label: 'Tue' },
-                          { value: 3, label: 'Wed' },
-                          { value: 4, label: 'Thu' },
-                          { value: 5, label: 'Fri' },
-                          { value: 6, label: 'Sat' },
+                          { value: 0, label: "Sun" },
+                          { value: 1, label: "Mon" },
+                          { value: 2, label: "Tue" },
+                          { value: 3, label: "Wed" },
+                          { value: 4, label: "Thu" },
+                          { value: 5, label: "Fri" },
+                          { value: 6, label: "Sat" },
                         ].map((day) => (
                           <Button
                             key={day.value}
@@ -269,7 +382,7 @@ export function EditCategoryDialog({
                             className="w-14"
                             onClick={() => {
                               if (shiftDays.includes(day.value)) {
-                                setShiftDays(shiftDays.filter(d => d !== day.value))
+                                setShiftDays(shiftDays.filter((d) => d !== day.value))
                               } else {
                                 setShiftDays([...shiftDays, day.value].sort())
                               }
@@ -297,7 +410,13 @@ export function EditCategoryDialog({
                           <SelectContent>
                             {Array.from({ length: 24 }, (_, i) => (
                               <SelectItem key={i} value={String(i)}>
-                                {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
+                                {i === 0
+                                  ? "12 AM"
+                                  : i < 12
+                                    ? `${i} AM`
+                                    : i === 12
+                                      ? "12 PM"
+                                      : `${i - 12} PM`}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -315,7 +434,15 @@ export function EditCategoryDialog({
                           <SelectContent>
                             {Array.from({ length: 25 }, (_, i) => (
                               <SelectItem key={i} value={String(i)}>
-                                {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : i === 24 ? '12 AM (next day)' : `${i - 12} PM`}
+                                {i === 0
+                                  ? "12 AM"
+                                  : i < 12
+                                    ? `${i} AM`
+                                    : i === 12
+                                      ? "12 PM"
+                                      : i === 24
+                                        ? "12 AM (next day)"
+                                        : `${i - 12} PM`}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -396,7 +523,13 @@ export function EditCategoryDialog({
                       <SelectContent>
                         {Array.from({ length: 24 }, (_, i) => (
                           <SelectItem key={i} value={String(i)}>
-                            {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
+                            {i === 0
+                              ? "12 AM"
+                              : i < 12
+                                ? `${i} AM`
+                                : i === 12
+                                  ? "12 PM"
+                                  : `${i - 12} PM`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -414,7 +547,15 @@ export function EditCategoryDialog({
                       <SelectContent>
                         {Array.from({ length: 25 }, (_, i) => (
                           <SelectItem key={i} value={String(i)}>
-                            {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : i === 24 ? '12 AM (next day)' : `${i - 12} PM`}
+                            {i === 0
+                              ? "12 AM"
+                              : i < 12
+                                ? `${i} AM`
+                                : i === 12
+                                  ? "12 PM"
+                                  : i === 24
+                                    ? "12 AM (next day)"
+                                    : `${i - 12} PM`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -422,15 +563,15 @@ export function EditCategoryDialog({
                   </Field>
                 </div>
                 <Field>
-                  <FieldLabel>Enabled Roles</FieldLabel>
+                  <FieldLabel>Enabled teams</FieldLabel>
                   <MultiSelect
                     options={allTeams.map((team) => ({
                       label: team.name,
                       value: team.id,
-                      style: team.color ? { badgeColor: team.color } : undefined
+                      style: team.color ? { badgeColor: team.color } : undefined,
                     }))}
-                    onValueChange={setSelectedRoleIds}
-                    defaultValue={selectedRoleIds}
+                    onValueChange={setSelectedTeamIds}
+                    defaultValue={selectedTeamIds}
                     placeholder="Select teams for this location..."
                     disabled={loading}
                   />
@@ -443,11 +584,7 @@ export function EditCategoryDialog({
             {error && <FieldError>{error}</FieldError>}
           </FieldGroup>
           <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>

@@ -4,18 +4,20 @@ import {
   CalendarCheck,
   List,
   UserCog,
-  FolderTree,
+  Database,
   Flag,
   Settings,
   Award,
   Calendar,
   Cloud,
-  Lock,
   Mail,
   Tablet,
   Clock,
   CircleDollarSign,
   CalendarDays,
+  UserCircle,
+  Briefcase,
+  MapPin,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/lib/types/dashboard';
 
@@ -61,9 +63,25 @@ export const baseNavigationItems: NavigationItem[] = [
     ],
   },
   {
-    href: '/dashboard/category',
-    label: 'Categories',
-    icon: FolderTree,
+    label: 'Workforce',
+    icon: Database,
+    children: [
+      {
+        href: '/dashboard/teams',
+        label: 'Teams',
+        icon: UserCircle,
+      },
+      {
+        href: '/dashboard/employers',
+        label: 'Employers',
+        icon: Briefcase,
+      },
+      {
+        href: '/dashboard/locations',
+        label: 'Locations',
+        icon: MapPin,
+      },
+    ],
   },
   {
     href: '/dashboard/profile',

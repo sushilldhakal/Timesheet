@@ -8,11 +8,15 @@ export const locationKeys = {
   teams: (locationId: string) => [...locationKeys.all, locationId, 'teams'] as const,
 }
 
-export function useLocations() {
+type UseLocationsOpts = { listMode?: boolean }
+
+export function useLocations(opts?: UseLocationsOpts) {
+  const listMode = opts?.listMode === true
   return useQuery({
     queryKey: locationKeys.all,
     queryFn: () => locationsApi.getAll(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: listMode ? 0 : 5 * 60 * 1000,
+    refetchOnMount: listMode ? 'always' : true,
   })
 }
 

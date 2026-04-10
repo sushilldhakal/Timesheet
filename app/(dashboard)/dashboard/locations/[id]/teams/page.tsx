@@ -79,7 +79,7 @@ function LocationTeamsPage() {
   return (
     <div className="flex flex-col space-y-4 p-4 lg:p-8">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/category")}>
+        <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/locations")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>

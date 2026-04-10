@@ -1,0 +1,34 @@
+export type EntityType = "team" | "employer" | "location"
+
+export type CategoryRow = {
+  id: string
+  name: string
+  type: EntityType
+  lat?: number
+  lng?: number
+  radius?: number
+  geofenceMode?: "hard" | "soft"
+  openingHour?: number
+  closingHour?: number
+  workingDays?: number[]
+  color?: string
+  abn?: string
+  contactEmail?: string
+  defaultAwardId?: string
+  isActive?: boolean
+  /** Workforce team group (not wired yet — reserved for a follow-up) */
+  teamGroup?: string | null
+  staffCount?: number
+  managerCount?: number
+  defaultScheduleTemplate?: {
+    standardHoursPerWeek?: number
+    shiftPattern?: {
+      dayOfWeek?: number[]
+      startHour?: number
+      endHour?: number
+      description?: string
+    }
+  }
+  createdAt?: string
+  updatedAt?: string
+}

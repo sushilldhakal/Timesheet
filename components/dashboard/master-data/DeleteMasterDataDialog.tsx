@@ -14,7 +14,7 @@ import {
 import { useDeleteLocation } from "@/lib/queries/locations"
 import { useDeleteTeam } from "@/lib/queries/teams"
 import { useDeleteEmployer } from "@/lib/queries/employers"
-import type { CategoryRow } from "./page"
+import type { CategoryRow } from "./types"
 
 const TYPE_LABELS: Record<"team" | "employer" | "location", string> = {
   team: "Team",
@@ -29,7 +29,7 @@ type Props = {
   onSuccess: () => void
 }
 
-export function DeleteCategoryDialog({
+export function DeleteMasterDataDialog({
   category,
   open,
   onOpenChange,
@@ -56,7 +56,8 @@ export function DeleteCategoryDialog({
     }
   }
 
-  const loading = deleteLocationMutation.isPending || deleteTeamMutation.isPending || deleteEmployerMutation.isPending
+  const loading =
+    deleteLocationMutation.isPending || deleteTeamMutation.isPending || deleteEmployerMutation.isPending
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -68,9 +69,7 @@ export function DeleteCategoryDialog({
             This may affect employees assigned to this {typeLabel.toLowerCase()}.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error && (
-          <p className="text-destructive text-sm">{error}</p>
-        )}
+        {error && <p className="text-destructive text-sm">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction

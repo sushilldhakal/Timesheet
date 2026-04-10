@@ -1,9 +1,8 @@
 import { z } from "zod"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB, Team } from "@/lib/db"
+import { connectDB, mongoose, Team } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import { mongoose } from "@/lib/db"
 
 const shiftPatternSchema = z.object({
   dayOfWeek: z.array(z.number()).optional(),
@@ -22,6 +21,9 @@ const teamResponseSchema = z.object({
   name: z.string(),
   code: z.string().optional(),
   color: z.string().optional(),
+  groupId: z.string().optional(),
+  staffCount: z.number().optional(),
+  managerCount: z.number().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean(),
   createdAt: z.string().datetime().nullable().optional(),
@@ -30,13 +32,14 @@ const teamResponseSchema = z.object({
 
 const teamQuerySchema = z.object({
   search: z.string().optional(),
-  isActive: z.enum(["true", "false"]).optional().transform((val) => val === "true"),
+  isActive: z.enum(["true", "false"]).optional().transform((val) => val ? val === "true" : undefined),
 })
 
 const teamCreateSchema = z.object({
   name: z.string().min(1, "Name is required"),
   code: z.string().optional(),
   color: z.string().optional(),
+  groupId: z.string().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean().optional(),
 })
@@ -66,45 +69,146 @@ export const GET = createApiRoute({
     if (typeof isActive === "boolean") filter.isActive = isActive
     if (search) filter.name = { $regex: search, $options: "i" }
 
+    const db = mongoose.connection.db
+    const dbName = db?.databaseName ?? "(no db)"
+
+    let teamsColCount = -1
+    let rolesColCount = -1
+    let teansColCount = -1
+    try {
+      if (db) {
+        ;[teamsColCount, rolesColCount, teansColCount] = await Promise.all([
+          db.collection("teams").countDocuments({}),
+          db.collection("roles").countDocuments({}),
+          db.collection("teans").countDocuments({}),
+        ])
+      }
+    } catch (e) {
+      console.warn("[api/teams GET] collection count failed", e)
+    }
+
     let teams = await Team.find(filter).sort({ name: 1 }).lean()
+
+    console.log("[api/teams GET]", {
+      dbName,
+      filter,
+      mongooseModelCount: teams.length,
+      rawCollectionCounts: { teams: teamsColCount, roles: rolesColCount, teans: teansColCount },
+    })
 
     // Backward/typo compatibility: some environments stored teams in `teans`.
     // If `teams` is empty but `teans` has docs, read from there.
-    if (teams.length === 0) {
+    if (teams.length === 0 && teansColCount > 0) {
       try {
-        const teansCount = await mongoose.connection.collection("teans").countDocuments({})
-        if (process.env.NODE_ENV !== "production") {
-          // eslint-disable-next-line no-console
-          console.log("[api/teams GET] teams empty; teansCount=", teansCount)
-        }
-        if (teansCount > 0) {
-          const teans = await mongoose.connection
-            .collection("teans")
-            .find(filter as any)
-            .sort({ name: 1 } as any)
-            .toArray()
-          teams = teans as any
-        }
+        const teans = await mongoose.connection
+          .collection("teans")
+          .find(filter as Record<string, unknown>)
+          .sort({ name: 1 })
+          .toArray()
+        teams = teans as typeof teams
+        console.log("[api/teams GET] fallback teans → rows", teams.length)
       } catch (e) {
-        if (process.env.NODE_ENV !== "production") {
-          // eslint-disable-next-line no-console
-          console.warn("[api/teams GET] teans fallback failed", e)
-        }
+        console.warn("[api/teams GET] teans fallback failed", e)
       }
     }
+
+    // Legacy: data may still live in `roles` after renaming the concept to Teams.
+    if (teams.length === 0 && rolesColCount > 0) {
+      try {
+        const fromRoles = await mongoose.connection
+          .collection("roles")
+          .find(filter as Record<string, unknown>)
+          .sort({ name: 1 })
+          .toArray()
+        teams = fromRoles as typeof teams
+        console.log("[api/teams GET] fallback roles → rows", teams.length)
+      } catch (e) {
+        console.warn("[api/teams GET] roles fallback failed", e)
+      }
+    }
+
+    if (teams.length === 0 && teamsColCount > 0) {
+      try {
+        const raw = await mongoose.connection
+          .collection("teams")
+          .find(filter as Record<string, unknown>)
+          .sort({ name: 1 })
+          .toArray()
+        console.log("[api/teams GET] Team.find empty but teams collection has docs; native find → rows", raw.length)
+        teams = raw as typeof teams
+      } catch (e) {
+        console.warn("[api/teams GET] native teams find failed", e)
+      }
+    }
+
+    const teamIds = teams.map((r: any) => r._id).filter(Boolean)
+    const staffByTeam = new Map<string, number>()
+    const managersByTeam = new Map<string, number>()
+
+    if (teamIds.length > 0) {
+      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const { User } = await import("@/lib/db/schemas/user")
+      const now = new Date()
+
+      const staffAgg = await EmployeeRoleAssignment.aggregate([
+        {
+          $match: {
+            roleId: { $in: teamIds },
+            validFrom: { $lte: now },
+            $or: [{ validTo: null }, { validTo: { $gte: now } }],
+          },
+        },
+        {
+          $group: {
+            _id: "$roleId",
+            employees: { $addToSet: "$employeeId" },
+          },
+        },
+      ])
+      for (const row of staffAgg) {
+        staffByTeam.set(String(row._id), row.employees?.length ?? 0)
+      }
+
+      const managerAgg = await User.aggregate([
+        {
+          $match: {
+            role: { $in: ["manager", "supervisor"] },
+            managedRoleIds: { $exists: true, $ne: [] },
+          },
+        },
+        { $unwind: "$managedRoleIds" },
+        { $match: { managedRoleIds: { $in: teamIds } } },
+        {
+          $group: {
+            _id: "$managedRoleIds",
+            managerCount: { $sum: 1 },
+          },
+        },
+      ])
+      for (const row of managerAgg) {
+        managersByTeam.set(String(row._id), row.managerCount ?? 0)
+      }
+    }
+
     return {
       status: 200,
       data: {
-        teams: teams.map((r: any) => ({
-          id: r._id.toString(),
-          name: r.name,
-          code: r.code,
-          color: r.color,
-          defaultScheduleTemplate: r.defaultScheduleTemplate,
-          isActive: r.isActive ?? true,
-          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
-          updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : null,
-        })),
+        teams: teams.map((r: any) => {
+          const id = r._id.toString()
+          return {
+            id,
+            name: r.name,
+            code: r.code,
+            color: r.color,
+            groupId: r.groupId?.toString(),
+            staffCount: staffByTeam.get(id) ?? 0,
+            managerCount: managersByTeam.get(id) ?? 0,
+            defaultScheduleTemplate: r.defaultScheduleTemplate,
+            isActive: r.isActive ?? true,
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+            updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : null,
+          }
+        }),
       },
     }
   },
@@ -151,6 +255,7 @@ export const POST = createApiRoute({
           name: created.name,
           code: created.code,
           color: created.color,
+          groupId: created.groupId?.toString(),
           defaultScheduleTemplate: created.defaultScheduleTemplate,
           isActive: created.isActive ?? true,
           createdAt: created.createdAt ? created.createdAt.toISOString() : null,
