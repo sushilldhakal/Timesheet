@@ -73,7 +73,6 @@ export const GET = createApiRoute({
       const normalized = users.map((u: any) => ({
         id: u._id.toString(),
         name: u.name ?? "",
-        username: u.username,
         email: u.email ?? "",
         role: u.role,
         location: Array.isArray(u.location) ? u.location : u.location ? [String(u.location)] : [],
@@ -133,29 +132,26 @@ export const POST = createApiRoute({
     }
 
     try {
-      const { name, username, email, password, role, location, rights, managedRoles, employeeId } = body!;
+      const { name, email, password, role, location, managedRoles, employeeId } = body!;
       console.log('[POST /api/users] Parsed data - managedRoles:', managedRoles)
 
-      await connectDB()
-
-      // Check for existing username
-      const existingUser = await User.findOne({ username: username.toLowerCase() })
-      if (existingUser) {
+      // Validate required fields
+      if (!name || !email || !password || !role) {
         return {
-          status: 409,
-          data: { error: "Username already exists" }
+          status: 400,
+          data: { error: "Name, email, password, and role are required" }
         };
       }
 
-      // Check for existing email if provided
-      if (email) {
-        const existingEmail = await User.findOne({ email: email.toLowerCase() })
-        if (existingEmail) {
-          return {
-            status: 409,
-            data: { error: "Email already exists" }
-          };
-        }
+      await connectDB()
+
+      // Check for existing email (unique constraint)
+      const existingEmail = await User.findOne({ email: email.toLowerCase() })
+      if (existingEmail) {
+        return {
+          status: 409,
+          data: { error: "Email already exists" }
+        };
       }
 
       // Additional validation: manager creating supervisor must have body.location subset of auth.location
@@ -223,12 +219,11 @@ export const POST = createApiRoute({
 
       const user = await User.create({
         name: name.trim(),
-        username: username.toLowerCase(),
-        email: email?.toLowerCase() || undefined,
+        email: email.toLowerCase(),
         password: userPassword, // This will be hashed by the pre-save hook if it's not already hashed
         role: role ?? "user",
         location: location ?? [],
-        rights: rights ?? [],
+        rights: [], // Deprecated, using role-based permissions
         managedRoles: managedRoles ?? [],
         createdBy: auth.sub, // Set createdBy to the creating user's ID
         createdAt: now,
@@ -243,7 +238,6 @@ export const POST = createApiRoute({
           user: {
             id: user._id.toString(),
             name: user.name,
-            username: user.username,
             email: user.email,
             role: user.role,
             location: user.location ?? [],
