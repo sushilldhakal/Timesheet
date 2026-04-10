@@ -70,10 +70,15 @@ export interface EmployeeProfile {
   role: string
   location: string
   img?: string
+  lastClockInImage?: string
   isBirthday: boolean
   homeAddress?: string
   employer?: string
   employmentType?: string
+  dob?: string
+  comment?: string
+  standardHoursPerWeek?: number | null
+  award?: { id: string; name: string; level: string } | null
 }
 
 export interface ChangePasswordRequest {
@@ -118,11 +123,30 @@ export async function employeeLogout(): Promise<ApiResponse<{ message: string }>
 }
 
 // Get current employee profile
-export async function getEmployeeProfile(): Promise<{ data: EmployeeProfile }> {
+export async function getEmployeeProfile(): Promise<{ data: { employee: EmployeeProfile } }> {
   const response = await fetch(`${BASE_URL}/me`, {
     credentials: 'include',
   })
-  return response.json()
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({} as any))
+    throw new Error(error?.error || 'Failed to load employee profile')
+  }
+  const json = await response.json()
+
+  // The backend may return either:
+  // - { employee: EmployeeProfile }
+  // - { data: { employee: EmployeeProfile } }
+  // - EmployeeProfile (flat)
+  const employee: EmployeeProfile | undefined =
+    (json?.data?.employee as EmployeeProfile | undefined) ??
+    (json?.employee as EmployeeProfile | undefined) ??
+    (json as EmployeeProfile | undefined)
+
+  if (!employee || typeof employee !== 'object') {
+    throw new Error('Invalid employee profile response')
+  }
+
+  return { data: { employee } }
 }
 
 // Clock in/out/break

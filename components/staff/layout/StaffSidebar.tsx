@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Package2, Home, Clock, Calendar, User, Lock, PanelLeft, PanelLeftClose } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
+import { useState, useEffect } from "react"
 import {
   Tooltip,
   TooltipContent,
@@ -48,6 +49,36 @@ const navigationItems = [
 
 export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }: StaffSidebarProps) {
   const pathname = usePathname()
+  const [isMobile, setIsMobile] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    // Check on mount
+    checkMobile()
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      onToggle()
+    }
+  }
+
+  // Don't render until mounted to avoid hydration issues
+  if (!mounted) {
+    return null
+  }
 
   const renderNavItem = (item: typeof navigationItems[0], forceExpand = false) => {
     const Icon = item.icon
@@ -65,11 +96,7 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
             : "text-primary",
           !showLabels && "justify-center"
         )}
-        onClick={() => {
-          if (typeof window !== "undefined" && window.innerWidth < 768) {
-            onToggle()
-          }
-        }}
+        onClick={handleNavClick}
       >
         <Icon className="h-4 w-4 flex-shrink-0" />
         {showLabels && <span>{item.label}</span>}
@@ -107,7 +134,7 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
           <Link
             href="/staff/dashboard"
             className="flex items-center gap-3 group"
-            onClick={onToggle}
+            onClick={handleNavClick}
           >
             <div className="p-2 rounded-lg bg-primary/10">
               <Package2 className="h-6 w-6 text-primary" />

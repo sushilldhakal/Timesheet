@@ -3,7 +3,8 @@ import { addDays } from "date-fns"
 import { Roster, IShift } from "../db/schemas/roster"
 import { Employee, IEmployeeDocument } from "../db/schemas/employee"
 import { EmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
-import { Category } from "../db/schemas/category"
+import { Location } from "../db/schemas/location"
+import { Role } from "../db/schemas/role"
 import { AvailabilityConstraint } from "../db/schemas/availability-constraint"
 import { WorkingHoursHierarchy, WorkingHoursConfig } from "./working-hours-hierarchy"
 import { AvailabilityManager } from "./availability-manager"
@@ -111,8 +112,8 @@ export class AutoFillEngine {
       throw new Error(`Roster not found: ${rosterId}`)
     }
 
-    const location = await Category.findById(locOid)
-    if (!location || location.type !== "location") {
+    const location = await Location.findById(locOid)
+    if (!location) {
       throw new Error(`Location not found: ${locationId}`)
     }
 
@@ -189,8 +190,8 @@ export class AutoFillEngine {
       for (const a of empAssignments) {
         if (!roleOids.some((r) => r.equals(a.roleId as mongoose.Types.ObjectId))) continue
 
-        const role = await Category.findById(a.roleId)
-        if (!role || role.type !== "role") continue
+        const role = await Role.findById(a.roleId)
+        if (!role) continue
 
         await this.fillForAssignment({
           employee,

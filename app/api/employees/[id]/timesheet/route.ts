@@ -1,6 +1,7 @@
 import { parse, isValid } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
@@ -37,16 +38,21 @@ export const GET = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, query }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } };
-    }
-
     if (!params) {
       return { status: 400, data: { error: "Employee ID is required" } };
     }
 
     const { id } = params!;
+    const ctx = await getAuthWithUserLocations()
+    const employeeAuth = ctx ? null : await getEmployeeFromCookie()
+    const isSelfEmployee = employeeAuth?.sub === id
+
+    // Allow:
+    // - admins/managers/etc via admin auth (ctx)
+    // - employees ONLY for their own id (read-only)
+    if (!ctx && !isSelfEmployee) {
+      return { status: 401, data: { error: "Unauthorized" } }
+    }
     const search = query?.search?.trim() ?? ""
     const limitParam = query?.limit
     const offsetParam = query?.offset
@@ -65,8 +71,11 @@ export const GET = createApiRoute({
     try {
       await connectDB()
       const empFilter: Record<string, unknown> = { _id: id }
-      const locFilter = employeeLocationFilter(ctx.userLocations)
-      if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+      // Location filtering only applies to admin context
+      if (ctx) {
+        const locFilter = employeeLocationFilter(ctx.userLocations)
+        if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter]
+      }
       
       const employee = await Employee.findOne(empFilter).lean()
       if (!employee) {
@@ -125,6 +134,22 @@ export const GET = createApiRoute({
           clockOutSource: shift.source === "manual" ? "insert" : undefined,
         }
       })
+
+      // Filter by date range (if provided)
+      const qStart = query?.startDate?.trim?.() ?? ""
+      const qEnd = query?.endDate?.trim?.() ?? ""
+      if (qStart && qEnd) {
+        const startMs = parseDateForSort(qStart)
+        const endMs = parseDateForSort(qEnd)
+        const minMs = Math.min(startMs, endMs)
+        const maxMs = Math.max(startMs, endMs)
+        if (minMs > 0 && maxMs > 0) {
+          rows = rows.filter((r) => {
+            const t = parseDateForSort(r.date)
+            return t >= minMs && t <= maxMs
+          })
+        }
+      }
 
       // Filter by search
       if (search) {

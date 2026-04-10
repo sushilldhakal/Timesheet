@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 import { LocationRoleEnablement, ILocationRoleEnablement } from "../db/schemas/location-role-enablement"
-import { Category } from "../db/schemas/category"
+import { Location } from "../db/schemas/location"
+import { Role } from "../db/schemas/role"
 
 export interface EnableRoleParams {
   locationId: mongoose.Types.ObjectId | string
@@ -89,11 +90,8 @@ export class RoleEnablementManager {
         )
       }
 
-      // Verify location exists and is of type 'location'
-      const location = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(locationId.toString()),
-        type: "location",
-      })
+      // Verify location exists
+      const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString()))
       if (!location) {
         throw new RoleEnablementError(
           `Location with ID ${locationId} not found`,
@@ -102,11 +100,8 @@ export class RoleEnablementManager {
         )
       }
 
-      // Verify role exists and is of type 'role'
-      const role = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(roleId.toString()),
-        type: "role",
-      })
+      // Verify role exists
+      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,
@@ -635,11 +630,8 @@ export class RoleEnablementManager {
         )
       }
 
-      // Verify role exists and is of type 'role'
-      const role = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(roleId.toString()),
-        type: "role",
-      })
+      // Verify role exists
+      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,
@@ -650,9 +642,8 @@ export class RoleEnablementManager {
 
       // Verify all locations exist and are of type 'location'
       const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id.toString()))
-      const locations = await Category.find({
+      const locations = await Location.find({
         _id: { $in: locationObjectIds },
-        type: "location",
       })
 
       if (locations.length !== locationIds.length) {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { format, isValid } from "date-fns"
 import type { ColumnDef, VisibilityState } from "@tanstack/react-table"
+import { formatTime } from "@/lib/utils/format/time"
 
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
@@ -41,28 +42,6 @@ interface TimesheetDayViewProps {
   loading?: boolean
   /** When set, table uses server pagination (one page of rows in `data`). */
   serverPagination?: TimesheetDayServerPagination
-}
-
-function formatTimeOnly(value: string): string {
-  if (!value || typeof value !== "string") return "—"
-  const s = value.trim()
-  const colonMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(\s*[AaPp][Mm])?$/i)
-  if (colonMatch) {
-    const h = parseInt(colonMatch[1], 10)
-    const m = colonMatch[2]
-    const ampm = colonMatch[4]?.trim() ? colonMatch[4].trim().toUpperCase() : (h >= 12 ? "PM" : "AM")
-    const h12 = h % 12 || 12
-    return `${h12}:${m} ${ampm}`
-  }
-  const d = new Date(s)
-  if (!isNaN(d.getTime())) {
-    const h = d.getHours()
-    const m = d.getMinutes()
-    const ampm = h >= 12 ? "PM" : "AM"
-    const h12 = h % 12 || 12
-    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`
-  }
-  return s || "—"
 }
 
 function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRow>[] {
@@ -116,7 +95,7 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       header: "Clock In",
       cell: ({ row }) => (
         <span className="font-medium text-blue-600 dark:text-blue-400">
-          {formatTimeOnly(row.original.clockIn)}
+          {formatTime(row.original.clockIn)}
         </span>
       ),
     },
@@ -124,8 +103,8 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       id: "break",
       header: "Break",
       cell: ({ row }) => {
-        const breakIn = formatTimeOnly(row.original.breakIn)
-        const breakOut = formatTimeOnly(row.original.breakOut)
+        const breakIn = formatTime(row.original.breakIn)
+        const breakOut = formatTime(row.original.breakOut)
         if (breakIn === "—" && breakOut === "—") return <span className="text-muted-foreground/40">—</span>
         if (breakIn === "—") return <span className="text-amber-600 dark:text-amber-400">—{breakOut}</span>
         if (breakOut === "—") return <span className="text-amber-600 dark:text-amber-400">{breakIn}—</span>
@@ -138,7 +117,7 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       header: "Clock Out",
       cell: ({ row }) => (
         <span className="font-medium text-orange-600 dark:text-orange-400">
-          {formatTimeOnly(row.original.clockOut)}
+          {formatTime(row.original.clockOut)}
         </span>
       ),
     },
@@ -182,14 +161,14 @@ function getDayViewColumns(showDateColumn: boolean = false): ColumnDef<DayViewRo
       accessorKey: "breakIn",
       header: "Break In",
       enableHiding: true,
-      cell: ({ row }) => formatTimeOnly(row.original.breakIn),
+      cell: ({ row }) => formatTime(row.original.breakIn),
     },
     {
       id: "breakOut",
       accessorKey: "breakOut",
       header: "End Break",
       enableHiding: true,
-      cell: ({ row }) => formatTimeOnly(row.original.breakOut),
+      cell: ({ row }) => formatTime(row.original.breakOut),
     },
     {
       id: "breakHours",

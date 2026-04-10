@@ -14,7 +14,7 @@ import { cookies } from "next/headers"
 export type AuthPayload = {
   sub: string
   username: string
-  role: "admin" | "user" | "super_admin"
+  role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string
 }
 
@@ -68,11 +68,11 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
     const sub = payload.sub
     if (!sub || typeof sub !== "string") return null
     const role = payload.role as string
-    const validRole = ["admin", "user", "super_admin"].includes(role) ? role : "user"
+    const validRole = ["admin", "manager", "supervisor", "accounts", "user", "super_admin"].includes(role) ? role : "user"
     return {
       sub,
       username: payload.username as string,
-      role: validRole as "admin" | "user" | "super_admin",
+      role: validRole as "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
     }
   } catch {

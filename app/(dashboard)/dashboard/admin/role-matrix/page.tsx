@@ -6,7 +6,8 @@ import type { ILocationRoleEnablement } from "@/components/locations/LocationRol
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
 import { useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
 import { getLocationRoles } from "@/lib/api/locations"
 
@@ -16,13 +17,13 @@ function RoleMatrixPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const locationsQuery = useCategoriesByType("location")
-  const rolesQuery = useCategoriesByType("role")
+  const locationsQuery = useLocations()
+  const rolesQuery = useRoles()
   const enableLocationRoleMutation = useEnableLocationRole()
   const disableLocationRoleMutation = useDisableLocationRole()
 
-  const locations = locationsQuery.data?.categories || []
-  const roles = rolesQuery.data?.categories || []
+  const locations = locationsQuery.data?.locations || []
+  const roles = rolesQuery.data?.roles || []
 
   // Fetch all enablements
   const fetchEnablements = async () => {

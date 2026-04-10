@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
-import { connectDB, Employee, Category } from "@/lib/db"
+import { connectDB, Employee, Employer, Location, Role } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema, 
@@ -17,17 +17,16 @@ type RouteContext = { params: Promise<{ id: string }> }
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== "" ? [String(v).trim()] : []
 
-async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; homeAddress?: string; dob?: string; gender?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date }, roleAssignments: any[] = []) {
+async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; role?: string | string[]; employer?: string | string[]; location?: string[]; email?: string; phone?: string; homeAddress?: string; dob?: string; gender?: string; comment?: string; img?: string; awardId?: unknown; awardLevel?: string | null; employmentType?: string | null; standardHoursPerWeek?: number | null; createdAt?: Date; updatedAt?: Date; passwordSetByAdmin?: boolean; requirePasswordChange?: boolean }, roleAssignments: any[] = []) {
   // Get unique location IDs from active role assignments
   const locationIds = Array.from(new Set(roleAssignments.map(ra => ra.locationId.toString())))
   
   // Fetch full location details with geofence and hours
-  const locations = await Category.find({
-    _id: { $in: locationIds },
-    type: "location"
+  const locations = await Location.find({
+    _id: { $in: locationIds.map((id) => new mongoose.Types.ObjectId(id)) },
   }).lean()
   
-  const locationData = locations.map(loc => ({
+  const locationData = locations.map((loc) => ({
     id: loc._id.toString(),
     name: loc.name,
     color: loc.color,
@@ -47,12 +46,11 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
   
   // Fetch employer details
   const employerNames = arr(e.employer)
-  const employers = await Category.find({
+  const employers = await Employer.find({
     name: { $in: employerNames },
-    type: "employer"
   }).select("_id name color").lean()
   
-  const employerData = employers.map(emp => ({
+  const employerData = employers.map((emp) => ({
     id: emp._id.toString(),
     name: emp.name,
     color: emp.color
@@ -115,6 +113,8 @@ async function toEmployeeRow(e: { _id: unknown; name?: string; pin?: string; rol
     roles: formattedRoles,
     employers: employerData,
     locations: locationData,
+    passwordSetByAdmin: e.passwordSetByAdmin ?? false,
+    requirePasswordChange: e.requirePasswordChange ?? false,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
   }
@@ -302,6 +302,36 @@ export const PATCH = createApiRoute({
       }
       if (data.awardLevel !== undefined) updates.awardLevel = data.awardLevel || null
       
+      // Handle password setup
+      if (data.password) {
+        // Admin set password - employee must change on first login
+        // Hash the password manually since we're using findByIdAndUpdate
+        const bcrypt = await import("bcrypt")
+        const hashedPassword = bcrypt.hashSync(data.password, 10)
+        updates.password = hashedPassword
+        updates.passwordSetByAdmin = true
+        updates.requirePasswordChange = true
+        updates.passwordChangedAt = new Date()
+        
+        console.log('[Employee Update] Setting password:', {
+          originalLength: data.password.length,
+          hashedLength: hashedPassword.length,
+          passwordSetByAdmin: true,
+          requirePasswordChange: true
+        })
+      } else if (data.sendSetupEmail && data.email) {
+        // Generate setup token for email link
+        const { generateTokenWithExpiry } = await import("@/lib/utils/auth/auth-tokens")
+        const tokenData = generateTokenWithExpiry(24) // 24 hours
+        updates.passwordSetupToken = tokenData.hashedToken
+        updates.passwordSetupExpiry = tokenData.expiry
+        // Clear any existing password since we're sending setup email
+        updates.password = null
+        updates.passwordSetByAdmin = false
+        updates.requirePasswordChange = false
+        updates.passwordChangedAt = null
+      }
+      
       console.log('[Employee Update] Updates object:', {
         gender: updates.gender,
         homeAddress: updates.homeAddress,
@@ -320,14 +350,12 @@ export const PATCH = createApiRoute({
         
         if (roleNames.length > 0 && locationNames.length > 0) {
           // Fetch role and location categories
-          const roleCategories = await Category.find({
+          const roleCategories = await Role.find({
             name: { $in: roleNames },
-            type: "role"
           }).lean()
           
-          const locationCategories = await Category.find({
+          const locationCategories = await Location.find({
             name: { $in: locationNames },
-            type: "location"
           }).lean()
           
           console.log(`[Employee Update] Found ${roleCategories.length} roles, ${locationCategories.length} locations`)
@@ -442,6 +470,49 @@ export const PATCH = createApiRoute({
       ).lean()
       
       console.log('[Employee Update] After update - gender:', updated?.gender, 'homeAddress:', updated?.homeAddress)
+      
+      // Check if password was actually saved (for debugging)
+      if (data.password) {
+        const employeeWithPassword = await Employee.findById(id).select('+password +passwordSetByAdmin +requirePasswordChange').lean()
+        console.log('[Employee Update] Password verification:', {
+          hasPassword: !!employeeWithPassword?.password,
+          passwordSetByAdmin: employeeWithPassword?.passwordSetByAdmin,
+          requirePasswordChange: employeeWithPassword?.requirePasswordChange,
+          passwordLength: employeeWithPassword?.password?.length
+        })
+      }
+      
+      // Send password setup email if requested
+      if (data.sendSetupEmail && data.email && updates.passwordSetupToken) {
+        try {
+          const { sendEmail } = await import("@/lib/mail/sendEmail")
+          const { generateOnboardingSetupLinkEmail } = await import("@/lib/mail/templates/employee-onboarding-setup-link")
+          
+          // Get the raw token for the email (not the hashed one)
+          const { generateTokenWithExpiry } = await import("@/lib/utils/auth/auth-tokens")
+          const tokenData = generateTokenWithExpiry(24) // Generate again to get raw token
+          const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/setup-password?token=${tokenData.token}`
+          
+          const emailContent = generateOnboardingSetupLinkEmail({
+            name: updated!.name,
+            pin: updated!.pin,
+            email: data.email!,
+            phone: (updated as any)?.phone || '',
+            setupUrl,
+          })
+          
+          await sendEmail({
+            to: data.email,
+            subject: emailContent.subject,
+            html: emailContent.html,
+          })
+          
+          console.log(`[Employee Update] Password setup email sent to ${data.email}`)
+        } catch (emailError) {
+          console.error('[Employee Update] Failed to send setup email:', emailError)
+          // Don't fail the update if email fails
+        }
+      }
       
       // Fetch role assignments
       const roleAssignments = await EmployeeRoleAssignment.find({

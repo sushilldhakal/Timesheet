@@ -40,6 +40,8 @@ export const employeeUpdateSchema = z.object({
   awardId: objectIdSchema.optional(),
   awardLevel: z.string().optional(),
   isActive: z.boolean().optional(),
+  password: z.string().min(8).optional(),
+  sendSetupEmail: z.boolean().optional(),
 })
 
 export const employeeResponseSchema = z.object({

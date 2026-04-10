@@ -3,14 +3,14 @@ import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB, User } from "@/lib/db"
 import { userCreateSchema, usersListResponseSchema, userCreateResponseSchema } from "@/lib/validations/user"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
+import { isAdminOrSuperAdmin, canCreateUser } from "@/lib/config/roles"
 import { createApiRoute } from "@/lib/api/create-api-route"
 
 export const GET = createApiRoute({
   method: 'GET',
   path: '/api/users',
   summary: 'List users',
-  description: 'List all users (admin only). Excludes super_admin (hidden).',
+  description: 'List users based on caller scope. Admin/super_admin see all (except super_admin), manager sees supervisors in their locations, supervisor/accounts see nothing.',
   tags: ['Users'],
   security: 'adminAuth',
   responses: {
@@ -27,16 +27,45 @@ export const GET = createApiRoute({
         data: { error: "Unauthorized" }
       };
     }
-    if (!isAdminOrSuperAdmin(auth.role)) {
-      return {
-        status: 403,
-        data: { error: "Forbidden" }
-      };
-    }
 
     try {
       await connectDB()
-      const users = await User.find({ role: { $ne: "super_admin" } })
+      
+      let query: any = { role: { $ne: "super_admin" } } // Always exclude super_admin from results
+      
+      // Apply role-based filtering
+      if (auth.role === 'admin' || auth.role === 'super_admin') {
+        // Admin and super_admin see all users (except super_admin which is already excluded)
+        // No additional filtering needed
+      } else if (auth.role === 'manager') {
+        // Manager sees supervisors in their locations only
+        // First get the full user data to access their complete location array
+        const authUser = await User.findById(auth.sub).select('location').lean();
+        if (!authUser) {
+          return {
+            status: 401,
+            data: { error: "Authentication user not found" }
+          };
+        }
+        
+        const authLocations = Array.isArray(authUser.location) ? authUser.location : authUser.location ? [authUser.location] : [];
+        
+        // Filter to supervisors that have at least one location in common with the manager
+        query = {
+          ...query,
+          role: 'supervisor',
+          location: { $in: authLocations }
+        };
+      } else {
+        // Supervisor and accounts cannot see any users (no user creation rights)
+        // Return empty array
+        return {
+          status: 200,
+          data: { users: [] }
+        };
+      }
+
+      const users = await User.find(query)
         .select("-password")
         .sort({ createdAt: -1 })
         .lean()
@@ -94,10 +123,12 @@ export const POST = createApiRoute({
         data: { error: "Unauthorized" }
       };
     }
-    if (!isAdminOrSuperAdmin(auth.role)) {
+    
+    // Use role hierarchy enforcement instead of isAdminOrSuperAdmin
+    if (!canCreateUser(auth.role, body?.role || 'user')) {
       return {
         status: 403,
-        data: { error: "Forbidden" }
+        data: { error: "Forbidden: Cannot create user with this role" }
       };
     }
 
@@ -123,6 +154,30 @@ export const POST = createApiRoute({
           return {
             status: 409,
             data: { error: "Email already exists" }
+          };
+        }
+      }
+
+      // Additional validation: manager creating supervisor must have body.location subset of auth.location
+      if (auth.role === 'manager' && role === 'supervisor') {
+        // Get the full user data to access their complete location array
+        const authUser = await User.findById(auth.sub).select('location').lean();
+        if (!authUser) {
+          return {
+            status: 401,
+            data: { error: "Authentication user not found" }
+          };
+        }
+        
+        const authLocations = Array.isArray(authUser.location) ? authUser.location : authUser.location ? [authUser.location] : [];
+        const targetLocations = location || [];
+        
+        // Check if target locations are a subset of auth locations
+        const isSubset = targetLocations.every((loc: string) => authLocations.includes(loc));
+        if (!isSubset) {
+          return {
+            status: 403,
+            data: { error: "Cannot assign locations outside your scope" }
           };
         }
       }
@@ -175,6 +230,7 @@ export const POST = createApiRoute({
         location: location ?? [],
         rights: rights ?? [],
         managedRoles: managedRoles ?? [],
+        createdBy: auth.sub, // Set createdBy to the creating user's ID
         createdAt: now,
         updatedAt: now,
       })
@@ -193,6 +249,7 @@ export const POST = createApiRoute({
             location: user.location ?? [],
             rights: user.rights ?? [],
             managedRoles: user.managedRoles ?? [],
+            createdBy: user.createdBy,
             createdAt: user.createdAt,
           },
         }

@@ -6,10 +6,9 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ModeToggle } from "@/components/ui/mode-toggle"
 import { toast } from "sonner"
-import { Loader2, Eye, EyeOff, ShieldCheck, Users, ArrowRight, Lock, Mail } from "lucide-react"
+import { Loader2, Eye, EyeOff, ShieldCheck, ArrowRight, Lock, Mail } from "lucide-react"
 import { useUnifiedLogin } from "@/lib/queries/auth"
 
 export default function LoginPage() {
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [loginAs, setLoginAs] = useState<"staff" | "admin">("staff")
 
   const unifiedLoginMutation = useUnifiedLogin()
 
@@ -30,7 +28,7 @@ export default function LoginPage() {
     }
 
     unifiedLoginMutation.mutate(
-      { email, password, loginAs },
+      { email, password },
       {
         onSuccess: (data) => {
           if (data.requirePasswordChange) {
@@ -45,7 +43,11 @@ export default function LoginPage() {
           }
 
           toast.success(`Welcome back!`)
-          router.push(data.redirect || "/dashboard")
+          if (data.userType === "employee") {
+            router.push("/staff/dashboard")
+          } else {
+            router.push(data.redirect || "/dashboard")
+          }
         },
         onError: (error: any) => {
           toast.error(error.message || "Login failed")
@@ -94,11 +96,11 @@ export default function LoginPage() {
           </div>
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 mt-0.5 border border-white/20">
-              <Users className="h-5 w-5 text-white" />
+              <ShieldCheck className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-white mb-1">Dual Access</h3>
-              <p className="text-sm text-white/70">Separate portals for administrators and staff members</p>
+              <h3 className="font-semibold text-white mb-1">Reliable Access</h3>
+              <p className="text-sm text-white/70">Get to the right dashboard automatically after sign in</p>
             </div>
           </div>
         </div>
@@ -130,185 +132,71 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Login Type Tabs */}
-            <Tabs value={loginAs} onValueChange={(v) => setLoginAs(v as "staff" | "admin")} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 gap-2 bg-transparent p-0 h-auto ">
-                <TabsTrigger
-                  value="staff"
-                  className="flex items-center justify-center cursor-pointer gap-2 h-11 rounded-lg border-2 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:border-foreground data-[state=inactive]:bg-background data-[state=inactive]:border-border"
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Staff</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="admin"
-                  className="flex items-center justify-center cursor-pointer gap-2 h-11 rounded-lg border-2 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:border-foreground data-[state=inactive]:bg-background data-[state=inactive]:border-border"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>Admin</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="admin" className="mt-6 space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="admin@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={unifiedLoginMutation.isPending}
-                        required
-                        autoComplete="email"
-                        className="pl-10 h-11"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password">Password</Label>
-                      <Link
-                        href="/forgot-password"
-                        className="text-sm text-primary hover:underline"
-                        tabIndex={-1}
-                      >
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={unifiedLoginMutation.isPending}
-                        required
-                        autoComplete="current-password"
-                        className="pl-10 pr-10 h-11"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full h-11 gap-2"
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     disabled={unifiedLoginMutation.isPending}
-                  >
-                    {unifiedLoginMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      <>
-                        Sign in as Admin
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
+                    required
+                    autoComplete="email"
+                    className="pl-10 h-11"
+                  />
+                </div>
+              </div>
 
-              <TabsContent value="staff" className="mt-6 space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email-staff">Email Address</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="email-staff"
-                        type="email"
-                        placeholder="staff@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={unifiedLoginMutation.isPending}
-                        required
-                        autoComplete="email"
-                        className="pl-10 h-11"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password-staff">Password</Label>
-                      <Link
-                        href="/forgot-password"
-                        className="text-sm text-primary hover:underline"
-                        tabIndex={-1}
-                      >
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="password-staff"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={unifiedLoginMutation.isPending}
-                        required
-                        autoComplete="current-password"
-                        className="pl-10 pr-10 h-11"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full h-11 gap-2"
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link href="/forgot-password" className="text-sm text-primary hover:underline" tabIndex={-1}>
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     disabled={unifiedLoginMutation.isPending}
+                    required
+                    autoComplete="current-password"
+                    className="pl-10 pr-10 h-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {unifiedLoginMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      <>
-                        Sign in as Staff
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full h-11 gap-2" disabled={unifiedLoginMutation.isPending}>
+                {unifiedLoginMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
 
             {/* Divider */}
             <div className="relative">

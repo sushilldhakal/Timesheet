@@ -27,7 +27,7 @@ export const GET = createApiRoute({
   },
   handler: async ({ params, query }) => {
     const { getAuthWithUserLocations } = await import('@/lib/auth/auth-api')
-    const { connectDB, Category } = await import('@/lib/db')
+    const { connectDB, Location } = await import('@/lib/db')
     const { dashboardCache } = await import('@/lib/utils/dashboard/dashboard-cache')
     const { 
       getUserPermissionContext, 
@@ -116,11 +116,11 @@ export const GET = createApiRoute({
       }
 
       // 6. Verify location exists
-      const location = await Category.findById(locationId)
-        .select('name type')
+      const location = await Location.findById(locationId)
+        .select('name')
         .lean()
       
-      if (!location || location.type !== 'location') {
+      if (!location) {
         return {
           status: 404,
           data: { 

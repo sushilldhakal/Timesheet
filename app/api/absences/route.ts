@@ -9,6 +9,21 @@ import {
 import { errorResponseSchema } from "@/lib/validations/auth"
 import mongoose from "mongoose"
 
+type PopulatedEmployeeRef = {
+  _id: mongoose.Types.ObjectId
+  name?: unknown
+  pin?: unknown
+}
+
+function isPopulatedEmployeeRef(v: unknown): v is PopulatedEmployeeRef {
+  if (!v || typeof v !== "object") return false
+  if (v instanceof mongoose.Types.ObjectId) return false
+  return (
+    "_id" in v &&
+    (v as { _id?: unknown })._id instanceof mongoose.Types.ObjectId
+  )
+}
+
 /**
  * GET /api/absences?startDate=&endDate=&employeeId=...&status=&leaveType=&limit=&offset=
  * List leave records across employees (single DB query).
@@ -91,7 +106,7 @@ export const GET = createApiRoute({
         let employeeName = ""
         let employeePin = ""
 
-        if (emp && typeof emp === "object" && "_id" in emp && emp._id) {
+        if (isPopulatedEmployeeRef(emp)) {
           employeeOid = emp._id.toString()
           employeeName = typeof emp.name === "string" ? emp.name : ""
           employeePin = typeof emp.pin === "string" ? emp.pin : ""

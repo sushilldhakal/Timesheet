@@ -1,7 +1,8 @@
 import mongoose from "mongoose"
 import { EmployeeRoleAssignment, IEmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
 import { Employee } from "../db/schemas/employee"
-import { Category } from "../db/schemas/category"
+import { Location } from "../db/schemas/location"
+import { Role } from "../db/schemas/role"
 import { RoleEnablementManager } from "./role-enablement-manager"
 
 export interface AssignRoleParams {
@@ -675,11 +676,8 @@ export class RoleAssignmentManager {
         }
       }
 
-      // Verify role exists and is of type 'role'
-      const role = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(roleId.toString()),
-        type: "role",
-      })
+      // Verify role exists
+      const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString()))
       if (!role) {
         return {
           valid: false,
@@ -688,11 +686,8 @@ export class RoleAssignmentManager {
         }
       }
 
-      // Verify location exists and is of type 'location'
-      const location = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(locationId.toString()),
-        type: "location",
-      })
+      // Verify location exists
+      const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString()))
       if (!location) {
         return {
           valid: false,

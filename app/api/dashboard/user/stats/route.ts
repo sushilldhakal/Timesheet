@@ -24,7 +24,7 @@ export const GET = createApiRoute({
   },
   handler: async ({ query }) => {
     const { getAuthWithUserLocations } = await import('@/lib/auth/auth-api')
-    const { connectDB, Category, User } = await import('@/lib/db')
+    const { connectDB, User } = await import('@/lib/db')
     const { dashboardCache } = await import('@/lib/utils/dashboard/dashboard-cache')
     const { getUserPermissionContext } = await import('@/lib/utils/dashboard/dashboard-permissions')
     const { validateLocationRolePairs } = await import('@/lib/utils/dashboard/dashboard-validation')

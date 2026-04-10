@@ -1,4 +1,4 @@
-import { connectDB, Category } from "@/lib/db"
+import { connectDB, Location } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { publicLocationsResponseSchema } from "@/lib/validations/public"
 import { errorResponseSchema } from "@/lib/validations/auth"
@@ -24,7 +24,7 @@ export const GET = createApiRoute({
       await connectDB()
       
       // Fetch only locations with minimal data for security
-      const locations = await Category.find({ type: "location" })
+      const locations = await Location.find({ isActive: true })
         .select("_id name") // Only return id and name
         .sort({ name: 1 })
         .lean()

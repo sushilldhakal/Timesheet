@@ -8,8 +8,8 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Users, Calendar } from "lucide-react"
 import { format } from "date-fns"
-import { useCategory, useCategoriesByType } from "@/lib/queries/categories"
-import { useLocationRoles, useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
+import { useLocation, useLocationRoles, useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
 
 type RoleData = {
   roleId: string
@@ -34,17 +34,17 @@ function LocationRolesPage() {
 
   const [toggling, setToggling] = useState<string | null>(null)
 
-  const locationQuery = useCategory(locationId)
-  const allRolesQuery = useCategoriesByType("role")
+  const locationQuery = useLocation(locationId)
+  const allRolesQuery = useRoles()
   const locationRolesQuery = useLocationRoles(locationId)
   const enableLocationRoleMutation = useEnableLocationRole()
   const disableLocationRoleMutation = useDisableLocationRole()
 
-  const location = locationQuery.data?.category
-  const allRoles = allRolesQuery.data?.categories || []
+  const location = locationQuery.data?.location
+  const allRoles = allRolesQuery.data?.roles || []
   const roles = locationRolesQuery.data?.data?.roles || []
   const loading = locationQuery.isLoading || allRolesQuery.isLoading || locationRolesQuery.isLoading
-  const error = locationQuery.error?.message || allRolesQuery.error?.message || locationRolesQuery.error?.message
+  const error = (locationQuery.error as Error | null)?.message || (allRolesQuery.error as Error | null)?.message || (locationRolesQuery.error as Error | null)?.message
 
   // Handle role toggle (enable/disable)
   const handleToggle = async (roleId: string, currentlyEnabled: boolean) => {

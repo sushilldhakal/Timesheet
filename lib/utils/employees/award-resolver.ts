@@ -1,14 +1,15 @@
-import Award, { IConditionSet } from "@/lib/db/schemas/award";
+import Award from "@/lib/db/schemas/award";
 import { Employee } from "@/lib/db/schemas/employee";
 import mongoose from "mongoose";
 
-export interface ResolvedConditions extends IConditionSet {
+export interface ResolvedConditions {
   awardId: string;
   awardName: string;
   awardLevel: string;
   effectiveFrom: Date;
   effectiveTo: Date | null;
   overridingRate: number | null;
+  [key: string]: any;
 }
 
 // Simple in-memory cache for awards
@@ -90,11 +91,11 @@ export async function getEmployeeConditions(
     };
 
     // Apply overriding rate if present
-    if (activeCondition.overridingRate && resolved.payRule) {
-      if (resolved.payRule.type === "hourly") {
-        resolved.payRule.rate = activeCondition.overridingRate;
-      } else if (resolved.payRule.type === "salary") {
-        resolved.payRule.annualAmount = activeCondition.overridingRate;
+    if (activeCondition.overridingRate && (resolved as any).payRule) {
+      if ((resolved as any).payRule.type === "hourly") {
+        (resolved as any).payRule.rate = activeCondition.overridingRate;
+      } else if ((resolved as any).payRule.type === "salary") {
+        (resolved as any).payRule.annualAmount = activeCondition.overridingRate;
       }
     }
 

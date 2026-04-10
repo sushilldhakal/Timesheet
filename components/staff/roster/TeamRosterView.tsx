@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useMe } from "@/lib/queries/auth"
 import { useCalendarEvents } from "@/lib/queries/calendar"
 import { format, startOfWeek, endOfWeek, isSameDay, parseISO, addDays } from "date-fns"
 import { Clock, MapPin, Users, ChevronLeft, ChevronRight, Calendar } from "lucide-react"
@@ -29,7 +28,6 @@ interface TeamShift {
 }
 
 export function TeamRosterView({ selectedDate }: TeamRosterViewProps) {
-  const { data: userInfo } = useMe()
   const [currentDay, setCurrentDay] = useState(selectedDate)
   const [teamShifts, setTeamShifts] = useState<TeamShift[]>([])
 
@@ -39,7 +37,6 @@ export function TeamRosterView({ selectedDate }: TeamRosterViewProps) {
   const { data: eventsData, isLoading } = useCalendarEvents({
     startDate: weekStart.toISOString(),
     endDate: weekEnd.toISOString(),
-    locationId: userInfo?.user?.location?.[0] || "all", // Filter by user's location
     publishedOnly: true,
   })
 

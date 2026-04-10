@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -16,14 +16,13 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { RIGHTS_LIST, RIGHT_LABELS, type Right } from "@/lib/config/rights"
-import { CATEGORY_TYPES } from "@/lib/config/category-types"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
 import { useUser } from "@/lib/queries/users"
 import { useEmployees } from "@/lib/queries/employees"
 import { useUpdateUser } from "@/lib/queries/users"
+import { UserRole } from "@/lib/config/roles"
 import type { UserRow } from "./page"
 
 type Props = {
@@ -32,6 +31,7 @@ type Props = {
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
   isSelf: boolean
+  currentUserRole: string | null
 }
 
 export function EditUserDialog({
@@ -40,32 +40,50 @@ export function EditUserDialog({
   onOpenChange,
   onSuccess,
   isSelf,
+  currentUserRole,
 }: Props) {
   const [name, setName] = useState(user.name)
-  const [username, setUsername] = useState(user.username)
   const [email, setEmail] = useState(user.email || "")
   const [password, setPassword] = useState("")
   const [location, setLocation] = useState<string[]>(user.location ?? [])
-  const [rights, setRights] = useState<Right[]>(
-    (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
-  )
   const [managedRoles, setManagedRoles] = useState<string[]>([])
   const [linkedEmployee, setLinkedEmployee] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
 
-  const locationsQuery = useCategoriesByType("location")
-  const rolesQuery = useCategoriesByType("role")
+  const locationsQuery = useLocations()
+  const rolesQuery = useRoles()
   const userQuery = useUser(user.id)
   const employeesQuery = useEmployees(1000)
   const updateUserMutation = useUpdateUser()
 
-  const locationOptions = locationsQuery.data?.categories?.map((c) => ({
+  const locationOptions = locationsQuery.data?.locations?.map((c) => ({
     value: c.name,
     label: c.name,
   })) || []
 
-  const allRoles = rolesQuery.data?.categories || []
+  const allRoles = rolesQuery.data?.roles || []
+
+  // Compute role options based on selected locations
+  const roleOptions = useMemo(() => {
+    if (location.length === 0) {
+      return []
+    }
+    return allRoles.map(r => ({
+      value: r.name,
+      label: r.name,
+    }))
+  }, [location.length, allRoles])
+
+  // Determine if we should show location field
+  const showLocationField = useMemo(() => {
+    // Hide for global scope roles
+    return ![UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.ACCOUNTS].includes(user.role as UserRole)
+  }, [user.role])
+
+  // Determine if we should show managed roles field
+  const showManagedRolesField = useMemo(() => {
+    return user.role === UserRole.SUPERVISOR
+  }, [user.role])
 
   useEffect(() => {
     if (userQuery.data && 'data' in userQuery.data) {
@@ -83,32 +101,12 @@ export function EditUserDialog({
     }
   }, [employeesQuery.data, user.email])
 
-  // Filter roles based on selected locations
-  useEffect(() => {
-    if (location.length === 0) {
-      setRoleOptions([])
-      return
-    }
-
-    // Show all roles when locations are selected
-    // In the future, you can add location-specific filtering if roles have location associations
-    const opts = allRoles.map(r => ({
-      value: r.name,
-      label: r.name,
-    }))
-    setRoleOptions(opts)
-  }, [location, allRoles])
-
   useEffect(() => {
     if (open && user) {
       setName(user.name)
-      setUsername(user.username)
       setEmail(user.email || "")
       setPassword("")
       setLocation(user.location ?? [])
-      setRights(
-        (user.rights?.filter((r) => RIGHTS_LIST.includes(r as Right)) ?? []) as Right[]
-      )
       setManagedRoles(user.managedRoles ?? [])
       setError(null)
     }
@@ -133,18 +131,16 @@ export function EditUserDialog({
     try {
       const body = isSelf
         ? {
-            username: username.trim().toLowerCase(),
             email: email.trim().toLowerCase(),
             ...(password ? { password } : {}),
           }
         : {
-            name: name.trim() || username.trim(),
-            username: username.trim().toLowerCase(),
+            name: name.trim(),
             email: email.trim().toLowerCase(),
             ...(password ? { password } : {}),
-            location,
-            rights,
-            managedRoles,
+            location: showLocationField ? location : [],
+            rights: [], // Deprecated
+            managedRoles: showManagedRolesField ? managedRoles : [],
           }
 
       await updateUserMutation.mutateAsync({ id: user.id, data: body })
@@ -165,6 +161,7 @@ export function EditUserDialog({
             {isSelf ? "Edit My Profile" : "Edit User"}
           </DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             {!isSelf && linkedEmployee && (
@@ -204,16 +201,6 @@ export function EditUserDialog({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="edit-user-username">Username *</FieldLabel>
-              <Input
-                id="edit-user-username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </Field>
-
-            <Field>
               <FieldLabel htmlFor="edit-user-email">Email *</FieldLabel>
               <Input
                 id="edit-user-email"
@@ -222,6 +209,9 @@ export function EditUserDialog({
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Email is used for login
+              </p>
             </Field>
 
             <Field>
@@ -236,44 +226,30 @@ export function EditUserDialog({
               />
             </Field>
 
-            {!isSelf && (
-              <>
-                <Field>
-                  <FieldLabel>Locations</FieldLabel>
-                  <MultiSelect
-                    options={locationOptions}
-                    onValueChange={setLocation}
-                    defaultValue={location}
-                    placeholder="Select locations..."
-                    disabled={loading}
-                  />
-                </Field>
+            {!isSelf && showLocationField && (
+              <Field>
+                <FieldLabel>Locations</FieldLabel>
+                <MultiSelect
+                  options={locationOptions}
+                  onValueChange={setLocation}
+                  defaultValue={location}
+                  placeholder="Select locations..."
+                  disabled={loading}
+                />
+              </Field>
+            )}
 
-                <Field>
-                  <FieldLabel>Access Rights</FieldLabel>
-                  <MultiSelect
-                    options={RIGHTS_LIST.map(right => ({
-                      label: RIGHT_LABELS[right],
-                      value: right,
-                    }))}
-                    onValueChange={(values) => setRights(values as Right[])}
-                    defaultValue={rights}
-                    placeholder="Select access rights..."
-                    disabled={loading}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel>Managed Roles</FieldLabel>
-                  <MultiSelect
-                    options={roleOptions}
-                    onValueChange={setManagedRoles}
-                    defaultValue={managedRoles}
-                    placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
-                    disabled={loading || location.length === 0}
-                  />
-                </Field>
-              </>
+            {!isSelf && showManagedRolesField && (
+              <Field>
+                <FieldLabel>Managed Roles</FieldLabel>
+                <MultiSelect
+                  options={roleOptions}
+                  onValueChange={setManagedRoles}
+                  defaultValue={managedRoles}
+                  placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
+                  disabled={loading || location.length === 0}
+                />
+              </Field>
             )}
 
             {error && <FieldError>{error}</FieldError>}

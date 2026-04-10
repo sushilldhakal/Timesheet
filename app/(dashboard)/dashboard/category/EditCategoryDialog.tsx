@@ -19,20 +19,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { CATEGORY_TYPE_LABELS } from "@/lib/config/category-types"
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { 
-  useCategories, 
-  useUpdateCategory
-} from "@/lib/queries/categories"
-import { 
-  useLocationRoles, 
-  useEnableLocationRole, 
-  useDisableLocationRole 
-} from "@/lib/queries/locations"
+import { useUpdateLocation, useLocationRoles, useEnableLocationRole, useDisableLocationRole } from "@/lib/queries/locations"
+import { useRoles, useUpdateRole } from "@/lib/queries/roles"
+import { useUpdateEmployer } from "@/lib/queries/employers"
 import type { CategoryRow } from "./page"
+
+const TYPE_LABELS: Record<"role" | "employer" | "location", string> = {
+  role: "Role",
+  employer: "Employer",
+  location: "Location",
+}
 
 type Props = {
   category: CategoryRow
@@ -64,13 +63,15 @@ export function EditCategoryDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const rolesQuery = useCategories()
-  const updateCategoryMutation = useUpdateCategory()
+  const rolesQuery = useRoles()
+  const updateLocationMutation = useUpdateLocation()
+  const updateRoleMutation = useUpdateRole()
+  const updateEmployerMutation = useUpdateEmployer()
   const locationRolesQuery = useLocationRoles(category.id)
   const enableLocationRoleMutation = useEnableLocationRole()
   const disableLocationRoleMutation = useDisableLocationRole()
 
-  const allRoles = rolesQuery.data?.categories?.filter(c => c.type === 'role') ?? []
+  const allRoles = rolesQuery.data?.roles ?? []
 
   useEffect(() => {
     if (open && category) {
@@ -111,32 +112,30 @@ export function EditCategoryDialog({
     setError(null)
 
     try {
-      const body: Record<string, unknown> = { name: name.trim() }
       if (category.type === "location") {
+        const body: Record<string, unknown> = { name: name.trim() }
         if (lat != null) body.lat = lat
         if (lng != null) body.lng = lng
         body.radius = radius
         body.geofenceMode = geofenceMode
         body.openingHour = openingHour
         body.closingHour = closingHour
+        await updateLocationMutation.mutateAsync({ id: category.id, data: body as any })
+      } else if (category.type === "role") {
+        await updateRoleMutation.mutateAsync({
+          id: category.id,
+          data: {
+            name: name.trim(),
+            color,
+            defaultScheduleTemplate: {
+              standardHoursPerWeek: standardHours,
+              shiftPattern: { dayOfWeek: shiftDays, startHour: shiftStartHour, endHour: shiftEndHour, description: shiftDescription },
+            },
+          },
+        })
+      } else {
+        await updateEmployerMutation.mutateAsync({ id: category.id, data: { name: name.trim(), color } })
       }
-      if (category.type === "role" || category.type === "employer") {
-        body.color = color
-      }
-      if (category.type === "role") {
-        // Update role template with standard hours and shift pattern
-        body.defaultScheduleTemplate = {
-          standardHoursPerWeek: standardHours,
-          shiftPattern: {
-            dayOfWeek: shiftDays,
-            startHour: shiftStartHour,
-            endHour: shiftEndHour,
-            description: shiftDescription
-          }
-        }
-      }
-
-      await updateCategoryMutation.mutateAsync({ id: category.id, data: body })
 
       // If location, sync role enablements
       if (category.type === "location" && locationRolesQuery.data?.data?.roles) {
@@ -178,8 +177,8 @@ export function EditCategoryDialog({
     }
   }
 
-  const typeLabel = CATEGORY_TYPE_LABELS[category.type]
-  const loading = updateCategoryMutation.isPending || enableLocationRoleMutation.isPending || disableLocationRoleMutation.isPending
+  const typeLabel = TYPE_LABELS[category.type]
+  const loading = updateLocationMutation.isPending || updateRoleMutation.isPending || updateEmployerMutation.isPending || enableLocationRoleMutation.isPending || disableLocationRoleMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

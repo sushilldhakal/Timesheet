@@ -2,7 +2,8 @@ import mongoose from "mongoose"
 import { IShift } from "../db/schemas/roster"
 import { RoleEnablementManager } from "../managers/role-enablement-manager"
 import { RoleAssignmentManager } from "../managers/role-assignment-manager"
-import { Category } from "../db/schemas/category"
+import { Location } from "../db/schemas/location"
+import { Role } from "../db/schemas/role"
 import { Employee } from "../db/schemas/employee"
 
 export interface ShiftValidationResult {
@@ -48,11 +49,8 @@ export class SchedulingValidator {
     locationId: mongoose.Types.ObjectId | string,
     shiftDate: Date
   ): Promise<ShiftValidationResult> {
-    // Verify role exists and is of type 'role'
-    const role = await Category.findOne({
-      _id: new mongoose.Types.ObjectId(roleId.toString()),
-      type: "role",
-    })
+    // Verify role exists
+    const role = await Role.findById(new mongoose.Types.ObjectId(roleId.toString())).lean()
     if (!role) {
       return {
         valid: false,
@@ -61,11 +59,8 @@ export class SchedulingValidator {
       }
     }
 
-    // Verify location exists and is of type 'location'
-    const location = await Category.findOne({
-      _id: new mongoose.Types.ObjectId(locationId.toString()),
-      type: "location",
-    })
+    // Verify location exists
+    const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString())).lean()
     if (!location) {
       return {
         valid: false,
@@ -202,10 +197,9 @@ export class SchedulingValidator {
 
     // If locationId is provided, validate it
     if (locationId) {
-      const location = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(locationId.toString()),
-        type: "location",
-      })
+      const location = await Location.findById(
+        new mongoose.Types.ObjectId(locationId.toString())
+      ).lean()
 
       if (!location) {
         return {
@@ -228,7 +222,7 @@ export class SchedulingValidator {
             locationId
           )
           if (employees.length === 0) {
-            const role = await Category.findById(enablement.roleId)
+            const role = await Role.findById(enablement.roleId).lean()
             warnings.push(
               `Role "${role?.name}" at "${location.name}" has no assigned employees. Shifts for this role will be vacant.`
             )
@@ -237,7 +231,7 @@ export class SchedulingValidator {
       }
     } else {
       // Check all locations
-      const locations = await Category.find({ type: "location" })
+      const locations = await Location.find({}).lean()
 
       for (const location of locations) {
         const enabledRoles = await this.roleEnablementManager.getEnabledRoles(location._id)
@@ -253,7 +247,7 @@ export class SchedulingValidator {
               location._id
             )
             if (employees.length === 0) {
-              const role = await Category.findById(enablement.roleId)
+            const role = await Role.findById(enablement.roleId).lean()
               warnings.push(
                 `Role "${role?.name}" at "${location.name}" has no assigned employees. Shifts for this role will be vacant.`
               )

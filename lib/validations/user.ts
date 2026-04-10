@@ -3,30 +3,28 @@ import { mongoIdSchema } from "./common"
 
 export const userCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
-  username: z.string().min(1, "Username is required").max(50),
-  email: z.string().email("Invalid email").optional(),
-  password: z.string().min(8, "Password must be at least 8 characters").optional(),
-  role: z.enum(["admin", "user", "super_admin"]).optional(),
+  email: z.string().email("Invalid email").min(1, "Email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]),
   location: z.array(z.string()).optional(),
-  rights: z.array(z.string()).optional(),
   managedRoles: z.array(z.string()).optional(),
   employeeId: mongoIdSchema.optional()
 })
 
 export const userUpdateSchema = z.object({
-  username: z.string().min(1).max(50).optional(),
-  role: z.enum(["admin", "user", "super_admin"]).optional(),
-  location: mongoIdSchema.optional(),
-  rights: z.array(z.string()).optional(),
-  managedRoles: z.array(mongoIdSchema).optional()
+  name: z.string().min(1, "Name is required").max(200).optional(),
+  email: z.string().email("Invalid email").optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
+  role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]).optional(),
+  location: z.array(z.string()).optional(),
+  managedRoles: z.array(z.string()).optional()
 })
 
 export const userResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
-  username: z.string(),
   email: z.string(),
-  role: z.enum(["admin", "user", "super_admin"]),
+  role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]),
   location: z.array(z.string()),
   rights: z.array(z.string()),
   managedRoles: z.array(z.string()),
@@ -59,24 +57,21 @@ export const userDeleteResponseSchema = z.object({
 })
 
 export const adminCreateSchema = z.object({
-  username: z.string().min(1, "Username required").max(100).trim().toLowerCase(),
+  email: z.string().email("Invalid email").min(1, "Email required").trim().toLowerCase(),
   password: z.string().min(6, "Password at least 6 characters").max(128),
 })
 
 export const userAdminUpdateSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
-  username: z.string().min(1).max(100).trim().toLowerCase().optional(),
   email: z.string().email().trim().toLowerCase().optional(),
   password: z.string().min(6).max(128).optional(),
-  role: z.enum(["admin", "user"]).optional(),
+  role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]).optional(),
   location: z.array(z.string().trim()).optional(),
-  rights: z.array(z.string()).optional(),
   managedRoles: z.array(z.string().trim()).optional(),
 })
 
 export const userSelfUpdateSchema = z.object({
-  username: z.string().min(1).max(100).trim().toLowerCase(),
-  email: z.string().email().trim().toLowerCase().optional(),
+  email: z.string().email().trim().toLowerCase(),
   password: z.string().min(6).optional(),
 })
 

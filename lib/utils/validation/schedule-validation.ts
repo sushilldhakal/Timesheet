@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 import { ISchedule } from "@/lib/db/schemas/schedule"
-import { Category } from "@/lib/db/schemas/category"
+import { Location } from "@/lib/db/schemas/location"
+import { Role } from "@/lib/db/schemas/role"
 
 /**
  * Validation error types for schedules
@@ -139,10 +140,7 @@ export async function validateLocationReference(
   locationId: mongoose.Types.ObjectId
 ): Promise<ValidationResult> {
   try {
-    const location = await Category.findOne({
-      _id: locationId,
-      type: "location",
-    })
+    const location = await Location.findById(locationId).select("_id").lean()
 
     if (!location) {
       return {
@@ -169,10 +167,7 @@ export async function validateRoleReference(
   roleId: mongoose.Types.ObjectId
 ): Promise<ValidationResult> {
   try {
-    const role = await Category.findOne({
-      _id: roleId,
-      type: "role",
-    })
+    const role = await Role.findById(roleId).select("_id").lean()
 
     if (!role) {
       return {

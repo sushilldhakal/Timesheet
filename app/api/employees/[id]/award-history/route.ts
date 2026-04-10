@@ -2,6 +2,7 @@ import { Employee } from "@/lib/db/schemas/employee";
 import Award from "@/lib/db/schemas/award";
 import { connectDB } from "@/lib/db";
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { getAuthFromCookie, getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { 
   employeeIdParamSchema,
   awardHistoryQuerySchema,
@@ -31,6 +32,14 @@ export const GET = createApiRoute({
     }
 
     const { id } = params;
+    const adminAuth = await getAuthFromCookie()
+    const employeeAuth = adminAuth ? null : await getEmployeeFromCookie()
+    const isSelfEmployee = employeeAuth?.sub === id
+
+    if (!adminAuth && !isSelfEmployee) {
+      return { status: 401, data: { error: "Unauthorized" } };
+    }
+
     const startDate = query?.startDate;
     const endDate = query?.endDate;
 

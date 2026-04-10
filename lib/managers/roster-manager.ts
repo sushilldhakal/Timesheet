@@ -147,8 +147,8 @@ export class RosterManager {
 
 
 
-      // Import Category model and EmployeeRoleAssignment to fetch role assignments
-      const { Category } = await import("@/lib/db")
+      // Import Location model and EmployeeRoleAssignment to fetch role assignments
+      const { Location } = await import("@/lib/db")
       const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
       const { WorkingHoursHierarchy } = await import("@/lib/managers/working-hours-hierarchy")
       const workingHoursHierarchy = new WorkingHoursHierarchy()
@@ -184,7 +184,7 @@ export class RosterManager {
             weekId,
             generatedShifts,
             filteredEmployees,
-            Category
+            Location
           )
         } else {
           // No employee schedules - generate from role assignments using Award ∩ Role ∩ Location
@@ -198,7 +198,7 @@ export class RosterManager {
             generatedShifts,
             skippedEmployees,
             EmployeeRoleAssignment,
-            Category,
+            Location,
             locationIds
           )
         }
@@ -239,7 +239,7 @@ export class RosterManager {
     weekId: string,
     generatedShifts: IShift[],
     filteredEmployees: Array<{ employeeName: string; reason: string }>,
-    Category: any
+    Location: any
   ): Promise<void> {
     // Filter schedules that are active during this week
     const activeSchedules = employee.schedules.filter((schedule: ISchedule) => {
@@ -303,7 +303,7 @@ export class RosterManager {
       }
 
       // Fetch location details to check opening/closing hours
-      const location = await Category.findById(schedule.locationId)
+      const location = await Location.findById(schedule.locationId)
       
       // Create shift times
       const scheduleStartTime = new Date(schedule.startTime)
@@ -386,7 +386,7 @@ export class RosterManager {
     generatedShifts: IShift[],
     skippedEmployees: Array<{ employeeName: string; reason: string }>,
     EmployeeRoleAssignment: any,
-    Category: any,
+    Location: any,
     locationIds?: string[]
   ): Promise<void> {
     try {

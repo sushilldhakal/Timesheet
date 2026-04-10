@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import Webcam from "react-webcam"
 import { LogOut, Loader2, ScanFace, UserX, ZoomIn, Check, Wifi, WifiOff, Upload, Clock, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { formatTime } from "@/lib/utils/format/time"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils/cn"
@@ -44,22 +45,6 @@ type TodayPunches = {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatTimeDisplay(t?: string): string {
-  if (!t || typeof t !== "string" || !t.trim()) return "—"
-  const s = t.trim()
-  const colonMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (colonMatch) {
-    const h = parseInt(colonMatch[1], 10)
-    const m = parseInt(colonMatch[2], 10)
-    if (h === 0 && m === 0) return "—"
-    const date = new Date(2000, 0, 1, h, m)
-    return format(date, "h:mm a", { locale: enUS })
-  }
-  const d = new Date(s)
-  if (isNaN(d.getTime())) return "—"
-  return format(d, "h:mm a", { locale: enUS })
-}
 
 function calculateBreakDuration(breakIn?: string, breakOut?: string): string {
   if (!breakIn || !breakOut) return "—"
@@ -709,7 +694,7 @@ console.log("clockLoading",clockLoading)
   <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
     <p className="text-sm font-medium text-white/60 mb-0.5">IN</p>
     <p className="text-sm font-bold text-white tabular-nums">
-      {formatTimeDisplay(mergedPunches.clockIn)}
+      {formatTime(mergedPunches.clockIn)}
     </p>
   </div>
 }
@@ -719,7 +704,7 @@ console.log("clockLoading",clockLoading)
   <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
     <p className="text-sm font-medium text-white/60 mb-0.5">OUT</p>
     <p className="text-sm font-bold text-white tabular-nums">
-      {formatTimeDisplay(mergedPunches.clockOut)}
+      {formatTime(mergedPunches.clockOut)}
     </p>
   </div>
 }
@@ -732,7 +717,7 @@ console.log("clockLoading",clockLoading)
       {hasBreakOut && mergedPunches.breakIn && mergedPunches.breakOut 
         ? calculateBreakDuration(mergedPunches.breakIn, mergedPunches.breakOut)
         : hasBreakIn
-          ? formatTimeDisplay(mergedPunches.breakIn)
+          ? formatTime(mergedPunches.breakIn)
           : "—"
       }
     </p>

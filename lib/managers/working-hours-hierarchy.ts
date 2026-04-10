@@ -1,6 +1,5 @@
 import mongoose from "mongoose"
 import { Employee } from "../db/schemas/employee"
-import { Category } from "../db/schemas/category"
 import Award from "../db/schemas/award"
 import { ISchedule } from "../db/schemas/schedule"
 

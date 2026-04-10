@@ -19,15 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { CATEGORY_TYPE_LABELS, type CategoryType } from "@/lib/config/category-types"
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { useCategories, useCreateCategory } from "@/lib/queries/categories"
-import { useEnableLocationRole } from "@/lib/queries/locations"
+import { useCreateLocation, useEnableLocationRole } from "@/lib/queries/locations"
+import { useCreateRole, useRoles } from "@/lib/queries/roles"
+import { useCreateEmployer } from "@/lib/queries/employers"
+import type { EntityType } from "./page"
+
+const TYPE_LABELS: Record<EntityType, string> = {
+  role: "Role",
+  employer: "Employer",
+  location: "Location",
+}
 
 type Props = {
-  type: CategoryType
+  type: EntityType
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -56,11 +63,13 @@ export function AddCategoryDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const rolesQuery = useCategories()
-  const createCategoryMutation = useCreateCategory()
+  const rolesQuery = useRoles()
+  const createLocationMutation = useCreateLocation()
+  const createRoleMutation = useCreateRole()
+  const createEmployerMutation = useCreateEmployer()
   const enableLocationRoleMutation = useEnableLocationRole()
 
-  const allRoles = rolesQuery.data?.categories?.filter(c => c.type === 'role') ?? []
+  const allRoles = rolesQuery.data?.roles ?? []
 
   const reset = () => {
     setName("")
@@ -100,50 +109,35 @@ export function AddCategoryDialog({
     setError(null)
 
     try {
-      const body: Record<string, unknown> = { name: name.trim(), type }
       if (type === "location") {
-        if (lat != null && lng != null) {
-          body.lat = lat
-          body.lng = lng
-        }
+        const body: Record<string, unknown> = { name: name.trim() }
+        if (lat != null && lng != null) { body.lat = lat; body.lng = lng }
         body.radius = radius
         body.geofenceMode = geofenceMode
         body.openingHour = openingHour
         body.closingHour = closingHour
-      }
-      if (type === "role" || type === "employer") {
-        body.color = color
-      }
-      if (type === "role") {
-        // Add role template with standard hours and shift pattern
-        body.defaultScheduleTemplate = {
-          standardHoursPerWeek: standardHours,
-          shiftPattern: {
-            dayOfWeek: shiftDays,
-            startHour: shiftStartHour,
-            endHour: shiftEndHour,
-            description: shiftDescription
-          }
-        }
-      }
-
-      const result = await createCategoryMutation.mutateAsync(body as any)
-
-      // If location and roles selected, enable them
-      if (type === "location" && selectedRoleIds.length > 0 && result.category?.id) {
-        const locationId = result.category.id
-        await Promise.all(
-          selectedRoleIds.map((roleId) =>
-            enableLocationRoleMutation.mutateAsync({
-              locationId,
-              data: {
-                roleId,
-                effectiveFrom: new Date().toISOString(),
-                effectiveTo: null,
-              }
-            })
+        const result = await createLocationMutation.mutateAsync(body as any)
+        if (selectedRoleIds.length > 0 && result.location?.id) {
+          await Promise.all(
+            selectedRoleIds.map((roleId) =>
+              enableLocationRoleMutation.mutateAsync({
+                locationId: result.location!.id,
+                data: { roleId, effectiveFrom: new Date().toISOString(), effectiveTo: null },
+              })
+            )
           )
-        )
+        }
+      } else if (type === "role") {
+        await createRoleMutation.mutateAsync({
+          name: name.trim(),
+          color,
+          defaultScheduleTemplate: {
+            standardHoursPerWeek: standardHours,
+            shiftPattern: { dayOfWeek: shiftDays, startHour: shiftStartHour, endHour: shiftEndHour, description: shiftDescription },
+          },
+        })
+      } else {
+        await createEmployerMutation.mutateAsync({ name: name.trim(), color })
       }
 
       handleOpenChange(false)
@@ -153,8 +147,8 @@ export function AddCategoryDialog({
     }
   }
 
-  const typeLabel = CATEGORY_TYPE_LABELS[type]
-  const loading = createCategoryMutation.isPending || enableLocationRoleMutation.isPending
+  const typeLabel = TYPE_LABELS[type]
+  const loading = createLocationMutation.isPending || createRoleMutation.isPending || createEmployerMutation.isPending || enableLocationRoleMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -20,7 +20,9 @@ import EmployeeRoleAssignmentList from "@/components/employees/employee-role-ass
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/employee-role-assignment-dialog"
 import { EmployeeTimesheetViewer } from "@/components/employees/employee-timesheet-viewer"
 import { formatDateLong as formatDateLongUtil } from "@/lib/utils/format/date-format"
+import { formatTime } from "@/lib/utils/format/time"
 import { useEmployee, useEmployeeTimesheet } from "@/lib/queries/employees"
+import { EmployeeInfoSidebarCard } from "@/components/employees/employee-info-sidebar-card"
 
 interface DailyTimesheetRow {
   date: string
@@ -150,29 +152,10 @@ function formatDateLong(dateStr: string): string {
 }
 
 /**
- * Extract time as "1:57 PM" from either:
- * - Old format: "Wednesday, December 31, 2025 1:57 PM"
- * - New format: "08:25" or "08:25:00"
+ * Red = manually added (no punch). Green = from punch or edited.
  */
-function formatTimeDisplay(t?: string): string {
-  if (!t || typeof t !== "string" || !t.trim()) return "—"
-  const s = t.trim()
-  const colonMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (colonMatch) {
-    const h = parseInt(colonMatch[1], 10)
-    const m = parseInt(colonMatch[2], 10)
-    if (h === 0 && m === 0) return "—"
-    const date = new Date(2000, 0, 1, h, m)
-    return format(date, "h:mm a", { locale: enUS })
-  }
-  const d = new Date(s)
-  if (!isValid(d)) return "—"
-  return format(d, "h:mm a", { locale: enUS })
-}
-
-/** Red = manually added (no punch). Green = from punch or edited. */
 function TimeCell({ time, source }: { time: string; source?: "insert" | "update" }) {
-  const text = formatTimeDisplay(time)
+  const text = formatTime(time)
   if (text === "—") return <span className="tabular-nums text-muted-foreground">—</span>
   const className =
     source === "insert"
@@ -468,106 +451,20 @@ function EmployeeDetailPage() {
       {/* Employee Details */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Profile Card - 1/3 width */}
-        <Card>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col items-center gap-3 ">
-              {/* Profile Image with improved fallback */}
-              <OptimizedImage
-                src={employee.img || (timesheets.length > 0 ? timesheets[0].clockInImage : "") || ""}
-                alt={employee.name}
-                width={96}
-                height={96}
-                className="rounded-full object-cover w-24 h-24"
-                fallbackName={employee.name}
-              />
-              <div className="text-center space-y-2 w-full">
-                <div>
-                  <p className="font-semibold text-lg">{employee.name}</p>
-                  <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
-                </div>
-
-                {/* Employers */}
-                {employee.employers && employee.employers.length > 0 && (
-                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="flex items-center gap-1 flex-wrap justify-center">
-                      {employee.employers.map((emp: any, idx: number) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-secondary"
-                        >
-                          {emp.color && (
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: emp.color }}
-                            />
-                          )}
-                          {emp.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-3 pt-2 border-t">
-              {employee.email && (
-                <div className="flex items-start gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Email</p>
-                    <p className="text-sm break-all">{employee.email}</p>
-                  </div>
-                </div>
-              )}
-              {employee.phone && (
-                <div className="flex items-start gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Phone</p>
-                    <p className="text-sm">{employee.phone}</p>
-                  </div>
-                </div>
-              )}
-              {employee.dob && (
-                <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Date of Birth</p>
-                    <p className="text-sm">{formatDateLongUtil(employee.dob) || employee.dob}</p>
-                  </div>
-                </div>
-              )}
-              {(employeeQuery.data?.employee as any)?.homeAddress && (
-                <div className="flex items-start gap-2">
-                  <Home className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Home Address</p>
-                    <p className="text-sm">{(employeeQuery.data?.employee as any).homeAddress}</p>
-                  </div>
-                </div>
-              )}
-              {standardHours !== null && (
-                <div className="flex items-start gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Standard Hours/Week</p>
-                    <p className="text-sm">{standardHours} hrs</p>
-                  </div>
-                </div>
-              )}
-              {employee.comment && employee.comment.trim() && (
-                <div className="flex items-start gap-2">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground mb-0.5">Notes</p>
-                    <p className="text-sm text-muted-foreground italic">{employee.comment}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <EmployeeInfoSidebarCard
+          name={employee.name}
+          pin={employee.pin}
+          img={employee.img}
+          fallbackImageUrl={timesheets.length > 0 ? timesheets[0]?.clockInImage : ""}
+          employers={employee.employers}
+          email={employee.email}
+          phone={employee.phone}
+          dob={employee.dob}
+          homeAddress={(employeeQuery.data?.employee as any)?.homeAddress}
+          standardHoursPerWeek={standardHours}
+          comment={employee.comment}
+          formatDob={(d) => formatDateLongUtil(d) || d}
+        />
 
         {/* Combined Role & Award Card - 2/3 width */}
         <div className="lg:col-span-2 space-y-6">
@@ -590,6 +487,7 @@ function EmployeeDetailPage() {
       <EmployeeTimesheetViewer 
         employeeId={employee.id}
         employeeName={employee.name}
+        employeeImageUrl={employee.img || (timesheets.length > 0 ? timesheets[0]?.clockInImage : "") || ""}
       />
 
       {/* Dialogs */}

@@ -32,6 +32,7 @@ interface EmployeeAwardCardProps {
   currentAwardLevel?: string | null;
   currentEmploymentType?: string | null;
   onUpdate: () => void;
+  readOnly?: boolean;
 }
 
 export default function EmployeeAwardCard({
@@ -40,6 +41,7 @@ export default function EmployeeAwardCard({
   currentAwardLevel,
   currentEmploymentType,
   onUpdate,
+  readOnly = false,
 }: EmployeeAwardCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedAwardId, setSelectedAwardId] = useState<string>('');
@@ -78,6 +80,7 @@ export default function EmployeeAwardCard({
   const employmentTypes = selectedLevelData?.conditions.map((c: any) => c.employmentType) || [];
 
   const handleOpenDialog = () => {
+    if (readOnly) return;
     setSelectedAwardId(currentAwardId || '');
     setSelectedLevel(currentAwardLevel || '');
     setSelectedEmploymentType(currentEmploymentType || '');
@@ -145,10 +148,12 @@ export default function EmployeeAwardCard({
                 View History
               </Button>
             )}
-            <Button onClick={handleOpenDialog} size="sm" variant="outline">
-              <Pencil className="h-3.5 w-3.5 mr-2" />
-              {currentAwardId ? 'Change' : 'Assign'}
-            </Button>
+            {!readOnly ? (
+              <Button onClick={handleOpenDialog} size="sm" variant="outline">
+                <Pencil className="h-3.5 w-3.5 mr-2" />
+                {currentAwardId ? 'Change' : 'Assign'}
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
 
@@ -185,143 +190,147 @@ export default function EmployeeAwardCard({
             <div className="text-center py-6 border rounded-lg bg-muted/20">
               <Award className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
               <p className="text-sm text-muted-foreground mb-3">No award assigned yet</p>
-              <Button onClick={handleOpenDialog} variant="outline" size="sm">
-                Assign Award
-              </Button>
+              {!readOnly ? (
+                <Button onClick={handleOpenDialog} variant="outline" size="sm">
+                  Assign Award
+                </Button>
+              ) : null}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Assign Award to Employee</DialogTitle>
-            <DialogDescription>
-              Select the award, level, and employment type for this employee. This will create a new
-              pay condition record effective from the specified date.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel>Award *</FieldLabel>
-                <Select
-                  value={selectedAwardId}
-                  onValueChange={(value) => {
-                    setSelectedAwardId(value);
-                    setSelectedLevel('');
-                    setSelectedEmploymentType('');
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an award" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {awards.map((award: any) => (
-                      <SelectItem key={award._id} value={award._id}>
-                        {award.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              {selectedAward && (
+      {!readOnly ? (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Assign Award to Employee</DialogTitle>
+              <DialogDescription>
+                Select the award, level, and employment type for this employee. This will create a new
+                pay condition record effective from the specified date.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <FieldGroup className="gap-4">
                 <Field>
-                  <FieldLabel>Level *</FieldLabel>
+                  <FieldLabel>Award *</FieldLabel>
                   <Select
-                    value={selectedLevel}
+                    value={selectedAwardId}
                     onValueChange={(value) => {
-                      setSelectedLevel(value);
+                      setSelectedAwardId(value);
+                      setSelectedLevel('');
                       setSelectedEmploymentType('');
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a level" />
+                      <SelectValue placeholder="Select an award" />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedAward.levels.map((level: any) => (
-                        <SelectItem key={level.label} value={level.label}>
-                          {level.label}
+                      {awards.map((award: any) => (
+                        <SelectItem key={award._id} value={award._id}>
+                          {award.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </Field>
-              )}
 
-              {selectedLevelData && (
-                <Field>
-                  <FieldLabel>Employment Type *</FieldLabel>
-                  <Select
-                    value={selectedEmploymentType}
-                    onValueChange={setSelectedEmploymentType}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select employment type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employmentTypes.map((type: any) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
+                {selectedAward && (
+                  <Field>
+                    <FieldLabel>Level *</FieldLabel>
+                    <Select
+                      value={selectedLevel}
+                      onValueChange={(value) => {
+                        setSelectedLevel(value);
+                        setSelectedEmploymentType('');
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedAward.levels.map((level: any) => (
+                          <SelectItem key={level.label} value={level.label}>
+                            {level.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel htmlFor="effectiveFrom">Effective From *</FieldLabel>
-                  <Input
-                    id="effectiveFrom"
-                    type="date"
-                    value={effectiveFrom}
-                    onChange={(e) => setEffectiveFrom(e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    When this award assignment starts
-                  </p>
-                </Field>
+                {selectedLevelData && (
+                  <Field>
+                    <FieldLabel>Employment Type *</FieldLabel>
+                    <Select
+                      value={selectedEmploymentType}
+                      onValueChange={setSelectedEmploymentType}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employment type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employmentTypes.map((type: any) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
 
-                <Field>
-                  <FieldLabel htmlFor="overridingRate">Overriding Rate (Optional)</FieldLabel>
-                  <Input
-                    id="overridingRate"
-                    type="number"
-                    step="0.01"
-                    value={overridingRate}
-                    onChange={(e) => setOverridingRate(e.target.value)}
-                    placeholder="Leave empty to use award rate"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Custom rate for this employee
-                  </p>
-                </Field>
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="effectiveFrom">Effective From *</FieldLabel>
+                    <Input
+                      id="effectiveFrom"
+                      type="date"
+                      value={effectiveFrom}
+                      onChange={(e) => setEffectiveFrom(e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      When this award assignment starts
+                    </p>
+                  </Field>
 
-              {error && <FieldError>{error}</FieldError>}
-            </FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor="overridingRate">Overriding Rate (Optional)</FieldLabel>
+                    <Input
+                      id="overridingRate"
+                      type="number"
+                      step="0.01"
+                      value={overridingRate}
+                      onChange={(e) => setOverridingRate(e.target.value)}
+                      placeholder="Leave empty to use award rate"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Custom rate for this employee
+                    </p>
+                  </Field>
+                </div>
 
-            <DialogFooter className="mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-                disabled={awardEmployeeMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={awardEmployeeMutation.isPending}>
-                {awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                {error && <FieldError>{error}</FieldError>}
+              </FieldGroup>
+
+              <DialogFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
+                  disabled={awardEmployeeMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={awardEmployeeMutation.isPending}>
+                  {awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       {/* History Dialog */}
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
@@ -356,7 +365,7 @@ export default function EmployeeAwardCard({
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           {condition.isActive && (
-                            <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                            <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
                           )}
                           <span className="text-sm">{condition.awardName}</span>
                         </div>

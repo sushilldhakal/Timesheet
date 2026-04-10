@@ -6,6 +6,7 @@ import type { ColumnDef, VisibilityState } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view-options"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
+import { formatMinutes } from "@/lib/utils/format/time"
 import Link from "next/link"
 import { cn } from "@/lib/utils/cn"
 
@@ -55,9 +56,7 @@ export interface WeekAggApiRow {
 }
 
 function formatMinutesLabel(totalMinutes: number): string {
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
+  return formatMinutes(totalMinutes)
 }
 
 function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {

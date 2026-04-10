@@ -3,32 +3,14 @@ import {
   dashboardStatsQuerySchema, 
   dashboardStatsResponseSchema, 
 } from "@/lib/validations/dashboard"
+import { parseTimeToHour24 } from "@/lib/utils/format/time"
 import { errorResponseSchema } from "@/lib/validations/auth"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-/** Parse time string or Date to 24h hour (0–23). */
-function parseTimeToHour24(t?: string | Date): number | null {
-  if (!t) return null
-  if (t instanceof Date) {
-    return !isNaN(t.getTime()) ? t.getHours() : null
-  }
-  if (typeof t !== "string" || !t.trim()) return null
-  const s = t.trim()
-  const d = new Date(s)
-  if (!isNaN(d.getTime())) return d.getHours()
-  const match = s.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i)
-  if (!match) return null
-  let hour = parseInt(match[1], 10)
-  const ampm = match[3]?.toUpperCase()
-  if (ampm === "PM" && hour >= 1 && hour <= 11) hour += 12
-  if (ampm === "AM" && hour === 12) hour = 0
-  return hour
-}
-
 /** Get unique employer categories from employees with colors */
 async function getEmployerCategoriesWithColors(employees: unknown[]): Promise<Array<{ name: string; color?: string }>> {
-  const { Category } = await import("@/lib/db")
+  const { Employer } = await import("@/lib/db")
   const employerNames = new Set<string>()
   for (const e of employees) {
     const emp = e as { employer?: string[] }
@@ -41,10 +23,11 @@ async function getEmployerCategoriesWithColors(employees: unknown[]): Promise<Ar
   }
   
   // Fetch employer categories with colors
-  const categories = await Category.find({
+  const categories = await Employer.find({
     name: { $in: Array.from(employerNames) },
-    type: "employer"
-  }).select("name color").lean()
+  })
+    .select("name color")
+    .lean()
   
   const categoryMap = new Map(
     categories.map(cat => [cat.name, cat.color])

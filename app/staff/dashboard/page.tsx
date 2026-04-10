@@ -39,7 +39,7 @@ export default function StaffDashboardPage() {
     return null
   }
 
-  const employee = employeeProfileQuery.data?.data
+  const employee = employeeProfileQuery.data?.data?.employee
 
   return (
     <div className="container mx-auto p-6 space-y-6">

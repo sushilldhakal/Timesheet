@@ -89,11 +89,12 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
+    ".next/dev/types/**/*.ts", "scripts/seed-public-holidays.mjs",
   ],
   "exclude": [
     "node_modules",
     "big-calendar/**/*",
-    "full-calendar/**/*"
+    "full-calendar/**/*",
+    "tests/**/*"
   ]
 }

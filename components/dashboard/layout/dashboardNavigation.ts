@@ -14,6 +14,8 @@ import {
   Mail,
   Tablet,
   Clock,
+  CircleDollarSign,
+  CalendarDays,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/lib/types/dashboard';
 
@@ -76,12 +78,15 @@ export const baseNavigationItems: NavigationItem[] = [
       { href: '/dashboard/users', label: 'All Users', icon: List, adminOnly: true },
     ],
   },
-  
- {
-    href: '/dashboard/awards',
-    label: 'Awards',
-    icon: Award,
+  {
+    label: 'Payroll',
+    icon: CircleDollarSign,
     adminOnly: true,
+    children: [
+      { href: '/dashboard/awards',          label: 'Awards',          icon: Award,             adminOnly: true },
+      { href: '/dashboard/pay-runs',        label: 'Pay Runs',        icon: CircleDollarSign, adminOnly: true },
+      { href: '/dashboard/public-holidays', label: 'Public Holidays', icon: CalendarDays,     adminOnly: true },
+    ],
   },
   {
     label: 'Settings',

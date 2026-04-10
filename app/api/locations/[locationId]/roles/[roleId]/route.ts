@@ -223,7 +223,7 @@ export const PATCH = createApiRoute({
       await enablement.save()
 
       // Populate role details
-      await enablement.populate("roleId", "name color type")
+      await enablement.populate("roleId", "name color")
 
       const roleData = enablement.roleId as any
 

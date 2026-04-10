@@ -13,12 +13,31 @@ export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   // TanStack Query hooks
   const { data: profileData, isLoading, error } = useEmployeeProfile()
   const logoutMutation = useEmployeeLogout()
 
-  const employee = profileData?.data
+  const employee = profileData?.data?.employee
+
+  const [mounted, setMounted] = useState(false)
+
+  // Handle client-side mounting to avoid hydration issues
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
 
   useEffect(() => {
     if (error && !isLoading) {
@@ -38,7 +57,7 @@ export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
   }
 
   const toggleSidebar = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    if (isMobile) {
       setMobileMenuOpen(!mobileMenuOpen)
     } else {
       setSidebarCollapsed(!sidebarCollapsed)
@@ -47,14 +66,19 @@ export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768 && mobileMenuOpen) {
+      if (!isMobile && mobileMenuOpen) {
         setMobileMenuOpen(false)
       }
     }
 
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [mobileMenuOpen])
+  }, [mobileMenuOpen, isMobile])
+
+  // Don't render anything until mounted on client
+  if (!mounted) {
+    return null
+  }
 
   if (isLoading) {
     return (

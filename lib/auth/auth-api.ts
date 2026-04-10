@@ -106,13 +106,14 @@ export async function getFilteredEmployeeIdsByRole(
   try {
     await connectDB()
     const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-    const { Category } = await import("@/lib/db")
+    const { Role, Location } = await import("@/lib/db")
 
     // Get role IDs from role names
-    const roleCategories = await Category.find({
+    const roleCategories = await Role.find({
       name: { $in: managedRoles },
-      type: "role"
-    }).select("_id").lean()
+    })
+      .select("_id")
+      .lean()
 
     const roleIds = roleCategories.map(r => r._id)
 
@@ -121,10 +122,11 @@ export async function getFilteredEmployeeIdsByRole(
     }
 
     // Get location IDs from location names
-    const locationCategories = await Category.find({
+    const locationCategories = await Location.find({
       name: { $in: userLocations },
-      type: "location"
-    }).select("_id").lean()
+    })
+      .select("_id")
+      .lean()
 
     const locationIds = locationCategories.map(l => l._id)
 

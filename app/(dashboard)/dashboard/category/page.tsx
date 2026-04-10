@@ -4,21 +4,26 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Briefcase, MapPin, UserCircle, Plus, CircleDollarSign } from "lucide-react"
-import {
-  CATEGORY_TYPES,
-  CATEGORY_TYPE_LABELS,
-  type CategoryType,
-} from "@/lib/config/category-types"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
+import { useEmployers } from "@/lib/queries/employers"
 import { CategoriesTable } from "./CategoriesTable"
 import { AddCategoryDialog } from "./AddCategoryDialog"
 import { EditCategoryDialog } from "./EditCategoryDialog"
 import { DeleteCategoryDialog } from "./DeleteCategoryDialog"
 
+export type EntityType = "role" | "employer" | "location"
+
+const ENTITY_LABELS: Record<EntityType, string> = {
+  role: "Role",
+  employer: "Employer",
+  location: "Location",
+}
+
 export type CategoryRow = {
   id: string
   name: string
-  type: CategoryType
+  type: EntityType
   lat?: number
   lng?: number
   radius?: number
@@ -36,36 +41,53 @@ export type CategoryRow = {
 }
 
 const categoryTabs = [
-  { id: CATEGORY_TYPES.ROLE as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.ROLE], icon: UserCircle },
-  { id: CATEGORY_TYPES.EMPLOYER as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.EMPLOYER], icon: Briefcase },
-  { id: CATEGORY_TYPES.LOCATION as CategoryType, label: CATEGORY_TYPE_LABELS[CATEGORY_TYPES.LOCATION], icon: MapPin },
-] as const
+  { id: "role" as EntityType, label: ENTITY_LABELS.role, icon: UserCircle },
+  { id: "employer" as EntityType, label: ENTITY_LABELS.employer, icon: Briefcase },
+  { id: "location" as EntityType, label: ENTITY_LABELS.location, icon: MapPin },
+]
 
-const TAB_DESCRIPTIONS: Record<CategoryType, string> = {
-  [CATEGORY_TYPES.ROLE]: "Roles you can assign to employees (e.g. Driver, Supervisor).",
-  [CATEGORY_TYPES.EMPLOYER]: "Employers to assign to employees.",
-  [CATEGORY_TYPES.LOCATION]: "Locations to assign to employees (sites, offices).",
+const TAB_DESCRIPTIONS: Record<EntityType, string> = {
+  role: "Roles you can assign to employees (e.g. Driver, Supervisor).",
+  employer: "Employers to assign to employees.",
+  location: "Locations to assign to employees (sites, offices).",
 }
 
-const ADD_BUTTON_LABELS: Record<CategoryType, string> = {
-  [CATEGORY_TYPES.ROLE]: "Add Role",
-  [CATEGORY_TYPES.EMPLOYER]: "Add Employer",
-  [CATEGORY_TYPES.LOCATION]: "Add Location",
+const ADD_BUTTON_LABELS: Record<EntityType, string> = {
+  role: "Add Role",
+  employer: "Add Employer",
+  location: "Add Location",
 }
 
 function CategoryPage() {
-  const [activeType, setActiveType] = useState<CategoryType>(CATEGORY_TYPES.ROLE)
+  const [activeType, setActiveType] = useState<EntityType>("role")
   const [addOpen, setAddOpen] = useState(false)
   const [editCategory, setEditCategory] = useState<CategoryRow | null>(null)
   const [deleteCategory, setDeleteCategory] = useState<CategoryRow | null>(null)
 
-  const categoriesQuery = useCategoriesByType(activeType)
+  const locationsQuery = useLocations()
+  const rolesQuery = useRoles()
+  const employersQuery = useEmployers()
 
-  const categories = categoriesQuery.data?.categories ?? []
-  const loading = categoriesQuery.isLoading
+  const rawData =
+    activeType === "role"
+      ? rolesQuery.data?.roles
+      : activeType === "employer"
+      ? employersQuery.data?.employers
+      : locationsQuery.data?.locations
+
+  const categories: CategoryRow[] = (rawData ?? []).map((item) => ({ ...item, type: activeType }))
+
+  const loading =
+    activeType === "role"
+      ? rolesQuery.isLoading
+      : activeType === "employer"
+      ? employersQuery.isLoading
+      : locationsQuery.isLoading
 
   const refetchCategories = () => {
-    categoriesQuery.refetch()
+    if (activeType === "role") rolesQuery.refetch()
+    else if (activeType === "employer") employersQuery.refetch()
+    else locationsQuery.refetch()
   }
 
   return (
@@ -98,7 +120,7 @@ function CategoryPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 ">
               <div>
-                <CardTitle className="text-lg">{CATEGORY_TYPE_LABELS[activeType]}</CardTitle>
+                <CardTitle className="text-lg">{ENTITY_LABELS[activeType]}</CardTitle>
                 <CardDescription className="mt-1 text-sm">
                   {TAB_DESCRIPTIONS[activeType]}
                 </CardDescription>

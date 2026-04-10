@@ -28,7 +28,7 @@ export interface ManagedDevice {
   revocationReason?: string
 }
 
-export interface Location {
+export interface DeviceLocation {
   _id: string
   id: string
   name: string

@@ -5,8 +5,8 @@ import mongoose from "mongoose"
  * Junction table between Location and Role (both are Categories)
  */
 export interface ILocationRoleEnablement {
-  locationId: mongoose.Types.ObjectId  // ref: Category (type=location)
-  roleId: mongoose.Types.ObjectId      // ref: Category (type=role)
+  locationId: mongoose.Types.ObjectId  // ref: Location
+  roleId: mongoose.Types.ObjectId      // ref: Role
   effectiveFrom: Date                  // When this enablement starts
   effectiveTo: Date | null             // When this enablement ends (null = indefinite)
   isActive: boolean                    // Computed: current date within range
@@ -21,12 +21,12 @@ const locationRoleEnablementSchema = new mongoose.Schema<ILocationRoleEnablement
   {
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Location",
       required: true,
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Role",
       required: true,
     },
     effectiveFrom: {

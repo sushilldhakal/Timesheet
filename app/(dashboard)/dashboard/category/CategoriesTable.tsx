@@ -7,11 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Pencil, Trash2, Settings } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import type { CategoryRow } from "./page"
-import type { CategoryType } from "@/lib/config/category-types"
+import type { CategoryRow, EntityType } from "./page"
 
 type Props = {
-  type: CategoryType
+  type: EntityType
   categories: CategoryRow[]
   onEdit: (category: CategoryRow) => void
   onDelete: (category: CategoryRow) => void

@@ -108,6 +108,8 @@ export interface UpdateEmployeeRequest {
   awardLevel?: string
   awards?: string[]
   profileImage?: string
+  password?: string
+  sendSetupEmail?: boolean
 }
 
 export interface GetEmployeesParams {

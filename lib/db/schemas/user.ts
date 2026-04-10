@@ -13,14 +13,19 @@ export interface IUserSchedulingSettings {
 
 export interface IUser {
   name: string
-  username: string
-  email: string // Email for unified login
+  email: string // Primary unique identifier for login
   password: string
-  role: "admin" | "user" | "super_admin"
+  role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
 
+  /** Legacy (pre-migration) fields */
   location: string[]
-  rights: Right[]
+  rights: Right[] // @deprecated - use role-based permissions instead
   managedRoles: string[] // Role names that this user can supervise
+
+  /** New normalized refs */
+  locationIds?: mongoose.Types.ObjectId[]
+  managedRoleIds?: mongoose.Types.ObjectId[]
+  createdBy: string | null // Audit trail - ID of user who created this user
   /** Personal scheduler UI preferences; null = use built-in defaults */
   schedulingSettings?: IUserSchedulingSettings | null
   passwordResetToken?: string | null // Token for password reset
@@ -33,6 +38,28 @@ export interface IUserDocument extends IUser, mongoose.Document {
   comparePassword(candidate: string): Promise<boolean>
 }
 
+/**
+ * User Schema with Role-Based Access Control
+ * 
+ * Role-to-Scope Mapping:
+ * - super_admin: Global scope (all locations, all roles) - hidden from UI
+ * - admin: Global scope (all locations, all roles)
+ * - manager: Location scope (location[] array) - can create supervisors
+ * - supervisor: Location + Role scope (location[] AND managedRoles[] arrays)
+ * - accounts: Global scope if location[] empty, otherwise location scope
+ * - user: @deprecated Location scope (location[] array) - kept for backward compatibility
+ * 
+ * Permission Hierarchy:
+ * super_admin → admin → manager → supervisor
+ *                  └→ accounts
+ * 
+ * Creation Rights:
+ * - super_admin: can create any role
+ * - admin: can create manager, supervisor, accounts
+ * - manager: can create supervisor (within their locations only)
+ * - supervisor: cannot create users
+ * - accounts: cannot create users
+ */
 const userSchema = new mongoose.Schema<IUserDocument>(
   {
     name: {
@@ -40,19 +67,12 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       trim: true,
       default: "",
     },
-    username: {
+    email: {
       type: String,
       required: true,
       unique: true,
       trim: true,
       lowercase: true,
-    },
-    email: {
-      type: String,
-      required: false, // Optional for backward compatibility
-      trim: true,
-      lowercase: true,
-      sparse: true, // Allows null but enforces uniqueness when present
       index: true,
     },
     password: {
@@ -62,7 +82,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     },
     role: {
       type: String,
-      enum: ["admin", "user", "super_admin"],
+      enum: ["admin", "manager", "supervisor", "accounts", "user", "super_admin"],
       default: "user",
     },
 
@@ -70,6 +90,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       type: [String],
       default: [],
     },
+    locationIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Location" }],
     rights: {
       type: [String],
       enum: Object.values(RIGHTS_LIST),
@@ -78,6 +99,11 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     managedRoles: {
       type: [String],
       default: [],
+    },
+    managedRoleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Role" }],
+    createdBy: {
+      type: String,
+      default: null,
     },
     schedulingSettings: {
       type: new mongoose.Schema(

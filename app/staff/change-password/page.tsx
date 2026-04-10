@@ -39,17 +39,56 @@ export default function StaffChangePasswordPage() {
       return
     }
 
+    // Check password complexity requirements
+    const hasLowercase = /[a-z]/.test(newPassword)
+    const hasUppercase = /[A-Z]/.test(newPassword)
+    const hasNumber = /\d/.test(newPassword)
+    
+    if (!hasLowercase || !hasUppercase || !hasNumber) {
+      toast.error("Password must contain at least one lowercase letter, one uppercase letter, and one number")
+      return
+    }
+
     changePasswordMutation.mutate(
       { currentPassword, newPassword },
       {
-        onSuccess: (data) => {
-          if (data.success) {
+        onSuccess: (response) => {
+          console.log('Password change success:', response)
+          
+          // Check different possible response structures
+          if (response?.success) {
+            // Standard ApiResponse format
+            toast.success(response.data?.message || "Password changed successfully!")
+          } else if ((response as any)?.message) {
+            // Direct message format (what we're actually getting)
+            toast.success((response as any).message)
+          } else {
+            // Fallback
             toast.success("Password changed successfully!")
-            router.push("/staff/dashboard")
           }
+          
+          // Clear form
+          setCurrentPassword("")
+          setNewPassword("")
+          setConfirmPassword("")
+          
+          // Redirect after a short delay to let user see the success message
+          setTimeout(() => {
+            router.push("/staff/dashboard")
+          }, 1500)
         },
         onError: (error: any) => {
-          toast.error(typeof error === 'string' ? error : error?.message || "Failed to change password")
+          console.log('Password change error:', error)
+          
+          // Handle validation errors with details array
+          if (error?.details && Array.isArray(error.details)) {
+            const validationErrors = error.details.map((detail: any) => detail.message).join(', ')
+            toast.error(validationErrors)
+          } else if (error?.error) {
+            toast.error(error.error)
+          } else {
+            toast.error(typeof error === 'string' ? error : error?.message || "Failed to change password")
+          }
         }
       }
     )
@@ -121,7 +160,7 @@ export default function StaffChangePasswordPage() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Password must be at least 8 characters long
+                Password must be at least 8 characters and contain at least one lowercase letter, one uppercase letter, and one number
               </p>
             </div>
 

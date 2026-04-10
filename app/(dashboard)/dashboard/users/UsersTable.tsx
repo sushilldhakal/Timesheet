@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import { RIGHT_LABELS } from "@/lib/config/rights"
 import type { UserRow } from "./page"
 
 type Props = {
@@ -39,11 +38,13 @@ export function UsersTable({
         enableHiding: true,
       },
       {
-        accessorKey: "username",
+        accessorKey: "email",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Username" />
+          <DataTableColumnHeader column={column} title="Email" />
         ),
-        cell: ({ row }) => row.original.username,
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.email || "—"}</span>
+        ),
         enableHiding: true,
       },
       {
@@ -51,13 +52,37 @@ export function UsersTable({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Role" />
         ),
-        cell: ({ row }) => (
-          <Badge
-            variant={row.original.role === "admin" ? "default" : "secondary"}
-          >
-            {row.original.role}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const role = row.original.role
+          let variant: "default" | "secondary" | "outline" | "destructive" = "secondary"
+          let label = role
+          
+          if (role === "admin") {
+            variant = "destructive"
+            label = "Admin"
+          } else if (role === "manager") {
+            variant = "default"
+            label = "Manager"
+          } else if (role === "supervisor") {
+            variant = "secondary"
+            label = "Supervisor"
+          } else if (role === "accounts") {
+            variant = "outline"
+            label = "Accounts"
+          } else if (role === "employee") {
+            variant = "secondary"
+            label = "Employee"
+          } else if (role === "user") {
+            variant = "secondary"
+            label = "User"
+          }
+          
+          return (
+            <Badge variant={variant}>
+              {label}
+            </Badge>
+          )
+        },
         enableHiding: true,
       },
       {
@@ -70,53 +95,8 @@ export function UsersTable({
           <span className="text-muted-foreground">
             {row.original.location?.length
               ? row.original.location.join(", ")
-              : "—"}
+              : "All"}
           </span>
-        ),
-        enableSorting: false,
-        enableHiding: true,
-      },
-      {
-        accessorKey: "managedRoles",
-        accessorFn: (row) => (row.managedRoles ?? []).join(", "),
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Managed Roles" />
-        ),
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
-            {row.original.managedRoles?.length ? (
-              row.original.managedRoles.map((r) => (
-                <Badge key={r} variant="secondary" className="text-xs">
-                  {r}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </div>
-        ),
-        enableSorting: false,
-        enableHiding: true,
-      },
-      {
-        accessorKey: "rights",
-        accessorFn: (row) =>
-          (row.rights ?? [])
-            .map((r) => RIGHT_LABELS[r as keyof typeof RIGHT_LABELS] ?? r)
-            .join(", "),
-        header: "Rights",
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
-            {row.original.rights?.length ? (
-              row.original.rights.map((r) => (
-                <Badge key={r} variant="outline" className="text-xs">
-                  {RIGHT_LABELS[r as keyof typeof RIGHT_LABELS] ?? r}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </div>
         ),
         enableSorting: false,
         enableHiding: true,
@@ -163,8 +143,8 @@ export function UsersTable({
     <DataTable
       columns={columns}
       data={users}
-      searchKey="username"
-      searchPlaceholder="Search users..."
+      searchKey="email"
+      searchPlaceholder="Search by email..."
       getRowId={(row) => row.id}
       emptyMessage="No users yet. Click Add User to create one."
       sortBy={sortBy}
@@ -173,7 +153,7 @@ export function UsersTable({
         setSortBy(columnId)
         setSortOrder(order)
       }}
-      sortableColumnIds={["name", "username", "role"]}
+      sortableColumnIds={["name", "email", "role"]}
     />
   )
 }

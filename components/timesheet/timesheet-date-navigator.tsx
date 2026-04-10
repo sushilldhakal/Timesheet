@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from "date-fns"
+import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, parseISO, isValid } from "date-fns"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react"
+import type { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -12,14 +13,42 @@ interface TimesheetDateNavigatorProps {
   view: TimesheetView
   selectedDate: Date
   onDateChange: (date: Date) => void
+  /** Optional: enable range selection inside the same calendar popover (day view only). */
+  rangeValue?: { startDate: string; endDate: string }
+  onRangeChange?: (start: string, end: string) => void
 }
 
-export function TimesheetDateNavigator({ view, selectedDate, onDateChange }: TimesheetDateNavigatorProps) {
+function toYmdLocal(d: Date): string {
+  return format(d, "yyyy-MM-dd")
+}
+
+function safeParseIsoDate(s: string): Date | null {
+  const d = parseISO(String(s || ""))
+  return isValid(d) ? d : null
+}
+
+export function TimesheetDateNavigator({
+  view,
+  selectedDate,
+  onDateChange,
+  rangeValue,
+  onRangeChange,
+}: TimesheetDateNavigatorProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined)
 
   const getDisplayText = () => {
     switch (view) {
       case "day":
+        if (
+          rangeValue?.startDate &&
+          rangeValue?.endDate &&
+          rangeValue.startDate !== rangeValue.endDate
+        ) {
+          const s = safeParseIsoDate(rangeValue.startDate)
+          const e = safeParseIsoDate(rangeValue.endDate)
+          if (s && e) return `${format(s, "d MMM yyyy")} – ${format(e, "d MMM yyyy")}`
+        }
         return format(selectedDate, "EEEE, d MMMM yyyy")
       case "week":
         const weekStart = new Date(selectedDate)
@@ -77,17 +106,37 @@ export function TimesheetDateNavigator({ view, selectedDate, onDateChange }: Tim
     }
   }
 
+  const isRangeEnabled = view === "day" && typeof onRangeChange === "function"
+  const rangeSelected =
+    isRangeEnabled && rangeValue?.startDate
+      ? {
+          from: safeParseIsoDate(rangeValue.startDate) ?? undefined,
+          to: safeParseIsoDate(rangeValue.endDate) ?? undefined,
+        }
+      : undefined
+
   return (
     <div className="flex items-center gap-2">
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         className="size-6.5 px-0 [&_svg]:size-4.5"
         onClick={navigatePrevious}
       >
         <ChevronLeft />
       </Button>
 
-      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+      <Popover
+        open={isCalendarOpen}
+        onOpenChange={(open) => {
+          setIsCalendarOpen(open)
+          if (open) {
+            // Seed pending range from the currently applied range (if any)
+            setPendingRange(rangeSelected)
+          } else {
+            setPendingRange(undefined)
+          }
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
@@ -98,11 +147,30 @@ export function TimesheetDateNavigator({ view, selectedDate, onDateChange }: Tim
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={handleDateSelect}
-          />
+          {isRangeEnabled ? (
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              defaultMonth={(pendingRange?.from ?? rangeSelected?.from ?? selectedDate) as Date}
+              selected={pendingRange}
+              onSelect={(r) => {
+                setPendingRange(r)
+                const from = r?.from
+                const to = r?.to
+                if (!from) {
+                  onRangeChange("", "")
+                  return
+                }
+
+                // Match `DateRangePicker`: selecting only `from` is allowed and does NOT close.
+                const start = toYmdLocal(from)
+                const end = toYmdLocal(to ?? from)
+                onRangeChange(start, end)
+              }}
+            />
+          ) : (
+            <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} />
+          )}
         </PopoverContent>
       </Popover>
 

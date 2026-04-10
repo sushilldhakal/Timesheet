@@ -13,11 +13,13 @@ import {
 export type AuthUser = {
   id: string
   name?: string
-  username: string
-  role: "admin" | "user" | "super_admin"
+  email: string
+  role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string[]
+  /** @deprecated Use role-based permissions instead */
   rights?: string[]
   managedRoles?: string[]
+  createdBy?: string
 }
 
 export type LoginRequest = z.infer<typeof loginSchema>

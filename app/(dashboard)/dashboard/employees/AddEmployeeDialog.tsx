@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, RefreshCw, User, Briefcase, Award, Zap } from "lucide-react"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
+import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { useCreateEmployee, useGeneratePin, useCheckPin } from "@/lib/queries/employees"
 import { useUploadImage } from "@/lib/queries/upload"
@@ -86,9 +88,9 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [generatingPin, setGeneratingPin] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const rolesQuery = useCategoriesByType("role")
-  const employersQuery = useCategoriesByType("employer")
-  const locationsQuery = useCategoriesByType("location")
+  const rolesQuery = useRoles()
+  const employersQuery = useEmployers()
+  const locationsQuery = useLocations()
   const awardsQuery = useAwards()
   const createEmployeeMutation = useCreateEmployee()
   const generatePinMutation = useGeneratePin()
@@ -97,14 +99,14 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   // Get enabled roles for the first selected location
   const firstLocationId = useMemo(() => {
     if (location.length === 0) return null
-    const firstLoc = locationsQuery.data?.categories?.find(c => c.name === location[0])
+    const firstLoc = locationsQuery.data?.locations?.find(c => c.name === location[0])
     return firstLoc?.id || null
-  }, [location, locationsQuery.data?.categories])
+  }, [location, locationsQuery.data?.locations])
   
   const locationRolesQuery = useLocationRoles(firstLocationId)
 
   const roleOptions = useMemo(() => {
-    const allRoles = rolesQuery.data?.categories?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
+    const allRoles = rolesQuery.data?.roles?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
     
     // If no location selected, return all roles
     if (location.length === 0) return allRoles
@@ -114,15 +116,15 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     if (enabledRoleIds.length === 0) return allRoles // Fallback to all if no data yet
     
     return allRoles.filter(role => enabledRoleIds.includes(role.id))
-  }, [rolesQuery.data?.categories, location, locationRolesQuery.data])
+  }, [rolesQuery.data?.roles, location, locationRolesQuery.data])
   
   const employerOptions = useMemo(() => 
-    employersQuery.data?.categories?.map((c: any) => ({ value: c.name, label: c.name })) || []
-  , [employersQuery.data?.categories])
+    employersQuery.data?.employers?.map((c: any) => ({ value: c.name, label: c.name })) || []
+  , [employersQuery.data?.employers])
   
   const locationOptions = useMemo(() => 
-    locationsQuery.data?.categories?.map((c: any) => ({ value: c.name, label: c.name, id: c._id })) || []
-  , [locationsQuery.data?.categories])
+    locationsQuery.data?.locations?.map((c: any) => ({ value: c.name, label: c.name, id: c._id })) || []
+  , [locationsQuery.data?.locations])
   
   // Auto-assign if only one option available
   useEffect(() => {
@@ -139,13 +141,13 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   
   // Clear roles when location changes
   useEffect(() => {
-    if (location.length > 0 && locationRolesQuery.data) {
+    if (location.length > 0 && locationRolesQuery.data?.data?.roles) {
       const enabledRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
       
       // Filter out roles that are not enabled for the selected location
       setRole(prev => {
         const validRoles = prev.filter(roleName => {
-          const roleData = rolesQuery.data?.categories?.find((c: any) => c.name === roleName) as any
+          const roleData = rolesQuery.data?.roles?.find((c: any) => c.name === roleName) as any
           return roleData && enabledRoleIds.includes(roleData.id || roleData._id)
         })
         return validRoles

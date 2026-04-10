@@ -40,45 +40,8 @@ export const GET = createApiRoute({
         status,
       })
       
-      // Filter by location permissions
-      // Note: context.auth is not available in createApiRoute, using legacy auth check
-      // const ctx = context?.auth
-      if (false) { // Disabled location filtering for now
-        // Convert location names to ObjectIds
-        const { Category } = await import("@/lib/db")
-        const locationDocs = await Category.find({
-          type: "location",
-          name: { $in: [] } // ctx.userLocations
-        }).select("_id").lean()
-        
-        const locationObjectIds = locationDocs.map(loc => loc._id)
-        console.log('[API] Converted location names to ObjectIds:', {
-          names: [], // ctx.userLocations,
-          objectIds: locationObjectIds.map(id => id.toString())
-        })
-        
-        if (locationId) {
-          // User requested specific location - check if they have access
-          if (locationObjectIds.some(id => id.toString() === locationId)) {
-            queryFilter.locationId = locationId
-          } else {
-            // User doesn't have access to requested location
-            console.log('[API] User does not have access to requested location')
-            return { 
-              status: 200, 
-              data: {
-                success: true,
-                alerts: [],
-                pagination: { page, limit, total: 0, pages: 0 },
-              }
-            }
-          }
-        } else {
-          // No specific location requested - filter to user's allowed locations
-          queryFilter.locationId = { $in: locationObjectIds }
-          console.log('[API] Filtering to user location ObjectIds:', locationObjectIds.length)
-        }
-      } else if (locationId) {
+      // Filter by location (permission filtering is currently disabled)
+      if (locationId) {
         queryFilter.locationId = locationId
       }
 

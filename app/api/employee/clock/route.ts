@@ -1,8 +1,9 @@
-import { connectDB, Employee, DailyShift, Category, Device } from "@/lib/db"
+import { connectDB, Employee, DailyShift, Location, Device } from "@/lib/db"
 import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { clockRequestSchema, clockResponseSchema } from "@/lib/validations/employee-clock"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { isWithinGeofence } from "@/lib/utils/validation/geofence"
+import { checkShiftOverlap } from "@/lib/utils/validation/shift-validation"
 import { logger } from "@/lib/utils/logger"
 import { updateComputedFields } from "@/lib/utils/calculations/shift-calculations"
 import { processFaceRecognition } from "@/lib/services/clock-with-face-recognition"
@@ -28,6 +29,7 @@ export const POST = createApiRoute({
     401: errorResponseSchema,
     403: errorResponseSchema,
     404: errorResponseSchema,
+    409: errorResponseSchema,
     500: errorResponseSchema
   },
   handler: async ({ body, req }) => {
@@ -157,8 +159,7 @@ export const POST = createApiRoute({
           const nameRegex = locationNames.length > 0
             ? new RegExp(`^(${locationNames.map(esc).join("|")})$`, "i")
             : /^$/;
-          const locations = await Category.find({
-            type: "location",
+          const locations = await Location.find({
             name: { $regex: nameRegex },
             lat: { $exists: true, $ne: null, $gte: -90, $lte: 90 },
             lng: { $exists: true, $ne: null, $gte: -180, $lte: 180 },
@@ -268,6 +269,17 @@ export const POST = createApiRoute({
 
       // Handle different clock types using upsert pattern
       if (type === "in") {
+        // Prevent starting a shift that overlaps an existing completed shift
+        const proposedStart = clockEvent.time
+        const proposedEnd = new Date(proposedStart.getTime() + 1) // minimal end to detect "contains start"
+        const overlap = await checkShiftOverlap(employee._id.toString(), proposedStart, proposedEnd)
+        if (overlap.hasOverlap) {
+          return {
+            status: 409,
+            data: { error: "Shift overlaps with existing shift", conflictingShiftId: overlap.conflictingShiftId }
+          }
+        }
+
         // Clock-in: Create or update daily shift
         await DailyShift.findOneAndUpdate(
           { pin: employee.pin, date: dateObj },

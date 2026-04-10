@@ -325,20 +325,45 @@ export default function UnavailabilityPage() {
     </div>
   )
 
+  const Header = ({ isLoading }: { isLoading: boolean }) => (
+    <UnifiedCalendarTopbar
+      className="print:hidden"
+      onToday={isLoading ? () => {} : handleTodayClick}
+      title={
+        isLoading ? (
+          <span suppressHydrationWarning>{format(selectedDate, "MMMM yyyy")}</span>
+        ) : (
+          format(selectedDate, "MMMM yyyy")
+        )
+      }
+      nav={topbarNav}
+      viewSwitcher={viewSwitcher}
+      actions={
+        isLoading
+          ? null
+          : isAdmin
+            ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || !employeeIdsToQuery.length}
+                  onClick={() => setRefreshNonce((n) => n + 1)}
+                >
+                  <RefreshCw className="size-4" />
+                  Refresh
+                </Button>
+              )
+            : null
+      }
+    />
+  )
+
   if (!isHydrated) {
     return (
       <CalendarPageShell
         containerClassName="px-4 sm:px-6"
-        toolbar={
-          <UnifiedCalendarTopbar
-            className="print:hidden"
-            onToday={() => {}}
-            title={<span suppressHydrationWarning>{format(selectedDate, "MMMM yyyy")}</span>}
-            nav={topbarNav}
-            viewSwitcher={viewSwitcher}
-            actions={null}
-          />
-        }
+        toolbar={<Header isLoading />}
       >
         <div className="space-y-4 py-4">
           <Card>
@@ -355,29 +380,7 @@ export default function UnavailabilityPage() {
   return (
     <CalendarPageShell
       containerClassName="px-4 sm:px-6"
-      toolbar={
-        <UnifiedCalendarTopbar
-          className="print:hidden"
-          onToday={handleTodayClick}
-          title={format(selectedDate, "MMMM yyyy")}
-          nav={topbarNav}
-          viewSwitcher={viewSwitcher}
-          actions={
-            isAdmin ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={loading || !employeeIdsToQuery.length}
-                onClick={() => setRefreshNonce((n) => n + 1)}
-              >
-                <RefreshCw className="size-4" />
-                Refresh
-              </Button>
-            ) : null
-          }
-        />
-      }
+      toolbar={<Header isLoading={false} />}
     >
       <div className="space-y-4 py-4">
         {!isAdmin && (

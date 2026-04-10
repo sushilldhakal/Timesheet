@@ -82,7 +82,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useMe } from '@/lib/queries/auth';
-import { useCategoriesByType } from '@/lib/queries/categories';
+import { useLocations } from '@/lib/queries/locations';
+import { useRoles } from '@/lib/queries/roles';
 import { useEmployees } from '@/lib/queries/employees';
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent, useBulkDeleteCalendarEvents } from '@/lib/queries/calendar';
 import {
@@ -175,8 +176,8 @@ export default function SchedulingPage() {
 
   // TanStack Query hooks
   const userInfoQuery = useMe();
-  const locationsQuery = useCategoriesByType('location');
-  const rolesQuery = useCategoriesByType('role');
+  const locationsQuery = useLocations();
+  const rolesQuery = useRoles();
   const employeesQuery = useEmployees(1000);
   const locationRolesQuery = useLocationRolesForScheduling(selectedLocationId || null);
   const userSchedulingSettingsQuery = useUserSchedulingSettings();
@@ -236,8 +237,8 @@ export default function SchedulingPage() {
 
   const userInfo = userInfoQuery.data?.user;
 
-  const locations = locationsQuery.data?.categories ?? EMPTY_CATEGORIES;
-  const roles = rolesQuery.data?.categories ?? EMPTY_CATEGORIES;
+  const locations = locationsQuery.data?.locations ?? EMPTY_CATEGORIES;
+  const roles = rolesQuery.data?.roles ?? EMPTY_CATEGORIES;
   const employees = (employeesQuery.data?.employees ?? EMPTY_EMPLOYEES) as NonNullable<
     typeof employeesQuery.data
   >['employees'];

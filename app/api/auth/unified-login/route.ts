@@ -77,7 +77,7 @@ export const POST = createApiRoute({
           if (passwordMatch) {
             // Check if password change is required
             if (employee.requirePasswordChange) {
-              const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
+              const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/auth-helpers")
               
               const token = await createEmployeeWebToken({
                 sub: String(employee._id),
@@ -97,7 +97,7 @@ export const POST = createApiRoute({
             }
 
             // Employee found - create employee web session
-            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
+            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/auth-helpers")
             
             const token = await createEmployeeWebToken({
               sub: String(employee._id),
@@ -228,7 +228,7 @@ export const POST = createApiRoute({
         
         if (passwordMatch) {
           if (employee.requirePasswordChange) {
-            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
+            const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/auth-helpers")
             
             const token = await createEmployeeWebToken({
               sub: String(employee._id),
@@ -247,7 +247,7 @@ export const POST = createApiRoute({
             }
           }
 
-          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth")
+          const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/auth-helpers")
           
           const token = await createEmployeeWebToken({
             sub: String(employee._id),
@@ -255,6 +255,8 @@ export const POST = createApiRoute({
           })
 
           await setEmployeeWebCookie(token)
+
+          console.log("Employee web login successful for:", employee.name, "ID:", employee._id)
 
           const locations = Array.isArray(employee.location) ? employee.location : []
           const employers = Array.isArray(employee.employer) ? employee.employer : []

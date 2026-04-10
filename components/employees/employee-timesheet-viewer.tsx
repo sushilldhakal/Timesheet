@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval, differenceInDays } from "date-fns"
+import { formatTime } from "@/lib/utils/format/time"
 import {
   Card,
   CardContent,
@@ -17,11 +18,13 @@ import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-col
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetTodayButton } from "@/components/timesheet/timesheet-today-button"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
-import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { useEmployeeTimesheet } from "@/lib/queries/employees"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { cn } from "@/lib/utils/cn"
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
+import { TimesheetEntriesList, type TimesheetEntryRow } from "@/components/timesheet/TimesheetEntriesList"
+import { TimesheetShiftChart } from "@/components/timesheet/TimesheetShiftChart"
+import { TimesheetViewer } from "@/components/timesheet/TimesheetViewer"
 
 interface TimesheetRow {
   date: string
@@ -54,6 +57,8 @@ interface TimesheetRow {
 interface EmployeeTimesheetViewerProps {
   employeeId: string
   employeeName: string
+  employeeImageUrl?: string
+  readOnly?: boolean
 }
 
 /** Auth-protected link for Cloudinary images (proxied via /api/image). */
@@ -125,54 +130,25 @@ function formatDateLong(dateStr: string): string {
   }
 }
 
-function formatTime(timeStr: string): string {
-  if (!timeStr || timeStr === '—') return '—'
-  try {
-    // Handle various time formats
-    const colonMatch = timeStr.match(/^(\d{1,2}):(\d{2})/)
-    if (colonMatch) {
-      const h = parseInt(colonMatch[1], 10)
-      const m = colonMatch[2]
-      const ampm = h >= 12 ? 'PM' : 'AM'
-      const h12 = h % 12 || 12
-      return `${h12}:${m} ${ampm}`
-    }
-    return timeStr
-  } catch {
-    return timeStr
-  }
-}
-
 function getDateRange(view: TimesheetView, selectedDate: Date) {
   switch (view) {
     case "day":
-      // Show 14 days BEFORE the selected date (historical data)
-      const selectedDayEnd = endOfDay(selectedDate)
-      const fourteenDaysStart = new Date(selectedDate)
-      fourteenDaysStart.setDate(selectedDate.getDate() - 13) // 14 days total (including selected date)
-      
+      // Day view must request exactly one day.
       return {
-        startDate: format(startOfDay(fourteenDaysStart), "yyyy-MM-dd"),
-        endDate: format(selectedDayEnd, "yyyy-MM-dd"),
+        startDate: format(selectedDate, "yyyy-MM-dd"),
+        endDate: format(selectedDate, "yyyy-MM-dd"),
       }
     case "week":
-      // Show 8 weeks BEFORE the current week (historical data)
-      const currentWeekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 })
-      const eightWeeksStart = new Date(currentWeekEnd)
-      eightWeeksStart.setDate(currentWeekEnd.getDate() - (8 * 7) + 1) // 8 weeks before, +1 to start on Monday
-      
+      // Week view must request only the current week.
       return {
-        startDate: format(startOfWeek(eightWeeksStart, { weekStartsOn: 1 }), "yyyy-MM-dd"),
-        endDate: format(currentWeekEnd, "yyyy-MM-dd"),
+        startDate: format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        endDate: format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
       }
     case "month":
-      // Show 6 months BEFORE the current month (historical data)
-      const currentMonthEnd = endOfMonth(selectedDate)
-      const sixMonthsStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 5, 1) // 6 months before (0-based, so -5 gives us 6 months)
-      
+      // Month view must request only the current month.
       return {
-        startDate: format(startOfMonth(sixMonthsStart), "yyyy-MM-dd"),
-        endDate: format(currentMonthEnd, "yyyy-MM-dd"),
+        startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"),
+        endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd"),
       }
     default:
       return {
@@ -957,7 +933,7 @@ function MonthView({ data, startDate, endDate }: { data: TimesheetRow[], startDa
   )
 }
 
-export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTimesheetViewerProps) {
+export function EmployeeTimesheetViewer({ employeeId, employeeName, employeeImageUrl, readOnly }: EmployeeTimesheetViewerProps) {
   const [view, setView] = useState<TimesheetView>("week")
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [customStartDate, setCustomStartDate] = useState("")
@@ -972,14 +948,12 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
   // Calculate date range based on view
   const { startDate, endDate } = useMemo(() => {
     if (useCustomRange && customStartDate && customEndDate) {
-      console.log('Using custom range:', { customStartDate, customEndDate })
       return {
         startDate: customStartDate,
         endDate: customEndDate,
       }
     }
     const range = getDateRange(view, selectedDate)
-    console.log('Calculated date range:', { view, selectedDate, range })
     return range
   }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
 
@@ -1009,6 +983,20 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
     // For all views, return all data since the API handles the date range filtering
     return rawTimesheets
   }, [rawTimesheets])
+
+  const entryRows: TimesheetEntryRow[] = useMemo(() => {
+    return timesheets.map((r: any) => ({
+      date: r.date,
+      clockIn: r.clockIn,
+      breakIn: r.breakIn,
+      breakOut: r.breakOut,
+      clockOut: r.clockOut,
+      breakHours: r.breakHours,
+      totalHours: r.totalHours,
+      clockInImageUrl: r.clockInImage,
+      clockOutImageUrl: r.clockOutImage,
+    }))
+  }, [timesheets])
 
   // Check if any row has images to determine if we should show expand functionality
   const hasImages = useMemo(() => {
@@ -1228,157 +1216,64 @@ export function EmployeeTimesheetViewer({ employeeId, employeeName }: EmployeeTi
       )
     }
 
-    if (view === "day") {
-      // Single day: show detailed card view
-      if (isSingleDay) {
-        return <SingleDayView data={timesheets} />
-      }
-      // Day range: show table view
-      return (
-        <div className="p-6">
-          <DataTable
-            columns={columns}
-            data={timesheets}
-            loading={loading}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            onPageChange={setPageIndex}
-            onPageSizeChange={(size: number) => {
-              setPageSize(size)
-              setPageIndex(0)
-            }}
-            pageSizeOptions={[20, 50, 100]}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={(columnId: string, order: "asc" | "desc") => {
-              setSortBy(columnId)
-              setSortOrder(order)
-            }}
-            sortableColumnIds={['date', 'breakHours', 'totalHours']}
-            getRowId={(row) => row.date}
-            emptyMessage="No timesheet entries found for this period."
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            searchPlaceholder="Search by date..."
-            showSearch={true}
-            renderExpandedRow={hasImages ? renderExpandedRow : undefined}
-            getRowCanExpand={hasImages ? (row) => !!(row.clockInImage || row.breakInImage || row.breakOutImage || row.clockOutImage) : undefined}
-          />
-        </div>
-      )
-    }
-
-    if (view === "week") {
-      return <WeekView data={timesheets} startDate={startDate} endDate={endDate} />
-    }
-
-    if (view === "month") {
-      return <MonthView data={timesheets} startDate={startDate} endDate={endDate} />
-    }
+    // Use the card design (same as staff timesheet) for all views.
+    // Keep the topbar + date range controls, but render entries as cards instead of a table.
+    return (
+      <div className="p-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-sm text-muted-foreground">Loading timesheet data...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <TimesheetEntriesList
+              entries={entryRows}
+              employeeName={employeeName}
+              employeeImageUrl={employeeImageUrl}
+            />
+            <div className="mt-6">
+              <TimesheetShiftChart entries={entryRows} />
+            </div>
+          </>
+        )}
+      </div>
+    )
 
     return null
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-0">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Timesheet
-            </CardTitle>
-            <CardDescription>
-              Daily punch records and hours worked
-            </CardDescription>
-          </div>
-        </div>
-
-        <UnifiedCalendarTopbar
-          onToday={handleTodayClick}
-          title={format(selectedDate, "MMMM yyyy")}
-          nav={
-            <div className="flex items-center gap-2">
-              {view === "day" || view === "week" || view === "month" ? (
-                <DateRangePicker
-                  value={{
-                    startDate: useCustomRange ? customStartDate : startDate,
-                    endDate: useCustomRange ? customEndDate : endDate,
-                  }}
-                  onChange={handleCustomRangeChange}
-                  placeholder={
-                    view === "day" ? "Select date or range" :
-                    view === "week" ? "Select week range" :
-                    "Select month range (min 6 months)"
-                  }
-                />
-              ) : (
-                <TimesheetDateNavigator
-                  view={view}
-                  selectedDate={selectedDate}
-                  onDateChange={(date) => {
-                    setSelectedDate(date)
-                    setUseCustomRange(false)
-                  }}
-                />
-              )}
-            </div>
-          }
-          viewSwitcher={
-            <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
-              {([
-                { k: "day" as const, l: "Day", Icon: AlignJustify },
-                { k: "week" as const, l: "Week", Icon: Columns },
-                { k: "month" as const, l: "Month", Icon: LayoutGrid },
-              ] satisfies { k: TimesheetView; l: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[]).map(({ k, l, Icon }) => {
-                const active = view === k
-                return (
-                  <button
-                    key={k}
-                    onClick={() => setView(k)}
-                    title={l}
-                    className={[
-                      "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
-                      active ? "w-[76px] bg-background font-semibold text-foreground shadow-sm" : "w-8 bg-transparent font-normal text-muted-foreground",
-                    ].join(" ")}
-                    type="button"
-                  >
-                    <Icon size={14} className="shrink-0" />
-                    <span
-                      className={[
-                        "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
-                        active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
-                      ].join(" ")}
-                    >
-                      {l}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          }
-          actions={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loading || timesheets.length === 0}
-                onClick={handleExportCSV}
-              >
-                <FileDown className="size-4" />
-                Export CSV
-              </Button>
-              <Button variant="outline" size="sm" disabled={loading} onClick={handlePrint}>
-                <Printer className="size-4" />
-                Print
-              </Button>
-            </div>
-          }
-        />
-      </CardHeader>
-      <CardContent className="p-0">
-        {renderView()}
-      </CardContent>
-    </Card>
+    <TimesheetViewer
+      title="Timesheet"
+      subtitle={`Daily punch records and hours worked`}
+      employeeName={employeeName}
+      employeeImageUrl={employeeImageUrl}
+      view={view}
+      onViewChange={setView}
+      selectedDate={selectedDate}
+      onSelectedDateChange={(d) => {
+        setSelectedDate(d)
+        setUseCustomRange(false)
+      }}
+      useCustomRange={useCustomRange}
+      customStartDate={customStartDate}
+      customEndDate={customEndDate}
+      startDate={startDate}
+      endDate={endDate}
+      onCustomRangeChange={(s, e) => {
+        setCustomStartDate(s)
+        setCustomEndDate(e)
+        setUseCustomRange(true)
+      }}
+      onToday={handleTodayClick}
+      entries={entryRows}
+      loading={loading}
+      error={timesheetQuery.error}
+      onExportCsv={handleExportCSV}
+      onPrint={handlePrint}
+    />
   )
 }

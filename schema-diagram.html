@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timesheet App — Database Schema</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 24px; }
+  h1 { color: #fff; font-size: 20px; margin-bottom: 6px; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 24px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* Swimlane sections */
+  .section { margin-bottom: 28px; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; margin-bottom: 10px; padding-left: 4px; }
+  .cards-row { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* Collection card */
+  .card { border-radius: 8px; width: 220px; border: 1px solid; flex-shrink: 0; overflow: hidden; }
+  .card-header { padding: 8px 12px; font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  .card-header .collection-name { font-family: 'Courier New', monospace; font-size: 12px; opacity: 0.7; font-weight: 400; }
+  .card-body { padding: 8px 12px; background: rgba(0,0,0,0.3); }
+  .field { font-size: 11.5px; padding: 2px 0; display: flex; justify-content: space-between; align-items: center; gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .field:last-child { border-bottom: none; }
+  .field-name { font-family: 'Courier New', monospace; color: #c9d1d9; }
+  .field-type { color: #888; font-size: 10.5px; }
+  .field-ref { font-size: 10px; color: #58a6ff; font-style: italic; }
+  .badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; white-space: nowrap; }
+  .badge-new { background: #1a472a; color: #2ecc71; border: 1px solid #2ecc71; }
+  .badge-dep { background: #4a1010; color: #e74c3c; border: 1px solid #e74c3c; text-decoration: line-through; }
+  .badge-pk { background: #2a2a1a; color: #f1c40f; border: 1px solid #f1c40f; }
+  .badge-legacy { background: #3a2a00; color: #e67e22; border: 1px solid #e67e22; }
+  .section-divider { border: none; border-top: 1px solid #222; margin: 4px 0; }
+  .rel-tag { font-size: 9.5px; color: #888; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .rel-tag span { color: #58a6ff; }
+
+  /* Group colors */
+  .g-core   { border-color: #1d4e89; } .g-core .card-header   { background: #1d4e89; }
+  .g-people { border-color: #145a32; } .g-people .card-header { background: #145a32; }
+  .g-junc   { border-color: #2c3e50; } .g-junc .card-header   { background: #2c3e50; }
+  .g-sched  { border-color: #7e5109; } .g-sched .card-header  { background: #7e5109; }
+  .g-time   { border-color: #7b241c; } .g-time .card-header   { background: #7b241c; }
+  .g-pay    { border-color: #4a235a; } .g-pay .card-header    { background: #4a235a; }
+  .g-sys    { border-color: #2c2c2c; } .g-sys .card-header    { background: #2c2c2c; }
+
+  .wide { width: 260px; }
+  .note { font-size: 10px; color: #666; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 8px 12px; margin-top: 6px; line-height: 1.5; }
+  .note strong { color: #aaa; }
+</style>
+</head>
+<body>
+
+<h1>📊 Timesheet App — Database Schema</h1>
+<p class="subtitle">MongoDB Collections · <span style="color:#2ecc71">■ NEW</span> = fields being added · <span style="color:#e74c3c">■ DEPRECATED</span> = kept for compat · <span style="color:#e67e22">■ LEGACY</span> = old collection</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1d4e89"></div> Core / Config</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#145a32"></div> People</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2c3e50"></div> Junctions</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7e5109"></div> Scheduling</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7b241c"></div> Time &amp; Attendance</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4a235a"></div> Payroll / Financial</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2c2c2c"></div> System</div>
+</div>
+
+<!-- CORE -->
+<div class="section">
+  <div class="section-label">Core / Config</div>
+  <div class="cards-row">
+
+    <div class="card g-core">
+      <div class="card-header">Tenant <span class="collection-name">tenants</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">slug</span><span class="field-type">String unique</span></div>
+        <div class="rel-tag">Top-level org. Everything is tenant-scoped.</div>
+      </div>
+    </div>
+
+    <div class="card g-core wide">
+      <div class="card-header">Category <span class="collection-name">categories</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">type</span><span class="field-type">location | role | employer</span></div>
+        <div class="field"><span class="field-name">lat / lng / radius</span><span class="field-type">Number (location)</span></div>
+        <div class="field"><span class="field-name">geofenceMode</span><span class="field-type">hard | soft</span></div>
+        <div class="field"><span class="field-name">openingHour / closingHour</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">workingDays</span><span class="field-type">Number[]</span></div>
+        <div class="field"><span class="field-name">color</span><span class="field-type">String</span></div>
+        <div class="rel-tag">Single collection for <span>Location</span>, <span>Role</span>, <span>Employer</span> — distinguished by <span>type</span> field.</div>
+      </div>
+    </div>
+
+    <div class="card g-core">
+      <div class="card-header">ComplianceRule <span class="collection-name">compliancerules</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">name / ruleType</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">minShiftHours</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">breakRules</span><span class="field-type">BreakRule[]</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- JUNCTIONS -->
+<div class="section">
+  <div class="section-label">Junctions (Many-to-Many)</div>
+  <div class="cards-row">
+
+    <div class="card g-junc wide">
+      <div class="card-header">LocationRoleEnablement <span class="collection-name">locationroleenablements</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Category (role)</span></div>
+        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
+        <div class="rel-tag">Which <span>Roles</span> are active at which <span>Locations</span>. Supervisor only sees enabled roles.</div>
+      </div>
+    </div>
+
+    <div class="card g-junc wide">
+      <div class="card-header">EmployeeRoleAssignment <span class="collection-name">employeeroleassignments</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Category (role)</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">validFrom / validTo</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">assignedBy</span><span class="field-ref">→ User</span></div>
+        <div class="rel-tag">Links <span>Employee</span> to a <span>Role</span> at a <span>Location</span>.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PEOPLE -->
+<div class="section">
+  <div class="section-label">People</div>
+  <div class="cards-row">
+
+    <div class="card g-people wide">
+      <div class="card-header">User <span class="collection-name">users</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">name / username / email</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">role</span><span class="field-type">super_admin | admin | manager | supervisor | accounts | <span class="badge badge-dep">user</span></span></div>
+        <div class="field"><span class="field-name">location[]</span><span class="field-type">String[] (category names)</span></div>
+        <div class="field"><span class="field-name">managedRoles[]</span><span class="field-type">String[] (category names)</span></div>
+        <div class="field"><span class="field-name">rights[]</span><span class="badge badge-dep">deprecated</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="badge badge-new">NEW</span></div>
+        <div class="field"><span class="field-name">schedulingSettings</span><span class="field-type">Embedded</span></div>
+        <div class="note">
+          <strong>Scope:</strong> super_admin/admin → global<br>
+          manager → location[]<br>
+          supervisor → location[] + managedRoles[]<br>
+          accounts → location[] (empty = global)
+        </div>
+      </div>
+    </div>
+
+    <div class="card g-people wide">
+      <div class="card-header">Employee <span class="collection-name">employees</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">name / pin / email</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">employer[]</span><span class="field-type">String[] (category names)</span></div>
+        <div class="field"><span class="field-name">location[]</span><span class="field-type">String[] (category names)</span></div>
+        <div class="field"><span class="field-name">awardId</span><span class="field-ref">→ Award</span></div>
+        <div class="field"><span class="field-name">awardLevel / employmentType</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">payConditions[]</span><span class="field-type">PayConditionHistory[]</span></div>
+        <div class="field"><span class="field-name">schedules[]</span><span class="field-type">Schedule[] embedded</span></div>
+        <div class="rel-tag">Staff/workers. Assigned to roles via <span>EmployeeRoleAssignment</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-people">
+      <div class="card-header">StaffFaceProfile <span class="collection-name">stafffaceprofiles</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">faceDescriptor[]</span><span class="field-type">Number[]</span></div>
+        <div class="field"><span class="field-name">enrolledPhotoUrl</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">enrolledAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Face recognition for clock-in.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SCHEDULING -->
+<div class="section">
+  <div class="section-label">Scheduling</div>
+  <div class="cards-row">
+
+    <div class="card g-sched wide">
+      <div class="card-header">Roster <span class="collection-name">rosters</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">weekId</span><span class="field-type">String (YYYY-Www)</span></div>
+        <div class="field"><span class="field-name">weekStartDate / weekEndDate</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">draft | published</span></div>
+        <hr class="section-divider">
+        <div class="field" style="font-size:10px;color:#888">embedded Shifts[]</div>
+        <div class="field"><span class="field-name">  employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">  locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">  roleId</span><span class="field-ref">→ Category (role)</span></div>
+        <div class="field"><span class="field-name">  startTime / endTime</span><span class="field-type">Date UTC</span></div>
+        <div class="rel-tag">Weekly roster. Shifts embedded. Created/published by <span>Supervisor</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-sched">
+      <div class="card-header">RosterTemplate <span class="collection-name">rostertemplates</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">roleIds[]</span><span class="field-ref">→ Category (role)[]</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
+        <div class="field"><span class="field-name">templateShifts[]</span><span class="field-type">Embedded</span></div>
+      </div>
+    </div>
+
+    <div class="card g-sched">
+      <div class="card-header">Schedule <span class="collection-name">schedules</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Category (role)</span></div>
+        <div class="field"><span class="field-name">days[]</span><span class="field-type">Number[]</span></div>
+        <div class="field"><span class="field-name">startTime / endTime</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Recurring shift pattern. Embedded in Employee.schedules[].</div>
+      </div>
+    </div>
+
+    <div class="card g-sched">
+      <div class="card-header">ShiftSwapRequest <span class="collection-name">shiftswaprequests</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">requestorId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">recipientId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">requestorShiftId</span><span class="field-ref">→ Roster.shift</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">pending|approved|denied</span></div>
+        <div class="field"><span class="field-name">managerApprovedBy</span><span class="field-ref">→ User</span></div>
+      </div>
+    </div>
+
+    <div class="card g-sched">
+      <div class="card-header">AvailabilityConstraint <span class="collection-name">availabilityconstraints</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">preferredDays[]</span><span class="field-type">Number[]</span></div>
+        <div class="field"><span class="field-name">unavailableDays[]</span><span class="field-type">Number[]</span></div>
+        <div class="field"><span class="field-name">preferredHours[]</span><span class="field-type">TimeRange[]</span></div>
+        <div class="field"><span class="field-name">temporaryStartDate/End</span><span class="field-type">Date</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TIME & ATTENDANCE -->
+<div class="section">
+  <div class="section-label">Time &amp; Attendance</div>
+  <div class="cards-row">
+
+    <div class="card g-time wide" style="width:300px">
+      <div class="card-header">DailyShift ⭐ <span class="collection-name">daily_shifts</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">pin</span><span class="field-type">String (legacy ID)</span></div>
+        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="badge badge-new">NEW</span></div>
+        <div class="field"><span class="field-name">roleId</span><span class="badge badge-new">NEW</span></div>
+        <div class="field"><span class="field-name">employeeId</span><span class="badge badge-new">NEW → Employee</span></div>
+        <div class="field"><span class="field-name">clockIn / breakIn / breakOut / clockOut</span><span class="field-type">ClockEvent</span></div>
+        <div class="field"><span class="field-name">totalWorkingHours / totalBreakMinutes</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">source</span><span class="field-type">clock | manual | leave</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">active → completed → approved → locked → processed → exported | rejected</span></div>
+        <div class="field"><span class="field-name">approvedBy / approvedAt</span><span class="badge badge-new">NEW → User</span></div>
+        <div class="field"><span class="field-name">lockedBy / lockedAt</span><span class="badge badge-new">NEW → User</span></div>
+        <div class="field"><span class="field-name">processedBy / processedAt</span><span class="badge badge-new">NEW → User</span></div>
+        <div class="field"><span class="field-name">exportedAt</span><span class="badge badge-new">NEW</span></div>
+        <div class="field"><span class="field-name">exportReference</span><span class="badge badge-new">NEW (Xero/MYOB ref)</span></div>
+        <div class="note">
+          <strong>Workflow:</strong> active→completed (auto) → approved (supervisor/manager) → locked (supervisor/manager) → processed (accounts) → exported (Xero/MYOB)
+        </div>
+      </div>
+    </div>
+
+    <div class="card g-time">
+      <div class="card-header">LeaveRecord <span class="collection-name">leave_records</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">startDate / endDate</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">leaveType</span><span class="field-type">ANNUAL|SICK|UNPAID|PH</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">PENDING|APPROVED|DENIED</span></div>
+        <div class="field"><span class="field-name">approvedBy / deniedBy</span><span class="field-ref">→ User</span></div>
+        <div class="rel-tag">Approved by <span>Manager</span> or <span>Supervisor</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-time">
+      <div class="card-header">TOILBalance <span class="collection-name">toilbalances</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">organisationId</span><span class="field-ref">→ Tenant</span></div>
+        <div class="field"><span class="field-name">pin</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">totalBalance</span><span class="field-type">Number (hrs)</span></div>
+        <div class="field"><span class="field-name">entries[]</span><span class="field-type">TOILEntry[]</span></div>
+        <div class="rel-tag">Time Off In Lieu balance per employee.</div>
+      </div>
+    </div>
+
+    <div class="card g-time">
+      <div class="card-header">BuddyPunchAlert <span class="collection-name">buddypunchalerts</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Category (location)</span></div>
+        <div class="field"><span class="field-name">punchTime</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">capturedPhotoUrl</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">pending|reviewed|dismissed</span></div>
+        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User</span></div>
+      </div>
+    </div>
+
+    <div class="card g-time" style="border-color:#5d3a1a">
+      <div class="card-header" style="background:#5d3a1a">Timesheet <span class="collection-name">timesheets</span><span class="badge badge-legacy" style="margin-left:6px">LEGACY</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">pin</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">type</span><span class="field-type">in | out | break | endBreak</span></div>
+        <div class="field"><span class="field-name">date / time</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">scheduleShiftId</span><span class="field-ref">→ Roster</span></div>
+        <div class="rel-tag" style="color:#e67e22">Replaced by <span style="color:#e74c3c">DailyShift</span>. Not in active use.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PAYROLL / FINANCIAL -->
+<div class="section">
+  <div class="section-label">Payroll / Financial</div>
+  <div class="cards-row">
+
+    <div class="card g-pay wide">
+      <div class="card-header">Award <span class="collection-name">awards</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">name</span><span class="field-type">String unique</span></div>
+        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">version</span><span class="field-type">String</span></div>
+        <hr class="section-divider">
+        <div class="field" style="font-size:10px;color:#888">embedded rules[]</div>
+        <div class="field"><span class="field-name">  id / name / priority</span><span class="field-type">String / Number</span></div>
+        <div class="field"><span class="field-name">  isActive / canStack</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">  conditions</span><span class="field-type">RuleConditions</span></div>
+        <div class="field"><span class="field-name">  outcome</span><span class="field-type">ordinary | overtime | allowance | toil | break | leave</span></div>
+        <hr class="section-divider">
+        <div class="field"><span class="field-name">availableTags[]</span><span class="field-type">AwardTag[]</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Rule-based award engine. Applied to <span>Employee.awardId</span> and <span>Employee.payConditions[]</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay">
+      <div class="card-header">OAuthToken <span class="collection-name">oauthtokens</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Tenant</span></div>
+        <div class="field"><span class="field-name">type</span><span class="field-type">access | refresh | permanent</span></div>
+        <div class="field"><span class="field-name">scopes[]</span><span class="field-type">String[]</span></div>
+        <div class="field"><span class="field-name">tokenHash</span><span class="field-type">String (SHA-256)</span></div>
+        <div class="rel-tag">Xero / MYOB OAuth tokens. Used for payroll export.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SYSTEM -->
+<div class="section">
+  <div class="section-label">System</div>
+  <div class="cards-row">
+
+    <div class="card g-sys">
+      <div class="card-header">Device <span class="collection-name">devices</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">deviceId / deviceName</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">locationName</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">registeredBy</span><span class="field-ref">→ User</span></div>
+        <div class="field"><span class="field-name">lastUsedBy</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">pending|active|revoked</span></div>
+      </div>
+    </div>
+
+    <div class="card g-sys">
+      <div class="card-header">AuditLog <span class="collection-name">auditlogs</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">rosterId</span><span class="field-ref">→ Roster</span></div>
+        <div class="field"><span class="field-name">action</span><span class="field-type">CREATE|UPDATE|DELETE|...</span></div>
+        <div class="field"><span class="field-name">entityType / entityId</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">oldValue / newValue</span><span class="field-type">Mixed</span></div>
+      </div>
+    </div>
+
+    <div class="card g-sys">
+      <div class="card-header">ActivityLog <span class="collection-name">activitylogs</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">userId</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">action / details</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">success|error|warning</span></div>
+        <div class="field"><span class="field-name">category</span><span class="field-type">String (default: storage)</span></div>
+      </div>
+    </div>
+
+    <div class="card g-sys">
+      <div class="card-header">StorageSettings <span class="collection-name">storagesettings</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">provider</span><span class="field-type">cloudinary | r2</span></div>
+        <div class="field"><span class="field-name">cloudinaryCloudName</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">r2BucketName / r2PublicUrl</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">updatedBy</span><span class="field-ref">→ User</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MISSING / PROPOSED -->
+<div class="section">
+  <div class="section-label" style="color:#f1c40f">⚠ Gaps Identified (Separate Tasks)</div>
+  <div class="cards-row">
+    <div class="note" style="width:100%;max-width:860px">
+      <strong style="color:#f1c40f">LocationEmployerEnablement (MISSING)</strong> — Employer (Category type=employer) has no location binding. A junction collection linking employer → location is needed, identical to LocationRoleEnablement. Without this, employers remain global to the org instead of being location-scoped. This is a separate task.<br><br>
+      <strong style="color:#f1c40f">IntegrationConfig (PROPOSED, not yet built)</strong> — Xero/MYOB credentials and entity mappings per location or org. OAuthToken handles the token, but a config document storing the mapping (Employee → Xero Employee ID, Award → Xero Pay Item) is needed for the export workflow.<br><br>
+      <strong style="color:#f1c40f">DailyShift.locationId / roleId stored as String</strong> — Currently these will be stored as Category names (strings) to match how User.location[] and Employee.location[] work. This is intentional for now. A future migration to ObjectId references with proper $lookup queries is recommended.
+    </div>
+  </div>
+</div>
+
+<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Generated from live schema files · Next.js + MongoDB · Timesheet App</p>
+
+</body>
+</html>

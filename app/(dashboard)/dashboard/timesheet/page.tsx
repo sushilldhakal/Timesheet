@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import { FileDown, Printer, AlignJustify, Columns, LayoutGrid } from "lucide-react"
+import { FileDown, Printer, AlignJustify, Columns, LayoutGrid, DollarSign } from "lucide-react"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
@@ -21,9 +21,74 @@ import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageS
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
 import { useMe } from "@/lib/queries/auth"
 import { useEmployees } from "@/lib/queries/employees"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
 import { useTimesheets } from "@/lib/queries/timesheets"
 import { getTimesheets } from "@/lib/api/timesheets"
+import { AwardEnhancedRow } from "@/components/timesheet/award-enhanced-row"
+
+// 🔥 Mock award data for demonstration
+const mockAwardData: Record<string, any> = {
+  // This would normally come from the API with award engine processing
+  "emp1-2024-01-15": {
+    awardTags: ["TOIL"],
+    computed: {
+      segments: [
+        {
+          startTime: "09:00",
+          endTime: "17:00",
+          ruleName: "Ordinary Time",
+          outcome: { type: "ordinary", multiplier: 1.0 },
+          durationMinutes: 480
+        },
+        {
+          startTime: "17:00",
+          endTime: "17:30",
+          ruleName: "TOIL Accrual",
+          outcome: { type: "toil", accrualMultiplier: 1.5 },
+          durationMinutes: 30
+        }
+      ],
+      totalOrdinaryHours: 8.0,
+      totalOvertimeHours: 0,
+      totalToilHours: 0.75,
+      allowances: [],
+      breakEntitlements: [
+        { startTime: "12:00", durationMinutes: 30, isPaid: false }
+      ]
+    }
+  },
+  "emp2-2024-01-15": {
+    awardTags: [],
+    computed: {
+      segments: [
+        {
+          startTime: "14:00",
+          endTime: "22:00",
+          ruleName: "Ordinary Time",
+          outcome: { type: "ordinary", multiplier: 1.0 },
+          durationMinutes: 480
+        },
+        {
+          startTime: "22:00",
+          endTime: "23:00",
+          ruleName: "Daily Overtime",
+          outcome: { type: "overtime", multiplier: 1.5 },
+          durationMinutes: 60
+        }
+      ],
+      totalOrdinaryHours: 8.0,
+      totalOvertimeHours: 1.0,
+      totalToilHours: 0,
+      allowances: [
+        { name: "Night Shift Allowance", amount: 25, currency: "AUD" }
+      ],
+      breakEntitlements: [
+        { startTime: "18:00", durationMinutes: 30, isPaid: false }
+      ]
+    }
+  }
+}
 
 interface DashboardTimesheetRow {
   date: string
@@ -42,6 +107,38 @@ interface DashboardTimesheetRow {
   breakHours: string
   totalMinutes: number
   totalHours: string
+  // 🔥 NEW: Award system fields
+  awardTags?: string[]
+  computed?: {
+    segments: Array<{
+      startTime: string
+      endTime: string
+      ruleName: string
+      outcome: {
+        type: "ordinary" | "overtime" | "allowance" | "toil" | "break" | "leave"
+        multiplier?: number
+        flatRate?: number
+        currency?: string
+        accrualMultiplier?: number
+        durationMinutes?: number
+        isPaid?: boolean
+      }
+      durationMinutes: number
+    }>
+    totalOrdinaryHours: number
+    totalOvertimeHours: number
+    totalToilHours: number
+    allowances: Array<{
+      name: string
+      amount: number
+      currency: string
+    }>
+    breakEntitlements: Array<{
+      startTime: string
+      durationMinutes: number
+      isPaid: boolean
+    }>
+  }
 }
 
 interface Category {
@@ -113,8 +210,8 @@ export default function TimesheetPage() {
   // TanStack Query hooks
   const userQuery = useMe()
   const employeesQuery = useEmployees(500)
-  const locationsQuery = useCategoriesByType('location')
-  const rolesQuery = useCategoriesByType('role')
+  const locationsQuery = useLocations()
+  const rolesQuery = useRoles()
 
   const timesheetFilters = useMemo(
     () => ({
@@ -151,6 +248,19 @@ export default function TimesheetPage() {
   const timesheetError = timesheetsQuery.isError
     ? (timesheetsQuery.error instanceof Error ? timesheetsQuery.error.message : "Failed to load timesheets")
     : null
+
+  // 🔥 Enhance timesheets with award data
+  const enhancedTimesheets = useMemo(() => {
+    return timesheets.map((ts: any) => {
+      const key = `${ts.employeeId}-${ts.date}`
+      const awardData = mockAwardData[key]
+      return {
+        ...ts,
+        awardTags: awardData?.awardTags || [],
+        computed: awardData?.computed
+      }
+    })
+  }, [timesheets])
 
   // Process employees data
   const fetchFilters = useCallback(async () => {
@@ -224,14 +334,14 @@ export default function TimesheetPage() {
             locationsArray = [{ id: only, name: only, type: "location" }]
           } else {
             locationsArray =
-              locationsQuery.data?.categories?.map((loc: any) => ({
+              locationsQuery.data?.locations?.map((loc: any) => ({
                 id: loc.id,
                 name: loc.name,
                 type: "location",
               })) || []
           }
           
-          rolesArray = rolesQuery.data?.categories?.map((role: any) => ({ 
+          rolesArray = rolesQuery.data?.roles?.map((role: any) => ({ 
             id: role.id, 
             name: role.name, 
             type: "role" 
@@ -497,7 +607,7 @@ export default function TimesheetPage() {
         const safeEndDate = useCustomRange && safeRangeEnd && isValid(safeRangeEnd) ? safeRangeEnd : undefined
         return (
           <TimesheetDayView
-            data={timesheets as DashboardTimesheetRow[]}
+            data={enhancedTimesheets as DashboardTimesheetRow[]}
             selectedDate={safeSelectedDate}
             endDate={safeEndDate}
             loading={loading}
@@ -519,7 +629,7 @@ export default function TimesheetPage() {
           <TimesheetWeekView
             data={[]}
             preAggregated
-            aggregatedRows={timesheets as unknown as WeekAggApiRow[]}
+            aggregatedRows={enhancedTimesheets as unknown as WeekAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />
@@ -529,7 +639,7 @@ export default function TimesheetPage() {
           <TimesheetMonthView
             data={[]}
             preAggregated
-            aggregatedRows={timesheets as unknown as MonthAggApiRow[]}
+            aggregatedRows={enhancedTimesheets as unknown as MonthAggApiRow[]}
             selectedDate={selectedDate}
             loading={loading}
           />
@@ -713,7 +823,7 @@ export default function TimesheetPage() {
         {isHydrated && !loading && timesheetTotal > 0 && (
           <>
             {/* Screen stat cards */}
-            <div className="grid grid-cols-3 gap-3 print:hidden">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 print:hidden">
               <div className="rounded-lg border-l-4 border-l-emerald-500 bg-card px-4 py-3 shadow-sm">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Hours</p>
                 <p className="mt-0.5 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalWorkingHours}</p>
@@ -733,9 +843,24 @@ export default function TimesheetPage() {
                   {view === "day" ? "Clock-in records" : "With hours this period"}
                 </p>
               </div>
+              {/* 🔥 NEW: Award System Stats */}
+              <div className="rounded-lg border-l-4 border-l-green-500 bg-card px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Overtime Hours</p>
+                <p className="mt-0.5 text-2xl font-bold text-green-600 dark:text-green-400">
+                  {enhancedTimesheets.reduce((sum: number, ts: any) => sum + (ts.computed?.totalOvertimeHours || 0), 0).toFixed(1)}h
+                </p>
+                <p className="text-xs text-muted-foreground">1.5x+ penalty rates</p>
+              </div>
+              <div className="rounded-lg border-l-4 border-l-orange-500 bg-card px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">TOIL Accrued</p>
+                <p className="mt-0.5 text-2xl font-bold text-orange-600 dark:text-orange-400">
+                  {enhancedTimesheets.reduce((sum: number, ts: any) => sum + (ts.computed?.totalToilHours || 0), 0).toFixed(1)}h
+                </p>
+                <p className="text-xs text-muted-foreground">Time off banked</p>
+              </div>
             </div>
             {/* Print-only compact version */}
-            <div className="hidden print:flex gap-6 rounded-lg border border-gray-300 bg-white px-4 py-3 text-xs">
+            <div className="hidden print:flex gap-6 rounded-lg border border-border bg-background px-4 py-3 text-xs">
               <span><strong>Total Break:</strong> {totalBreakHours}</span>
               <span><strong>Total Hours:</strong> {totalWorkingHours}</span>
               <span><strong>Records:</strong> {timesheetTotal}{view === "day" && timesheets.length !== timesheetTotal ? ` (showing ${timesheets.length} on this page)` : ""}</span>
@@ -766,6 +891,30 @@ export default function TimesheetPage() {
             {(error || timesheetError) && (
               <p className="mb-4 text-sm text-destructive">{timesheetError || error}</p>
             )}
+            
+            {/* 🔥 Award System Enhancement */}
+            {view === "day" && enhancedTimesheets.some((ts: any) => ts.computed || (ts.awardTags && ts.awardTags.length > 0)) && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Award System Active - Enhanced Pay Calculation
+                </h3>
+                <div className="space-y-3">
+                  {enhancedTimesheets
+                    .filter((ts: any) => ts.computed || (ts.awardTags && ts.awardTags.length > 0))
+                    .slice(0, 3)
+                    .map((ts: any, index: number) => (
+                      <AwardEnhancedRow key={index} timesheet={ts} />
+                    ))}
+                </div>
+                {enhancedTimesheets.filter((ts: any) => ts.computed || (ts.awardTags && ts.awardTags.length > 0)).length > 3 && (
+                  <p className="text-sm text-blue-700 mt-3">
+                    And {enhancedTimesheets.filter((ts: any) => ts.computed || (ts.awardTags && ts.awardTags.length > 0)).length - 3} more timesheets with award processing...
+                  </p>
+                )}
+              </div>
+            )}
+            
             {renderCurrentView()}
           </CardContent>
         </Card>

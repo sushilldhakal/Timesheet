@@ -1,26 +1,8 @@
 import { EmployeeRoleAssignment, LocationRoleEnablement, DailyShift, Employee } from '@/lib/db'
+import { parseTimeToHour24 } from '@/lib/utils/format/time'
 import mongoose from 'mongoose'
 
 const { ObjectId } = mongoose.Types
-
-/** Parse time string or Date to 24h hour (0–23). */
-function parseTimeToHour24(t?: string | Date): number | null {
-  if (!t) return null
-  if (t instanceof Date) {
-    return !isNaN(t.getTime()) ? t.getHours() : null
-  }
-  if (typeof t !== "string" || !t.trim()) return null
-  const s = t.trim()
-  const d = new Date(s)
-  if (!isNaN(d.getTime())) return d.getHours()
-  const match = s.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i)
-  if (!match) return null
-  let hour = parseInt(match[1], 10)
-  const ampm = match[3]?.toUpperCase()
-  if (ampm === "PM" && hour >= 1 && hour <= 11) hour += 12
-  if (ampm === "AM" && hour === 12) hour = 0
-  return hour
-}
 
 function processClockEvent(
   event: any,

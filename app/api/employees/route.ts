@@ -68,7 +68,7 @@ export const GET = createApiRoute({
       await connectDB()
 
       const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-      const { Category } = await import("@/lib/db")
+      const { Role, Location, Employer } = await import("@/lib/db")
 
       const andConditions: Record<string, unknown>[] = []
       const locFilter = employeeLocationFilter(ctx.userLocations)
@@ -93,13 +93,12 @@ export const GET = createApiRoute({
 
       // Add role filters if provided - need to check role assignments
       if (roleFilters.length > 0) {
-        const roleCategories = await Category.find({
+        const roleCategories = await Role.find({
           name: { $in: roleFilters },
-          type: "role"
         }).lean()
         
         if (roleCategories.length > 0) {
-          const roleIds = roleCategories.map(r => r._id)
+          const roleIds = roleCategories.map((r) => r._id)
           
           const roleAssignments = await EmployeeRoleAssignment.find({
             roleId: { $in: roleIds },
@@ -147,7 +146,8 @@ export const GET = createApiRoute({
         // ---------------------------------------------------------------
         
         const roleAssignmentCollection = "employee_role_assignments"  // Explicit collection name
-        const categoryCollection = "categories"                                    // Explicit collection name
+        const roleCollection = "roles"
+        const locationCollection = "locations"
 
         const pipeline: object[] = [
           // 1. Apply the same filter we'd pass to .find()
@@ -182,7 +182,7 @@ export const GET = createApiRoute({
         if (sortBy === "role") {
           pipeline.push({
             $lookup: {
-              from: categoryCollection,
+              from: roleCollection,
               localField: "_primaryAssignment.roleId",
               foreignField: "_id",
               as: "_roleCategory"
@@ -202,7 +202,7 @@ export const GET = createApiRoute({
         if (sortBy === "location") {
           pipeline.push({
             $lookup: {
-              from: categoryCollection,
+              from: locationCollection,
               localField: "_primaryAssignment.locationId",
               foreignField: "_id",
               as: "_locationCategory"
@@ -259,8 +259,8 @@ export const GET = createApiRoute({
         employeeId: { $in: employeeIds },
         isActive: true,
       })
-        .populate("roleId", "name color type")
-        .populate("locationId", "name type")
+        .populate("roleId", "name color")
+        .populate("locationId", "name")
         .lean()
 
       // Get all unique location IDs from role assignments (filter out null locations)
@@ -271,9 +271,8 @@ export const GET = createApiRoute({
       ))
       
       // Fetch full location details
-      const locations = await Category.find({
-        _id: { $in: locationIds },
-        type: "location"
+      const locations = await Location.find({
+        _id: { $in: locationIds.map((id) => new mongoose.Types.ObjectId(id)) },
       }).lean()
       
       const locationMap = new Map(
@@ -348,9 +347,8 @@ export const GET = createApiRoute({
       const allEmployerNames = Array.from(
         new Set(employees.flatMap(e => arr(e.employer)))
       )
-      const employers = await Category.find({
+      const employers = await Employer.find({
         name: { $in: allEmployerNames },
-        type: "employer"
       }).select("_id name color").lean()
       
       const employerMap = new Map(
@@ -467,6 +465,7 @@ export const POST = createApiRoute({
 
     try {
       await connectDB()
+      const { Role, Location } = await import("@/lib/db")
 
       // Check email uniqueness if email provided
       if (body.email) {
@@ -525,20 +524,17 @@ export const POST = createApiRoute({
 
       // Create role assignments if roles and locations are provided
       const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-      const { Category } = await import("@/lib/db")
-      
+
       const createdAssignments = []
       
       if (body.role && body.role.length > 0 && body.location && body.location.length > 0) {
-        // Fetch role and location IDs from category names
-        const roleCategories = await Category.find({
+        // Fetch role and location IDs from names
+        const roleCategories = await Role.find({
           name: { $in: body.role },
-          type: "role"
         }).lean()
         
-        const locationCategories = await Category.find({
+        const locationCategories = await Location.find({
           name: { $in: body.location },
-          type: "location"
         }).lean()
         
         // Create role assignments for each role-location combination

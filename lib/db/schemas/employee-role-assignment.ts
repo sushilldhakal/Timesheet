@@ -6,8 +6,9 @@ import mongoose from "mongoose"
  */
 export interface IEmployeeRoleAssignment {
   employeeId: mongoose.Types.ObjectId  // ref: Employee
-  roleId: mongoose.Types.ObjectId      // ref: Category (type=role)
-  locationId: mongoose.Types.ObjectId  // ref: Category (type=location)
+  roleId: mongoose.Types.ObjectId      // ref: Role
+  locationId: mongoose.Types.ObjectId  // ref: Location
+  isPrimary: boolean                   // Primary assignment for employee
   validFrom: Date                      // When assignment starts
   validTo: Date | null                 // When assignment ends (null = indefinite)
   isActive: boolean                    // Computed: current date within range
@@ -35,7 +36,7 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Role",
       required: [true, "Role ID is required"],
       validate: {
         validator: function(v: mongoose.Types.ObjectId) {
@@ -46,7 +47,7 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
     },
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Location",
       required: [true, "Location ID is required"],
       validate: {
         validator: function(v: mongoose.Types.ObjectId) {
@@ -54,6 +55,10 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
         },
         message: "Location ID must be a valid ObjectId"
       }
+    },
+    isPrimary: {
+      type: Boolean,
+      default: false,
     },
     validFrom: {
       type: Date,

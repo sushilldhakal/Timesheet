@@ -14,8 +14,15 @@ export interface IPayConditionHistory {
 export interface IEmployee {
   name: string
   pin: string
+  /** Legacy (pre-migration) fields */
   employer?: string[]
   location?: string[]
+
+  /** New normalized refs */
+  locationIds?: mongoose.Types.ObjectId[]
+  employerIds?: mongoose.Types.ObjectId[]
+  primaryLocationId?: mongoose.Types.ObjectId | null
+  employerId?: mongoose.Types.ObjectId | null
   email?: string
   phone?: string
   homeAddress?: string
@@ -67,6 +74,11 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     pin: { type: String, required: true },
     employer: { type: [String], default: [] },
     location: { type: [String], default: [] },
+
+    locationIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Location" }],
+    employerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Employer" }],
+    primaryLocationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", default: null },
+    employerId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", default: null },
     email: { type: String, default: "", trim: true, lowercase: true, sparse: true, index: true },
     phone: { type: String, default: "" },
     homeAddress: { type: String, default: "" },
@@ -101,6 +113,8 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
 
 employeeSchema.index({ pin: 1 })
 employeeSchema.index({ awardId: 1 })
+employeeSchema.index({ locationIds: 1 })
+employeeSchema.index({ employerIds: 1 })
 // Sparse compound index for efficient roster auto-population queries
 employeeSchema.index(
   { "schedules.effectiveFrom": 1, "schedules.effectiveTo": 1 },

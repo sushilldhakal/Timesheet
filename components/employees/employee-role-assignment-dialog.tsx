@@ -33,7 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/lib/utils/toast"
 import { CheckCircle2, MapPin, Briefcase, Loader2 } from "lucide-react"
-import { useCategories } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
 import { useRolesAvailability } from "@/lib/queries/roles"
 import { useCreateEmployeeRole } from "@/lib/queries/employees"
 
@@ -105,14 +105,14 @@ export function EmployeeRoleAssignmentDialog({
   })
 
   // TanStack Query hooks
-  const { data: categoriesData, isLoading: loadingLocations } = useCategories()
+  const { data: locationsData, isLoading: loadingLocations } = useLocations()
   const selectedLocationId = form.watch("locationId")
   const { data: rolesData, isLoading: loadingRoles } = useRolesAvailability({ 
     locationId: selectedLocationId 
   })
   const createRoleMutation = useCreateEmployeeRole()
 
-  const locations = categoriesData?.categories?.filter((cat: any) => cat.type === 'location') || []
+  const locations = locationsData?.locations || []
   const roles = rolesData?.roles || []
 
   const selectedRoleId = form.watch("roleId")

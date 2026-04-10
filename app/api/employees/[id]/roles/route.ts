@@ -1,4 +1,4 @@
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getAuthFromCookie, getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { connectDB } from "@/lib/db"
 import { RoleAssignmentManager, RoleAssignmentError } from "@/lib/managers/role-assignment-manager"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
@@ -35,16 +35,22 @@ export const GET = createApiRoute({
     503: errorResponseSchema
   },
   handler: async ({ params, query }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
-      return { status: 401, data: formatError("Unauthorized", "AUTH_REQUIRED") };
-    }
-
     if (!params) {
       return { status: 400, data: formatError("Employee ID is required", "INVALID_EMPLOYEE_ID") };
     }
 
     const { id: employeeId } = params;
+    const adminAuth = await getAuthFromCookie()
+    const employeeAuth = adminAuth ? null : await getEmployeeFromCookie()
+    const isSelfEmployee = employeeAuth?.sub === employeeId
+
+    // Allow:
+    // - admins/managers/etc via admin cookie
+    // - employees ONLY for their own id (read-only)
+    if (!adminAuth && !isSelfEmployee) {
+      return { status: 401, data: formatError("Unauthorized", "AUTH_REQUIRED") };
+    }
+
     const locationId = query?.locationId;
     const dateParam = query?.date;
     const includeInactive = query?.includeInactive === "true";

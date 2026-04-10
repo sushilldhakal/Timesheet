@@ -81,8 +81,16 @@ export async function getCalendarEvents(filters: CalendarEventsFilters): Promise
     const contentType = response.headers.get('content-type')
     
     if (contentType?.includes('application/json')) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to fetch events')
+      const error = await response.json().catch(() => ({} as any))
+      const base = (error as any)?.error || 'Failed to fetch events'
+      const details = (error as any)?.details
+      const suffix =
+        details == null
+          ? ''
+          : typeof details === 'string'
+            ? `: ${details}`
+            : `: ${JSON.stringify(details)}`
+      throw new Error(`${base}${suffix}`)
     } else {
       // If we get HTML instead of JSON, log it for debugging
       const text = await response.text()

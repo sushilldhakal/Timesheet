@@ -41,18 +41,10 @@ export {
   timesheetResponseSchema
 } from "./timesheet"
 
-// Category schemas (excluding duplicates)
-export {
-  categoryCreateSchema,
-  categoryUpdateSchema,
-  categoryResponseSchema
-} from "./category"
-
 // Use common schemas for param validation (single source of truth)
 export { 
   employeeIdParamSchema,
   userIdParamSchema,
-  categoryIdParamSchema
 } from "./common"
 
 // Other schemas without conflicts
@@ -66,3 +58,7 @@ export * from "./device"
 export * from "./admin"
 export * from "./employee-clock"
 export * from "./awards"
+
+// Master data schemas
+export * from "./role"
+export * from "./employer"

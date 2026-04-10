@@ -11,9 +11,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { CATEGORY_TYPE_LABELS } from "@/lib/config/category-types"
-import { useDeleteCategory } from "@/lib/queries/categories"
+import { useDeleteLocation } from "@/lib/queries/locations"
+import { useDeleteRole } from "@/lib/queries/roles"
+import { useDeleteEmployer } from "@/lib/queries/employers"
 import type { CategoryRow } from "./page"
+
+const TYPE_LABELS: Record<"role" | "employer" | "location", string> = {
+  role: "Role",
+  employer: "Employer",
+  location: "Location",
+}
 
 type Props = {
   category: CategoryRow
@@ -30,14 +37,18 @@ export function DeleteCategoryDialog({
 }: Props) {
   const [error, setError] = useState<string | null>(null)
 
-  const deleteCategoryMutation = useDeleteCategory()
+  const deleteLocationMutation = useDeleteLocation()
+  const deleteRoleMutation = useDeleteRole()
+  const deleteEmployerMutation = useDeleteEmployer()
 
-  const typeLabel = CATEGORY_TYPE_LABELS[category.type]
+  const typeLabel = TYPE_LABELS[category.type]
 
   const handleDelete = async () => {
     setError(null)
     try {
-      await deleteCategoryMutation.mutateAsync(category.id)
+      if (category.type === "location") await deleteLocationMutation.mutateAsync(category.id)
+      else if (category.type === "role") await deleteRoleMutation.mutateAsync(category.id)
+      else await deleteEmployerMutation.mutateAsync(category.id)
       onOpenChange(false)
       onSuccess()
     } catch (err) {
@@ -45,7 +56,7 @@ export function DeleteCategoryDialog({
     }
   }
 
-  const loading = deleteCategoryMutation.isPending
+  const loading = deleteLocationMutation.isPending || deleteRoleMutation.isPending || deleteEmployerMutation.isPending
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

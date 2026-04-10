@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useMe } from "@/lib/queries/auth"
 import { useCalendarEvents } from "@/lib/queries/calendar"
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from "date-fns"
 import { Clock, MapPin, Briefcase, Calendar } from "lucide-react"
@@ -11,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 interface StaffRosterViewProps {
   selectedDate: Date
+  employeeId: string
 }
 
 interface Shift {
@@ -25,8 +25,7 @@ interface Shift {
   notes?: string
 }
 
-export function StaffRosterView({ selectedDate }: StaffRosterViewProps) {
-  const { data: userInfo } = useMe()
+export function StaffRosterView({ selectedDate, employeeId }: StaffRosterViewProps) {
   const [shifts, setShifts] = useState<Shift[]>([])
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
@@ -36,16 +35,16 @@ export function StaffRosterView({ selectedDate }: StaffRosterViewProps) {
   const { data: eventsData, isLoading } = useCalendarEvents({
     startDate: weekStart.toISOString(),
     endDate: weekEnd.toISOString(),
-    userId: userInfo?.user?.id || "all",
+    userId: employeeId,
     publishedOnly: true,
   })
 
   // Transform events to shifts
   useEffect(() => {
     const rawEvents = (eventsData as { events?: unknown[] } | undefined)?.events
-    if (rawEvents?.length && userInfo?.user?.id) {
+    if (rawEvents?.length && employeeId) {
       const userShifts = rawEvents
-        .filter((event: any) => event.user?.id === userInfo.user?.id)
+        .filter((event: any) => event.user?.id === employeeId)
         .map((event: any) => {
           const startDate = parseISO(event.startDate)
           const endDate = parseISO(event.endDate)
@@ -65,8 +64,10 @@ export function StaffRosterView({ selectedDate }: StaffRosterViewProps) {
         })
       
       setShifts(userShifts)
+    } else {
+      setShifts([])
     }
-  }, [eventsData, userInfo])
+  }, [eventsData, employeeId])
 
   // Group shifts by day
   const shiftsByDay = useMemo(() => {

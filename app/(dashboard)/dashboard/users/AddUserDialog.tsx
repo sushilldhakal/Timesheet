@@ -16,44 +16,91 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/MultiSelect"
-import { RIGHTS_LIST, RIGHT_LABELS, type Right } from "@/lib/config/rights"
-import { CATEGORY_TYPES } from "@/lib/config/category-types"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCreateUser } from "@/lib/queries/users"
+import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
+import { AlertCircle } from "lucide-react"
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  currentUserRole: string | null
 }
 
-export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
+export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }: Props) {
   const [creationType, setCreationType] = useState<"manual" | "from-staff">("manual")
   const [selectedEmployee, setSelectedEmployee] = useState<string>("")
   const [name, setName] = useState("")
-  const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [selectedRole, setSelectedRole] = useState<string>("")
   const [location, setLocation] = useState<string[]>([])
-  const [rights, setRights] = useState<Right[]>([])
   const [managedRoles, setManagedRoles] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
 
-  const locationsQuery = useCategoriesByType("location")
-  const rolesQuery = useCategoriesByType("role")
+  const locationsQuery = useLocations()
+  const rolesQuery = useRoles()
   const employeesQuery = useEmployees(1000)
   const createUserMutation = useCreateUser()
 
-  const locationOptions = locationsQuery.data?.categories?.map((c) => ({
+  const locationOptions = locationsQuery.data?.locations?.map((c) => ({
     value: c.name,
     label: c.name,
   })) || []
 
-  const allRoles = rolesQuery.data?.categories || []
+  const allRoles = rolesQuery.data?.roles || []
+
+  // All available roles to show in dropdown
+  const allRoleOptions = useMemo(() => {
+    return [
+      { value: UserRole.ADMIN, label: "Admin" },
+      { value: UserRole.MANAGER, label: "Manager" },
+      { value: UserRole.SUPERVISOR, label: "Supervisor" },
+      { value: UserRole.ACCOUNTS, label: "Accounts" },
+      { value: UserRole.USER, label: "User (Deprecated)" },
+      { value: UserRole.EMPLOYEE, label: "Employee" },
+    ]
+  }, [])
+
+  // Check if current user can create the selected role
+  const canCreateSelectedRole = useMemo(() => {
+    if (!selectedRole) return true
+    return canCreateUser(currentUserRole, selectedRole)
+  }, [currentUserRole, selectedRole])
+
+  // Compute role options based on selected locations (for managed roles)
+  const roleOptions = useMemo(() => {
+    if (location.length === 0) {
+      return []
+    }
+    return allRoles.map(r => ({
+      value: r.name,
+      label: r.name,
+    }))
+  }, [location.length, allRoles])
+
+  // Determine if we should show location field
+  const showLocationField = useMemo(() => {
+    if (!selectedRole) return true
+    // Hide for global scope roles
+    return ![UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.ACCOUNTS].includes(selectedRole as UserRole)
+  }, [selectedRole])
+
+  // Determine if we should show managed roles field
+  const showManagedRolesField = useMemo(() => {
+    return selectedRole === UserRole.SUPERVISOR
+  }, [selectedRole])
 
   const employeeOptions = useMemo(() => 
     employeesQuery.data?.employees
@@ -75,7 +122,6 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
       if (employee) {
         setName(employee.name)
         setEmail(employee.email)
-        setUsername(employee.email.split('@')[0]) // Use email prefix as username
 
         // Pre-populate locations from employee data
         const employeeLocationNames = employee.locations.map((loc: any) => loc.name)
@@ -92,32 +138,21 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
     }
   }, [selectedEmployee, employeeOptions, creationType])
 
-  // Filter roles based on selected locations
+  // Clear managed roles when locations are cleared
   useEffect(() => {
     if (location.length === 0) {
-      setRoleOptions([])
       setManagedRoles([])
-      return
     }
-
-    // Show all roles when locations are selected
-    // In the future, you can add location-specific filtering if roles have location associations
-    const opts = allRoles.map(r => ({
-      value: r.name,
-      label: r.name,
-    }))
-    setRoleOptions(opts)
-  }, [location, allRoles])
+  }, [location.length])
 
   const reset = () => {
     setCreationType("manual")
     setSelectedEmployee("")
     setName("")
-    setUsername("")
     setEmail("")
     setPassword("")
+    setSelectedRole("")
     setLocation([])
-    setRights([])
     setManagedRoles([])
     setError(null)
   }
@@ -131,14 +166,24 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
     e.preventDefault()
     setError(null)
 
+    if (!selectedRole) {
+      setError("Please select a role")
+      return
+    }
+
+    if (!canCreateSelectedRole) {
+      setError(`You don't have permission to create ${getRoleName(selectedRole)} users.`)
+      return
+    }
+
     const payload = {
-      name: name.trim() || username.trim(),
-      username: username.trim().toLowerCase(),
+      name: name.trim(),
       email: email.trim().toLowerCase(),
+      role: selectedRole,
       ...(creationType === "manual" ? { password } : {}), // Only include password for manual creation
-      location,
-      rights,
-      managedRoles,
+      location: showLocationField ? location : [],
+      rights: [], // Deprecated, using role-based permissions
+      managedRoles: showManagedRolesField ? managedRoles : [],
       ...(creationType === "from-staff" && selectedEmployee ? { employeeId: selectedEmployee } : {}),
     }
 
@@ -161,6 +206,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
         <DialogHeader>
           <DialogTitle>Add User</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             <Field>
@@ -209,22 +255,35 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
             )}
 
             <Field>
+              <FieldLabel htmlFor="add-user-role">Role *</FieldLabel>
+              <Select value={selectedRole} onValueChange={setSelectedRole} required>
+                <SelectTrigger id="add-user-role">
+                  <SelectValue placeholder="Select role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedRole && !canCreateSelectedRole && (
+                <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-900 dark:text-amber-100">
+                    You don't have permission to create {getRoleName(selectedRole)} users.
+                  </p>
+                </div>
+              )}
+            </Field>
+
+            <Field>
               <FieldLabel htmlFor="add-user-name">Name *</FieldLabel>
               <Input
                 id="add-user-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                required
-                disabled={creationType === "from-staff" && !selectedEmployee}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="add-user-username">Username *</FieldLabel>
-              <Input
-                id="add-user-username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 required
                 disabled={creationType === "from-staff" && !selectedEmployee}
               />
@@ -239,7 +298,11 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={creationType === "from-staff" && !selectedEmployee}
+                placeholder="user@example.com"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Email is used for login and must be unique
+              </p>
             </Field>
 
             {creationType === "manual" && (
@@ -256,41 +319,37 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
               </Field>
             )}
 
-            <Field>
-              <FieldLabel>Locations</FieldLabel>
-              <MultiSelect
-                options={locationOptions}
-                onValueChange={setLocation}
-                defaultValue={location}
-                placeholder="Select locations..."
-                disabled={loading}
-              />
-            </Field>
+            {showLocationField && (
+              <Field>
+                <FieldLabel>Locations</FieldLabel>
+                <MultiSelect
+                  options={locationOptions}
+                  onValueChange={setLocation}
+                  defaultValue={location}
+                  placeholder="Select locations..."
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Assign locations this user can access
+                </p>
+              </Field>
+            )}
 
-            <Field>
-              <FieldLabel>Access Rights</FieldLabel>
-              <MultiSelect
-                options={RIGHTS_LIST.map(right => ({
-                  label: RIGHT_LABELS[right],
-                  value: right,
-                }))}
-                onValueChange={(values) => setRights(values as Right[])}
-                defaultValue={rights}
-                placeholder="Select access rights..."
-                disabled={loading}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Managed Roles</FieldLabel>
-              <MultiSelect
-                options={roleOptions}
-                onValueChange={setManagedRoles}
-                defaultValue={managedRoles}
-                placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
-                disabled={loading || location.length === 0}
-              />
-            </Field>
+            {showManagedRolesField && (
+              <Field>
+                <FieldLabel>Managed Roles</FieldLabel>
+                <MultiSelect
+                  options={roleOptions}
+                  onValueChange={setManagedRoles}
+                  defaultValue={managedRoles}
+                  placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
+                  disabled={loading || location.length === 0}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Roles this supervisor can manage
+                </p>
+              </Field>
+            )}
 
             {error && <FieldError>{error}</FieldError>}
           </FieldGroup>
@@ -302,7 +361,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: Props) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !canCreateSelectedRole}>
               {loading ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>

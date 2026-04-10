@@ -3,10 +3,9 @@ import { connectDB } from "@/lib/db"
 import { RoleEnablementManager, RoleEnablementError } from "@/lib/managers/role-enablement-manager"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import { LocationRoleEnablement } from "@/lib/db/schemas/location-role-enablement"
-import { Category } from "@/lib/db/schemas/category"
 import { formatSuccess, formatError } from "@/lib/utils/api/api-response"
 import { 
-  locationIdParamSchema,
+  locationIdPathParamSchema as locationIdParamSchema,
   enableRoleSchema,
   roleEnablementQuerySchema,
   locationRolesResponseSchema,
@@ -66,11 +65,8 @@ export const GET = createApiRoute({
     try {
       await connectDB()
 
-      // Verify location exists
-      const location = await Category.findOne({
-        _id: new mongoose.Types.ObjectId(locationId),
-        type: "location",
-      })
+      const { Location } = await import("@/lib/db")
+      const location = await Location.findById(locationId).lean()
 
       if (!location) {
         return {
@@ -227,7 +223,7 @@ export const POST = createApiRoute({
 
       // Populate role details
       const populatedEnablement = await LocationRoleEnablement.findById(enablement._id)
-        .populate("roleId", "name color type")
+        .populate("roleId", "name color")
 
       if (!populatedEnablement) {
         return {

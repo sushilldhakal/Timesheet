@@ -63,7 +63,6 @@ export const GET = createApiRoute({
 
       // Get role counts via aggregation
       const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-      const { Category } = await import("@/lib/db")
 
       // First get all employees that match the base filter
       const employeeIds = await Employee.find(baseFilter).distinct('_id')
@@ -78,7 +77,7 @@ export const GET = createApiRoute({
         },
         {
           $lookup: {
-            from: 'categories',
+            from: 'roles',
             localField: 'roleId',
             foreignField: '_id',
             as: 'role'
@@ -87,11 +86,7 @@ export const GET = createApiRoute({
         {
           $unwind: '$role'
         },
-        {
-          $match: {
-            'role.type': 'role'
-          }
-        },
+        // roles collection is already role-only
         {
           $group: {
             _id: '$role.name',
@@ -115,17 +110,13 @@ export const GET = createApiRoute({
         { $unwind: { path: '$employer', preserveNullAndEmptyArrays: false } },
         {
           $lookup: {
-            from: 'categories',
+            from: 'employers',
             localField: 'employer',
             foreignField: 'name',
             as: 'employerDetails'
           }
         },
-        {
-          $match: {
-            'employerDetails.type': 'employer'
-          }
-        },
+        // employers collection is already employer-only
         {
           $group: {
             _id: '$employer',
@@ -153,7 +144,7 @@ export const GET = createApiRoute({
         },
         {
           $lookup: {
-            from: 'categories',
+            from: 'locations',
             localField: 'locationId',
             foreignField: '_id',
             as: 'location'
@@ -162,11 +153,7 @@ export const GET = createApiRoute({
         {
           $unwind: '$location'
         },
-        {
-          $match: {
-            'location.type': 'location'
-          }
-        },
+        // locations collection is already location-only
         {
           $group: {
             _id: '$location.name',

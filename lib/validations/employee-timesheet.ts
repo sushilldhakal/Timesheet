@@ -11,7 +11,9 @@ export const timesheetQuerySchema = z.object({
   limit: z.string().optional(),
   offset: z.string().optional(),
   sortBy: z.string().optional(),
-  order: z.string().optional()
+  order: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });
 
 // Timesheet update schema

@@ -5,9 +5,8 @@ const BASE_URL = '/api/users'
 export interface User {
   id: string
   name: string
-  username: string
-  email?: string
-  role: "admin" | "user"
+  email: string
+  role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin" | "employee"
   location: string[]
   rights: string[]
   managedRoles?: string[]
@@ -16,9 +15,8 @@ export interface User {
 
 export interface CreateUserRequest {
   name: string
-  username: string
-  email?: string
-  role?: "admin" | "user"
+  email: string
+  role?: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin" | "employee"
   location: string[]
   rights: string[]
   managedRoles?: string[]
@@ -28,9 +26,8 @@ export interface CreateUserRequest {
 
 export interface UpdateUserRequest {
   name?: string
-  username?: string
   email?: string
-  role?: "admin" | "user"
+  role?: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin" | "employee"
   location?: string[]
   rights?: string[]
   managedRoles?: string[]

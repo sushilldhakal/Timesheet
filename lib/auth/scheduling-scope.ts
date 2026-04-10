@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import type { AuthWithLocations } from "./auth-api"
-import { Category } from "@/lib/db"
+import { Location, Role } from "@/lib/db"
 
 export type ScopeCheckResult =
   | { ok: true }
@@ -18,10 +18,7 @@ export async function assertUserLocationAccess(
     return { ok: true }
   }
 
-  const loc = await Category.findOne({
-    _id: new mongoose.Types.ObjectId(locationId),
-    type: "location",
-  }).lean()
+  const loc = await Location.findById(new mongoose.Types.ObjectId(locationId)).lean()
   if (!loc) {
     return { ok: false, status: 404, error: "Location not found" }
   }
@@ -51,7 +48,7 @@ export async function assertManagerSchedulingScope(
     return { ok: true }
   }
 
-  const loc = await Category.findOne({ _id: new mongoose.Types.ObjectId(locationId), type: "location" }).lean()
+  const loc = await Location.findById(new mongoose.Types.ObjectId(locationId)).lean()
   if (!loc) {
     return { ok: false, status: 404, error: "Location not found" }
   }
@@ -69,9 +66,8 @@ export async function assertManagerSchedulingScope(
     return { ok: false, status: 400, error: "managedRoles is required for your account" }
   }
 
-  const roles = await Category.find({
+  const roles = await Role.find({
     _id: { $in: managedRoleIds.map((id) => new mongoose.Types.ObjectId(id)) },
-    type: "role",
   })
     .select("name")
     .lean()

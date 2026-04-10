@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, User, Briefcase, Award } from "lucide-react"
-import { useCategoriesByType } from "@/lib/queries/categories"
+import { useLocations } from "@/lib/queries/locations"
+import { useRoles } from "@/lib/queries/roles"
+import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { useUpdateEmployee } from "@/lib/queries/employees"
 import { useUploadImage } from "@/lib/queries/upload"
@@ -82,14 +84,18 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   const [awardId, setAwardId] = useState<string>("")
   const [awardLevel, setAwardLevel] = useState<string>("")
   
+  // Password setup
+  const [password, setPassword] = useState("")
+  const [sendSetupEmail, setSendSetupEmail] = useState(true)
+  
   const [error, setError] = useState<string | null>(null)
   const [availableLevels, setAvailableLevels] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const rolesQuery = useCategoriesByType("role")
-  const employersQuery = useCategoriesByType("employer")
-  const locationsQuery = useCategoriesByType("location")
+  const rolesQuery = useRoles()
+  const employersQuery = useEmployers()
+  const locationsQuery = useLocations()
   const awardsQuery = useAwards()
   const updateEmployeeMutation = useUpdateEmployee()
   const uploadImageMutation = useUploadImage()
@@ -97,14 +103,14 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   // Get enabled roles for the first selected location
   const firstLocationId = useMemo(() => {
     if (location.length === 0) return null
-    const firstLoc = locationsQuery.data?.categories?.find(c => c.name === location[0])
+    const firstLoc = locationsQuery.data?.locations?.find(c => c.name === location[0])
     return firstLoc?.id || null
-  }, [location, locationsQuery.data?.categories])
+  }, [location, locationsQuery.data?.locations])
   
   const locationRolesQuery = useLocationRoles(firstLocationId)
 
   const roleOptions = useMemo(() => {
-    const allRoles = rolesQuery.data?.categories?.map((c: any, index) => ({
+    const allRoles = rolesQuery.data?.roles?.map((c: any, index) => ({
       value: c.name,
       label: c.name,
       id: c.id || c._id || `role-${index}`
@@ -118,23 +124,23 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
     if (enabledRoleIds.length === 0) return allRoles // Fallback to all if no data yet
     
     return allRoles.filter(role => enabledRoleIds.includes(role.id))
-  }, [rolesQuery.data?.categories, location, locationRolesQuery.data])
+  }, [rolesQuery.data?.roles, location, locationRolesQuery.data])
 
   const employerOptions = useMemo(() => 
-    employersQuery.data?.categories?.map((c: any, index) => ({
+    employersQuery.data?.employers?.map((c: any, index) => ({
       value: c.name,
       label: c.name,
       id: c._id || c.id || `employer-${index}`
     })) || []
-  , [employersQuery.data?.categories])
+  , [employersQuery.data?.employers])
 
   const locationOptions = useMemo(() => 
-    locationsQuery.data?.categories?.map((c: any, index) => ({
+    locationsQuery.data?.locations?.map((c: any, index) => ({
       value: c.name,
       label: c.name,
       id: c._id || c.id || `location-${index}`
     })) || []
-  , [locationsQuery.data?.categories])
+  , [locationsQuery.data?.locations])
 
   const awardOptions = useMemo(() => 
     awardsQuery.data?.awards?.map((a: any) => ({
@@ -177,6 +183,10 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
       setEmploymentType(employee.employmentType ?? "")
       setAwardId(employee.award?.id ?? "")
       setAwardLevel(employee.award?.level ?? "")
+      
+      // Reset password fields
+      setPassword("")
+      setSendSetupEmail(true)
       
       console.log('[EditEmployeeDialog] State set:', {
         homeAddress: employee.homeAddress ?? "",
@@ -226,13 +236,13 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   
   // Clear roles when location changes and filter by enabled roles
   useEffect(() => {
-    if (location.length > 0 && locationRolesQuery.data) {
+    if (location.length > 0 && locationRolesQuery.data?.data?.roles) {
       const enabledRoleIds = locationRolesQuery.data.data.roles.map(r => r.roleId)
       
       // Filter out roles that are not enabled for the selected location
       setRole(prev => {
         const validRoles = prev.filter(roleName => {
-          const roleData = rolesQuery.data?.categories?.find((c: any) => c.name === roleName) as any
+          const roleData = rolesQuery.data?.roles?.find((c: any) => c.name === roleName) as any
           return roleData && enabledRoleIds.includes(roleData.id || roleData._id)
         })
         return validRoles
@@ -287,6 +297,8 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
           standardHoursPerWeek: standardHours,
           awardId: awardId || undefined,
           awardLevel: awardLevel || undefined,
+          password: password.trim() || undefined,
+          sendSetupEmail: !password.trim() && sendSetupEmail,
         }
       })
 
@@ -599,6 +611,50 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                   />
                   <p className="text-xs text-muted-foreground mt-1">Target working hours (used in roster generation)</p>
                 </Field>
+              </div>
+
+              {/* Web Access Setup */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-medium mb-3">Web Access Setup</h3>
+                <div className="space-y-4">
+                  <Field>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="edit-emp-send-setup"
+                        checked={sendSetupEmail}
+                        onChange={(e) => {
+                          setSendSetupEmail(e.target.checked)
+                          if (e.target.checked) setPassword("")
+                        }}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <FieldLabel htmlFor="edit-emp-send-setup" className="mb-0 cursor-pointer">
+                        Send password setup email
+                      </FieldLabel>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6 mt-1">
+                      Employee will receive an email with a link to set their own password (expires in 24 hours)
+                    </p>
+                  </Field>
+
+                  {!sendSetupEmail && (
+                    <Field>
+                      <FieldLabel htmlFor="edit-emp-password">New Password</FieldLabel>
+                      <Input
+                        id="edit-emp-password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Minimum 8 characters"
+                        minLength={8}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Employee will be required to change this password on first login
+                      </p>
+                    </Field>
+                  )}
+                </div>
               </div>
             </FieldGroup>
           )}

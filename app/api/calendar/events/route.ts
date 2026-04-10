@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api";
+import { getEmployeeWebTokenFromRequest, verifyEmployeeToken } from "@/lib/auth/employee-auth";
 import { connectDB } from "@/lib/db";
 import { Roster, calculateWeekId, getWeekBoundaries } from "@/lib/db/schemas/roster";
 import { parseISO, isValid } from "date-fns";
@@ -30,21 +31,38 @@ export const GET = createApiRoute({
     401: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ query }) => {
+  handler: async ({ query, req }) => {
     console.log('[GET /api/calendar/events] Query params:', query);
-    
-    const ctx = await getAuthWithUserLocations();
-    if (!ctx) {;
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      };
-    }
 
-    console.log('[GET /api/calendar/events] Auth context:', { 
-      role: ctx.auth.role, 
-      userLocations: ctx.userLocations 
-    });
+    // Admin session (auth_token) OR staff web session (employee_web_session) can read events.
+    // Staff session is read-only and restricted to published shifts.
+    const ctx = await getAuthWithUserLocations();
+    let staffEmployeeId: string | null = null;
+    let staffLocationNames: string[] = [];
+    if (!ctx) {
+      const staffToken = getEmployeeWebTokenFromRequest(req);
+      const staffAuth = staffToken ? await verifyEmployeeToken(staffToken) : null;
+      if (!staffAuth?.sub) {
+        return { status: 401, data: { error: "Unauthorized" } };
+      }
+      staffEmployeeId = staffAuth.sub;
+      try {
+        await connectDB();
+        const { Employee } = await import("@/lib/db");
+        const emp = await Employee.findById(staffEmployeeId).select("location").lean();
+        const locs = (emp as any)?.location;
+        staffLocationNames = Array.isArray(locs)
+          ? locs.map((x: unknown) => String(x).trim()).filter(Boolean)
+          : [];
+      } catch {
+        staffLocationNames = [];
+      }
+    } else {
+      console.log('[GET /api/calendar/events] Auth context:', {
+        role: ctx.auth.role,
+        userLocations: ctx.userLocations
+      });
+    }
 
     const {
       startDate: startDateParam,
@@ -95,7 +113,7 @@ export const GET = createApiRoute({
       // Connect to database
       await connectDB();
 
-      const { Category } = await import("@/lib/db");
+      const { Employer } = await import("@/lib/db");
 
       // Query rosters that overlap with the date range
       const rosters = await Roster.find({
@@ -121,13 +139,13 @@ export const GET = createApiRoute({
 
       const employerNameById = new Map<string, string>();
       if (employerOidSet.size > 0) {
-        const cats = await Category.find({
+        const emps = await Employer.find({
           _id: { $in: [...employerOidSet].map((id) => new mongoose.Types.ObjectId(id)) },
         })
           .select("name")
           .lean();
-        for (const c of cats) {
-          employerNameById.set(c._id.toString(), c.name);
+        for (const e of emps) {
+          employerNameById.set(e._id.toString(), e.name);
         }
       }
 
@@ -153,6 +171,10 @@ export const GET = createApiRoute({
           const shiftEnd = new Date(shift.endTime);
 
           if (shiftStart <= endDate && shiftEnd >= startDate) {
+            // Staff sessions are read-only and can only view published shifts.
+            if (staffEmployeeId && shift.status === "draft") {
+              continue;
+            }
             if (publishedOnlyBool && shift.status === "draft") {
               continue;
             }
@@ -168,7 +190,13 @@ export const GET = createApiRoute({
             
             // Filter by user and location
             const matchesUser = userId === "all" || userId === employeeId;
-            const matchesLocation = locationId === "all" || locationId === locationIdStr;
+            const matchesLocation =
+              // Staff session: ignore query locationId and enforce staff location restriction.
+              staffEmployeeId
+                ? (staffLocationNames.length > 0
+                    ? staffLocationNames.includes(locationName)
+                    : employeeId === staffEmployeeId)
+                : (locationId === "all" || locationId === locationIdStr);
             
             if (matchesUser && matchesLocation) {
               // Use shift._id as unique identifier to avoid duplicate keys

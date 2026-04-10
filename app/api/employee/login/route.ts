@@ -1,4 +1,4 @@
-import { connectDB, Employee, DailyShift, Category } from "@/lib/db"
+import { connectDB, Employee, DailyShift, Location } from "@/lib/db"
 import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import { createEmployeeToken, setEmployeeCookie } from "@/lib/auth/auth-helpers"
 import { employeeLoginSchema, employeeLoginResponseSchema } from "@/lib/validations/employee-clock"
@@ -113,9 +113,8 @@ export const POST = createApiRoute({
       
       // Check geofence if employee has location and user provided coordinates
       if (locations.length > 0 && userLat !== undefined && userLng !== undefined) {
-        // Find ALL location categories assigned to this employee
-        const locationCategories = await Category.find({
-          type: "location",
+        // Find ALL locations assigned to this employee
+        const locationCategories = await Location.find({
           name: { $in: locations },
           lat: { $exists: true, $ne: null },
           lng: { $exists: true, $ne: null },

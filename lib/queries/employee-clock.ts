@@ -20,6 +20,7 @@ export function useEmployeeProfile() {
     queryFn: employeeClockApi.getEmployeeProfile,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry on auth failures
+    refetchOnMount: "always",
   })
 }
 

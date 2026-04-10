@@ -8,11 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Download, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 
-export interface ICategory {
+export interface ILocationRoleMatrixItem {
   _id: string
   id?: string
   name: string
-  type: string
   color?: string
 }
 
@@ -28,8 +27,8 @@ export interface ILocationRoleEnablement {
 }
 
 interface LocationRoleMatrixProps {
-  locations: ICategory[]
-  roles: ICategory[]
+  locations: ILocationRoleMatrixItem[]
+  roles: ILocationRoleMatrixItem[]
   enablements: ILocationRoleEnablement[]
   onToggle: (locationId: string, roleId: string) => Promise<void>
   onBulkEnable: (roleId: string, locationIds: string[]) => Promise<void>

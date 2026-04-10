@@ -55,11 +55,13 @@ interface GroupedAssignments {
 interface EmployeeRoleAssignmentListProps {
   employeeId: string
   onAdd?: () => void
+  readOnly?: boolean
 }
 
 export default function EmployeeRoleAssignmentList({
   employeeId,
   onAdd,
+  readOnly = false,
 }: EmployeeRoleAssignmentListProps) {
   const [assignmentToEnd, setAssignmentToEnd] = useState<RoleAssignment | null>(null)
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set())
@@ -189,7 +191,7 @@ export default function EmployeeRoleAssignmentList({
                 View History ({totalHistorical})
               </Button>
             )}
-            {onAdd && (
+            {!readOnly && onAdd && (
               <Button onClick={onAdd} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Add
@@ -205,7 +207,7 @@ export default function EmployeeRoleAssignmentList({
               <p className="text-sm text-muted-foreground mb-3">
                 No role assignments yet
               </p>
-              {onAdd && (
+              {!readOnly && onAdd && (
                 <Button onClick={onAdd} variant="outline" size="sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Add First Assignment
@@ -293,16 +295,18 @@ export default function EmployeeRoleAssignmentList({
                             </div>
 
                             {/* End Assignment Button */}
-                            <Button
-                              onClick={() => setAssignmentToEnd(assignment)}
-                              variant="ghost"
-                              size="sm"
-                              disabled={deleteRoleMutation.isPending}
-                              className="shrink-0"
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              End
-                            </Button>
+                            {!readOnly ? (
+                              <Button
+                                onClick={() => setAssignmentToEnd(assignment)}
+                                variant="ghost"
+                                size="sm"
+                                disabled={deleteRoleMutation.isPending}
+                                className="shrink-0"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                End
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -316,35 +320,37 @@ export default function EmployeeRoleAssignmentList({
       </Card>
 
       {/* End Assignment Confirmation Dialog */}
-      <AlertDialog
-        open={!!assignmentToEnd}
-        onOpenChange={(open) => !open && setAssignmentToEnd(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>End Role Assignment?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will end the assignment of{" "}
-              <strong>{assignmentToEnd?.roleName}</strong> at{" "}
-              <strong>{assignmentToEnd?.locationName}</strong>. The assignment
-              will be marked as historical and the employee will no longer be
-              able to work this role at this location.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteRoleMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleEndAssignment}
-              disabled={deleteRoleMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteRoleMutation.isPending ? "Ending..." : "End Assignment"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!readOnly ? (
+        <AlertDialog
+          open={!!assignmentToEnd}
+          onOpenChange={(open) => !open && setAssignmentToEnd(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>End Role Assignment?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will end the assignment of{" "}
+                <strong>{assignmentToEnd?.roleName}</strong> at{" "}
+                <strong>{assignmentToEnd?.locationName}</strong>. The assignment
+                will be marked as historical and the employee will no longer be
+                able to work this role at this location.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteRoleMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleEndAssignment}
+                disabled={deleteRoleMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteRoleMutation.isPending ? "Ending..." : "End Assignment"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
 
       {/* History Dialog */}
       <AlertDialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
