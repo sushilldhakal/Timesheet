@@ -45,6 +45,13 @@ export const awardResponseSchema = z.object({
   _id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  levelRates: z.array(z.object({
+    level: z.string(),
+    employmentType: z.string(),
+    hourlyRate: z.number(),
+    effectiveFrom: z.string(),
+    effectiveTo: z.string().nullable().optional(),
+  })).default([]),
   availableTags: z.array(z.object({
     _id: z.string().optional(),
     name: z.string(),
@@ -55,11 +62,11 @@ export const awardResponseSchema = z.object({
     description: z.string().optional(),
     priority: z.number(),
     canStack: z.boolean(),
-    conditions: z.any(), // Simplified for response
+    conditions: z.any(),
     outcome: z.object({
       type: z.enum(['ordinary', 'overtime', 'allowance', 'toil', 'break', 'leave']),
       exportName: z.string(),
-    }).and(z.any()), // Allow additional fields based on outcome type
+    }).and(z.any()),
     isActive: z.boolean(),
   })),
   isActive: z.boolean(),

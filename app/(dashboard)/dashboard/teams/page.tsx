@@ -18,6 +18,7 @@ export default function TeamsPage() {
   const [deleteRow, setDeleteRow] = useState<CategoryRow | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [selectedRows, setSelectedRows] = useState<CategoryRow[]>([])
 
   useEffect(() => {
     setHydrated(true)
@@ -47,20 +48,17 @@ export default function TeamsPage() {
   const total = rows.length
   const activeCount = rows.filter((r) => r.isActive !== false).length
 
-  const inactiveRows = rows.filter((r) => r.isActive === false)
-  const activeRows = rows.filter((r) => r.isActive !== false)
-
   const refetch = useCallback(() => {
     teamsQuery.refetch()
   }, [teamsQuery])
 
-  const handleActivateAll = async () => {
-    if (inactiveRows.length === 0) return
-    if (!confirm(`Activate all ${inactiveRows.length} inactive team(s)?`)) return
+  const handleActivateSelected = async () => {
+    const toActivate = selectedRows.filter((r) => r.isActive === false)
+    if (toActivate.length === 0) return
     setBulkBusy(true)
     try {
       await Promise.all(
-        inactiveRows.map((r) =>
+        toActivate.map((r) =>
           updateTeamMutation.mutateAsync({ id: r.id, data: { isActive: true } })
         )
       )
@@ -69,13 +67,13 @@ export default function TeamsPage() {
     }
   }
 
-  const handleDeactivateAll = async () => {
-    if (activeRows.length === 0) return
-    if (!confirm(`Deactivate all ${activeRows.length} active team(s)?`)) return
+  const handleDeactivateSelected = async () => {
+    const toDeactivate = selectedRows.filter((r) => r.isActive !== false)
+    if (toDeactivate.length === 0) return
     setBulkBusy(true)
     try {
       await Promise.all(
-        activeRows.map((r) =>
+        toDeactivate.map((r) =>
           updateTeamMutation.mutateAsync({ id: r.id, data: { isActive: false } })
         )
       )
@@ -83,6 +81,20 @@ export default function TeamsPage() {
       setBulkBusy(false)
     }
   }
+
+  const handleReorder = useCallback(
+    async (teamId: string, newOrder: number) => {
+      try {
+        await updateTeamMutation.mutateAsync({ id: teamId, data: { order: newOrder } })
+      } catch (error) {
+        console.error("Failed to update team order:", error)
+        // Refetch to revert to server state
+        refetch()
+        throw error
+      }
+    },
+    [updateTeamMutation, refetch]
+  )
 
   const loading = !hydrated || teamsQuery.isLoading
   const errorMessage = (teamsQuery.error as Error | null)?.message
@@ -132,26 +144,26 @@ export default function TeamsPage() {
           <Card className="sm:col-span-2 lg:col-span-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Bulk actions</CardTitle>
-              <CardDescription className="text-xs">Update active status for every team at once.</CardDescription>
+              <CardDescription className="text-xs">Select rows in the table, then activate or deactivate them.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!hydrated || bulkBusy || inactiveRows.length === 0}
-                onClick={handleActivateAll}
+                disabled={!hydrated || bulkBusy || selectedRows.length === 0}
+                onClick={handleActivateSelected}
               >
-                Activate all
+                Activate selected
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!hydrated || bulkBusy || activeRows.length === 0}
-                onClick={handleDeactivateAll}
+                disabled={!hydrated || bulkBusy || selectedRows.length === 0}
+                onClick={handleDeactivateSelected}
               >
-                Deactivate all
+                Deactivate selected
               </Button>
             </CardContent>
           </Card>
@@ -175,6 +187,13 @@ export default function TeamsPage() {
                   setEditRow(latest ?? row)
                 }}
                 onDelete={setDeleteRow}
+                onToggleActive={async (row) => {
+                  await updateTeamMutation.mutateAsync({ id: row.id, data: { isActive: row.isActive === false } })
+                  refetch()
+                }}
+                onSelectionChange={setSelectedRows}
+                onReorder={handleReorder}
+                enableDragReorder={true}
               />
             )}
           </CardContent>

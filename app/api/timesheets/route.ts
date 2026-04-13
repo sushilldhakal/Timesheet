@@ -1,6 +1,8 @@
 import { format, parse, isValid, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns"
 import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
 import { connectDB, Employee, DailyShift } from "@/lib/db"
+import { Timesheet } from "@/lib/db/schemas/timesheet"
+import mongoose from "mongoose"
 import { formatDate as formatDateDisplay } from "@/lib/utils/format/date-format"
 import { parseTimeToMinutes, minutesToHours, formatTimeString } from "@/lib/utils/format/time"
 import { 
@@ -9,6 +11,7 @@ import {
 } from "@/lib/validations/daily-shift"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { z } from "zod"
 
 function dateRangeToDateObjects(start: Date, end: Date): Date[] {
   const out: Date[] = []
@@ -216,7 +219,9 @@ export const GET = createApiRoute({
       const startUTC = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0))
       const endUTC = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999))
       
-      const queryFilter: { pin: { $in: string[] }; date: { $gte: Date; $lte: Date } } = {
+      const tid = new mongoose.Types.ObjectId(ctx.tenantId)
+      const queryFilter: Record<string, unknown> = {
+        tenantId: tid,
         pin: { $in: pins },
         date: { 
           $gte: startUTC,
@@ -483,4 +488,135 @@ export const GET = createApiRoute({
       }
     }
   }
+})
+
+const createTimesheetSchema = z.object({
+  tenantId: z.string(),
+  employeeId: z.string(),
+  payPeriodStart: z.string().transform((str) => new Date(str)),
+  payPeriodEnd: z.string().transform((str) => new Date(str)),
+})
+
+export const POST = createApiRoute({
+  method: "POST",
+  path: "/api/timesheets",
+  summary: "Create a new timesheet for an employee pay period",
+  description:
+    "Creates a draft timesheet, auto-linking all shifts within the pay period and calculating totals",
+  tags: ["Timesheets"],
+  security: "adminAuth",
+  request: {
+    body: createTimesheetSchema,
+  },
+  responses: {
+    201: z.object({ success: z.boolean(), timesheet: z.any() }),
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    409: z.object({ error: z.string(), existingId: z.string() }),
+    500: errorResponseSchema,
+  },
+  handler: async ({ body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
+      return { status: 401, data: { error: "Unauthorized" } }
+    }
+
+    const { tenantId, employeeId, payPeriodStart, payPeriodEnd } = body!
+
+    if (
+      !tenantId ||
+      !mongoose.Types.ObjectId.isValid(tenantId) ||
+      !employeeId ||
+      !mongoose.Types.ObjectId.isValid(employeeId)
+    ) {
+      return {
+        status: 400,
+        data: { error: "Valid tenantId and employeeId are required" },
+      }
+    }
+
+    if (payPeriodStart >= payPeriodEnd) {
+      return {
+        status: 400,
+        data: { error: "payPeriodStart must be before payPeriodEnd" },
+      }
+    }
+
+    try {
+      await connectDB()
+
+      const existing = await Timesheet.findOne({
+        tenantId,
+        employeeId,
+        payPeriodStart,
+        payPeriodEnd,
+      })
+      if (existing) {
+        return {
+          status: 409,
+          data: {
+            error: "Timesheet already exists for this employee and pay period",
+            existingId: String(existing._id),
+          },
+        }
+      }
+
+      const startUTC = new Date(
+        Date.UTC(
+          payPeriodStart.getFullYear(),
+          payPeriodStart.getMonth(),
+          payPeriodStart.getDate(),
+          0, 0, 0, 0
+        )
+      )
+      const endUTC = new Date(
+        Date.UTC(
+          payPeriodEnd.getFullYear(),
+          payPeriodEnd.getMonth(),
+          payPeriodEnd.getDate(),
+          23, 59, 59, 999
+        )
+      )
+
+      const shifts = await DailyShift.find({
+        tenantId,
+        employeeId,
+        date: { $gte: startUTC, $lte: endUTC },
+        status: { $in: ["active", "completed", "approved"] },
+      }).lean()
+
+      const shiftIds = shifts.map((s) => s._id)
+      const totalShifts = shifts.length
+      const totalHours = shifts.reduce(
+        (sum, s) => sum + (s.totalWorkingHours ?? 0),
+        0
+      )
+      const totalCost = shifts.reduce(
+        (sum, s) => sum + (s.computed?.totalCost ?? 0),
+        0
+      )
+      const totalBreakMinutes = shifts.reduce(
+        (sum, s) => sum + (s.totalBreakMinutes ?? 0),
+        0
+      )
+
+      const timesheet = await Timesheet.create({
+        tenantId,
+        employeeId,
+        payPeriodStart,
+        payPeriodEnd,
+        shiftIds,
+        totalShifts,
+        totalHours: Math.round(totalHours * 100) / 100,
+        totalCost: Math.round(totalCost * 100) / 100,
+        totalBreakMinutes,
+        status: "draft",
+      })
+
+      return { status: 201, data: { success: true, timesheet } }
+    } catch (err) {
+      console.error("[api/timesheets POST]", err)
+      return { status: 500, data: { error: "Failed to create timesheet" } }
+    }
+  },
 })

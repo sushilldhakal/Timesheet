@@ -4,6 +4,8 @@ import { NextRequest } from "next/server"
 
 export type AuthWithLocations = {
   auth: AuthPayload
+  /** Tenant (employer) ObjectId from the user's document — used for all scoped queries. */
+  tenantId: string
   /** null = admin, sees all. string[] = user's locations, filter employees to these. */
   userLocations: string[] | null
   /** null = admin, sees all. string[] = user's managed roles, filter employees to these. Empty array = see all roles at their locations. */
@@ -46,13 +48,17 @@ export async function getAuthWithUserLocations(): Promise<AuthWithLocations | nu
   const auth = await getAuthFromCookie()
   if (!auth) return null
 
-  if (auth.role === "admin" || auth.role === "super_admin") {
-    return { auth, userLocations: null, managedRoles: null }
-  }
-
   try {
     await connectDB()
-    const user = await User.findById(auth.sub).select("location managedRoles").lean()
+    const user = await User.findById(auth.sub).select("tenantId location managedRoles").lean()
+    if (!user?.tenantId) return null
+
+    const tenantId = String(user.tenantId)
+
+    if (auth.role === "admin" || auth.role === "super_admin") {
+      return { auth, tenantId, userLocations: null, managedRoles: null }
+    }
+
     const locs = user?.location
     const userLocations: string[] = Array.isArray(locs)
       ? locs.map((x) => String(x).trim()).filter(Boolean)
@@ -65,9 +71,9 @@ export async function getAuthWithUserLocations(): Promise<AuthWithLocations | nu
       ? roles.map((x) => String(x).trim()).filter(Boolean)
       : []
     
-    return { auth, userLocations, managedRoles }
+    return { auth, tenantId, userLocations, managedRoles }
   } catch {
-    return { auth, userLocations: [], managedRoles: [] }
+    return null
   }
 }
 

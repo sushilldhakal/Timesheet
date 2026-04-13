@@ -2,11 +2,20 @@ import { ApiResponse } from '@/lib/utils/api/api-response'
 
 const BASE_URL = '/api/awards'
 
+export interface AwardLevelRate {
+  level: string
+  employmentType: 'casual' | 'part_time' | 'full_time'
+  hourlyRate: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+}
+
 export interface Award {
   _id: string
   name: string
   description: string | null
   isActive: boolean
+  levelRates: AwardLevelRate[]
   levels: any[]
   createdAt: string
   updatedAt: string
@@ -16,6 +25,7 @@ export interface CreateAwardRequest {
   name: string
   description?: string
   isActive?: boolean
+  levelRates?: AwardLevelRate[]
   levels?: any[]
 }
 
@@ -23,6 +33,7 @@ export interface UpdateAwardRequest {
   name?: string
   description?: string
   isActive?: boolean
+  levelRates?: AwardLevelRate[]
   levels?: any[]
 }
 

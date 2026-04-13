@@ -7,6 +7,8 @@ export const SNAP = 0.25
 export const SIDEBAR_W = 220
 export const SHIFT_H = 56
 export const ROLE_HDR = 48
+/** Extra sidebar header height when a team row shows a parent group label above the team name. */
+export const GROUP_SIDEBAR_STACK_H = 14
 export const HOUR_HDR_H = 56
 /** Reserved height at bottom of each category row for the add-shift + button */
 export const ADD_BTN_H = 32

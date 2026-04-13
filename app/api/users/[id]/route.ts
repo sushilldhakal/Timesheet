@@ -1,5 +1,6 @@
 import type { Right } from "@/lib/config/rights"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import mongoose from "mongoose"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, User } from "@/lib/db"
 import { 
   userIdParamSchema, 
@@ -33,14 +34,14 @@ export const GET = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
+    const auth = ctx.auth
 
     const { id } = params!
 
-    // User can only get their own profile unless admin/super_admin
     if (!isAdminOrSuperAdmin(auth.role) && auth.sub !== id) {
       return { status: 403, data: { error: "Forbidden" } }
     }
@@ -52,8 +53,10 @@ export const GET = createApiRoute({
       if (!user) {
         return { status: 404, data: { error: "User not found" } }
       }
+      if (String(user.tenantId) !== ctx.tenantId) {
+        return { status: 403, data: { error: "Unauthorized" } }
+      }
 
-      // Hide super_admin from admin (not from super_admin)
       if (user.role === "super_admin" && !isSuperAdmin(auth.role)) {
         return { status: 404, data: { error: "User not found" } }
       }
@@ -71,6 +74,7 @@ export const GET = createApiRoute({
             location,
             rights: user.rights ?? [],
             managedRoles: user.managedRoles ?? [],
+            teamIds: Array.isArray(user.teamIds) ? user.teamIds.map((x) => String(x)) : [],
             createdAt: user.createdAt,
           },
         }
@@ -104,10 +108,11 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ body, params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
+    const auth = ctx.auth
 
     const { id } = params!
     const isSelf = auth.sub === id
@@ -123,8 +128,10 @@ export const PATCH = createApiRoute({
       if (!existing) {
         return { status: 404, data: { error: "User not found" } }
       }
+      if (String(existing.tenantId) !== ctx.tenantId) {
+        return { status: 403, data: { error: "Unauthorized" } }
+      }
 
-      // Admin/super_admin cannot modify super_admin users
       if (existing.role === "super_admin" && !isSuperAdmin(auth.role)) {
         return { status: 403, data: { error: "Forbidden" } }
       }
@@ -139,10 +146,11 @@ export const PATCH = createApiRoute({
           }
         }
 
-        const { name, email, password, role, location, managedRoles } = parsedUpdate.data
+        const { name, email, password, role, location, managedRoles, teamIds } = parsedUpdate.data
 
         if (email !== undefined) {
           const duplicate = await User.findOne({
+            tenantId: existing.tenantId,
             email: email.toLowerCase(),
             _id: { $ne: id },
           })
@@ -156,6 +164,9 @@ export const PATCH = createApiRoute({
         if (role !== undefined) existing.role = role
         if (location !== undefined) existing.location = location
         if (managedRoles !== undefined) existing.managedRoles = managedRoles
+        if (teamIds !== undefined) {
+          existing.teamIds = teamIds.map((tid) => new mongoose.Types.ObjectId(tid))
+        }
 
         await existing.save()
 
@@ -174,6 +185,7 @@ export const PATCH = createApiRoute({
               location: locArr,
               rights: u?.rights ?? [],
               managedRoles: u?.managedRoles ?? [],
+              teamIds: Array.isArray(u?.teamIds) ? u.teamIds.map((x) => String(x)) : [],
             },
           }
         }
@@ -192,6 +204,7 @@ export const PATCH = createApiRoute({
 
       if (newEmail) {
         const emailDuplicate = await User.findOne({
+          tenantId: existing.tenantId,
           email: newEmail.toLowerCase(),
           _id: { $ne: id },
         })
@@ -248,34 +261,34 @@ export const DELETE = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
+    const auth = ctx.auth
     if (!isAdminOrSuperAdmin(auth.role)) {
       return { status: 403, data: { error: "Forbidden" } }
     }
 
     const { id } = params!
 
-    // Prevent admin from deleting themselves
     if (auth.sub === id) {
       return { status: 400, data: { error: "Cannot delete your own account" } }
     }
 
     try {
       await connectDB()
-      const target = await User.findById(id).select("role").lean()
+      const target = await User.findById(id).select("role tenantId").lean()
       if (!target) {
         return { status: 404, data: { error: "User not found" } }
+      }
+      if (String(target.tenantId) !== ctx.tenantId) {
+        return { status: 403, data: { error: "Unauthorized" } }
       }
       if (target.role === "super_admin" && !isSuperAdmin(auth.role)) {
         return { status: 403, data: { error: "Forbidden" } }
       }
-      const deleted = await User.findByIdAndDelete(id)
-      if (!deleted) {
-        return { status: 404, data: { error: "User not found" } }
-      }
+      await User.findByIdAndDelete(id)
       return { status: 200, data: { success: true } }
     } catch (err) {
       console.error("[api/users/[id] DELETE]", err)

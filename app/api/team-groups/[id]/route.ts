@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, mongoose, TeamGroup, Team } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
@@ -9,6 +9,7 @@ const teamGroupResponseSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   color: z.string().optional(),
+  order: z.number().optional(),
   isActive: z.boolean(),
   createdAt: z.string().datetime().nullable().optional(),
   updatedAt: z.string().datetime().nullable().optional(),
@@ -18,6 +19,7 @@ const teamGroupUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   description: z.string().optional(),
   color: z.string().optional(),
+  order: z.number().optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -35,8 +37,8 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const id = params?.id
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -49,6 +51,9 @@ export const GET = createApiRoute({
     if (!teamGroup) {
       return { status: 404, data: { error: "Team group not found" } }
     }
+    if (String(teamGroup.tenantId) !== ctx.tenantId) {
+      return { status: 403, data: { error: "Unauthorized" } }
+    }
 
     return {
       status: 200,
@@ -58,6 +63,7 @@ export const GET = createApiRoute({
           name: teamGroup.name,
           description: teamGroup.description,
           color: teamGroup.color,
+          order: teamGroup.order ?? 0,
           isActive: teamGroup.isActive ?? true,
           createdAt: teamGroup.createdAt ? new Date(teamGroup.createdAt).toISOString() : null,
           updatedAt: teamGroup.updatedAt ? new Date(teamGroup.updatedAt).toISOString() : null,
@@ -84,8 +90,8 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const id = params?.id
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -95,13 +101,19 @@ export const PATCH = createApiRoute({
     await connectDB()
     const payload = body!
 
-    // Check if name is being updated and if it's unique
+    const existing = await TeamGroup.findById(id).lean()
+    if (!existing) return { status: 404, data: { error: "Team group not found" } }
+    if (String(existing.tenantId) !== ctx.tenantId) {
+      return { status: 403, data: { error: "Unauthorized" } }
+    }
+
     if (payload.name) {
-      const existing = await TeamGroup.findOne({
+      const dup = await TeamGroup.findOne({
+        tenantId: existing.tenantId,
         _id: { $ne: id },
         name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
       }).lean()
-      if (existing) {
+      if (dup) {
         return { status: 409, data: { error: "A team group with this name already exists" } }
       }
     }
@@ -124,6 +136,7 @@ export const PATCH = createApiRoute({
           name: updated.name,
           description: updated.description,
           color: updated.color,
+          order: updated.order ?? 0,
           isActive: updated.isActive ?? true,
           createdAt: updated.createdAt ? new Date(updated.createdAt).toISOString() : null,
           updatedAt: updated.updatedAt ? new Date(updated.updatedAt).toISOString() : null,
@@ -149,8 +162,8 @@ export const DELETE = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const id = params?.id
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -159,7 +172,12 @@ export const DELETE = createApiRoute({
 
     await connectDB()
 
-    // Check if any teams are assigned to this group
+    const doc = await TeamGroup.findById(id)
+    if (!doc) return { status: 404, data: { error: "Team group not found" } }
+    if (String(doc.tenantId) !== ctx.tenantId) {
+      return { status: 403, data: { error: "Unauthorized" } }
+    }
+
     const assignedTeams = await Team.countDocuments({ groupId: id })
     if (assignedTeams > 0) {
       return {
@@ -170,10 +188,7 @@ export const DELETE = createApiRoute({
       }
     }
 
-    const result = await TeamGroup.findByIdAndDelete(id)
-    if (!result) {
-      return { status: 404, data: { error: "Team group not found" } }
-    }
+    await doc.deleteOne()
 
     return {
       status: 200,

@@ -457,7 +457,6 @@ All endpoints live under `/app/api/` and require authentication via JWT session 
 | POST | `/api/admin/storage-settings/reset` | Reset storage settings | Admin |
 | GET | `/api/admin/storage-stats` | Get storage statistics | Admin |
 | POST | `/api/admin/cleanup/cloudinary` | Cleanup Cloudinary images | Admin |
-| POST | `/api/admin/cleanup/timesheets` | Cleanup old timesheets | Admin |
 
 ### Calendar & Events
 | Method | Endpoint | Description | Auth |

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import mongoose from "mongoose"
 import { connectDB, User } from "@/lib/db"
 import { userCreateSchema, usersListResponseSchema, userCreateResponseSchema } from "@/lib/validations/user"
 import { errorResponseSchema } from "@/lib/validations/auth"
@@ -20,22 +20,22 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async () => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
       return {
         status: 401,
         data: { error: "Unauthorized" }
       };
     }
+    const auth = ctx.auth
+    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
 
     try {
       await connectDB()
       
-      let query: any = { role: { $ne: "super_admin" } } // Always exclude super_admin from results
+      let query: any = { tenantId: tid, role: { $ne: "super_admin" } }
       
-      // Apply role-based filtering
       if (auth.role === 'admin' || auth.role === 'super_admin') {
-        // Admin and super_admin see all users (except super_admin which is already excluded)
         // No additional filtering needed
       } else if (auth.role === 'manager') {
         // Manager sees supervisors in their locations only
@@ -78,6 +78,7 @@ export const GET = createApiRoute({
         location: Array.isArray(u.location) ? u.location : u.location ? [String(u.location)] : [],
         rights: u.rights ?? [],
         managedRoles: u.managedRoles ?? [],
+        teamIds: Array.isArray(u.teamIds) ? u.teamIds.map((x: unknown) => String(x)) : [],
         createdAt: u.createdAt,
       }))
 
@@ -115,15 +116,16 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) {
       return {
         status: 401,
         data: { error: "Unauthorized" }
       };
     }
+    const auth = ctx.auth
+    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
     
-    // Use role hierarchy enforcement instead of isAdminOrSuperAdmin
     if (!canCreateUser(auth.role, body?.role || 'user')) {
       return {
         status: 403,
@@ -132,7 +134,7 @@ export const POST = createApiRoute({
     }
 
     try {
-      const { name, email, password, role, location, managedRoles, employeeId } = body!;
+      const { name, email, password, role, location, managedRoles, teamIds, employeeId } = body!;
       console.log('[POST /api/users] Parsed data - managedRoles:', managedRoles)
 
       // Validate required fields
@@ -145,8 +147,7 @@ export const POST = createApiRoute({
 
       await connectDB()
 
-      // Check for existing email (unique constraint)
-      const existingEmail = await User.findOne({ email: email.toLowerCase() })
+      const existingEmail = await User.findOne({ tenantId: tid, email: email.toLowerCase() })
       if (existingEmail) {
         return {
           status: 409,
@@ -218,14 +219,19 @@ export const POST = createApiRoute({
       const now = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
 
       const user = await User.create({
+        tenantId: tid,
         name: name.trim(),
         email: email.toLowerCase(),
-        password: userPassword, // This will be hashed by the pre-save hook if it's not already hashed
+        password: userPassword,
         role: role ?? "user",
         location: location ?? [],
-        rights: [], // Deprecated, using role-based permissions
+        rights: [],
         managedRoles: managedRoles ?? [],
-        createdBy: auth.sub, // Set createdBy to the creating user's ID
+        teamIds:
+          teamIds && teamIds.length > 0
+            ? teamIds.map((t) => new mongoose.Types.ObjectId(t))
+            : [],
+        createdBy: auth.sub,
         createdAt: now,
         updatedAt: now,
       })
@@ -243,6 +249,7 @@ export const POST = createApiRoute({
             location: user.location ?? [],
             rights: user.rights ?? [],
             managedRoles: user.managedRoles ?? [],
+            teamIds: Array.isArray(user.teamIds) ? user.teamIds.map((x) => String(x)) : [],
             createdBy: user.createdBy,
             createdAt: user.createdAt,
           },

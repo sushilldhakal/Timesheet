@@ -18,6 +18,7 @@ import {
   UserCircle,
   Briefcase,
   MapPin,
+  ClipboardCheck,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/lib/types/dashboard';
 
@@ -101,9 +102,10 @@ export const baseNavigationItems: NavigationItem[] = [
     icon: CircleDollarSign,
     adminOnly: true,
     children: [
-      { href: '/dashboard/awards',          label: 'Awards',          icon: Award,             adminOnly: true },
-      { href: '/dashboard/pay-runs',        label: 'Pay Runs',        icon: CircleDollarSign, adminOnly: true },
-      { href: '/dashboard/public-holidays', label: 'Public Holidays', icon: CalendarDays,     adminOnly: true },
+      { href: '/dashboard/awards',               label: 'Awards',               icon: Award,             adminOnly: true },
+      { href: '/dashboard/timesheet-approvals',  label: 'Timesheet Approvals',  icon: ClipboardCheck,    adminOnly: true },
+      { href: '/dashboard/pay-runs',             label: 'Pay Runs',             icon: CircleDollarSign,  adminOnly: true },
+      { href: '/dashboard/public-holidays',      label: 'Public Holidays',      icon: CalendarDays,      adminOnly: true },
     ],
   },
   {

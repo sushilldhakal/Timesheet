@@ -8,6 +8,7 @@ import {
   SIDEBAR_W,
   SHIFT_H,
   ROLE_HDR,
+  GROUP_SIDEBAR_STACK_H,
   HOUR_HDR_H,
   ADD_BTN_H,
   DAY_SCROLL_BUFFER,
@@ -845,14 +846,21 @@ function GridViewInner({
         ? `emp:${row.employee.id}`
         : `cat:${row.category.id}`
       if (row.kind === "category") {
+        const groupStack =
+          (row.category.meta as { groupName?: string } | undefined)?.groupName
+            ? GROUP_SIDEBAR_STACK_H
+            : 0
         if (effectiveRowMode === "flat") {
           // Compact fixed height for EPG/TV-style flat timeline rows
           result[key] = ROLE_HDR
         } else if (effectiveRowMode === "category" && !collapsed.has(row.category.id)) {
           // Use pre-computed max height — no inner dates.forEach loop
-          result[key] = Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + laneH) + CAT_HDR_EXTRA_H
+          result[key] =
+            Math.max(maxTracksPerCat.get(row.category.id) ?? 0, ROLE_HDR + laneH) +
+            CAT_HDR_EXTRA_H +
+            groupStack
         } else {
-          result[key] = ROLE_HDR + CAT_HDR_EXTRA_H
+          result[key] = ROLE_HDR + CAT_HDR_EXTRA_H + groupStack
         }
         return
       }

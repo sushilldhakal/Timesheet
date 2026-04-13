@@ -36,6 +36,7 @@ export interface IShift {
  */
 export interface IRoster {
   _id: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
   weekId: string // ISO week format: "YYYY-Www" (e.g., "2024-W15")
   year: number // Year for indexing
   weekNumber: number // Week number (1-53) for indexing
@@ -101,12 +102,12 @@ export const ShiftSchema = new mongoose.Schema<IShift>(
     },
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Location",
       required: true,
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Team",
       required: true,
     },
     sourceScheduleId: {
@@ -160,10 +161,10 @@ ShiftSchema.pre("validate", function (next) {
  */
 const rosterSchema = new mongoose.Schema<IRosterDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     weekId: {
       type: String,
       required: true,
-      unique: true,
       validate: {
         validator: function (weekId: string) {
           return /^\d{4}-W\d{2}$/.test(weekId)
@@ -206,8 +207,8 @@ const rosterSchema = new mongoose.Schema<IRosterDocument>(
   }
 )
 
-// Indexes for efficient querying
-// Note: weekId already has unique: true in schema definition, so we don't need to add it again here
+// Tenant-scoped unique constraint: each tenant has one roster per week
+rosterSchema.index({ tenantId: 1, weekId: 1 }, { unique: true })
 rosterSchema.index({ year: 1, weekNumber: 1 })
 rosterSchema.index({ "shifts.employeeId": 1, "shifts.date": 1 })
 rosterSchema.index({ status: 1, weekStartDate: 1 })

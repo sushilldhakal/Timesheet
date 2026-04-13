@@ -1,311 +1,114 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { format, parse, isValid } from "date-fns"
-import { enUS } from "date-fns/locale"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Pencil, MapPin, ChevronRight, ChevronDown, Mail, Phone, Calendar, Home, Clock, MessageSquare, Briefcase, Building2 } from "lucide-react"
-import { DataTable } from "@/components/ui/data-table/data-table"
-import { ColumnDef, type ExpandedState } from "@tanstack/react-table"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  ArrowLeft, Pencil, Mail, Phone,
+  LayoutDashboard, DollarSign, ShieldCheck, FileText, Award,
+} from "lucide-react"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
-import { EditTimesheetDialog } from "./EditTimesheetDialog"
-import EmployeeProfileCard from "@/components/employees/employee-profile-card"
-import type { Employee } from "@/lib/api/employees"
-import EmployeeAwardCard from "@/components/employees/employee-award-card"
-import AwardHistoryCard from "@/components/employees/award-history-card"
-import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/employee-role-assignment-dialog"
 import { EmployeeTimesheetViewer } from "@/components/employees/employee-timesheet-viewer"
-import { formatDateLong as formatDateLongUtil } from "@/lib/utils/format/date-format"
-import { formatTime } from "@/lib/utils/format/time"
-import { useEmployee, useEmployeeTimesheet } from "@/lib/queries/employees"
-import { EmployeeInfoSidebarCard } from "@/components/employees/employee-info-sidebar-card"
+import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
+import EmployeeAwardCard from "@/components/employees/employee-award-card"
+import type { Employee } from "@/lib/api/employees"
+import { useEmployee } from "@/lib/queries/employees"
 
-interface DailyTimesheetRow {
-  date: string
-  clockIn: string
-  breakIn: string
-  breakOut: string
-  clockOut: string
-  breakMinutes: number
-  breakHours: string
-  totalMinutes: number
-  totalHours: string
-  clockInImage?: string
-  clockInWhere?: string
-  clockInLocation?: string
-  breakInImage?: string
-  breakInWhere?: string
-  breakInLocation?: string
-  breakOutImage?: string
-  breakOutWhere?: string
-  breakOutLocation?: string
-  clockOutImage?: string
-  clockOutWhere?: string
-  clockOutLocation?: string
-  /** "insert" = manually added (red). "update" = from punch or edited (green). */
-  clockInSource?: "insert" | "update"
-  breakInSource?: "insert" | "update"
-  breakOutSource?: "insert" | "update"
-  clockOutSource?: "insert" | "update"
-}
+import { OverviewTab } from "@/components/employees/profile-tabs/overview-tab"
+import { PayrollTab } from "@/components/employees/profile-tabs/payroll-tab"
+import { ComplianceTab } from "@/components/employees/profile-tabs/compliance-tab"
+import { ContractTab } from "@/components/employees/profile-tabs/contract-tab"
+import { DevelopmentTab } from "@/components/employees/profile-tabs/development-tab"
 
-/** Auth-protected link for Cloudinary images (proxied via /api/image). */
-function getImageLinkHref(url: string): string {
-  if (url.includes("res.cloudinary.com")) {
-    return `/api/image?url=${encodeURIComponent(url)}`
-  }
-  return url
-}
-
-/** Single column: image on top, location link directly below. Aligns with Clock In / Break In / Break Out / Clock Out columns. */
-function PunchPhotoAndLocation({
-  imageUrl,
-  where,
-  locationName,
-}: {
-  imageUrl?: string
-  where?: string
-  locationName?: string
-}) {
-  const mapsUrl = where ? `https://www.google.com/maps?q=${where}` : null
-  const imageLinkHref = imageUrl ? getImageLinkHref(imageUrl) : null
+function HeaderSkeleton() {
   return (
-    <div className="flex flex-col items-center gap-2 min-w-0">
-      {imageUrl ? (
-        <a
-          href={imageLinkHref ?? imageUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative block w-16 h-16 rounded overflow-hidden border border-border hover:opacity-90 shrink-0"
-        >
-          <OptimizedImage src={imageUrl} alt="" fill className="object-cover" sizes="64px" />
-        </a>
-      ) : (
-        <div className="w-16 h-16 rounded border border-dashed border-muted flex items-center justify-center shrink-0">
-          <span className="text-muted-foreground text-xs">—</span>
+    <div className="flex items-center gap-4">
+      <Skeleton className="h-9 w-9 rounded-md" />
+      <div className="flex items-center gap-3 flex-1">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-32" />
         </div>
-      )}
-      {mapsUrl ? (
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline break-all text-center"
-        >
-          <MapPin className="h-3 w-3 shrink-0" />
-          {locationName || "Location"}
-        </a>
-      ) : (
-        <span className="text-muted-foreground text-xs">—</span>
-      )}
+      </div>
+      <Skeleton className="h-9 w-28" />
     </div>
   )
-}
-
-/** Expanded row: one cell per column so image+location align under Clock In, Break In, Break Out, Clock Out. Columns: [expand, date, clockIn, breakIn, breakOut, clockOut, breakHours, totalHours, actions]. */
-function renderExpandedRowCells(row: DailyTimesheetRow): React.ReactNode[] {
-  const empty = null
-  return [
-    empty,
-    empty,
-    <div key="ci" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockInImage} where={row.clockInWhere} locationName={row.clockInLocation} /></div>,
-    <div key="bi" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakInImage} where={row.breakInWhere} locationName={row.breakInLocation} /></div>,
-    <div key="bo" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.breakOutImage} where={row.breakOutWhere} locationName={row.breakOutLocation} /></div>,
-    <div key="co" className="flex justify-center"><PunchPhotoAndLocation imageUrl={row.clockOutImage} where={row.clockOutWhere} locationName={row.clockOutLocation} /></div>,
-    empty,
-    empty,
-    empty,
-  ]
-}
-
-/** Parse date "31-12-2025" (dd-MM-yyyy) or "2025-12-31" (yyyy-MM-dd) or ISO format. */
-function parseDate(dateStr: string): Date | null {
-  if (!dateStr || typeof dateStr !== "string") return null
-  const s = dateStr.trim()
-  try {
-    // Try ISO format first (most common from API)
-    const isoDate = new Date(s)
-    if (isValid(isoDate)) return isoDate
-    
-    // Try dd-MM-yyyy format
-    const d1 = parse(s, "dd-MM-yyyy", new Date(), { locale: enUS })
-    if (isValid(d1)) return d1
-    
-    // Try yyyy-MM-dd format
-    const d2 = parse(s, "yyyy-MM-dd", new Date(), { locale: enUS })
-    return isValid(d2) ? d2 : null
-  } catch {
-    return null
-  }
-}
-
-/** Format date as "Fri 27th Feb 2026" using the utility function. */
-function formatDateLong(dateStr: string): string {
-  if (!dateStr) return "—"
-  // Use the utility function which handles all date formats
-  const formatted = formatDateLongUtil(dateStr)
-  return formatted || dateStr || "—"
-}
-
-/**
- * Red = manually added (no punch). Green = from punch or edited.
- */
-function TimeCell({ time, source }: { time: string; source?: "insert" | "update" }) {
-  const text = formatTime(time)
-  if (text === "—") return <span className="tabular-nums text-muted-foreground">—</span>
-  const className =
-    source === "insert"
-      ? "tabular-nums text-destructive font-medium"
-      : source === "update"
-        ? "tabular-nums text-emerald-600 dark:text-emerald-400 font-medium"
-        : "tabular-nums"
-  return <span className={className}>{text}</span>
-}
-
-function formatBreakHours(s: string): string {
-  if (!s) return "—"
-  if (s === "—") return "—"
-  const m = s.match(/(\d+)h\s*(\d*)m?/)
-  if (!m) return s
-  const h = parseInt(m[1] || "0", 10)
-  const min = parseInt(m[2] || "0", 10)
-  if (h === 0 && min === 0) return "—"
-  if (min === 0) return h === 1 ? "1 hr" : `${h} hrs`
-  return `${h}h ${min}m`
-}
-
-function formatTotalHours(s: string): string {
-  if (!s) return "—"
-  if (s === "—") return "—"
-  const m = s.match(/(\d+)h\s*(\d*)m?/)
-  if (!m) return s
-  const h = parseInt(m[1] || "0", 10)
-  const min = parseInt(m[2] || "0", 10)
-  if (min === 0) return h === 1 ? "1 hr" : `${h} hrs`
-  return `${h} hrs ${min}m`
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
 }
 
 function EmployeeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id as string
-  const [employee, setEmployee] = useState<any>(null)
-  const [isHydrated, setIsHydrated] = useState(false)
-  const [awardId, setAwardId] = useState<string | null>(null)
-  const [awardLevel, setAwardLevel] = useState<string | null>(null)
-  const [employmentType, setEmploymentType] = useState<string | null>(null)
-  const [standardHours, setStandardHours] = useState<number | null>(null)
-  const [timesheets, setTimesheets] = useState<DailyTimesheetRow[]>([])
-  const [total, setTotal] = useState(0)
-  const [search, setSearch] = useState("")
-  const [pageIndex, setPageIndex] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const [activeTab, setActiveTab] = useState("overview")
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false)
-  const [editTimesheetRow, setEditTimesheetRow] = useState<DailyTimesheetRow | null>(null)
   const [roleAssignmentDialogOpen, setRoleAssignmentDialogOpen] = useState(false)
-  const [expanded, setExpanded] = useState<ExpandedState>({})
-  const debouncedSearch = useDebounce(search, 300)
 
   const employeeQuery = useEmployee(id)
-
-  const timesheetParams = new URLSearchParams({
-    limit: String(pageSize >= 99999 ? 500 : pageSize),
-    offset: String(pageIndex * (pageSize >= 99999 ? 500 : pageSize)),
-    sortBy: "date",
-    order: "desc",
-  })
-  if (debouncedSearch) timesheetParams.set("search", debouncedSearch)
-
-  const timesheetQuery = useEmployeeTimesheet(id, timesheetParams)
-
   const loading = employeeQuery.isLoading
-  const tsLoading = timesheetQuery.isLoading
+  const rawEmployee = employeeQuery.data?.employee
 
-  // Hydration check
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
+  const employee = rawEmployee
+    ? {
+        id: rawEmployee.id,
+        name: rawEmployee.name ?? "",
+        pin: rawEmployee.pin ?? "",
+        roles: rawEmployee.roles ?? [],
+        employers: rawEmployee.employers ?? [],
+        locations: rawEmployee.locations ?? [],
+        email: rawEmployee.email ?? "",
+        phone: rawEmployee.phone ?? "",
+        dob: rawEmployee.dob ?? "",
+        homeAddress: rawEmployee.homeAddress ?? "",
+        gender: rawEmployee.gender ?? "",
+        comment: rawEmployee.comment ?? "",
+        img: rawEmployee.img ?? "",
+        award: rawEmployee.award ?? undefined,
+        employmentType: rawEmployee.employmentType ?? undefined,
+        standardHoursPerWeek: rawEmployee.standardHoursPerWeek ?? undefined,
+        // New payroll/compliance fields (may not be returned by existing API yet)
+        legalFirstName: (rawEmployee as any).legalFirstName,
+        legalMiddleNames: (rawEmployee as any).legalMiddleNames,
+        legalLastName: (rawEmployee as any).legalLastName,
+        preferredName: (rawEmployee as any).preferredName,
+        timeZone: (rawEmployee as any).timeZone,
+        locale: (rawEmployee as any).locale,
+        nationality: (rawEmployee as any).nationality,
+        isActive: (rawEmployee as any).isActive ?? true,
+        isProbationary: (rawEmployee as any).isProbationary ?? false,
+        probationEndDate: (rawEmployee as any).probationEndDate,
+        terminatedAt: (rawEmployee as any).terminatedAt,
+        terminationReason: (rawEmployee as any).terminationReason,
+        skills: (rawEmployee as any).skills,
+        certifications: (rawEmployee as any).certifications,
+        createdAt: rawEmployee.createdAt,
+        updatedAt: rawEmployee.updatedAt,
+      }
+    : null
 
-  useEffect(() => {
-    if (employeeQuery.data?.employee) {
-      const e = employeeQuery.data.employee
-      setEmployee({
-        id: e.id,
-        name: e.name ?? "",
-        pin: e.pin ?? "",
-        roles: e.roles ?? [],
-        employers: e.employers ?? [],
-        locations: e.locations ?? [],
-        hire: (e as any).hire ?? "",
-        site: (e as any).site ?? "",
-        email: e.email ?? "",
-        phone: e.phone ?? "",
-        dob: e.dob ?? "",
-        homeAddress: e.homeAddress ?? "",
-        gender: e.gender ?? "",
-        comment: e.comment ?? "",
-        img: e.img ?? "",
-        award: e.award ?? null,
-        employmentType: e.employmentType ?? null,
-        standardHoursPerWeek: e.standardHoursPerWeek ?? null,
-      })
-      // Set award fields from the award object
-      setAwardId((e as any).award?.id ?? null)
-      setAwardLevel((e as any).award?.level ?? null)
-      setEmploymentType((e as any).employmentType ?? null)
-      setStandardHours((e as any).standardHoursPerWeek ?? null)
-    } else if (employeeQuery.error) {
-      setEmployee(null)
-    }
-  }, [employeeQuery.data, employeeQuery.error])
+  const refetchEmployee = () => employeeQuery.refetch()
 
-  useEffect(() => {
-    if (timesheetQuery.data) {
-      console.log('✅ Timesheets fetched:', {
-        count: timesheetQuery.data.data?.length || 0,
-        rawData: timesheetQuery.data,
-      })
-      setTimesheets(timesheetQuery.data.data as any ?? [])
-      setTotal(timesheetQuery.data.pagination?.total ?? timesheetQuery.data.data?.length ?? 0)
-    } else if (timesheetQuery.error) {
-      console.error('❌ Failed to fetch timesheets:', timesheetQuery.error)
-      setTimesheets([])
-      setTotal(0)
-    }
-  }, [timesheetQuery.data, timesheetQuery.error])
-
-  const refetchEmployee = () => {
-    employeeQuery.refetch()
-  }
-
-  const refetchTimesheets = () => {
-    timesheetQuery.refetch()
-  }
-
-  if (!isHydrated || loading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <p className="text-muted-foreground">Loading employee...</p>
+      <div className="flex flex-col space-y-6 p-4 lg:p-8">
+        <HeaderSkeleton />
+        <Skeleton className="h-10 w-full max-w-lg" />
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
       </div>
     )
   }
 
   if (!employee) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[200px] space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[300px] space-y-4">
         <p className="text-muted-foreground">Employee not found</p>
         <Button onClick={() => router.push("/dashboard/employees")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -315,182 +118,156 @@ function EmployeeDetailPage() {
     )
   }
 
-  const columns: ColumnDef<DailyTimesheetRow>[] = [
-    {
-      id: "expander",
-      header: "",
-      cell: ({ row }) => {
-        const hasImages = !!(
-          row.original.clockInImage ||
-          row.original.breakInImage ||
-          row.original.breakOutImage ||
-          row.original.clockOutImage
-        )
-        if (!hasImages) return null
-        return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => row.toggleExpanded()}
-          >
-            {row.getIsExpanded() ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </Button>
-        )
-      },
-      enableSorting: false,
-      size: 40,
-    },
-    {
-      accessorKey: "date",
-      header: "Date",
-      cell: ({ row }) => formatDateLong(row.original.date),
-      enableSorting: true,
-      size: 140,
-    },
-    {
-      accessorKey: "clockIn",
-      header: "Clock In",
-      cell: ({ row }) => (
-        <TimeCell time={row.original.clockIn} source={row.original.clockInSource} />
-      ),
-      enableSorting: true,
-      size: 90,
-    },
-    {
-      accessorKey: "breakIn",
-      header: "Break In",
-      cell: ({ row }) => (
-        <TimeCell time={row.original.breakIn} source={row.original.breakInSource} />
-      ),
-      enableSorting: true,
-      size: 90,
-    },
-    {
-      accessorKey: "breakOut",
-      header: "Break Out",
-      cell: ({ row }) => (
-        <TimeCell time={row.original.breakOut} source={row.original.breakOutSource} />
-      ),
-      enableSorting: true,
-      size: 90,
-    },
-    {
-      accessorKey: "clockOut",
-      header: "Clock Out",
-      cell: ({ row }) => (
-        <TimeCell time={row.original.clockOut} source={row.original.clockOutSource} />
-      ),
-      enableSorting: true,
-      size: 90,
-    },
-    {
-      accessorKey: "breakHours",
-      header: "Break",
-      cell: ({ row }) => (
-        <span className="tabular-nums text-muted-foreground">
-          {formatBreakHours(row.original.breakHours)}
-        </span>
-      ),
-      enableSorting: true,
-      size: 80,
-    },
-    {
-      accessorKey: "totalHours",
-      header: "Total",
-      cell: ({ row }) => (
-        <span className="tabular-nums font-medium">
-          {formatTotalHours(row.original.totalHours)}
-        </span>
-      ),
-      enableSorting: true,
-      size: 90,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setEditTimesheetRow(row.original)}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-      ),
-      enableSorting: false,
-      size: 60,
-    },
-  ]
+  const isActive = employee.isActive !== false && !employee.terminatedAt
 
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+      {/* ─── Header ─────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.push("/dashboard/employees")}
+          className="shrink-0 self-start"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{employee.name}</h1>
-          <p className="text-sm text-muted-foreground">PIN: {employee.pin}</p>
+
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <OptimizedImage
+            src={employee.img}
+            alt={employee.name}
+            width={48}
+            height={48}
+            className="rounded-full object-cover w-12 h-12 shrink-0"
+            fallbackName={employee.name}
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold truncate">{employee.name}</h1>
+              {isActive ? (
+                <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                  Active
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  {employee.terminatedAt ? "Terminated" : "Inactive"}
+                </Badge>
+              )}
+              {employee.isProbationary && (
+                <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+                  Probation
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground flex-wrap">
+              <span>PIN: {employee.pin}</span>
+              {employee.email && (
+                <span className="flex items-center gap-1">
+                  <Mail className="h-3 w-3" />
+                  {employee.email}
+                </span>
+              )}
+              {employee.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {employee.phone}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <Button onClick={() => setEditEmployeeOpen(true)}>
+
+        <Button onClick={() => setEditEmployeeOpen(true)} className="shrink-0 self-start sm:self-center">
           <Pencil className="h-4 w-4 mr-2" />
-          Edit Employee
+          Edit Profile
         </Button>
       </div>
 
-      {/* Employee Details */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Profile Card - 1/3 width */}
-        <EmployeeInfoSidebarCard
-          name={employee.name}
-          pin={employee.pin}
-          img={employee.img}
-          fallbackImageUrl={timesheets.length > 0 ? timesheets[0]?.clockInImage : ""}
-          employers={employee.employers}
-          email={employee.email}
-          phone={employee.phone}
-          dob={employee.dob}
-          homeAddress={(employeeQuery.data?.employee as any)?.homeAddress}
-          standardHoursPerWeek={standardHours}
-          comment={employee.comment}
-          formatDob={(d) => formatDateLongUtil(d) || d}
-        />
+      {/* ─── Tab Navigation ─────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview" className="gap-1.5">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="payroll" className="gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" />
+            Payroll
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Compliance
+          </TabsTrigger>
+          <TabsTrigger value="contract" className="gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Contract
+          </TabsTrigger>
+          <TabsTrigger value="development" className="gap-1.5">
+            <Award className="h-3.5 w-3.5" />
+            Development
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Combined Role & Award Card - 2/3 width */}
-        <div className="lg:col-span-2 space-y-6">
-          <EmployeeRoleAssignmentList
-            employeeId={employee.id}
-            onAdd={() => setRoleAssignmentDialogOpen(true)}
-          />
+        {/* ── Overview ── */}
+        <TabsContent value="overview">
+          <div className="space-y-6 pt-2">
+            <OverviewTab employee={employee} onNavigate={setActiveTab} />
 
-          <EmployeeAwardCard
-            employeeId={employee.id}
-            currentAwardId={awardId}
-            currentAwardLevel={awardLevel}
-            currentEmploymentType={employmentType}
-            onUpdate={refetchEmployee}
-          />
-        </div>
-      </div>
+            {/* Existing role assignments & award cards */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <EmployeeRoleAssignmentList
+                employeeId={employee.id}
+                onAdd={() => setRoleAssignmentDialogOpen(true)}
+              />
+              <EmployeeAwardCard
+                employeeId={employee.id}
+                currentAwardId={employee.award?.id ?? null}
+                currentAwardLevel={employee.award?.level ?? null}
+                currentEmploymentType={employee.employmentType ?? null}
+                onUpdate={refetchEmployee}
+              />
+            </div>
 
-      {/* Timesheet */}
-      <EmployeeTimesheetViewer 
-        employeeId={employee.id}
-        employeeName={employee.name}
-        employeeImageUrl={employee.img || (timesheets.length > 0 ? timesheets[0]?.clockInImage : "") || ""}
-      />
+            {/* Timesheet */}
+            <EmployeeTimesheetViewer
+              employeeId={employee.id}
+              employeeName={employee.name}
+              employeeImageUrl={employee.img || ""}
+            />
+          </div>
+        </TabsContent>
 
-      {/* Dialogs */}
+        {/* ── Payroll ── */}
+        <TabsContent value="payroll">
+          <div className="pt-2">
+            <PayrollTab employeeId={employee.id} />
+          </div>
+        </TabsContent>
+
+        {/* ── Compliance ── */}
+        <TabsContent value="compliance">
+          <div className="pt-2">
+            <ComplianceTab employeeId={employee.id} canEditPayroll />
+          </div>
+        </TabsContent>
+
+        {/* ── Contract ── */}
+        <TabsContent value="contract">
+          <div className="pt-2">
+            <ContractTab employeeId={employee.id} canEditPayroll />
+          </div>
+        </TabsContent>
+
+        {/* ── Development (Qualifications) ── */}
+        <TabsContent value="development">
+          <div className="pt-2">
+            <DevelopmentTab employeeId={employee.id} canEditPayroll />
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ─── Dialogs ────────────────────────────────────────── */}
       <EditEmployeeDialog
         employee={employee}
         open={editEmployeeOpen}
@@ -498,19 +275,9 @@ function EmployeeDetailPage() {
         onSuccess={refetchEmployee}
       />
 
-      {editTimesheetRow && (
-        <EditTimesheetDialog
-          employeeId={employee.id}
-          timesheet={editTimesheetRow}
-          open={!!editTimesheetRow}
-          onOpenChange={(open) => !open && setEditTimesheetRow(null)}
-          onSuccess={refetchTimesheets}
-        />
-      )}
-
       <EmployeeRoleAssignmentDialog
         employeeId={employee.id}
-        employeeName={employee?.name || "Employee"}
+        employeeName={employee.name}
         open={roleAssignmentDialogOpen}
         onOpenChange={setRoleAssignmentDialogOpen}
         onSuccess={refetchEmployee}

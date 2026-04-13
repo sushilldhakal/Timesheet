@@ -389,3 +389,187 @@ export async function getEmployeeAvailability(
   
   return apiFetch<EmployeeAvailabilityResponse>(url)
 }
+
+// ─── Employee Payroll & Compliance Types ─────────────────
+
+export interface EmployeeTaxInfo {
+  id: string
+  countrySnapshot: string
+  taxIdMasked: string
+  taxIdType: string
+  bankAccountMasked: string
+  bankRoutingMasked: string
+  bankRoutingType: string
+  bankAccountName: string
+  bankName: string | null
+  countryName: string
+  currency: string
+}
+
+export interface EmployeeBankDetails {
+  id: string
+  employeeId: string
+  accountNumber: string
+  bsbCode: string
+  accountHolderName: string
+  bankName?: string | null
+  accountType?: string | null
+}
+
+export interface EmployeeContract {
+  id: string
+  employeeId: string
+  startDate: string
+  endDate?: string | null
+  contractType: string
+  noticePeriod?: number | null
+  probationPeriodEnd?: string | null
+  contractTermsUrl?: string | null
+  salary?: number | null
+  wageType: string
+  isActive: boolean
+}
+
+export interface EmployeeQualification {
+  id: string
+  employeeId: string
+  qualificationName: string
+  issuingBody: string
+  issueDate: string
+  expiryDate?: string | null
+  licenseNumber?: string | null
+  status: string
+  documentUrl?: string | null
+}
+
+export interface ComplianceAlert {
+  type: string
+  field: string
+  message: string
+  expiryDate?: string
+}
+
+export interface EmployeeComplianceRecord {
+  id: string
+  employeeId: string
+  wwcStatus?: string | null
+  wwcNumber?: string | null
+  wwcExpiryDate?: string | null
+  policeClearanceStatus?: string | null
+  policeClearanceNumber?: string | null
+  policeClearanceExpiryDate?: string | null
+  foodHandlingStatus?: string | null
+  foodHandlingExpiryDate?: string | null
+  healthSafetyCertifications?: string[]
+  inductionCompleted: boolean
+  inductionDate?: string | null
+  inductionDocUrl?: string | null
+  codeOfConductSigned: boolean
+  codeOfConductDate?: string | null
+  codeOfConductDocUrl?: string | null
+  lastComplianceCheckDate?: string | null
+  alerts?: ComplianceAlert[]
+}
+
+// ─── Tax Info ────────────────────────────────────────────
+export async function getEmployeeTaxInfo(employeeId: string): Promise<{ taxInfo: EmployeeTaxInfo }> {
+  return apiFetch(`/api/employees/${employeeId}/tax-info`)
+}
+
+export async function createEmployeeTaxInfo(employeeId: string, data: Record<string, unknown>): Promise<{ taxInfo: EmployeeTaxInfo }> {
+  return apiFetch(`/api/employees/${employeeId}/tax-info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEmployeeTaxInfo(employeeId: string, data: Record<string, unknown>): Promise<{ taxInfo: EmployeeTaxInfo }> {
+  return apiFetch(`/api/employees/${employeeId}/tax-info`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// ─── Bank Details ────────────────────────────────────────
+export async function getEmployeeBankDetails(employeeId: string): Promise<{ bankDetails: EmployeeBankDetails }> {
+  return apiFetch(`/api/employees/${employeeId}/bank-details`)
+}
+
+export async function createEmployeeBankDetails(employeeId: string, data: Record<string, unknown>): Promise<{ bankDetails: EmployeeBankDetails }> {
+  return apiFetch(`/api/employees/${employeeId}/bank-details`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEmployeeBankDetails(employeeId: string, data: Record<string, unknown>): Promise<{ bankDetails: EmployeeBankDetails }> {
+  return apiFetch(`/api/employees/${employeeId}/bank-details`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// ─── Contracts ───────────────────────────────────────────
+export async function getEmployeeContracts(employeeId: string): Promise<{ contracts: EmployeeContract[] }> {
+  return apiFetch(`/api/employees/${employeeId}/contract`)
+}
+
+export async function createEmployeeContract(employeeId: string, data: Record<string, unknown>): Promise<{ contract: EmployeeContract }> {
+  return apiFetch(`/api/employees/${employeeId}/contract`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEmployeeContract(employeeId: string, data: Record<string, unknown>): Promise<{ contract: EmployeeContract }> {
+  return apiFetch(`/api/employees/${employeeId}/contract`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// ─── Qualifications ──────────────────────────────────────
+export async function getEmployeeQualifications(employeeId: string): Promise<{ qualifications: EmployeeQualification[] }> {
+  return apiFetch(`/api/employees/${employeeId}/qualifications`)
+}
+
+export async function createEmployeeQualification(employeeId: string, data: Record<string, unknown>): Promise<{ qualification: EmployeeQualification }> {
+  return apiFetch(`/api/employees/${employeeId}/qualifications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEmployeeQualification(employeeId: string, data: Record<string, unknown>): Promise<{ qualification: EmployeeQualification }> {
+  return apiFetch(`/api/employees/${employeeId}/qualifications`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteEmployeeQualification(employeeId: string, qualificationId: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/employees/${employeeId}/qualifications?qualificationId=${qualificationId}`, {
+    method: 'DELETE',
+  })
+}
+
+// ─── Compliance ──────────────────────────────────────────
+export async function getEmployeeCompliance(employeeId: string): Promise<{ compliance: EmployeeComplianceRecord }> {
+  return apiFetch(`/api/employees/${employeeId}/compliance`)
+}
+
+export async function updateEmployeeCompliance(employeeId: string, data: Record<string, unknown>): Promise<{ compliance: EmployeeComplianceRecord }> {
+  return apiFetch(`/api/employees/${employeeId}/compliance`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}

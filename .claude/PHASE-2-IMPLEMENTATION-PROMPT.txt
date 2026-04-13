@@ -1,0 +1,735 @@
+IMPLEMENT PHASE 2: PAYROLL EDIT FORMS (Tax Info & Bank Details)
+
+OBJECTIVE: Add edit forms for Tax Information and Bank Details in the Payroll tab.
+After Phase 2, users can click "Edit" on payroll section and update tax/banking information.
+
+REFERENCE:
+- Plan: /Users/sushildhakal/.claude/plans/COMPLETE-PHASES-2-8-ROADMAP.md (Phase 2 section)
+- Backend APIs already exist in /lib/api/employees.ts
+- React Query hooks exist in /lib/queries/employees.ts
+- Validation schemas exist in /lib/validations/employee-payroll.ts
+
+================================================================================
+PHASE 2: FILE 1 - Create Tax Info Form Component
+================================================================================
+
+FILE: /components/employees/forms/TaxInfoForm.tsx
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Loader2, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { updateEmployeeTaxInfo } from '@/lib/api/employees'
+import { taxInfoBodySchema } from '@/lib/validations/employee-payroll'
+import type { z } from 'zod'
+
+type TaxInfoFormData = z.infer<typeof taxInfoBodySchema>
+
+interface TaxInfoFormProps {
+  employeeId: string
+  initialData?: {
+    tfn?: string
+    abn?: string
+    superannuationFund?: string
+    superannuationMemberNumber?: string
+    taxWithholdingPercentage?: number
+    helpDebt?: boolean
+    salarySecureForm?: { url?: string; signedDate?: string }
+  }
+  onSuccess?: () => void
+  onCancel?: () => void
+}
+
+export function TaxInfoForm({
+  employeeId,
+  initialData,
+  onSuccess,
+  onCancel,
+}: TaxInfoFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const form = useForm<TaxInfoFormData>({
+    resolver: zodResolver(taxInfoBodySchema),
+    defaultValues: {
+      tfn: initialData?.tfn || '',
+      abn: initialData?.abn || '',
+      superannuationFund: initialData?.superannuationFund || '',
+      superannuationMemberNumber: initialData?.superannuationMemberNumber || '',
+      taxWithholdingPercentage: initialData?.taxWithholdingPercentage || 37.5,
+      helpDebt: initialData?.helpDebt || false,
+    },
+  })
+
+  const onSubmit = async (data: TaxInfoFormData) => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      await updateEmployeeTaxInfo(employeeId, data)
+      toast.success('Tax information updated successfully')
+      onSuccess?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update tax information'
+      setSubmitError(message)
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Tax Information</CardTitle>
+        <CardDescription>Update employee tax details (admin only)</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {submitError && (
+          <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {submitError}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setSubmitError(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Tax File Number */}
+            <FormField
+              control={form.control}
+              name="tfn"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax File Number (TFN) *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="XXX-XXX-XXX"
+                      {...field}
+                      maxLength={11}
+                      className="font-mono"
+                    />
+                  </FormControl>
+                  <FormDescription>Format: XXX-XXX-XXX (11 characters)</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* ABN */}
+            <FormField
+              control={form.control}
+              name="abn"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ABN (for contractors only)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="XX-XXX-XXX-XXX"
+                      {...field}
+                      maxLength={11}
+                      className="font-mono"
+                    />
+                  </FormControl>
+                  <FormDescription>Leave blank if not a contractor</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Superannuation Fund */}
+            <FormField
+              control={form.control}
+              name="superannuationFund"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Superannuation Fund</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., AustralianSuper"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>Name of the superannuation fund</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Super Member Number */}
+            <FormField
+              control={form.control}
+              name="superannuationMemberNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Superannuation Member Number</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Member number from super fund"
+                      {...field}
+                      className="font-mono"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Tax Withholding */}
+            <FormField
+              control={form.control}
+              name="taxWithholdingPercentage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax Withholding %</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="37.5"
+                      {...field}
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      className="font-mono"
+                    />
+                  </FormControl>
+                  <FormDescription>Percentage to withhold for taxes (0-100)</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* HELP/HECS Debt */}
+            <FormField
+              control={form.control}
+              name="helpDebt"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>HELP/HECS Debt</FormLabel>
+                    <FormDescription>Employee has HELP/HECS debt</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Info Box */}
+            <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-900">
+              <p className="font-semibold">⚠️ Security Note</p>
+              <p className="mt-1">All sensitive tax information is encrypted and securely stored. Only admins can view and edit.</p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? 'Saving...' : 'Save Tax Info'}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+PHASE 2: FILE 2 - Create Bank Details Form Component
+================================================================================
+
+FILE: /components/employees/forms/BankDetailsForm.tsx
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Loader2, AlertCircle, Lock } from 'lucide-react'
+import { toast } from 'sonner'
+import { updateEmployeeBankDetails } from '@/lib/api/employees'
+import { bankDetailsBodySchema } from '@/lib/validations/employee-payroll'
+import type { z } from 'zod'
+
+type BankDetailsFormData = z.infer<typeof bankDetailsBodySchema>
+
+interface BankDetailsFormProps {
+  employeeId: string
+  initialData?: {
+    bankName?: string
+    accountNumber?: string
+    bsbCode?: string
+    accountHolderName?: string
+    accountType?: 'savings' | 'cheque'
+  }
+  onSuccess?: () => void
+  onCancel?: () => void
+}
+
+export function BankDetailsForm({
+  employeeId,
+  initialData,
+  onSuccess,
+  onCancel,
+}: BankDetailsFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const form = useForm<BankDetailsFormData>({
+    resolver: zodResolver(bankDetailsBodySchema),
+    defaultValues: {
+      bankName: initialData?.bankName || '',
+      accountNumber: initialData?.accountNumber || '',
+      bsbCode: initialData?.bsbCode || '',
+      accountHolderName: initialData?.accountHolderName || '',
+      accountType: initialData?.accountType || 'savings',
+    },
+  })
+
+  const onSubmit = async (data: BankDetailsFormData) => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      await updateEmployeeBankDetails(employeeId, data)
+      toast.success('Bank details updated successfully')
+      onSuccess?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update bank details'
+      setSubmitError(message)
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Banking Details</CardTitle>
+        <CardDescription>Update employee bank account information (encrypted)</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {submitError && (
+          <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {submitError}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setSubmitError(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Bank Name */}
+            <FormField
+              control={form.control}
+              name="bankName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Bank Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., Commonwealth Bank, ANZ"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Account Number */}
+            <FormField
+              control={form.control}
+              name="accountNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Number *</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="••••••••••••••••"
+                      {...field}
+                      className="font-mono"
+                      maxLength={20}
+                    />
+                  </FormControl>
+                  <FormDescription>Account number (masked for security)</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* BSB Code */}
+            <FormField
+              control={form.control}
+              name="bsbCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>BSB Code *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="000-000"
+                      {...field}
+                      maxLength={7}
+                      className="font-mono"
+                    />
+                  </FormControl>
+                  <FormDescription>Format: XXX-XXX (e.g., 123-456)</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Account Holder Name */}
+            <FormField
+              control={form.control}
+              name="accountHolderName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Holder Name *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Name on bank account"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>Must match bank records exactly</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Account Type */}
+            <FormField
+              control={form.control}
+              name="accountType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Type</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="flex gap-6"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="savings" id="savings" />
+                        <label htmlFor="savings" className="cursor-pointer">
+                          Savings Account
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="cheque" id="cheque" />
+                        <label htmlFor="cheque" className="cursor-pointer">
+                          Cheque Account
+                        </label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Security Info Box */}
+            <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-center gap-2 font-semibold">
+                <Lock className="h-4 w-4" />
+                Encrypted Storage
+              </div>
+              <p className="mt-2">
+                Bank account details are encrypted and securely stored. Only payroll officers and admins can access this information. Your account details will never be displayed in plain text.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? 'Saving...' : 'Save Bank Details'}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+PHASE 2: FILE 3 - Modify Payroll Tab Component
+================================================================================
+
+FILE: /components/employees/profile-tabs/payroll-tab.tsx
+
+CHANGES:
+1. Import the new form components at the top:
+```typescript
+import { TaxInfoForm } from '@/components/employees/forms/TaxInfoForm'
+import { BankDetailsForm } from '@/components/employees/forms/BankDetailsForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+```
+
+2. Add state for edit dialogs after component starts:
+```typescript
+const [editingTaxInfo, setEditingTaxInfo] = useState(false)
+const [editingBankDetails, setEditingBankDetails] = useState(false)
+```
+
+3. In the TaxInfoSection card, modify the header:
+CHANGE THIS:
+```typescript
+<CardHeader>
+  <CardTitle>Tax Information</CardTitle>
+</CardHeader>
+```
+
+TO THIS:
+```typescript
+<CardHeader className="flex items-center justify-between">
+  <CardTitle>Tax Information</CardTitle>
+  {canEditPayroll && (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setEditingTaxInfo(true)}
+      disabled={!taxInfo}
+    >
+      <PencilIcon className="h-4 w-4" />
+      Edit
+    </Button>
+  )}
+</CardHeader>
+```
+
+4. AFTER the tax info display section (after the CardContent closes), ADD:
+```typescript
+{/* Tax Info Edit Dialog */}
+<Dialog open={editingTaxInfo} onOpenChange={setEditingTaxInfo}>
+  <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Edit Tax Information</DialogTitle>
+    </DialogHeader>
+    {taxInfo && (
+      <TaxInfoForm
+        employeeId={employeeId}
+        initialData={{
+          tfn: taxInfo.tfn,
+          abn: taxInfo.abn,
+          superannuationFund: taxInfo.superannuationFund,
+          superannuationMemberNumber: taxInfo.superannuationMemberNumber,
+          taxWithholdingPercentage: taxInfo.taxWithholdingPercentage,
+          helpDebt: taxInfo.helpDebt,
+        }}
+        onSuccess={() => {
+          setEditingTaxInfo(false)
+          refetchTaxInfo?.()
+        }}
+        onCancel={() => setEditingTaxInfo(false)}
+      />
+    )}
+  </DialogContent>
+</Dialog>
+```
+
+5. Repeat the same for BankDetailsSection:
+
+CHANGE THE HEADER:
+```typescript
+<CardHeader className="flex items-center justify-between">
+  <CardTitle>Banking Details</CardTitle>
+  {canEditPayroll && (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setEditingBankDetails(true)}
+      disabled={!bankDetails}
+    >
+      <PencilIcon className="h-4 w-4" />
+      Edit
+    </Button>
+  )}
+</CardHeader>
+```
+
+6. ADD THE DIALOG AFTER BANK DETAILS SECTION:
+```typescript
+{/* Bank Details Edit Dialog */}
+<Dialog open={editingBankDetails} onOpenChange={setEditingBankDetails}>
+  <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Edit Banking Details</DialogTitle>
+    </DialogHeader>
+    {bankDetails && (
+      <BankDetailsForm
+        employeeId={employeeId}
+        initialData={{
+          bankName: bankDetails.bankName,
+          accountNumber: bankDetails.accountNumber,
+          bsbCode: bankDetails.bsbCode,
+          accountHolderName: bankDetails.accountHolderName,
+          accountType: bankDetails.accountType,
+        }}
+        onSuccess={() => {
+          setEditingBankDetails(false)
+          refetchBankDetails?.()
+        }}
+        onCancel={() => setEditingBankDetails(false)}
+      />
+    )}
+  </DialogContent>
+</Dialog>
+```
+
+7. ADD IMPORTS AT TOP OF FILE:
+```typescript
+import { PencilIcon } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { TaxInfoForm } from '@/components/employees/forms/TaxInfoForm'
+import { BankDetailsForm } from '@/components/employees/forms/BankDetailsForm'
+import { useState } from 'react'
+```
+
+8. DETERMINE `canEditPayroll` - Add logic to check if user is admin/payroll:
+```typescript
+// Get this from your auth context or user object
+const canEditPayroll = user?.role === 'admin' || user?.role === 'payroll_officer'
+```
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+Components Created:
+[ ] /components/employees/forms/TaxInfoForm.tsx created and exports TaxInfoForm
+[ ] /components/employees/forms/BankDetailsForm.tsx created and exports BankDetailsForm
+[ ] Both components properly import all dependencies
+
+Modified Files:
+[ ] /components/employees/profile-tabs/payroll-tab.tsx updated with:
+    [ ] Edit buttons on Tax Info section
+    [ ] Edit button on Bank Details section
+    [ ] Dialog modals for editing
+    [ ] Form components properly passed with initial data
+    [ ] onSuccess callbacks refetch data
+
+Functionality:
+[ ] Tax Info form validates TFN format (8-11 chars)
+[ ] Tax Info form validates ABN format (11 chars)
+[ ] Bank Details form validates BSB format (000-000)
+[ ] Bank Details account number uses password input (masked)
+[ ] Forms submit to correct API endpoints
+[ ] Success toast shows after save
+[ ] Dialogs close after successful save
+[ ] Data refetches after save
+[ ] Cancel buttons close dialogs without saving
+[ ] Loading spinner shows during submission
+[ ] Error handling with retry (show error message)
+
+UI/UX:
+[ ] Edit buttons visible only for authorized users
+[ ] Forms are responsive (work on mobile/tablet/desktop)
+[ ] Form labels clear and helpful
+[ ] Validation errors show below fields
+[ ] Security warnings displayed in forms
+[ ] Loading and error states handled
+[ ] Success toast message shown
+[ ] Dialogs are scrollable if content large
+
+Testing:
+[ ] Click Edit button on Tax Info → form opens
+[ ] Fill form with valid data → submit → success toast → dialog closes → data updates
+[ ] Fill form with invalid data → validation error shows → cannot submit
+[ ] Click Cancel → dialog closes without saving
+[ ] Click Edit button on Bank Details → form opens
+[ ] Repeat tax info tests for bank details
+[ ] Test error handling (network error, validation error)
+[ ] Test on different screen sizes
+
+START IMPLEMENTATION NOW.
+Phase 2 estimated time: 4-5 hours
+
+After Phase 2 complete, move to Phase 3: Contract Management.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,8 +10,8 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, X, Save } from "lucide-react"
-import { Award, AwardRule, AwardTag } from "@/lib/validations/awards"
+import { Plus, X, Save, DollarSign, Loader2 } from "lucide-react"
+import { Award, AwardRule, AwardTag, AwardLevelRate } from "@/lib/validations/awards"
 
 interface CreateAwardDialogProps {
   open: boolean
@@ -25,6 +25,7 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
     description: "",
     rules: [],
     availableTags: [],
+    levelRates: [],
     isActive: true,
     version: "1.0.0"
   })
@@ -35,30 +36,98 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
     overridesBehavior: "modify"
   })
 
-  const handleSave = () => {
-    if (!formData.name) return
-    
-    const award: Award = {
-      name: formData.name,
-      description: formData.description || "",
-      rules: formData.rules || [],
-      availableTags: formData.availableTags || [],
-      isActive: formData.isActive ?? true,
-      version: formData.version || "1.0.0"
-    }
-    
-    onSave?.(award)
-    onOpenChange(false)
-    
-    // Reset form
+  const [newLevelRate, setNewLevelRate] = useState({
+    level: "",
+    employmentType: "full_time" as const,
+    hourlyRate: 0,
+    effectiveFrom: new Date(),
+  })
+
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const resetForm = useCallback(() => {
     setFormData({
       name: "",
       description: "",
       rules: [],
       availableTags: [],
+      levelRates: [],
       isActive: true,
       version: "1.0.0"
     })
+    setError(null)
+  }, [])
+
+  const handleSave = async () => {
+    if (!formData.name) return
+    
+    const award: Award = {
+      name: formData.name,
+      description: formData.description || "",
+      levelRates: formData.levelRates || [],
+      rules: formData.rules || [],
+      availableTags: formData.availableTags || [],
+      isActive: formData.isActive ?? true,
+      version: formData.version || "1.0.0"
+    }
+
+    if (onSave) {
+      onSave(award)
+      onOpenChange(false)
+      resetForm()
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/awards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(award),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to create award")
+      }
+      onOpenChange(false)
+      resetForm()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addLevelRate = () => {
+    if (!newLevelRate.level || newLevelRate.hourlyRate <= 0) return
+    
+    const rate: AwardLevelRate = {
+      level: newLevelRate.level,
+      employmentType: newLevelRate.employmentType,
+      hourlyRate: newLevelRate.hourlyRate,
+      effectiveFrom: newLevelRate.effectiveFrom,
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      levelRates: [...(prev.levelRates || []), rate]
+    }))
+    
+    setNewLevelRate({
+      level: "",
+      employmentType: "full_time",
+      hourlyRate: 0,
+      effectiveFrom: new Date(),
+    })
+  }
+
+  const removeLevelRate = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      levelRates: prev.levelRates?.filter((_, i) => i !== index) || []
+    }))
   }
 
   const addTag = () => {
@@ -148,6 +217,104 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
                   onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Award Level Rates */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Award Level Rates
+              </CardTitle>
+              <CardDescription>
+                Set base hourly rates for each level and employment type
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.levelRates && formData.levelRates.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Current Rates</Label>
+                  <div className="space-y-2">
+                    {formData.levelRates.map((rate, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div className="flex items-center gap-4 text-sm">
+                          <Badge variant="outline">{rate.level}</Badge>
+                          <span className="text-muted-foreground capitalize">
+                            {rate.employmentType.replace('_', ' ')}
+                          </span>
+                          <span className="font-semibold">${rate.hourlyRate.toFixed(2)}/hr</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => removeLevelRate(idx)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="space-y-2">
+                  <Label>Level</Label>
+                  <Input
+                    placeholder="e.g., level_1"
+                    value={newLevelRate.level}
+                    onChange={(e) => setNewLevelRate(prev => ({ ...prev, level: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Employment Type</Label>
+                  <Select
+                    value={newLevelRate.employmentType}
+                    onValueChange={(val) => setNewLevelRate(prev => ({ ...prev, employmentType: val as any }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full_time">Full Time</SelectItem>
+                      <SelectItem value="part_time">Part Time</SelectItem>
+                      <SelectItem value="casual">Casual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Hourly Rate ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    value={newLevelRate.hourlyRate || ""}
+                    onChange={(e) => setNewLevelRate(prev => ({ ...prev, hourlyRate: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Effective From</Label>
+                  <Input
+                    type="date"
+                    value={newLevelRate.effectiveFrom.toISOString().split('T')[0]}
+                    onChange={(e) => setNewLevelRate(prev => ({ ...prev, effectiveFrom: new Date(e.target.value) }))}
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addLevelRate}
+                disabled={!newLevelRate.level || newLevelRate.hourlyRate <= 0}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Level Rate
+              </Button>
             </CardContent>
           </Card>
 
@@ -261,13 +428,20 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
           </Card>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          {error && (
+            <div className="text-sm text-destructive mr-auto">{error}</div>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!formData.name}>
-            <Save className="h-4 w-4 mr-2" />
-            Create Award
+          <Button onClick={handleSave} disabled={!formData.name || saving}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            {saving ? "Creating..." : "Create Award"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,6 +1,7 @@
 import { z } from "zod"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, Location } from "@/lib/db"
+import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { locationCreateSchema, locationQuerySchema } from "@/lib/validations/location"
@@ -39,18 +40,18 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ query }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const search = query?.search?.trim()
     const isActive = query?.isActive
 
     await connectDB()
-    const filter: Record<string, unknown> = {}
+    const filter: Record<string, unknown> = { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
     if (typeof isActive === "boolean") filter.isActive = isActive
     if (search) filter.name = { $regex: search, $options: "i" }
 
-    const locations = await Location.find(filter).sort({ name: 1 }).lean()
+    const locations = await Location.find(filter).sort({ order: 1, name: 1 }).lean()
     return {
       status: 200,
       data: {
@@ -94,21 +95,24 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const payload = body!
+    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
     await connectDB()
 
     const existing = await Location.findOne({
+      tenantId: tid,
       name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
     }).lean()
     if (existing) return { status: 409, data: { error: "A location with this name already exists" } }
 
     const created = await Location.create({
       ...payload,
+      tenantId: tid,
       name: payload.name.trim(),
-      createdBy: auth.sub,
+      createdBy: ctx.auth.sub,
     })
 
     return {

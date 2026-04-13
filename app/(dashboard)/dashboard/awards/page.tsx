@@ -5,38 +5,61 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, Eye, Edit, Play, Award, Settings, TestTube, FileText, CircleDollarSign, Loader2 } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Plus,
+  Search,
+  Eye,
+  Edit,
+  Play,
+  Award,
+  Settings,
+  TestTube,
+  FileText,
+  Loader2,
+  MoreHorizontal,
+  Scale,
+  Tag,
+  DollarSign,
+  Trash2,
+  Copy,
+} from "lucide-react"
 import { CreateAwardDialog } from "@/components/awards/create-award-dialog"
 import { EditAwardDialog } from "@/components/awards/edit-award-dialog"
 import { TestAwardDialog } from "@/components/awards/test-award-dialog"
 import { ViewAwardDialog } from "@/components/awards/view-award-dialog"
+import { RuleEngineTab } from "@/components/awards/rule-engine-tab"
+import { TestScenariosTab } from "@/components/awards/test-scenarios-tab"
+import { DocumentationTab } from "@/components/awards/documentation-tab"
+import { RuleSimulator } from "@/components/awards/rule-simulator"
 
 const awardTabs = [
   { id: "overview", label: "Overview", icon: Award },
-  { id: "create", label: "Create Award", icon: Plus },
   { id: "rules", label: "Rule Engine", icon: Settings },
+  { id: "simulator", label: "Rule Simulator", icon: Play },
   { id: "testing", label: "Test Scenarios", icon: TestTube },
   { id: "documentation", label: "Documentation", icon: FileText },
 ] as const
 
-const TAB_DESCRIPTIONS: Record<string, string> = {
+type TabId = (typeof awardTabs)[number]["id"]
+
+const TAB_DESCRIPTIONS: Record<TabId, string> = {
   overview: "Manage and view all award configurations with penalty rates and break entitlements.",
-  create: "Create new awards with rules, tags, and penalty rate configurations.",
   rules: "Configure rule specificity engine and award tag behaviors.",
+  simulator: "Test which rules match a given shift and see why they match.",
   testing: "Test award scenarios and rule competition outcomes.",
   documentation: "View award system documentation and best practices.",
 }
 
-const ADD_BUTTON_LABELS: Record<string, string> = {
-  overview: "Create Award",
-  create: "Create Award", 
-  rules: "Add Rule",
-  testing: "New Test",
-  documentation: "Add Guide",
-}
-
 export default function AwardsPage() {
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activeTab, setActiveTab] = useState<TabId>("overview")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedAward, setSelectedAward] = useState<any>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -46,6 +69,27 @@ export default function AwardsPage() {
   const [awards, setAwards] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  // ─── Hash-based navigation ──────────────────────────
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1) // Remove #
+      const validTab = awardTabs.find(t => t.id === hash)
+      if (validTab) {
+        setActiveTab(validTab.id)
+      } else if (hash === '') {
+        setActiveTab('overview')
+      }
+    }
+
+    // Set initial tab from hash
+    handleHashChange()
+
+    // Listen for hash changes (browser back/forward)
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  // ─── Fetch awards ──────────────────────────────────
   useEffect(() => {
     fetchAwards()
   }, [])
@@ -85,9 +129,46 @@ export default function AwardsPage() {
     setViewDialogOpen(true)
   }
 
-  const handleAddClick = () => {
-    if (activeTab === "overview" || activeTab === "create") {
-      setCreateDialogOpen(true)
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId)
+    if (tabId === 'overview') {
+      window.location.hash = ''
+    } else {
+      window.location.hash = `#${tabId}`
+    }
+  }
+
+  const handleDelete = async (award: any) => {
+    if (!confirm(`Delete "${award.name}"? This cannot be undone.`)) return
+    try {
+      const res = await fetch(`/api/awards/${award._id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error || "Failed to delete award")
+        return
+      }
+      fetchAwards()
+    } catch {
+      alert("Failed to delete award")
+    }
+  }
+
+  const handleDuplicate = async (award: any) => {
+    try {
+      const { _id, createdAt, updatedAt, ...awardData } = award
+      const res = await fetch("/api/awards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...awardData, name: `${award.name} (Copy)` }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error || "Failed to duplicate award")
+        return
+      }
+      fetchAwards()
+    } catch {
+      alert("Failed to duplicate award")
     }
   }
 
@@ -106,193 +187,183 @@ export default function AwardsPage() {
     }
   }
 
+  const renderOverviewTab = () => (
+    <div className="space-y-5">
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search awards..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">Loading awards...</p>
+        </div>
+      )}
+
+      {/* Awards Grid */}
+      {!loading && filteredAwards.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {filteredAwards.map((award) => (
+            <Card
+              key={award._id}
+              className="group relative transition-shadow hover:shadow-md cursor-pointer"
+              onClick={() => handleView(award)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="truncate text-base">{award.name}</CardTitle>
+                    <CardDescription className="mt-1 line-clamp-2 text-xs">
+                      {award.description || "No description"}
+                    </CardDescription>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge
+                      variant={award.isActive ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {award.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={() => handleView(award)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(award)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Award
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleTest(award)}>
+                          <Play className="mr-2 h-4 w-4" />
+                          Test Award
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicate(award)}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => handleDelete(award)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-0">
+                <Separator className="mb-3" />
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <div className="flex items-center justify-center text-muted-foreground">
+                      <Scale className="h-3.5 w-3.5" />
+                    </div>
+                    <p className="mt-1 text-lg font-semibold">{award.rules?.length || 0}</p>
+                    <p className="text-xs text-muted-foreground">Rules</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center text-muted-foreground">
+                      <DollarSign className="h-3.5 w-3.5" />
+                    </div>
+                    <p className="mt-1 text-lg font-semibold">{award.levelRates?.length || 0}</p>
+                    <p className="text-xs text-muted-foreground">Rates</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center text-muted-foreground">
+                      <Tag className="h-3.5 w-3.5" />
+                    </div>
+                    <p className="mt-1 text-lg font-semibold">{award.availableTags?.length || 0}</p>
+                    <p className="text-xs text-muted-foreground">Tags</p>
+                  </div>
+                </div>
+
+                <Separator className="my-3" />
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>v{award.version || "1.0.0"}</span>
+                  {award.updatedAt && (
+                    <span>Updated {new Date(award.updatedAt).toLocaleDateString()}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && awards.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+            <Award className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h3 className="mt-4 text-base font-semibold">No awards yet</h3>
+          <p className="mt-1 max-w-xs text-center text-sm text-muted-foreground">
+            Create your first award to define pay rules, penalty rates, and break entitlements.
+          </p>
+          <Button onClick={() => setCreateDialogOpen(true)} className="mt-5">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Your First Award
+          </Button>
+        </div>
+      )}
+
+      {/* No Search Results */}
+      {!loading && awards.length > 0 && filteredAwards.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-10">
+          <Search className="h-7 w-7 text-muted-foreground" />
+          <h3 className="mt-3 text-base font-semibold">No results found</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            No awards match &ldquo;{searchTerm}&rdquo;
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setSearchTerm("")} className="mt-3">
+            Clear Search
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
+  const renderRulesTab = () => <RuleEngineTab />
+
+  const renderTestingTab = () => <TestScenariosTab />
+
+  const renderDocsTab = () => <DocumentationTab />
+
   const renderContent = () => {
     switch (activeTab) {
       case "overview":
-        return (
-          <div className="space-y-6">
-            {/* Search */}
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search awards..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Loading State */}
-            {loading && (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {/* Awards Grid */}
-            {!loading && (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-                {filteredAwards.map((award) => (
-                  <Card key={award._id} className="relative">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{award.name}</CardTitle>
-                          <CardDescription className="mt-1">
-                            {award.description || "No description"}
-                          </CardDescription>
-                        </div>
-                        <Badge variant={award.isActive ? "default" : "secondary"}>
-                          {award.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="space-y-4">
-                        {/* Stats */}
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Rules:</span>
-                            <span className="font-medium">{award.rules?.length || 0}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Version:</span>
-                            <span className="font-medium">{award.version || "1.0.0"}</span>
-                          </div>
-                        </div>
-
-                        {/* Level Rates */}
-                        {award.levelRates && award.levelRates.length > 0 && (
-                          <div>
-                            <div className="text-sm font-medium text-foreground mb-2">Levels & Rates:</div>
-                            <div className="space-y-1 bg-muted/50 rounded p-2">
-                              {award.levelRates.map((rate: any, idx: number) => (
-                                <div key={idx} className="text-xs flex items-center justify-between">
-                                  <span>{rate.level} ({rate.employmentType})</span>
-                                  <span className="font-medium">${rate.hourlyRate.toFixed(2)}/hr</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Available Tags */}
-                        {award.availableTags && award.availableTags.length > 0 && (
-                          <div>
-                            <div className="text-sm text-muted-foreground mb-2">Available Tags:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {award.availableTags.map((tag: any) => (
-                                <Badge key={tag.name || tag} variant="outline" className="text-xs">
-                                  {typeof tag === 'string' ? tag : tag.name}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleView(award)}
-                            className="flex-1"
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(award)}
-                            className="flex-1"
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleTest(award)}
-                            className="flex-1"
-                          >
-                            <Play className="h-3 w-3 mr-1" />
-                            Test
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {!loading && filteredAwards.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No awards found. Create one to get started.</p>
-              </div>
-            )}
-          </div>
-        )
-
-      case "create":
-        return (
-          <div className="space-y-6">
-            <div className="text-center py-12">
-              <CircleDollarSign className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Create New Award</h3>
-              <p className="text-muted-foreground mb-4">
-                Set up award rules, penalty rates, and break entitlements
-              </p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Award
-              </Button>
-            </div>
-          </div>
-        )
-
+        return renderOverviewTab()
       case "rules":
-        return (
-          <div className="space-y-6">
-            <div className="text-center py-12">
-              <Settings className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Rule Engine Configuration</h3>
-              <p className="text-muted-foreground">
-                Configure rule specificity and award tag behaviors
-              </p>
-            </div>
-          </div>
-        )
-
+        return renderRulesTab()
+      case "simulator":
+        return <RuleSimulator />
       case "testing":
-        return (
-          <div className="space-y-6">
-            <div className="text-center py-12">
-              <TestTube className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Test Award Scenarios</h3>
-              <p className="text-muted-foreground">
-                Test rule competition and award tag outcomes
-              </p>
-            </div>
-          </div>
-        )
-
+        return renderTestingTab()
       case "documentation":
-        return (
-          <div className="space-y-6">
-            <div className="text-center py-12">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Award System Documentation</h3>
-              <p className="text-muted-foreground">
-                Learn about rule specificity, award tags, and best practices
-              </p>
-            </div>
-          </div>
-        )
-
+        return renderDocsTab()
       default:
         return null
     }
@@ -310,7 +381,7 @@ export default function AwardsPage() {
                 return (
                   <Button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     variant={activeTab === tab.id ? "default" : "ghost"}
                     className="justify-start text-sm rounded-md"
                   >
@@ -335,10 +406,12 @@ export default function AwardsPage() {
                   {TAB_DESCRIPTIONS[activeTab]}
                 </CardDescription>
               </div>
-              <Button onClick={handleAddClick} size="lg">
-                <Plus className="mr-2 h-4 w-4" />
-                {ADD_BUTTON_LABELS[activeTab]}
-              </Button>
+              {activeTab === "overview" && (
+                <Button onClick={() => setCreateDialogOpen(true)} size="lg">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Award
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {renderContent()}

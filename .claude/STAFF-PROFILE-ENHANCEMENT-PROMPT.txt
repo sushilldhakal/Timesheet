@@ -1,0 +1,752 @@
+IMPLEMENT STAFF PROFILE ENHANCEMENT (Tanda-Style)
+
+OBJECTIVE: Transform /staff/profile from basic view to comprehensive self-service dashboard with tabs,
+showing employee their own data (read-only personal/payroll/compliance, editable qualifications).
+
+REFERENCE:
+- Current page: /app/staff/profile/page.tsx
+- Employee detail page: /app/(dashboard)/dashboard/employees/[id]/page.tsx (use as reference)
+- API: /lib/api/employees.ts (existing endpoints)
+- Hooks: /lib/queries/employee-clock.ts, /lib/queries/employees.ts
+- Components: Use existing shadcn/ui components (Tabs, Card, Badge, etc.)
+
+================================================================================
+FILE 1: Create Staff Profile Overview Tab Component
+================================================================================
+
+FILE: /components/staff/profile-tabs/staff-overview-tab.tsx
+
+```typescript
+'use client'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { format } from 'date-fns'
+import { User, Briefcase, Clock, Award } from 'lucide-react'
+
+interface StaffOverviewTabProps {
+  employee: {
+    name?: string
+    email?: string
+    phone?: string
+    dob?: string
+    homeAddress?: string
+    pin?: string
+    employmentType?: string
+    standardHoursPerWeek?: number | null
+    employer?: string
+  }
+}
+
+export function StaffOverviewTab({ employee }: StaffOverviewTabProps) {
+  return (
+    <div className="space-y-6">
+      {/* Personal Details Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Personal Information
+          </CardTitle>
+          <CardDescription>Your personal details (read-only)</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Full Name</p>
+            <p className="text-sm font-semibold mt-1">{employee.name || 'Not provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Email</p>
+            <p className="text-sm font-semibold mt-1">{employee.email || 'Not provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Phone</p>
+            <p className="text-sm font-semibold mt-1">{employee.phone || 'Not provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Date of Birth</p>
+            <p className="text-sm font-semibold mt-1">
+              {employee.dob ? format(new Date(employee.dob), 'dd MMM yyyy') : 'Not provided'}
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <p className="text-xs font-medium text-gray-600 uppercase">Address</p>
+            <p className="text-sm font-semibold mt-1">{employee.homeAddress || 'Not provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">PIN</p>
+            <p className="text-sm font-mono font-semibold mt-1">{employee.pin || 'Not provided'}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Employment Details Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            Employment Details
+          </CardTitle>
+          <CardDescription>Your employment information</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Employer</p>
+            <p className="text-sm font-semibold mt-1">{employee.employer || 'Not provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Employment Type</p>
+            <div className="mt-1">
+              <Badge className="capitalize">
+                {employee.employmentType || 'Not specified'}
+              </Badge>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 uppercase">Standard Hours Per Week</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Clock className="h-4 w-4 text-gray-600" />
+              <p className="text-sm font-semibold">
+                {employee.standardHoursPerWeek ? `${employee.standardHoursPerWeek} hours` : 'Not set'}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+```
+
+================================================================================
+FILE 2: Create Staff Payroll Tab Component (Read-Only)
+================================================================================
+
+FILE: /components/staff/profile-tabs/staff-payroll-tab.tsx
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { DollarSign, Loader2, AlertCircle } from 'lucide-react'
+import { getEmployeeTaxInfo, getEmployeeBankDetails } from '@/lib/api/employees'
+
+interface StaffPayrollTabProps {
+  employeeId: string
+}
+
+function maskTFN(tfn: string): string {
+  if (!tfn || tfn.length < 3) return '***-***-***'
+  return `***-***-${tfn.slice(-3)}`
+}
+
+function maskAccountNumber(account: string): string {
+  if (!account || account.length < 4) return '••••••••'
+  return `••••${account.slice(-4)}`
+}
+
+export function StaffPayrollTab({ employeeId }: StaffPayrollTabProps) {
+  const { data: taxInfo, isLoading: taxLoading } = useQuery({
+    queryKey: ['employeeTaxInfo', employeeId],
+    queryFn: () => getEmployeeTaxInfo(employeeId),
+  })
+
+  const { data: bankDetails, isLoading: bankLoading } = useQuery({
+    queryKey: ['employeeBankDetails', employeeId],
+    queryFn: () => getEmployeeBankDetails(employeeId),
+  })
+
+  if (taxLoading || bankLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Security Notice */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-6">
+          <div className="flex gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-900">
+              <p className="font-semibold">🔒 Data Protection</p>
+              <p className="text-xs mt-1">Sensitive information is encrypted and masked for your privacy.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tax Information Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Tax Information
+          </CardTitle>
+          <CardDescription>Your tax file details (read-only)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {taxInfo ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">Tax File Number (TFN)</p>
+                  <p className="text-sm font-mono font-semibold mt-1">{maskTFN(taxInfo.tfn || '')}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">Australian Business Number (ABN)</p>
+                  <p className="text-sm font-mono font-semibold mt-1">{taxInfo.abn || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-sm mb-4">Superannuation Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 uppercase">Superannuation Fund</p>
+                    <p className="text-sm font-semibold mt-1">{taxInfo.superannuationFund || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 uppercase">Member Number</p>
+                    <p className="text-sm font-mono font-semibold mt-1">
+                      {maskAccountNumber(taxInfo.superannuationMemberNumber || '')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 uppercase">Tax Withholding %</p>
+                    <p className="text-sm font-semibold mt-1">{taxInfo.taxWithholdingPercentage || 0}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 uppercase">HELP/HECS Debt</p>
+                    <p className="text-sm font-semibold mt-1">
+                      <Badge variant={taxInfo.hasHelpDebt ? 'destructive' : 'default'}>
+                        {taxInfo.hasHelpDebt ? 'Yes' : 'No'}
+                      </Badge>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-600">No tax information on file. Contact HR to add your details.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Bank Details Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Bank Details
+          </CardTitle>
+          <CardDescription>Your banking information for salary deposits (read-only)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bankDetails ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">Bank Name</p>
+                  <p className="text-sm font-semibold mt-1">{bankDetails.bankName || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">Account Type</p>
+                  <p className="text-sm font-semibold mt-1 capitalize">{bankDetails.accountType || 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">Account Number</p>
+                  <p className="text-sm font-mono font-semibold mt-1">
+                    {maskAccountNumber(bankDetails.accountNumber || '')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">BSB Code</p>
+                  <p className="text-sm font-mono font-semibold mt-1">{bankDetails.bsbCode || 'Not provided'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-medium text-gray-600 uppercase">Account Holder Name</p>
+                  <p className="text-sm font-semibold mt-1">{bankDetails.accountHolderName || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">No bank details on file. Contact HR to add your account information.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+```
+
+================================================================================
+FILE 3: Create Staff Qualifications Tab Component (Editable)
+================================================================================
+
+FILE: /components/staff/profile-tabs/staff-qualifications-tab.tsx
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Plus, Loader2 } from 'lucide-react'
+import { QualificationForm } from '@/components/employees/forms/QualificationForm'
+import { QualificationCard } from '@/components/employees/qualifications/QualificationCard'
+import { getEmployeeQualifications, deleteEmployeeQualification } from '@/lib/api/employees'
+import { toast } from 'sonner'
+
+interface StaffQualificationsTabProps {
+  employeeId: string
+}
+
+export function StaffQualificationsTab({ employeeId }: StaffQualificationsTabProps) {
+  const [isAddingQualification, setIsAddingQualification] = useState(false)
+  const [editingQualificationId, setEditingQualificationId] = useState<string | null>(null)
+
+  const { data: qualifications, isLoading, refetch } = useQuery({
+    queryKey: ['employeeQualifications', employeeId],
+    queryFn: () => getEmployeeQualifications(employeeId),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  const handleDelete = async (qualificationId: string) => {
+    if (!confirm('Are you sure you want to delete this qualification?')) return
+
+    try {
+      await deleteEmployeeQualification(employeeId, qualificationId)
+      toast.success('Qualification deleted successfully')
+      refetch()
+    } catch (error) {
+      toast.error('Failed to delete qualification')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Add Button */}
+      <div className="flex justify-end">
+        <Button onClick={() => setIsAddingQualification(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Qualification
+        </Button>
+      </div>
+
+      {/* Qualifications List */}
+      {qualifications && qualifications.length > 0 ? (
+        <div className="space-y-4">
+          {qualifications
+            .sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
+            .map((qual) => (
+              <QualificationCard
+                key={qual._id}
+                qualification={qual}
+                canEdit={true}
+                onEdit={() => setEditingQualificationId(qual._id)}
+                onDelete={() => handleDelete(qual._id)}
+              />
+            ))}
+        </div>
+      ) : (
+        <div className="rounded-md bg-gray-50 p-8 text-center border border-gray-200">
+          <p className="text-gray-600 font-medium">No qualifications added yet</p>
+          <p className="text-sm text-gray-500 mt-1">Add your certifications and qualifications to keep them up to date</p>
+        </div>
+      )}
+
+      {/* Add/Edit Qualification Dialog */}
+      <Dialog open={isAddingQualification || !!editingQualificationId} onOpenChange={(open) => {
+        if (!open) {
+          setIsAddingQualification(false)
+          setEditingQualificationId(null)
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isAddingQualification ? 'Add Qualification' : 'Edit Qualification'}
+            </DialogTitle>
+          </DialogHeader>
+          <QualificationForm
+            employeeId={employeeId}
+            isEditing={!!editingQualificationId}
+            initialData={
+              editingQualificationId
+                ? qualifications?.find(q => q._id === editingQualificationId)
+                : undefined
+            }
+            onSuccess={() => {
+              setIsAddingQualification(false)
+              setEditingQualificationId(null)
+              refetch()
+            }}
+            onCancel={() => {
+              setIsAddingQualification(false)
+              setEditingQualificationId(null)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+```
+
+================================================================================
+FILE 4: Create Staff Compliance Tab Component (Read-Only)
+================================================================================
+
+FILE: /components/staff/profile-tabs/staff-compliance-tab.tsx
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
+import { getEmployeeCompliance } from '@/lib/api/employees'
+import { ComplianceAlertBanner } from '@/components/employees/compliance/ComplianceAlertBanner'
+import { ComplianceStatusTable } from '@/components/employees/compliance/ComplianceStatusTable'
+
+interface StaffComplianceTabProps {
+  employeeId: string
+}
+
+export function StaffComplianceTab({ employeeId }: StaffComplianceTabProps) {
+  const { data: compliance, isLoading } = useQuery({
+    queryKey: ['employeeCompliance', employeeId],
+    queryFn: () => getEmployeeCompliance(employeeId),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!compliance) {
+    return (
+      <div className="rounded-md bg-gray-50 p-8 text-center border border-gray-200">
+        <p className="text-gray-600 font-medium">No compliance data available</p>
+        <p className="text-sm text-gray-500 mt-1">Contact HR to set up your compliance records</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Alert Banner */}
+      <ComplianceAlertBanner compliance={compliance} />
+
+      {/* Status Table */}
+      <ComplianceStatusTable compliance={compliance} />
+    </div>
+  )
+}
+```
+
+================================================================================
+FILE 5: Update Staff Profile Main Page
+================================================================================
+
+FILE: /app/staff/profile/page.tsx (REPLACE ENTIRE FILE)
+
+```typescript
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Loader2, User, DollarSign, Award, Shield, Lock } from 'lucide-react'
+import { toast } from 'sonner'
+import { useEmployeeProfile, useChangeEmployeePassword } from '@/lib/queries/employee-clock'
+import { EmployeeInfoSidebarCard } from '@/components/employees/employee-info-sidebar-card'
+import { ChangePasswordCard } from '@/components/profile/change-password-card'
+import { StaffOverviewTab } from '@/components/staff/profile-tabs/staff-overview-tab'
+import { StaffPayrollTab } from '@/components/staff/profile-tabs/staff-payroll-tab'
+import { StaffQualificationsTab } from '@/components/staff/profile-tabs/staff-qualifications-tab'
+import { StaffComplianceTab } from '@/components/staff/profile-tabs/staff-compliance-tab'
+
+export default function StaffProfilePage() {
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState('overview')
+
+  const employeeProfileQuery = useEmployeeProfile()
+  const changePasswordMutation = useChangeEmployeePassword()
+
+  useEffect(() => {
+    if (employeeProfileQuery.isError) {
+      toast.error('Session expired. Please log in again.')
+      router.push('/')
+    }
+  }, [employeeProfileQuery.isError, router])
+
+  if (employeeProfileQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (employeeProfileQuery.isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Session expired. Redirecting to login...</p>
+          <Button onClick={() => router.push('/')} variant="outline">
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const employee = employeeProfileQuery.data?.data?.employee
+  const employeeId = employee?.id || ''
+
+  const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
+    return new Promise<void>((resolve, reject) => {
+      changePasswordMutation.mutate(
+        { currentPassword, newPassword },
+        {
+          onSuccess: (response) => {
+            if (response?.success) {
+              toast.success(response.data?.message || 'Password changed successfully!')
+            } else if ((response as any)?.message) {
+              toast.success((response as any).message)
+            } else {
+              toast.success('Password changed successfully!')
+            }
+            resolve()
+          },
+          onError: (error: any) => {
+            if (error?.details && Array.isArray(error.details)) {
+              const validationErrors = error.details.map((detail: any) => detail.message).join(', ')
+              toast.error(validationErrors)
+            } else if (error?.error) {
+              toast.error(error.error)
+            } else {
+              toast.error(typeof error === 'string' ? error : error?.message || 'Failed to change password')
+            }
+            reject(error)
+          },
+        }
+      )
+    })
+  }
+
+  return (
+    <div className="flex flex-col space-y-6 p-4 lg:p-8">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold">{employee?.name?.trim() ? employee.name : 'My Profile'}</h1>
+          <p className="text-sm text-muted-foreground mt-1">PIN: {employee?.pin || '—'}</p>
+        </div>
+      </div>
+
+      {/* Main Layout */}
+      <div className="grid gap-6 lg:grid-cols-4">
+        {/* Sidebar */}
+        <div>
+          <EmployeeInfoSidebarCard
+            name={employee?.name || ''}
+            pin={employee?.pin || ''}
+            img={employee?.img || ''}
+            fallbackImageUrl={employee?.lastClockInImage || ''}
+            email={employee?.email?.trim() ? employee.email : undefined}
+            phone={employee?.phone?.trim() ? employee.phone : undefined}
+            homeAddress={employee?.homeAddress?.trim() ? employee.homeAddress : undefined}
+            dob={employee?.dob?.trim() ? employee.dob : undefined}
+            standardHoursPerWeek={employee?.standardHoursPerWeek ?? null}
+            comment={employee?.comment?.trim() ? employee.comment : undefined}
+            employers={
+              employee?.employer?.trim()
+                ? [{ name: employee.employer }]
+                : undefined
+            }
+          />
+        </div>
+
+        {/* Main Content - Tabs */}
+        <div className="lg:col-span-3">
+          <Card>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="w-full justify-start border-b rounded-none bg-white p-0">
+                <TabsTrigger value="overview" className="rounded-none gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
+                <TabsTrigger value="payroll" className="rounded-none gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  <span className="hidden sm:inline">Payroll</span>
+                </TabsTrigger>
+                <TabsTrigger value="qualifications" className="rounded-none gap-2">
+                  <Award className="h-4 w-4" />
+                  <span className="hidden sm:inline">Qualifications</span>
+                </TabsTrigger>
+                <TabsTrigger value="compliance" className="rounded-none gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden sm:inline">Compliance</span>
+                </TabsTrigger>
+                <TabsTrigger value="security" className="rounded-none gap-2">
+                  <Lock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Security</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="p-6 space-y-6">
+                {employeeId && <StaffOverviewTab employee={employee} />}
+              </TabsContent>
+
+              <TabsContent value="payroll" className="p-6 space-y-6">
+                {employeeId && <StaffPayrollTab employeeId={employeeId} />}
+              </TabsContent>
+
+              <TabsContent value="qualifications" className="p-6 space-y-6">
+                {employeeId && <StaffQualificationsTab employeeId={employeeId} />}
+              </TabsContent>
+
+              <TabsContent value="compliance" className="p-6 space-y-6">
+                {employeeId && <StaffComplianceTab employeeId={employeeId} />}
+              </TabsContent>
+
+              <TabsContent value="security" className="p-6 space-y-6">
+                <ChangePasswordCard
+                  onSubmit={handlePasswordChange}
+                  isLoading={changePasswordMutation.isPending}
+                />
+              </TabsContent>
+            </Tabs>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+================================================================================
+REQUIRED IMPORTS & COMPONENTS
+================================================================================
+
+Make sure these components exist (from previous phases):
+- ✅ QualificationForm - /components/employees/forms/QualificationForm.tsx (Phase 4)
+- ✅ QualificationCard - /components/employees/qualifications/QualificationCard.tsx (Phase 4)
+- ✅ ComplianceAlertBanner - /components/employees/compliance/ComplianceAlertBanner.tsx (Phase 5)
+- ✅ ComplianceStatusTable - /components/employees/compliance/ComplianceStatusTable.tsx (Phase 5)
+- ✅ ChangePasswordCard - /components/profile/change-password-card.tsx (already exists)
+- ✅ EmployeeInfoSidebarCard - /components/employees/employee-info-sidebar-card.tsx (already exists)
+
+If any are missing, implement them from the phase prompts.
+
+================================================================================
+API INTEGRATION
+================================================================================
+
+All API calls use existing endpoints:
+- GET /api/employees/[id]/tax-info
+- GET /api/employees/[id]/bank-details
+- GET /api/employees/[id]/qualifications
+- POST /api/employees/[id]/qualifications
+- PATCH /api/employees/[id]/qualifications
+- DELETE /api/employees/[id]/qualifications/[qualId]
+- GET /api/employees/[id]/compliance
+
+All React Query hooks exist:
+- useEmployeeProfile() (from employee-clock)
+- useChangeEmployeePassword() (from employee-clock)
+- useEmployeeTaxInfo() (custom hook if needed)
+- useEmployeeBankDetails() (custom hook if needed)
+- useEmployeeQualifications() (from employees)
+- useEmployeeCompliance() (from employees)
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+[ ] Staff profile page loads with new layout
+[ ] 5 tabs display correctly (Overview, Payroll, Qualifications, Compliance, Security)
+[ ] Tab icons display on desktop and hide on mobile
+[ ] Sidebar card shows employee info
+[ ] Overview tab displays:
+    [ ] Personal information (read-only, correct formatting)
+    [ ] Employment details (read-only)
+    [ ] Standard hours display
+[ ] Payroll tab displays:
+    [ ] TFN masked correctly (***-***-123)
+    [ ] Account numbers masked (••••1234)
+    [ ] Security notice displays
+    [ ] Data loads from API
+    [ ] Shows "Not provided" when no data
+[ ] Qualifications tab:
+    [ ] Lists all qualifications
+    [ ] Add button works and opens dialog
+    [ ] Edit button works
+    [ ] Delete button works with confirmation
+    [ ] Empty state shows when no qualifications
+[ ] Compliance tab:
+    [ ] Displays compliance status
+    [ ] Shows alert banner
+    [ ] Shows status table
+    [ ] Color-coded badges (red/amber/green)
+[ ] Security tab:
+    [ ] Change password form works
+    [ ] Success/error messages appear
+[ ] All tabs responsive on mobile/tablet
+[ ] Tab state persists when switching
+[ ] Loading states show when fetching data
+[ ] Error handling works for failed API calls
+[ ] Dates formatted correctly (dd MMM yyyy)
+[ ] Currency formatted correctly (AUD)
+[ ] No editable fields except qualifications
+[ ] All icons load and display correctly
+
+START IMPLEMENTATION NOW.
+Staff Profile Enhancement estimated time: 4-5 hours
+
+================================================================================
+STYLING NOTES
+================================================================================
+
+- Use existing Tailwind classes (no custom CSS)
+- Match the style of /dashboard/employees/[id] page
+- Sidebar width: 25% on desktop, full width on mobile
+- Main content: 75% on desktop
+- Tab list wraps on mobile (hide text, show icons only)
+- Card padding: p-6
+- Grid gaps: gap-6 (24px)
+- All colors: Use shadcn/ui standard palette
+- Icons: Use lucide-react (h-5 w-5 for headers, h-4 w-4 for inline)
+
+================================================================================
+ADDITIONAL NOTES
+================================================================================
+
+1. This page is for EMPLOYEES viewing THEIR OWN data
+2. All personal/payroll/compliance data is READ-ONLY
+3. Only QUALIFICATIONS are editable (user can add/edit/delete their own)
+4. Sensitive data is MASKED using utility functions
+5. All data is loaded via existing API endpoints
+6. Reuses components from Phases 2, 4, 5 to maintain consistency
+7. Mobile-first responsive design
+8. All text should use sentence case (not all caps for headers)

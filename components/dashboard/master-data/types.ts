@@ -18,6 +18,10 @@ export type CategoryRow = {
   isActive?: boolean
   /** Workforce team group (not wired yet — reserved for a follow-up) */
   teamGroup?: string | null
+  /** Display sort; lower first. */
+  order?: number
+  /** Team group colour (from API when group assigned). */
+  groupColor?: string
   staffCount?: number
   managerCount?: number
   defaultScheduleTemplate?: {

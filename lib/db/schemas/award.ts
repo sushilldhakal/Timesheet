@@ -134,9 +134,19 @@ export interface IAward extends Document {
   description?: string;
   rules: IAwardRule[];
   availableTags: IAwardTag[];
-  levelRates: IAwardLevelRate[]; // Award level rates
+  levelRates: IAwardLevelRate[];
   isActive: boolean;
+
+  // Versioning fields
   version: string;
+  effectiveFrom: Date;
+  effectiveTo?: Date | null;
+  changelog?: string;
+
+  // Audit trail
+  createdBy?: mongoose.Types.ObjectId;
+  updatedBy?: mongoose.Types.ObjectId;
+
   createdAt: Date;
   updatedAt: Date;
   
@@ -269,13 +279,22 @@ const AwardRuleSchema = new Schema<IAwardRule>(
 
 const AwardSchema = new Schema<IAward>(
   {
-    name: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
     description: { type: String },
     rules: [AwardRuleSchema],
     availableTags: [AwardTagSchema],
-    levelRates: [AwardLevelRateSchema], // Award level rates
+    levelRates: [AwardLevelRateSchema],
     isActive: { type: Boolean, default: true },
-    version: { type: String, default: "1.0.0" },
+
+    // Versioning
+    version: { type: String, required: true, default: '1.0.0' },
+    effectiveFrom: { type: Date, required: true, default: () => new Date() },
+    effectiveTo: { type: Date, default: null },
+    changelog: { type: String },
+
+    // Audit trail
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
 );
@@ -286,6 +305,7 @@ AwardSchema.index({ isActive: 1 });
 AwardSchema.index({ "rules.conditions.daysOfWeek": 1 });
 AwardSchema.index({ "rules.conditions.employmentTypes": 1 });
 AwardSchema.index({ "rules.priority": -1 });
+AwardSchema.index({ effectiveFrom: 1, effectiveTo: 1 });
 
 // Instance method for rule evaluation (basic version - full logic in AwardEngine)
 AwardSchema.methods.evaluateRules = function(context: {

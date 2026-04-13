@@ -12,6 +12,7 @@ export * from "./roster-template"
 export * from "./daily-shift"
 export * from "./toil-balance"
 export * from "./award"
+export * from "./award-version-history"
 export * from "./device"
 
 // Core master-data schemas
@@ -48,3 +49,13 @@ export * from "./buddy-punch-alert"
 export * from "./pay-run"
 export * from "./pay-item"
 export * from "./public-holiday"
+
+// Timesheet approval workflow
+export * from "./timesheet"
+
+// Employee payroll & compliance
+export * from "./employee-tax-info"
+export * from "./employee-bank-details"
+export * from "./employee-contract"
+export * from "./employee-qualification"
+export * from "./employee-compliance"

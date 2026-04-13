@@ -30,22 +30,49 @@ export interface IEmployee {
   gender?: string
   comment?: string
   img?: string
+
+  // Legal name (for payroll documents)
+  legalFirstName?: string
+  legalMiddleNames?: string
+  legalLastName?: string
+  preferredName?: string
+
+  // Location & locale
+  timeZone?: string
+  locale?: string
+  nationality?: string
+
+  // References to payroll/compliance collections
+  taxInfoId?: mongoose.Types.ObjectId
+  bankDetailsId?: mongoose.Types.ObjectId
+  contractId?: mongoose.Types.ObjectId
+
+  // Employment status
+  isActive?: boolean
+  isProbationary?: boolean
+  probationEndDate?: Date | null
+  terminatedAt?: Date | null
+  terminationReason?: string
+
+  // Quick-reference tags
+  skills?: string[]
+  certifications?: string[]
+
   // Web login password fields
-  password?: string | null // Hashed password for web login
-  passwordSetByAdmin?: boolean // Flag if admin set initial password
-  requirePasswordChange?: boolean // Force password change on first login
-  passwordChangedAt?: Date | null // Last password change timestamp
-  // Password setup (first time)
-  passwordSetupToken?: string | null // Token for initial password setup
-  passwordSetupExpiry?: Date | null // Expiry for setup token
-  // Password reset
-  passwordResetToken?: string | null // Token for password reset
-  passwordResetExpiry?: Date | null // Expiry for reset token
+  password?: string | null
+  passwordSetByAdmin?: boolean
+  requirePasswordChange?: boolean
+  passwordChangedAt?: Date | null
+  passwordSetupToken?: string | null
+  passwordSetupExpiry?: Date | null
+  passwordResetToken?: string | null
+  passwordResetExpiry?: Date | null
+
   // Award and employment
   awardId?: mongoose.Types.ObjectId | null
   awardLevel?: string | null
   employmentType?: string | null
-  standardHoursPerWeek?: number | null // Target hours per week for this employee
+  standardHoursPerWeek?: number | null
   payConditions?: IPayConditionHistory[]
   schedules?: ISchedule[]
   createdAt?: Date
@@ -86,6 +113,34 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     gender: { type: String, default: "" },
     comment: { type: String, default: "" },
     img: { type: String, default: "" },
+
+    // Legal name
+    legalFirstName: String,
+    legalMiddleNames: String,
+    legalLastName: String,
+    preferredName: String,
+
+    // Location & locale
+    timeZone: { type: String, default: 'Australia/Sydney' },
+    locale: { type: String, default: 'en-AU' },
+    nationality: String,
+
+    // References to payroll/compliance collections
+    taxInfoId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmployeeTaxInfo' },
+    bankDetailsId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmployeeBankDetails' },
+    contractId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmployeeContract' },
+
+    // Employment status
+    isActive: { type: Boolean, default: true },
+    isProbationary: { type: Boolean, default: false },
+    probationEndDate: { type: Date, default: null },
+    terminatedAt: { type: Date, default: null },
+    terminationReason: String,
+
+    // Quick-reference tags
+    skills: [String],
+    certifications: [String],
+
     // Web login password fields
     password: { type: String, default: null, select: false },
     passwordSetByAdmin: { type: Boolean, default: false },
@@ -115,6 +170,8 @@ employeeSchema.index({ pin: 1 })
 employeeSchema.index({ awardId: 1 })
 employeeSchema.index({ locationIds: 1 })
 employeeSchema.index({ employerIds: 1 })
+employeeSchema.index({ isActive: 1, employerId: 1 })
+employeeSchema.index({ terminatedAt: 1 }, { sparse: true })
 // Sparse compound index for efficient roster auto-population queries
 employeeSchema.index(
   { "schedules.effectiveFrom": 1, "schedules.effectiveTo": 1 },

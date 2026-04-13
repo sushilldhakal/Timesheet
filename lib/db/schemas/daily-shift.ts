@@ -42,6 +42,10 @@ export interface IComputedPay {
   baseRate?: number // hourly rate frozen at calculation time
   calculatedAt?: Date // when this was computed
   payRunId?: mongoose.Types.ObjectId // which pay run includes this shift
+  // Award version tracking (audit-critical)
+  awardVersion?: string // e.g. "1.2.0"
+  awardVersionId?: mongoose.Types.ObjectId // ref to AwardVersionHistory if historical
+  awardVersionEffectiveFrom?: Date // when that version became effective
   breakEntitlements: Array<{
     startTime: Date
     durationMinutes: number
@@ -67,6 +71,7 @@ export interface IPaySnapshot {
 }
 
 export interface IDailyShift {
+  tenantId: mongoose.Types.ObjectId
   pin: string
   date: Date // BSON Date object for consistent querying and storage
   
@@ -168,6 +173,9 @@ const computedPaySchema = new mongoose.Schema(
     baseRate: { type: Number },
     calculatedAt: { type: Date },
     payRunId: { type: mongoose.Schema.Types.ObjectId, ref: "PayRun" },
+    awardVersion: { type: String },
+    awardVersionId: { type: mongoose.Schema.Types.ObjectId },
+    awardVersionEffectiveFrom: { type: Date },
     breakEntitlements: [{
       startTime: { type: Date, required: true },
       durationMinutes: { type: Number, required: true },
@@ -198,6 +206,7 @@ const paySnapshotSchema = new mongoose.Schema(
 
 const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     pin: { type: String, required: true, index: true },
     date: { type: Date, required: true, index: true }, // BSON Date for efficient querying
     
@@ -259,12 +268,14 @@ const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
   }
 )
 
-// Unique constraint on pin + date
-dailyShiftSchema.index({ pin: 1, date: 1 }, { unique: true })
+// Tenant-scoped unique constraint on pin + date
+dailyShiftSchema.index({ tenantId: 1, pin: 1, date: 1 }, { unique: true })
 
 // Compound indexes for scoped queries
-dailyShiftSchema.index({ locationId: 1, status: 1, date: 1 })
-dailyShiftSchema.index({ locationId: 1, roleId: 1, status: 1 })
+dailyShiftSchema.index({ tenantId: 1, employeeId: 1, date: 1 })
+dailyShiftSchema.index({ tenantId: 1, locationId: 1, date: 1 })
+dailyShiftSchema.index({ tenantId: 1, locationId: 1, status: 1, date: 1 })
+dailyShiftSchema.index({ tenantId: 1, locationId: 1, roleId: 1, status: 1 })
 dailyShiftSchema.index({ employerId: 1, status: 1, date: 1 })
 dailyShiftSchema.index({ employeeId: 1, date: 1 })
 

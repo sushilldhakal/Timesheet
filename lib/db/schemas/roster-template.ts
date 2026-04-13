@@ -27,7 +27,7 @@ const TemplateShiftSchema = new mongoose.Schema<ITemplateShift>(
     dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
     startHour: { type: Number, required: true },
     endHour: { type: Number, required: true },
-    roleId: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
+    roleId: { type: mongoose.Schema.Types.ObjectId, ref: "Team", required: true },
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null },
   },
   { _id: false }
@@ -37,8 +37,8 @@ const rosterTemplateSchema = new mongoose.Schema<IRosterTemplateDocument>(
   {
     name: { type: String, required: true, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
-    roleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
+    locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true },
+    roleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Team" }],
     isGlobal: { type: Boolean, default: false },
     templateShifts: { type: [TemplateShiftSchema], default: [] },
   },

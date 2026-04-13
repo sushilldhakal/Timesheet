@@ -104,9 +104,3 @@ export function useCleanupCloudinary() {
     },
   })
 }
-
-export function useCleanupTimesheets() {
-  return useMutation({
-    mutationFn: settingsApi.cleanupTimesheets,
-  })
-}

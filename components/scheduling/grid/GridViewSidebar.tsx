@@ -5,6 +5,20 @@ import { toDateISO } from "@/components/scheduling/core/constants-scheduler";
 import { useSchedulerContext } from '@/components/scheduling/shell/SchedulerProvider';
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils/cn";
+import { GROUP_SIDEBAR_STACK_H } from "@/components/scheduling/core/constants-scheduler";
+
+function categorySidebarMeta(cat: Resource): {
+  groupName?: string;
+  groupColor?: string;
+  teamColor?: string;
+} {
+  const m = cat.meta as Record<string, unknown> | undefined;
+  return {
+    groupName: typeof m?.groupName === "string" ? m.groupName : undefined,
+    groupColor: typeof m?.groupColor === "string" ? m.groupColor : undefined,
+    teamColor: typeof m?.teamColor === "string" ? m.teamColor : undefined,
+  };
+}
 import type { StaffPanelState, AddPromptState } from "./GridView";
 import { employeesForCategory } from "@/components/scheduling/hooks/useFlatRows";
 
@@ -200,6 +214,10 @@ export function GridViewSidebar({
           if (!row) return null;
           const cat = row.category;
           const c = getColor(cat.colorIdx);
+          const { groupName, groupColor, teamColor } = categorySidebarMeta(cat);
+          const headerBodyH = ROLE_HDR + (groupName ? GROUP_SIDEBAR_STACK_H : 0);
+          const teamDot = teamColor ?? c.bg;
+          const groupDot = groupColor ?? c.bg;
 
           // ── Category header ──
           if (row.kind === "category") {
@@ -219,7 +237,6 @@ export function GridViewSidebar({
               (sum, s) => sum + (s.endH - s.startH),
               0,
             )
-            console.log("catShiftsFlat", catShiftsFlat)
               const initials = cat.name
                 .split(" ")
                 .map((n) => n[0])
@@ -262,11 +279,31 @@ export function GridViewSidebar({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-foreground">
-                      {cat.name}
-                    </div>
-                    <div className="truncate text-[10px] text-muted-foreground">
-                      {catShiftsFlat.length} {labels.shift ?? "shift"}{catShiftsFlat.length !== 1 ? "s" : ""}
+                    {groupName ? (
+                      <div className="mb-0.5 flex min-w-0 items-center gap-1.5">
+                        <span
+                          className="size-2 shrink-0 rounded-full border border-border/40"
+                          style={{ background: groupDot }}
+                          aria-hidden
+                        />
+                        <span className="truncate text-[10px] font-semibold text-muted-foreground">
+                          {groupName}
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="size-2 shrink-0 rounded-full border border-border/40"
+                        style={{ background: teamDot }}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-semibold text-foreground">{cat.name}</div>
+                        <div className="truncate text-[10px] text-muted-foreground">
+                          {catShiftsFlat.length} {labels.shift ?? "shift"}
+                          {catShiftsFlat.length !== 1 ? "s" : ""}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   {catHoursFlat > 0 && (
@@ -330,7 +367,7 @@ export function GridViewSidebar({
                   />
                   <div
                     className="flex items-center gap-1.5 pl-3.5 pr-2"
-                    style={{ height: ROLE_HDR }}
+                    style={{ height: headerBodyH }}
                   >
                     {slots.resourceHeader ? (
                       slots.resourceHeader({
@@ -342,14 +379,27 @@ export function GridViewSidebar({
                     ) : flatSidebar ? (
                       // Timeline / event mode — just the name, no staff stats or Staff button
                       <>
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <div
-                            className="size-2.5 shrink-0 rounded-full"
-                            style={{ background: c.bg }}
-                          />
-                          <span className="truncate text-[13px] font-bold text-foreground">
-                            {cat.name}
-                          </span>
+                        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+                          {groupName ? (
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <div
+                                className="size-2 shrink-0 rounded-full border border-border/40"
+                                style={{ background: groupDot }}
+                              />
+                              <span className="truncate text-[10px] font-semibold text-muted-foreground">
+                                {groupName}
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <div
+                              className="size-2.5 shrink-0 rounded-full border border-border/40"
+                              style={{ background: teamDot }}
+                            />
+                            <span className="truncate text-[13px] font-bold text-foreground">
+                              {cat.name}
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -366,22 +416,43 @@ export function GridViewSidebar({
                     ) : (
                       <>
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span
-                            className={cn(
-                              'truncate text-[13px] font-bold leading-tight',
-                              !dayOverviewStaffRail && 'text-foreground',
-                            )}
-                            style={dayOverviewStaffRail ? { color: c.bg } : undefined}
-                          >
-                            {cat.name}
-                          </span>
-                          <span className="truncate text-[10px] leading-tight text-muted-foreground">
-                            {staffCount} staff
-                            {scheduled > 0
-                              ? ` · ${scheduled} shift${scheduled !== 1 ? "s" : ""}`
-                              : ""}
-                            {totalHours > 0 ? ` · ${totalHours.toFixed(1)}h` : ""}
-                          </span>
+                          {groupName ? (
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className="size-2 shrink-0 rounded-full border border-border/40"
+                                style={{ background: groupDot }}
+                                aria-hidden
+                              />
+                              <span className="truncate text-[10px] font-semibold leading-tight text-muted-foreground">
+                                {groupName}
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="flex min-w-0 items-start gap-1.5">
+                            <span
+                              className="mt-0.5 size-2 shrink-0 rounded-full border border-border/40"
+                              style={{ background: teamDot }}
+                              aria-hidden
+                            />
+                            <div className="min-w-0 flex-1">
+                              <span
+                                className={cn(
+                                  "block truncate text-[13px] font-bold leading-tight",
+                                  !dayOverviewStaffRail && "text-foreground",
+                                )}
+                                style={dayOverviewStaffRail ? { color: teamDot } : undefined}
+                              >
+                                {cat.name}
+                              </span>
+                              <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+                                {staffCount} staff
+                                {scheduled > 0
+                                  ? ` · ${scheduled} shift${scheduled !== 1 ? "s" : ""}`
+                                  : ""}
+                                {totalHours > 0 ? ` · ${totalHours.toFixed(1)}h` : ""}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         {totalHours > 0 && (
                           <div
@@ -550,14 +621,26 @@ export function GridViewSidebar({
                     <div className="truncate text-[9px] font-medium tabular-nums leading-tight text-muted-foreground">
                       {timeRange ? `${timeRange.start} - ${timeRange.end}` : "—"}
                     </div>
-                    <div className="truncate text-xs font-semibold leading-tight text-foreground">
-                      {emp.name}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="size-1.5 shrink-0 rounded-full border border-border/40"
+                        style={{ background: teamDot }}
+                        aria-hidden
+                      />
+                      <div className="truncate text-xs font-semibold leading-tight text-foreground">
+                        {emp.name}
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="truncate text-xs font-semibold text-foreground">
-                      {emp.name}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="size-1.5 shrink-0 rounded-full border border-border/40"
+                        style={{ background: teamDot }}
+                        aria-hidden
+                      />
+                      <div className="truncate text-xs font-semibold text-foreground">{emp.name}</div>
                     </div>
                     <div className="truncate text-[10px] text-muted-foreground">
                       {empShifts.length} shift{empShifts.length !== 1 ? "s" : ""}

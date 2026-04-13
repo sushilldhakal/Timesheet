@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2 } from "lucide-react"
+import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2, FileDown } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ExportDialog } from "@/components/payroll/export-dialog"
+import { PayrollExportStatus } from "@/components/payroll/payroll-export-status"
 
 interface PayRun {
   _id: string
@@ -28,6 +30,9 @@ interface PayRun {
     employeeCount: number
   }
   notes?: string
+  exportedAt?: string
+  exportType?: string
+  exportReference?: string
   createdAt: string
   updatedAt: string
 }
@@ -82,6 +87,10 @@ export default function PayRunsPage() {
   const [tenantId, setTenantId] = useState<string>("")
   const [loadingTenant, setLoadingTenant] = useState(true)
 
+  // Export dialog state
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportPayRunId, setExportPayRunId] = useState<string>("")
+
   // Create dialog form state
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
@@ -131,10 +140,11 @@ export default function PayRunsPage() {
       const response = await fetch(`/api/pay-runs/${payRunId}/export`)
       if (response.ok) {
         const data = await response.json()
-        setPayRunDetail(data)
+        setPayRunDetail(data.data ?? data)
       }
     } catch (error) {
       console.error('Failed to fetch pay run detail:', error)
+      setPayRunDetail(null)
     }
   }, [])
 
@@ -252,45 +262,9 @@ export default function PayRunsPage() {
     }
   }
 
-  const handleExportCSV = async (payRun: PayRun) => {
-    try {
-      const response = await fetch(`/api/pay-runs/${payRun._id}/export`)
-      if (response.ok) {
-        const data: PayRunExport = await response.json()
-        
-        // Build CSV
-        const headers = ['Employee', 'Type', 'ExportName', 'From', 'To', 'Hours', 'Rate', 'Multiplier', 'Amount']
-        const rows = [headers.join(',')]
-        
-        data.employees.forEach(employee => {
-          employee.payItems.forEach(item => {
-            const row = [
-              `"${employee.employeeName}"`,
-              item.type,
-              item.exportName,
-              item.from,
-              item.to,
-              item.hours.toString(),
-              item.rate.toString(),
-              item.multiplier.toString(),
-              item.amount.toString()
-            ]
-            rows.push(row.join(','))
-          })
-        })
-        
-        const csv = rows.join('\n')
-        const blob = new Blob([csv], { type: 'text/csv' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `pay-run-${payRun._id}-export.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-      }
-    } catch (error) {
-      console.error('Failed to export CSV:', error)
-    }
+  const handleOpenExportDialog = (payRun: PayRun) => {
+    setExportPayRunId(payRun._id)
+    setExportDialogOpen(true)
   }
 
   const handleViewDetail = (payRun: PayRun) => {
@@ -367,6 +341,24 @@ export default function PayRunsPage() {
       enableSorting: false,
     },
     {
+      id: "exportStatus",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Export Status" />
+      ),
+      cell: ({ row }) => {
+        const payRun = row.original
+        return (
+          <PayrollExportStatus
+            exportedAt={payRun.exportedAt}
+            exportType={payRun.exportType}
+            exportReference={payRun.exportReference}
+            onReExport={() => handleOpenExportDialog(payRun)}
+          />
+        )
+      },
+      enableSorting: false,
+    },
+    {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
       enableHiding: false,
@@ -414,14 +406,14 @@ export default function PayRunsPage() {
                 </Button>
               )}
               
-              {payRun.status === 'approved' && (
+              {(payRun.status === 'approved' || payRun.status === 'exported') && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleExportCSV(payRun)}
+                  onClick={() => handleOpenExportDialog(payRun)}
                 >
-                  <Download className="h-4 w-4 mr-1" />
-                  Export CSV
+                  <FileDown className="h-4 w-4 mr-1" />
+                  Export to Payroll
                 </Button>
               )}
             </div>
@@ -496,7 +488,7 @@ export default function PayRunsPage() {
           </Card>
         </div>
 
-        {payRunDetail && (
+        {payRunDetail && payRunDetail.employees && payRunDetail.employees.length > 0 && (
           <div className="space-y-6">
             {payRunDetail.employees.map((employee) => (
               <Card key={employee.employeeId}>
@@ -638,6 +630,16 @@ export default function PayRunsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {exportPayRunId && (
+        <ExportDialog
+          payRunId={exportPayRunId}
+          tenantId={tenantId}
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          onExportComplete={() => fetchPayRuns()}
+        />
+      )}
     </div>
   )
 }

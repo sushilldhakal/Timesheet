@@ -1,6 +1,6 @@
 import { z } from "zod"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB, mongoose, Team } from "@/lib/db"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { connectDB, mongoose, Team, TeamGroup } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
 
@@ -16,12 +16,18 @@ const defaultScheduleTemplateSchema = z.object({
   shiftPattern: shiftPatternSchema.optional(),
 })
 
+const groupSnapshotResponseSchema = z.object({ name: z.string().optional() }).optional()
+
 const teamResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   code: z.string().optional(),
   color: z.string().optional(),
   groupId: z.string().optional(),
+  order: z.number().optional(),
+  groupSnapshot: groupSnapshotResponseSchema,
+  groupName: z.string().optional(),
+  groupColor: z.string().optional(),
   staffCount: z.number().optional(),
   managerCount: z.number().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
@@ -40,6 +46,7 @@ const teamCreateSchema = z.object({
   code: z.string().optional(),
   color: z.string().optional(),
   groupId: z.string().optional(),
+  order: z.number().optional(),
   defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean().optional(),
 })
@@ -58,14 +65,15 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ query }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const search = query?.search?.trim()
     const isActive = query?.isActive
 
     await connectDB()
-    const filter: Record<string, unknown> = {}
+    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
+    const filter: Record<string, unknown> = { tenantId: tid }
     if (typeof isActive === "boolean") filter.isActive = isActive
     if (search) filter.name = { $regex: search, $options: "i" }
 
@@ -87,7 +95,7 @@ export const GET = createApiRoute({
       console.warn("[api/teams GET] collection count failed", e)
     }
 
-    let teams = await Team.find(filter).sort({ name: 1 }).lean()
+    let teams = await Team.find(filter).sort({ order: 1, name: 1 }).lean()
 
     console.log("[api/teams GET]", {
       dbName,
@@ -103,7 +111,7 @@ export const GET = createApiRoute({
         const teans = await mongoose.connection
           .collection("teans")
           .find(filter as Record<string, unknown>)
-          .sort({ name: 1 })
+          .sort({ order: 1, name: 1 })
           .toArray()
         teams = teans as typeof teams
         console.log("[api/teams GET] fallback teans → rows", teams.length)
@@ -118,7 +126,7 @@ export const GET = createApiRoute({
         const fromRoles = await mongoose.connection
           .collection("roles")
           .find(filter as Record<string, unknown>)
-          .sort({ name: 1 })
+          .sort({ order: 1, name: 1 })
           .toArray()
         teams = fromRoles as typeof teams
         console.log("[api/teams GET] fallback roles → rows", teams.length)
@@ -132,7 +140,7 @@ export const GET = createApiRoute({
         const raw = await mongoose.connection
           .collection("teams")
           .find(filter as Record<string, unknown>)
-          .sort({ name: 1 })
+          .sort({ order: 1, name: 1 })
           .toArray()
         console.log("[api/teams GET] Team.find empty but teams collection has docs; native find → rows", raw.length)
         teams = raw as typeof teams
@@ -190,17 +198,43 @@ export const GET = createApiRoute({
       }
     }
 
+    const groupDocById = new Map<string, { name: string; color?: string }>()
+    const allGroupIds = [
+      ...new Set(
+        teams
+          .map((r: { groupId?: unknown }) => (r.groupId ? String(r.groupId) : ""))
+          .filter(Boolean),
+      ),
+    ]
+    if (allGroupIds.length > 0) {
+      const oids = allGroupIds
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id))
+      const groupDocs = await TeamGroup.find({ _id: { $in: oids } })
+        .select(["name", "color"])
+        .lean()
+      for (const g of groupDocs) {
+        groupDocById.set(String(g._id), { name: g.name, color: g.color })
+      }
+    }
+
     return {
       status: 200,
       data: {
         teams: teams.map((r: any) => {
           const id = r._id.toString()
+          const gid = r.groupId ? String(r.groupId) : ""
+          const gInfo = gid ? groupDocById.get(gid) : undefined
           return {
             id,
             name: r.name,
             code: r.code,
             color: r.color,
             groupId: r.groupId?.toString(),
+            order: r.order ?? 0,
+            groupSnapshot: r.groupSnapshot?.name != null ? { name: r.groupSnapshot.name } : undefined,
+            groupName: gInfo?.name ?? (r.groupSnapshot?.name as string | undefined),
+            groupColor: gInfo?.color,
             staffCount: staffByTeam.get(id) ?? 0,
             managerCount: managersByTeam.get(id) ?? 0,
             defaultScheduleTemplate: r.defaultScheduleTemplate,
@@ -230,22 +264,50 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     const payload = body!
+    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
     await connectDB()
 
     const existing = await Team.findOne({
+      tenantId: tid,
       name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
     }).lean()
     if (existing) return { status: 409, data: { error: "A team with this name already exists" } }
 
+    let groupSnapshot: { name?: string } | undefined
+    if (payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId)) {
+      const g = await TeamGroup.findById(payload.groupId).select("name").lean()
+      if (g?.name) groupSnapshot = { name: g.name }
+    }
+
     const created = await Team.create({
-      ...payload,
+      tenantId: tid,
       name: payload.name.trim(),
-      createdBy: auth.sub,
+      code: payload.code,
+      color: payload.color,
+      groupId:
+        payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId)
+          ? new mongoose.Types.ObjectId(payload.groupId)
+          : undefined,
+      order: payload.order ?? 0,
+      groupSnapshot,
+      defaultScheduleTemplate: payload.defaultScheduleTemplate,
+      isActive: payload.isActive ?? true,
+      createdBy: ctx.auth.sub,
     })
+
+    let groupName: string | undefined
+    let groupColor: string | undefined
+    if (created.groupId) {
+      const g = await TeamGroup.findById(created.groupId).select(["name", "color"]).lean()
+      if (g) {
+        groupName = g.name
+        groupColor = g.color
+      }
+    }
 
     return {
       status: 200,
@@ -256,6 +318,10 @@ export const POST = createApiRoute({
           code: created.code,
           color: created.color,
           groupId: created.groupId?.toString(),
+          order: created.order ?? 0,
+          groupSnapshot: created.groupSnapshot?.name != null ? { name: created.groupSnapshot.name } : undefined,
+          groupName,
+          groupColor,
           defaultScheduleTemplate: created.defaultScheduleTemplate,
           isActive: created.isActive ?? true,
           createdAt: created.createdAt ? created.createdAt.toISOString() : null,

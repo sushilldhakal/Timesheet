@@ -193,9 +193,9 @@ export function AwardEnhancedRow({ timesheet }: AwardEnhancedRowProps) {
                     <h4 className="font-medium mb-2">Break Entitlements</h4>
                     <div className="space-y-2">
                       {timesheet.computed.breakEntitlements.map((breakEnt, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg dark:bg-purple-900/20 dark:border-purple-800">
+                        <div key={index} className="flex items-center justify-between p-3 ">
                           <div className="flex items-center gap-2">
-                            <Coffee className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            <Coffee className="h-4 w-4" />
                             <span>{breakEnt.durationMinutes}min break at {breakEnt.startTime}</span>
                           </div>
                           <Badge variant={breakEnt.isPaid ? "default" : "secondary"}>

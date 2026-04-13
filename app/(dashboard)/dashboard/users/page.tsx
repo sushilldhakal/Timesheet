@@ -2,17 +2,15 @@
 
 import { useState, useMemo } from "react"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdmin, isAdminOrSuperAdmin, UserRole } from "@/lib/config/roles"
+import { isAdmin, UserRole } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserPlus, Users, DollarSign } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import { UsersTable } from "./UsersTable"
 import { AddUserDialog } from "./AddUserDialog"
 import { EditUserDialog } from "./EditUserDialog"
 import { DeleteUserDialog } from "./DeleteUserDialog"
 import { useUsers } from "@/lib/queries/users"
-import { Badge } from "@/components/ui/badge"
 
 export type UserRow = {
   id: string
@@ -25,43 +23,22 @@ export type UserRow = {
   createdAt?: string
 }
 
-type TabType = 'all' | 'operational' | 'financial'
-
 export default function UsersPage() {
   const { user, isHydrated } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('all')
   const [addOpen, setAddOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
 
   const userIsAdmin = isAdmin(user?.role ?? null)
-  const userIsAdminOrSuperAdmin = isAdminOrSuperAdmin(user?.role ?? null)
 
   // TanStack Query hooks
   const usersQuery = useUsers()
-  
+
   const allUsers = usersQuery.data?.users || []
   const loading = usersQuery.isLoading
 
-  // Filter all users (ADMIN only)
   const allUsersFiltered = useMemo(() => {
-    return allUsers.filter(u => 
-      u.role !== UserRole.SUPER_ADMIN // Hide super_admin from list
-    )
-  }, [allUsers])
-
-  // Filter operational staff (MANAGER and SUPERVISOR)
-  const operationalUsers = useMemo(() => {
-    return allUsers.filter(u => 
-      u.role === UserRole.MANAGER || u.role === UserRole.SUPERVISOR
-    )
-  }, [allUsers])
-
-  // Filter financial staff (ACCOUNTS)
-  const financialUsers = useMemo(() => {
-    return allUsers.filter(u => 
-      u.role === UserRole.ACCOUNTS
-    )
+    return allUsers.filter(u => u.role !== UserRole.SUPER_ADMIN)
   }, [allUsers])
 
   const fetchUsers = () => {
@@ -93,19 +70,8 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">User Management</h1>
-            <Badge variant="outline">
-              {activeTab === 'all' && 'All Users'}
-              {activeTab === 'operational' && 'Managers & Supervisors'}
-              {activeTab === 'financial' && 'Accounts'}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground mt-1">
-            {activeTab === 'all' && 'Manage all system users and their permissions.'}
-            {activeTab === 'operational' && 'Operational staff who handle timesheets, scheduling, and shift approvals.'}
-            {activeTab === 'financial' && 'Financial staff who handle awards, payroll processing, and financial reports.'}
-          </p>
+          <h1 className="text-2xl font-semibold">User Management</h1>
+          <p className="text-muted-foreground mt-1">Manage all system users and their permissions.</p>
         </div>
         <Button onClick={() => setAddOpen(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
@@ -113,102 +79,27 @@ export default function UsersPage() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
-          {userIsAdminOrSuperAdmin && (
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              All Users
-            </TabsTrigger>
+      <Card>
+        <CardHeader>
+          <CardTitle>All Users</CardTitle>
+          <CardDescription>
+            Complete list of all system users across all roles and departments.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-muted-foreground py-8 text-center">Loading users...</p>
+          ) : (
+            <UsersTable
+              users={allUsersFiltered}
+              currentUserId={user?.id}
+              onEdit={setEditUser}
+              onDelete={setDeleteUser}
+              onRefresh={fetchUsers}
+            />
           )}
-          <TabsTrigger value="operational" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Operational
-          </TabsTrigger>
-          {userIsAdminOrSuperAdmin && (
-            <TabsTrigger value="financial" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Financial
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        {userIsAdminOrSuperAdmin && (
-          <TabsContent value="all" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Users</CardTitle>
-                <CardDescription>
-                  Complete list of all system users across all roles and departments.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <p className="text-muted-foreground py-8 text-center">Loading users...</p>
-                ) : (
-                  <UsersTable
-                    users={allUsersFiltered}
-                    currentUserId={user?.id}
-                    onEdit={setEditUser}
-                    onDelete={setDeleteUser}
-                    onRefresh={fetchUsers}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        <TabsContent value="operational" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Operational Staff</CardTitle>
-              <CardDescription>
-                Managers can approve shifts and lock timesheets. Supervisors can approve shifts within their assigned locations and roles.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-muted-foreground py-8 text-center">Loading users...</p>
-              ) : (
-                <UsersTable
-                  users={operationalUsers}
-                  currentUserId={user?.id}
-                  onEdit={setEditUser}
-                  onDelete={setDeleteUser}
-                  onRefresh={fetchUsers}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {userIsAdminOrSuperAdmin && (
-          <TabsContent value="financial" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Staff</CardTitle>
-                <CardDescription>
-                  Accounts staff can manage awards, process payroll, and generate financial reports. They have access to sensitive financial data.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <p className="text-muted-foreground py-8 text-center">Loading users...</p>
-                ) : (
-                  <UsersTable
-                    users={financialUsers}
-                    currentUserId={user?.id}
-                    onEdit={setEditUser}
-                    onDelete={setDeleteUser}
-                    onRefresh={fetchUsers}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
+        </CardContent>
+      </Card>
 
       <AddUserDialog
         open={addOpen}

@@ -1,0 +1,891 @@
+================================================================================
+IMPLEMENTATION PROMPT: Multi-Country Tax System (Production-Ready)
+================================================================================
+
+OBJECTIVE:
+Implement a secure, auditable, multi-country tax and bank details system that
+handles 8 countries (Australia, India, Nepal, UK, Singapore, New Zealand, US, Canada)
+with different tax ID formats, bank routing systems, and country-specific rules.
+
+This implementation FIXES all 9 architectural issues from the original design:
+✅ Config drives validation (no duplication)
+✅ Namespaced country-specific data
+✅ Encrypted tax IDs with masking support
+✅ Standardised bank model
+✅ Country snapshots for compliance
+✅ Fixed UI conditional logic
+✅ Tax rule versioning
+✅ Audit & compliance logging
+✅ ISO country codes
+
+CRITICAL: This system must be implemented EXACTLY as specified. Do not deviate.
+
+================================================================================
+PHASE 1: CONFIGURATION & SCHEMAS
+================================================================================
+
+FILE 1: /lib/config/countries.ts
+================================
+
+Create this file with ALL country configurations and Zod schemas as the single
+source of truth. This file DRIVES all validation - no duplication elsewhere.
+
+```typescript
+import { z } from 'zod'
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/** ISO 3166-1 alpha-2 country codes */
+export type CountryCode = 'AU' | 'IN' | 'NP' | 'UK' | 'SG' | 'NZ' | 'US' | 'CA'
+
+export type TaxIdType = 'tfn' | 'pan' | 'nric' | 'ird' | 'tax_code' | 'ssn' | 'sin'
+export type BankRoutingType = 'bsb' | 'ifsc' | 'iban' | 'swift' | 'routing'
+
+// ============================================================================
+// COUNTRY-SPECIFIC SCHEMAS (Single Source of Truth)
+// ============================================================================
+
+// AUSTRALIA (TFN + BSB)
+const auTaxSchema = z.object({
+  taxId: z
+    .string()
+    .regex(/^\d{11}$/, 'TFN must be 11 digits')
+    .describe('Tax File Number'),
+  taxFreeThreshold: z.boolean().describe('Claim tax-free threshold'),
+  seniorTaxOffset: z.boolean().optional().describe('Eligible for senior Australian resident offset'),
+  studentLoan: z.boolean().optional().describe('Has HECS/HELP debt'),
+  superannuationFund: z.string().optional().describe('Superannuation fund name'),
+  superannuationMemberNumber: z.string().optional().describe('Member number in fund'),
+})
+
+const auBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  accountNumber: z
+    .string()
+    .regex(/^\d{6,10}$/, 'Account number must be 6-10 digits'),
+  bsb: z
+    .string()
+    .regex(/^\d{6}$/, 'BSB must be exactly 6 digits (XXX-XXX format)')
+    .describe('Bank State Branch code'),
+  bankName: z.string().optional(),
+})
+
+// INDIA & NEPAL (PAN + IFSC)
+const inNpTaxSchema = z.object({
+  taxId: z
+    .string()
+    .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN format')
+    .toUpperCase()
+    .describe('Permanent Account Number'),
+  taxIdName: z.string().min(1).describe('PAN Cardholder Name'),
+  uanNumber: z.string().optional().describe('UAN (India) or Citizenship Number (Nepal)'),
+})
+
+const inNpBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  accountNumber: z
+    .string()
+    .regex(/^\d{9,18}$/, 'Account number must be 9-18 digits'),
+  ifsc: z
+    .string()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC code format')
+    .toUpperCase()
+    .describe('IFSC Code'),
+  bankName: z.string().describe('Bank name'),
+})
+
+// UK (Tax Code + IBAN)
+const ukTaxSchema = z.object({
+  taxCode: z
+    .string()
+    .regex(/^\d{1,2}[A-Z]{1}$/, 'Invalid UK tax code')
+    .describe('Tax code from HMRC'),
+  studentLoan: z.boolean().optional().describe('Has student loan debt'),
+  ukTaxYearStatus: z.enum(['resident', 'non_resident']).describe('Tax residency status'),
+})
+
+const ukBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  iban: z
+    .string()
+    .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/, 'Invalid IBAN format')
+    .toUpperCase(),
+  swiftCode: z.string().optional().describe('SWIFT/BIC code'),
+  bankName: z.string().optional().describe('Bank name'),
+})
+
+// SINGAPORE (NRIC + Bank account)
+const sgTaxSchema = z.object({
+  nric: z
+    .string()
+    .regex(/^[SFG]\d{7}[A-Z]$/, 'Invalid NRIC/FIN format')
+    .toUpperCase()
+    .describe('National Registration ID or FIN'),
+  nricType: z.enum(['nric', 'fin', 'other']).describe('Type of ID'),
+  legalStatus: z.enum(['citizen', 'pr', 'foreigner']).describe('Legal status in Singapore'),
+  nationality: z.string().optional().describe('Nationality'),
+  race: z.string().optional().describe('Race'),
+  religion: z.string().optional().describe('Religion'),
+  maritalStatus: z.enum(['single', 'married', 'divorced', 'widowed']).optional(),
+  nricIssueDate: z.string().optional().describe('NRIC issue date'),
+  nricExpiryDate: z.string().optional().describe('NRIC expiry date'),
+})
+
+const sgBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  accountNumber: z
+    .string()
+    .regex(/^\d{10,}$/, 'Account number must be at least 10 digits'),
+  bankName: z.string().min(1).describe('Bank name'),
+  swiftCode: z.string().optional().describe('SWIFT code'),
+})
+
+// NEW ZEALAND (IRD + IBAN)
+const nzTaxSchema = z.object({
+  irdNumber: z
+    .string()
+    .regex(/^\d{8,9}$/, 'IRD must be 8-9 digits')
+    .describe('Inland Revenue Department number'),
+  nzTaxCode: z
+    .enum(['ME', 'MD', 'MI', 'SB', 'SR', 'ST', 'AE', 'CM'])
+    .describe('PAYE tax code'),
+  esctRate: z.enum(['0%', '5%', '10%', '15%', '20%', '25%']).optional().describe('ESCT rate'),
+})
+
+const nzBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  iban: z
+    .string()
+    .regex(/^NZ\d{2}[A-Z0-9]{14}$/, 'Invalid NZ IBAN format')
+    .toUpperCase(),
+  swiftCode: z.string().optional(),
+  bankName: z.string().optional(),
+})
+
+// USA (SSN + Routing Number)
+const usTaxSchema = z.object({
+  ssn: z
+    .string()
+    .regex(/^\d{9}$/, 'SSN must be exactly 9 digits')
+    .describe('Social Security Number'),
+  w4FilingStatus: z
+    .enum(['single', 'married', 'head_of_household', 'other'])
+    .describe('W4 filing status'),
+})
+
+const usBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  accountNumber: z
+    .string()
+    .regex(/^\d{8,17}$/, 'Account number must be 8-17 digits'),
+  routingNumber: z
+    .string()
+    .regex(/^\d{9}$/, 'Routing number must be exactly 9 digits')
+    .describe('ABA routing number'),
+  bankName: z.string().optional(),
+})
+
+// CANADA (SIN + Transit Number)
+const caTaxSchema = z.object({
+  sin: z
+    .string()
+    .regex(/^\d{9}$/, 'SIN must be exactly 9 digits')
+    .describe('Social Insurance Number'),
+  province: z
+    .enum(['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'])
+    .describe('Province of residence'),
+  td1OnFile: z.boolean().optional().describe('TD1 form on file'),
+})
+
+const caBankSchema = z.object({
+  accountName: z.string().min(1, 'Account name required'),
+  accountNumber: z
+    .string()
+    .regex(/^\d{7,12}$/, 'Account number must be 7-12 digits'),
+  transitNumber: z
+    .string()
+    .regex(/^\d{5}$/, 'Transit number must be exactly 5 digits'),
+  institutionNumber: z
+    .string()
+    .regex(/^\d{3}$/, 'Institution number must be exactly 3 digits'),
+  bankName: z.string().optional(),
+})
+
+// ============================================================================
+// COUNTRY CONFIGURATION (Config drives validation)
+// ============================================================================
+
+export interface CountryConfig {
+  code: CountryCode
+  name: string
+  currency: string
+  taxIdType: TaxIdType
+  taxIdLabel: string
+  bankRoutingTypes: BankRoutingType[]
+  taxSchema: z.ZodSchema
+  bankSchema: z.ZodSchema
+  timezone: string
+  locale: string
+  isoCode: string
+}
+
+export const COUNTRIES: Record<CountryCode, CountryConfig> = {
+  AU: {
+    code: 'AU',
+    name: 'Australia',
+    currency: 'AUD',
+    taxIdType: 'tfn',
+    taxIdLabel: 'Tax File Number (TFN)',
+    bankRoutingTypes: ['bsb'],
+    taxSchema: auTaxSchema,
+    bankSchema: auBankSchema,
+    timezone: 'Australia/Sydney',
+    locale: 'en-AU',
+    isoCode: 'AU',
+  },
+
+  IN: {
+    code: 'IN',
+    name: 'India',
+    currency: 'INR',
+    taxIdType: 'pan',
+    taxIdLabel: 'Permanent Account Number (PAN)',
+    bankRoutingTypes: ['ifsc'],
+    taxSchema: inNpTaxSchema,
+    bankSchema: inNpBankSchema,
+    timezone: 'Asia/Kolkata',
+    locale: 'en-IN',
+    isoCode: 'IN',
+  },
+
+  NP: {
+    code: 'NP',
+    name: 'Nepal',
+    currency: 'NPR',
+    taxIdType: 'pan',
+    taxIdLabel: 'Permanent Account Number (PAN)',
+    bankRoutingTypes: ['ifsc'],
+    taxSchema: inNpTaxSchema,
+    bankSchema: inNpBankSchema,
+    timezone: 'Asia/Kathmandu',
+    locale: 'en-NP',
+    isoCode: 'NP',
+  },
+
+  UK: {
+    code: 'UK',
+    name: 'United Kingdom',
+    currency: 'GBP',
+    taxIdType: 'tax_code',
+    taxIdLabel: 'Tax Code (HMRC)',
+    bankRoutingTypes: ['iban', 'swift'],
+    taxSchema: ukTaxSchema,
+    bankSchema: ukBankSchema,
+    timezone: 'Europe/London',
+    locale: 'en-GB',
+    isoCode: 'GB',
+  },
+
+  SG: {
+    code: 'SG',
+    name: 'Singapore',
+    currency: 'SGD',
+    taxIdType: 'nric',
+    taxIdLabel: 'National Registration ID (NRIC)',
+    bankRoutingTypes: [],
+    taxSchema: sgTaxSchema,
+    bankSchema: sgBankSchema,
+    timezone: 'Asia/Singapore',
+    locale: 'en-SG',
+    isoCode: 'SG',
+  },
+
+  NZ: {
+    code: 'NZ',
+    name: 'New Zealand',
+    currency: 'NZD',
+    taxIdType: 'ird',
+    taxIdLabel: 'IRD Number',
+    bankRoutingTypes: ['iban', 'swift'],
+    taxSchema: nzTaxSchema,
+    bankSchema: nzBankSchema,
+    timezone: 'Pacific/Auckland',
+    locale: 'en-NZ',
+    isoCode: 'NZ',
+  },
+
+  US: {
+    code: 'US',
+    name: 'United States',
+    currency: 'USD',
+    taxIdType: 'ssn',
+    taxIdLabel: 'Social Security Number (SSN)',
+    bankRoutingTypes: ['routing'],
+    taxSchema: usTaxSchema,
+    bankSchema: usBankSchema,
+    timezone: 'America/New_York',
+    locale: 'en-US',
+    isoCode: 'US',
+  },
+
+  CA: {
+    code: 'CA',
+    name: 'Canada',
+    currency: 'CAD',
+    taxIdType: 'sin',
+    taxIdLabel: 'Social Insurance Number (SIN)',
+    bankRoutingTypes: [],
+    taxSchema: caTaxSchema,
+    bankSchema: caBankSchema,
+    timezone: 'America/Toronto',
+    locale: 'en-CA',
+    isoCode: 'CA',
+  },
+}
+
+// ============================================================================
+// HELPER FUNCTIONS (Single Source of Truth)
+// ============================================================================
+
+export function getCountryConfig(code: CountryCode): CountryConfig {
+  const config = COUNTRIES[code]
+  if (!config) {
+    throw new Error(`Unknown country code: ${code}`)
+  }
+  return config
+}
+
+export function getTaxSchema(code: CountryCode) {
+  return getCountryConfig(code).taxSchema
+}
+
+export function getBankSchema(code: CountryCode) {
+  return getCountryConfig(code).bankSchema
+}
+
+export function getAllCountries(): CountryConfig[] {
+  return Object.values(COUNTRIES)
+}
+```
+
+================================================================================
+PHASE 2: DATABASE SCHEMA
+================================================================================
+
+FILE 2: /lib/db/schemas/employee-tax-info.ts
+=============================================
+
+Update existing file with improved structure:
+
+```typescript
+import mongoose from 'mongoose'
+
+/**
+ * Encrypted tax ID with masking support for display
+ */
+export interface ITaxId {
+  type: 'tfn' | 'pan' | 'nric' | 'ird' | 'tax_code' | 'ssn' | 'sin'
+  valueEncrypted: string // Encrypted tax ID
+  last4?: string // For masking display (e.g., "***-***-789" for TFN)
+}
+
+/**
+ * Bank routing info (standardised structure)
+ */
+export interface IBankRouting {
+  type: 'bsb' | 'ifsc' | 'iban' | 'swift' | 'routing'
+  valueEncrypted: string // Encrypted routing number
+  last4?: string // For masking (e.g., "123-***" for BSB)
+}
+
+/**
+ * Bank details with standardised model
+ */
+export interface IBankDetails {
+  accountName: string
+  accountNumberEncrypted: string // Encrypted account number
+  accountLast4: string // For masking (e.g., "••••1234")
+  routing: IBankRouting
+  bankName?: string
+  swiftCode?: string
+}
+
+/**
+ * Country-specific tax data (namespaced by country type)
+ */
+export interface ITaxData {
+  type: 'AU' | 'IN' | 'NP' | 'UK' | 'SG' | 'NZ' | 'US' | 'CA'
+  version: string // e.g., "2024" for tax year versioning
+  data: Record<string, any> // Flexible object containing country-specific fields
+}
+
+/**
+ * Access log for compliance & audit
+ */
+export interface IAccessLog {
+  userId: mongoose.Types.ObjectId
+  action: 'VIEW_TAX' | 'EDIT_TAX' | 'DELETE_TAX' | 'VIEW_BANK' | 'EDIT_BANK' | 'DELETE_BANK'
+  timestamp: Date
+  ipAddress?: string
+  userAgent?: string
+}
+
+/**
+ * Employee Tax Information
+ */
+export interface IEmployeeTaxInfo {
+  employeeId: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
+
+  // Country snapshot (critical for compliance)
+  countrySnapshot: 'AU' | 'IN' | 'NP' | 'UK' | 'SG' | 'NZ' | 'US' | 'CA'
+
+  // Tax identification (encrypted)
+  taxId: ITaxId
+
+  // Country-specific tax data (namespaced)
+  tax: ITaxData
+
+  // Bank details (standardised)
+  bank: IBankDetails
+
+  // Compliance & audit
+  accessLogs?: IAccessLog[]
+
+  // Metadata
+  createdBy?: mongoose.Types.ObjectId
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface IEmployeeTaxInfoDocument extends IEmployeeTaxInfo, mongoose.Document {}
+
+// Schemas
+const taxIdSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['tfn', 'pan', 'nric', 'ird', 'tax_code', 'ssn', 'sin'],
+      required: true,
+    },
+    valueEncrypted: { type: String, required: true },
+    last4: { type: String },
+  },
+  { _id: false }
+)
+
+const bankRoutingSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['bsb', 'ifsc', 'iban', 'swift', 'routing'],
+      required: true,
+    },
+    valueEncrypted: { type: String, required: true },
+    last4: { type: String },
+  },
+  { _id: false }
+)
+
+const bankDetailsSchema = new mongoose.Schema(
+  {
+    accountName: { type: String, required: true },
+    accountNumberEncrypted: { type: String, required: true },
+    accountLast4: { type: String, required: true },
+    routing: { type: bankRoutingSchema, required: true },
+    bankName: { type: String },
+    swiftCode: { type: String },
+  },
+  { _id: false }
+)
+
+const taxDataSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['AU', 'IN', 'NP', 'UK', 'SG', 'NZ', 'US', 'CA'],
+      required: true,
+    },
+    version: { type: String, required: true, default: '2024' },
+    data: { type: mongoose.Schema.Types.Mixed, required: true },
+  },
+  { _id: false }
+)
+
+const accessLogSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    action: {
+      type: String,
+      enum: ['VIEW_TAX', 'EDIT_TAX', 'DELETE_TAX', 'VIEW_BANK', 'EDIT_BANK', 'DELETE_BANK'],
+      required: true,
+    },
+    timestamp: { type: Date, required: true, default: Date.now },
+    ipAddress: { type: String },
+    userAgent: { type: String },
+  },
+  { _id: false }
+)
+
+const employeeTaxInfoSchema = new mongoose.Schema<IEmployeeTaxInfoDocument>(
+  {
+    employeeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      required: true,
+      index: true,
+    },
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employer',
+      required: true,
+      index: true,
+    },
+    countrySnapshot: {
+      type: String,
+      enum: ['AU', 'IN', 'NP', 'UK', 'SG', 'NZ', 'US', 'CA'],
+      required: true,
+    },
+    taxId: { type: taxIdSchema, required: true },
+    tax: { type: taxDataSchema, required: true },
+    bank: { type: bankDetailsSchema, required: true },
+    accessLogs: [{ type: accessLogSchema }],
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  },
+  {
+    timestamps: true,
+    collection: 'employee_tax_infos',
+  }
+)
+
+// Indices for common queries
+employeeTaxInfoSchema.index({ employeeId: 1, tenantId: 1 }, { unique: true })
+employeeTaxInfoSchema.index({ tenantId: 1, countrySnapshot: 1 })
+
+export const EmployeeTaxInfo =
+  (mongoose.models.EmployeeTaxInfo as mongoose.Model<IEmployeeTaxInfoDocument>) ??
+  mongoose.model<IEmployeeTaxInfoDocument>('EmployeeTaxInfo', employeeTaxInfoSchema)
+```
+
+================================================================================
+PHASE 3: ENCRYPTION & UTILITIES
+================================================================================
+
+FILE 3: /lib/utils/tax-encryption.ts
+===================================
+
+```typescript
+import crypto from 'crypto'
+
+const ENCRYPTION_KEY = process.env.TAX_ENCRYPTION_KEY || 'dev-key-32-chars-must-be-exactly-32'
+const ALGORITHM = 'aes-256-gcm'
+
+/**
+ * Encrypt sensitive tax/bank data
+ */
+export function encryptTaxData(plaintext: string): string {
+  const iv = crypto.randomBytes(16)
+  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv)
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag()
+  return `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`
+}
+
+/**
+ * Decrypt sensitive tax/bank data
+ */
+export function decryptTaxData(encrypted: string): string {
+  const [ivHex, ciphertext, authTagHex] = encrypted.split(':')
+  const iv = Buffer.from(ivHex, 'hex')
+  const authTag = Buffer.from(authTagHex, 'hex')
+  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv)
+  decipher.setAuthTag(authTag)
+  let plaintext = decipher.update(ciphertext, 'hex', 'utf8')
+  plaintext += decipher.final('utf8')
+  return plaintext
+}
+
+/**
+ * Extract last 4 characters for display masking
+ */
+export function extractLast4(plaintext: string): string {
+  return plaintext.slice(-4)
+}
+
+// Masking formats by country & field type
+
+export const TAX_MASKING_FORMATS: Record<string, (last4: string) => string> = {
+  tfn: (last4) => `***-***-${last4}`,
+  pan: (last4) => `${last4.slice(0, 2)}****${last4.slice(2)}`,
+  nric: (last4) => `S****${last4}`,
+  ird: (last4) => `****${last4}`,
+  tax_code: (last4) => `1****${last4}`,
+  ssn: (last4) => `***-**-${last4}`,
+  sin: (last4) => `***-***-${last4}`,
+}
+
+export const BANK_MASKING_FORMATS: Record<string, (last4: string) => string> = {
+  bsb: (last4) => `${last4}-***`,
+  ifsc: (last4) => `${last4}****`,
+  iban: (last4) => `GB82****`,
+  routing: (last4) => `***${last4}`,
+}
+
+/**
+ * Get masked tax ID for display
+ */
+export function getMaskedTaxId(taxIdType: string, last4: string): string {
+  const formatter = TAX_MASKING_FORMATS[taxIdType]
+  return formatter ? formatter(last4) : `****${last4}`
+}
+
+/**
+ * Get masked bank routing for display
+ */
+export function getMaskedBankRouting(routingType: string, last4: string): string {
+  const formatter = BANK_MASKING_FORMATS[routingType]
+  return formatter ? formatter(last4) : `••••${last4}`
+}
+
+/**
+ * Get masked account number
+ */
+export function getMaskedAccountNumber(accountNumber: string): string {
+  const last4 = accountNumber.slice(-4)
+  return `••••${last4}`
+}
+```
+
+================================================================================
+PHASE 4: API ENDPOINT
+================================================================================
+
+FILE 4: /app/api/employees/[id]/tax-info/route.ts
+=================================================
+
+Update to use the new config and encryption:
+
+```typescript
+import { z } from 'zod'
+import { getAuthWithUserLocations } from '@/lib/auth/auth-api'
+import { connectDB, mongoose, EmployeeTaxInfo } from '@/lib/db'
+import { getCountryConfig, getTaxSchema, getBankSchema, type CountryCode } from '@/lib/config/countries'
+import { encryptTaxData, extractLast4, getMaskedTaxId, getMaskedBankRouting } from '@/lib/utils/tax-encryption'
+import { createApiRoute } from '@/lib/api/create-api-route'
+import { errorResponseSchema } from '@/lib/validations/auth'
+
+const createTaxInfoSchema = z.object({
+  countrySnapshot: z.enum(['AU', 'IN', 'NP', 'UK', 'SG', 'NZ', 'US', 'CA']),
+  taxData: z.record(z.any()),
+  bankData: z.record(z.any()),
+})
+
+export const POST = createApiRoute({
+  method: 'POST',
+  path: '/api/employees/[id]/tax-info',
+  summary: 'Create employee tax information',
+  description: 'Add tax and bank details for an employee (country-specific)',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: {
+    params: z.object({ id: z.string() }),
+    body: createTaxInfoSchema,
+  },
+  responses: {
+    200: z.object({
+      taxInfo: z.object({
+        id: z.string(),
+        countrySnapshot: z.string(),
+        taxIdMasked: z.string(),
+      }),
+    }),
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+  },
+  handler: async ({ params, body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: 'Unauthorized' } }
+
+    const { id: employeeId } = params
+    const { countrySnapshot, taxData, bankData } = body!
+
+    await connectDB()
+
+    // Get country config (single source of truth)
+    const countryConfig = getCountryConfig(countrySnapshot as CountryCode)
+
+    // Validate tax data against country schema
+    const taxSchema = getTaxSchema(countrySnapshot as CountryCode)
+    let validatedTaxData
+    try {
+      validatedTaxData = taxSchema.parse(taxData)
+    } catch (e) {
+      return {
+        status: 400,
+        data: { error: `Tax validation failed: ${(e as Error).message}` },
+      }
+    }
+
+    // Validate bank data against country schema
+    const bankSchema = getBankSchema(countrySnapshot as CountryCode)
+    let validatedBankData
+    try {
+      validatedBankData = bankSchema.parse(bankData)
+    } catch (e) {
+      return {
+        status: 400,
+        data: { error: `Bank validation failed: ${(e as Error).message}` },
+      }
+    }
+
+    // Encrypt sensitive fields
+    const taxIdValue = validatedTaxData.taxId || validatedTaxData.pan || validatedTaxData.nric || validatedTaxData.ssn || validatedTaxData.sin || validatedTaxData.irdNumber || validatedTaxData.taxCode
+    const encryptedTaxId = encryptTaxData(String(taxIdValue))
+    const taxIdLast4 = extractLast4(String(taxIdValue))
+
+    const encryptedAccount = encryptTaxData(validatedBankData.accountNumber)
+    const accountLast4 = extractLast4(validatedBankData.accountNumber)
+
+    // Determine routing field name based on country
+    let routingValue = ''
+    let routingType = ''
+    if (validatedBankData.bsb) {
+      routingValue = validatedBankData.bsb
+      routingType = 'bsb'
+    } else if (validatedBankData.ifsc) {
+      routingValue = validatedBankData.ifsc
+      routingType = 'ifsc'
+    } else if (validatedBankData.iban) {
+      routingValue = validatedBankData.iban
+      routingType = 'iban'
+    } else if (validatedBankData.routingNumber) {
+      routingValue = validatedBankData.routingNumber
+      routingType = 'routing'
+    }
+
+    const encryptedRouting = encryptTaxData(routingValue)
+    const routingLast4 = extractLast4(routingValue)
+
+    // Create tax info with audit log
+    const taxInfo = await EmployeeTaxInfo.create({
+      employeeId: new mongoose.Types.ObjectId(employeeId),
+      tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
+      countrySnapshot,
+      taxId: {
+        type: countryConfig.taxIdType,
+        valueEncrypted: encryptedTaxId,
+        last4: taxIdLast4,
+      },
+      tax: {
+        type: countrySnapshot,
+        version: '2024',
+        data: validatedTaxData,
+      },
+      bank: {
+        accountName: validatedBankData.accountName,
+        accountNumberEncrypted: encryptedAccount,
+        accountLast4,
+        routing: {
+          type: routingType as any,
+          valueEncrypted: encryptedRouting,
+          last4: routingLast4,
+        },
+        bankName: validatedBankData.bankName,
+        swiftCode: validatedBankData.swiftCode,
+      },
+      accessLogs: [
+        {
+          userId: new mongoose.Types.ObjectId(ctx.auth.sub),
+          action: 'EDIT_TAX',
+          timestamp: new Date(),
+        },
+      ],
+      createdBy: new mongoose.Types.ObjectId(ctx.auth.sub),
+    })
+
+    return {
+      status: 200,
+      data: {
+        taxInfo: {
+          id: taxInfo._id.toString(),
+          countrySnapshot: taxInfo.countrySnapshot,
+          taxIdMasked: getMaskedTaxId(countryConfig.taxIdType, taxIdLast4),
+        },
+      },
+    }
+  },
+})
+```
+
+================================================================================
+IMPLEMENTATION CHECKLIST
+================================================================================
+
+After implementing all files, verify:
+
+✅ DATABASE SCHEMA
+  - [ ] EmployeeTaxInfo schema updated with all new fields
+  - [ ] taxId has type, valueEncrypted, last4
+  - [ ] Bank model has standardised routing field
+  - [ ] tax data is namespaced (type, version, data)
+  - [ ] accessLogs array for audit trail
+  - [ ] countrySnapshot field stores country at creation
+
+✅ ENCRYPTION
+  - [ ] TAX_ENCRYPTION_KEY set in .env (32 chars min)
+  - [ ] encryptTaxData() uses AES-256-GCM
+  - [ ] decryptTaxData() works correctly
+  - [ ] Masking functions work for all 8 countries
+  - [ ] last4 fields extracted and stored
+
+✅ VALIDATION
+  - [ ] All 8 countries have correct Zod schemas
+  - [ ] Tax schemas validate country-specific fields
+  - [ ] Bank schemas validate routing formats
+  - [ ] Config is single source of truth
+  - [ ] No duplicate validation logic
+
+✅ API
+  - [ ] POST /api/employees/[id]/tax-info validates using config
+  - [ ] Encryption happens before DB storage
+  - [ ] Audit logs created on every edit
+  - [ ] Country snapshots stored
+  - [ ] Error messages are clear
+
+✅ SECURITY
+  - [ ] All sensitive data encrypted at rest
+  - [ ] last4 fields stored for masking without decryption
+  - [ ] Access logs track all modifications
+  - [ ] No plaintext tax IDs or account numbers in DB
+  - [ ] Encryption key protected in .env
+
+================================================================================
+VERIFICATION TESTS
+================================================================================
+
+1. Create tax info for each country (8 countries)
+2. Verify encryption: query DB, check valueEncrypted is hex
+3. Verify masking: display taxIdMasked without decryption
+4. Verify validation: submit invalid data, check error messages
+5. Verify audit logs: check accessLogs for each operation
+6. Verify country snapshots: change employee country, old snapshot remains
+7. Verify schemas: each country uses correct schema
+8. Verify routing types: BSB for AU, IFSC for IN/NP, etc.
+
+================================================================================
+NOTES
+================================================================================
+
+- Config drives ALL validation (no duplication)
+- Use ISO country codes: 'AU', 'IN', 'NP', not 'australia', 'india'
+- All tax IDs and account numbers MUST be encrypted
+- last4 fields store final 4 digits for masking
+- accessLogs track every access/edit for compliance
+- countrySnapshot preserves country at time of creation
+- Version field allows tax rules to change over time
+- This is production-ready code - do not simplify
+
+================================================================================

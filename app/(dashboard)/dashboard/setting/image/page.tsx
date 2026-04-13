@@ -24,7 +24,6 @@ import {
   useActivityLogs,
   useCreateActivityLog,
   useCleanupCloudinary,
-  useCleanupTimesheets
 } from "@/lib/queries/settings"
 
 type StorageProvider = "cloudinary" | "r2"
@@ -94,11 +93,8 @@ export default function SettingPage() {
   const [totalLogsPages, setTotalLogsPages] = useState(1)
   
   const [cloudinaryDate, setCloudinaryDate] = useState<Date | undefined>(undefined)
-  const [timesheetDate, setTimesheetDate] = useState<Date | undefined>(undefined)
   const [cloudinaryOpen, setCloudinaryOpen] = useState(false)
-  const [timesheetOpen, setTimesheetOpen] = useState(false)
   const [confirmCloudinary, setConfirmCloudinary] = useState(false)
-  const [confirmTimesheet, setConfirmTimesheet] = useState(false)
 
   const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
 
@@ -110,10 +106,11 @@ export default function SettingPage() {
   const activityLogsQuery = useActivityLogs('storage', activityLogsPage)
   const createActivityLogMutation = useCreateActivityLog()
   const cleanupCloudinaryMutation = useCleanupCloudinary()
-  const cleanupTimesheetsMutation = useCleanupTimesheets()
 
   const currentSettings = storageSettingsQuery.data?.settings || null
   const storageStats = storageStatsQuery.data?.stats || null
+  const storageStatsError = (storageStatsQuery.data as any)?.error || null
+  const storageProvider_ = (storageStatsQuery.data as any)?.provider || currentSettings?.provider || null
 
   // Update activity logs when query data changes
   useEffect(() => {
@@ -382,22 +379,6 @@ export default function SettingPage() {
     }
   }
 
-  const handleTimesheetConfirm = async () => {
-    if (!timesheetDate) return
-    try {
-      const result = await cleanupTimesheetsMutation.mutateAsync({
-        beforeDate: format(timesheetDate, "yyyy-MM-dd"),
-      })
-      toast.success(`Deleted ${result.deleted ?? 0} timesheet record(s)`)
-      addLog("Timesheet Data Deleted", `Deleted ${result.deleted ?? 0} records older than ${format(timesheetDate, "d MMM yyyy")}`, "success")
-      setTimesheetDate(undefined)
-      setConfirmTimesheet(false)
-    } catch (error: any) {
-      toast.error(error.message ?? "Failed to delete timesheets")
-      addLog("Delete Failed", error.message ?? "Failed to delete timesheets", "error")
-    }
-  }
-
   if (!isHydrated) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
@@ -424,6 +405,18 @@ export default function SettingPage() {
   const storageUsagePercent = storageStats && storageStats.storageLimitMB
     ? (storageStats.storageUsedMB / storageStats.storageLimitMB) * 100
     : 0
+
+  function formatSize(mb: number): string {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`
+    if (mb >= 1) return `${mb.toFixed(1)} MB`
+    return `${(mb * 1024).toFixed(1)} KB`
+  }
+
+  function formatSizeKB(kb: number): string {
+    if (kb >= 1024 * 1024) return `${(kb / (1024 * 1024)).toFixed(2)} GB`
+    if (kb >= 1024) return `${(kb / 1024).toFixed(1)} MB`
+    return `${kb.toFixed(1)} KB`
+  }
 
   return (
     <div className="flex flex-col space-y-4 p-4 lg:p-8">
@@ -732,56 +725,6 @@ export default function SettingPage() {
                 </div>
               </div>
 
-              {/* Delete Timesheet Data */}
-              <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
-                  <div className="flex-1 space-y-3">
-                    <div>
-                      <h3 className="font-semibold mb-1">Delete Timesheet Data</h3>
-                      <p className="text-sm text-muted-foreground">Remove timesheet records older than selected date</p>
-                    </div>
-                    <div className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <Label className="text-xs">Delete records before</Label>
-                        <Popover open={timesheetOpen} onOpenChange={setTimesheetOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal mt-1",
-                                !timesheetDate && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {timesheetDate ? format(timesheetDate, "d MMM yyyy") : "Pick date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={timesheetDate}
-                              onSelect={(d) => {
-                                setTimesheetDate(d)
-                                setTimesheetOpen(false)
-                              }}
-                              disabled={(date) => date > new Date()}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        onClick={() => setConfirmTimesheet(true)}
-                        disabled={!timesheetDate}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -820,108 +763,296 @@ export default function SettingPage() {
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : storageStats ? (
-                <>
-                  {/* Storage Usage */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Storage</span>
-                      <span className="text-sm text-muted-foreground">
-                        {storageStats.storageUsedMB.toFixed(1)} MB
-                        {storageStats.storageLimitMB != null && ` / ${(storageStats.storageLimitMB / 1024).toFixed(1)} GB`}
-                      </span>
-                    </div>
-                    {storageStats.storageLimitMB != null && (
-                      <Progress value={storageUsagePercent} className="h-2" />
-                    )}
-                  </div>
-
-                  <div className="pt-4 border-t space-y-3">
-                    {/* Assets */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Assets</span>
-                      <span className="text-sm font-medium">
-                        {storageStats.assets.toLocaleString()}
-                      </span>
+                storageProvider_ === "r2" ? (
+                  <>
+                    {/* R2: Storage overview */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium">Total Storage</span>
+                        <span className="text-sm font-medium">{formatSize(storageStats.storageUsedMB)}</span>
+                      </div>
+                      {storageStats.bucketName && (
+                        <p className="text-xs text-muted-foreground">Bucket: {storageStats.bucketName}</p>
+                      )}
                     </div>
 
-                    {/* Images */}
-                    {storageStats.images != null && storageStats.images > 0 && (
+                    {/* R2: Files breakdown */}
+                    <div className="pt-3 border-t space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground pl-4">• Images</span>
-                        <span className="text-sm font-medium">
-                          {storageStats.images.toLocaleString()}
-                        </span>
+                        <span className="text-sm font-medium">Files</span>
+                        <span className="text-sm font-medium">{storageStats.assets.toLocaleString()}</span>
+                      </div>
+
+                      {storageStats.images > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Images</span>
+                          <span className="text-xs font-medium">
+                            {storageStats.images.toLocaleString()}
+                            {storageStats.imageSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.imageSizeMB)})</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {storageStats.videos > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Videos</span>
+                          <span className="text-xs font-medium">
+                            {storageStats.videos.toLocaleString()}
+                            {storageStats.videoSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.videoSizeMB)})</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {storageStats.other > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Other</span>
+                          <span className="text-xs font-medium">
+                            {storageStats.other.toLocaleString()}
+                            {storageStats.otherSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.otherSizeMB)})</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* R2: File size stats */}
+                    <div className="pt-3 border-t space-y-2.5">
+                      <span className="text-sm font-medium">File Sizes</span>
+                      {storageStats.avgFileSizeKB != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Average</span>
+                          <span className="text-xs font-medium">{formatSizeKB(storageStats.avgFileSizeKB)}</span>
+                        </div>
+                      )}
+                      {storageStats.largestFileSizeKB != null && storageStats.largestFileSizeKB > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground pl-3">Largest</span>
+                            <span className="text-xs font-medium">{formatSizeKB(storageStats.largestFileSizeKB)}</span>
+                          </div>
+                          {storageStats.largestFileName && (
+                            <p className="text-[10px] text-muted-foreground pl-3 truncate" title={storageStats.largestFileName}>
+                              {storageStats.largestFileName}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {storageStats.smallestFileSizeKB != null && storageStats.assets > 1 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Smallest</span>
+                          <span className="text-xs font-medium">{formatSizeKB(storageStats.smallestFileSizeKB)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* R2: File types */}
+                    {storageStats.topExtensions?.length > 0 && (
+                      <div className="pt-3 border-t space-y-2.5">
+                        <span className="text-sm font-medium">File Types</span>
+                        {storageStats.topExtensions.map((ext: any) => (
+                          <div key={ext.ext} className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground pl-3">.{ext.ext}</span>
+                            <span className="text-xs font-medium">
+                              {ext.count}
+                              <span className="text-muted-foreground font-normal ml-1">({formatSize(ext.sizeMB)})</span>
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     )}
 
-                    {/* Videos */}
-                    {storageStats.videos != null && storageStats.videos > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground pl-4">• Videos</span>
-                        <span className="text-sm font-medium">
-                          {storageStats.videos.toLocaleString()}
-                        </span>
+                    {/* R2: Folders */}
+                    {storageStats.folderCount > 0 && (
+                      <div className="pt-3 border-t space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Folders</span>
+                          <span className="text-xs font-medium">{storageStats.folderCount}</span>
+                        </div>
+                        {storageStats.folders?.map((folder: string) => (
+                          <p key={folder} className="text-[10px] text-muted-foreground pl-3 truncate" title={folder}>
+                            /{folder}
+                          </p>
+                        ))}
                       </div>
                     )}
 
-                    {/* Other files (R2 only) */}
-                    {storageStats.other != null && storageStats.other > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground pl-4">• Other</span>
-                        <span className="text-sm font-medium">
-                          {storageStats.other.toLocaleString()}
-                        </span>
+                    {/* R2: Date range */}
+                    {(storageStats.oldestFile || storageStats.newestFile) && (
+                      <div className="pt-3 border-t space-y-2.5">
+                        <span className="text-sm font-medium">Date Range</span>
+                        {storageStats.oldestFile && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground pl-3">Oldest</span>
+                            <span className="text-xs font-medium">
+                              {new Date(storageStats.oldestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
+                        {storageStats.newestFile && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground pl-3">Newest</span>
+                            <span className="text-xs font-medium">
+                              {new Date(storageStats.newestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Bandwidth */}
-                    {storageStats.bandwidth != null && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Bandwidth</span>
-                        <span className="text-sm font-medium">
-                          {storageStats.bandwidth.toFixed(1)} MB
-                          {storageStats.bandwidthLimit != null && ` / ${(storageStats.bandwidthLimit / 1024).toFixed(1)} GB`}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Transformations (Cloudinary only) */}
-                    {storageStats.transformations !== undefined && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Transformations</span>
-                        <span className="text-sm font-medium">
-                          {storageStats.transformations.toLocaleString()}
-                          {storageStats.transformationsLimit != null && ` / ${storageStats.transformationsLimit.toLocaleString()}`}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Remaining Storage */}
-                    {storageStats.storageLimitMB != null && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Remaining</span>
-                        <span className="text-sm font-medium text-success">
-                          {((storageStats.storageLimitMB - storageStats.storageUsedMB) / 1024).toFixed(1)} GB
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Last Sync */}
+                    {/* R2: Last Sync */}
                     {storageStats.lastSync != null && (
-                      <div className="flex items-center justify-between pt-2 border-t">
+                      <div className="flex items-center justify-between pt-3 border-t">
                         <span className="text-xs text-muted-foreground">Last Sync</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(storageStats.lastSync).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {new Date(storageStats.lastSync).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     )}
+                  </>
+                ) : (
+                  <>
+                    {/* Cloudinary: Plan & Credits */}
+                    {storageStats.creditsLimit != null && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">
+                            Credits
+                            {storageStats.plan && (
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                ({storageStats.plan})
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {storageStats.credits?.toFixed(2)} / {storageStats.creditsLimit}
+                          </span>
+                        </div>
+                        <Progress
+                          value={storageStats.creditsUsedPercent ?? 0}
+                          className="h-2"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1 text-right">
+                          {(storageStats.creditsLimit - (storageStats.credits ?? 0)).toFixed(2)} remaining
+                          {storageStats.creditsUsedPercent != null &&
+                            ` (${storageStats.creditsUsedPercent.toFixed(1)}% used)`}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className={cn(storageStats.creditsLimit != null && "pt-4 border-t", "space-y-3")}>
+                      {/* Storage */}
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Storage</span>
+                          <span className="text-sm font-medium">
+                            {formatSize(storageStats.storageUsedMB)}
+                            {storageStats.storageLimitMB != null && ` / ${formatSize(storageStats.storageLimitMB)}`}
+                          </span>
+                        </div>
+                        {storageStats.storageCredits != null && (
+                          <p className="text-xs text-muted-foreground text-right">{storageStats.storageCredits} credits</p>
+                        )}
+                        {storageStats.storageLimitMB != null && (
+                          <Progress value={storageUsagePercent} className="h-1.5 mt-1" />
+                        )}
+                      </div>
+
+                      {/* Bandwidth */}
+                      {storageStats.bandwidth != null && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Bandwidth</span>
+                            <span className="text-sm font-medium">
+                              {formatSize(storageStats.bandwidth)}
+                              {storageStats.bandwidthLimit != null && ` / ${formatSize(storageStats.bandwidthLimit)}`}
+                            </span>
+                          </div>
+                          {storageStats.bandwidthCredits != null && (
+                            <p className="text-xs text-muted-foreground text-right">{storageStats.bandwidthCredits} credits</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Transformations */}
+                      {storageStats.transformations !== undefined && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Transformations</span>
+                            <span className="text-sm font-medium">
+                              {storageStats.transformations.toLocaleString()}
+                              {storageStats.transformationsLimit != null && ` / ${storageStats.transformationsLimit.toLocaleString()}`}
+                            </span>
+                          </div>
+                          {storageStats.transformationsCredits != null && (
+                            <p className="text-xs text-muted-foreground text-right">{storageStats.transformationsCredits} credits</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t space-y-3">
+                      {/* Assets breakdown */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Assets</span>
+                        <span className="text-sm font-medium">
+                          {storageStats.assets.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {storageStats.images != null && storageStats.images > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Images</span>
+                          <span className="text-xs font-medium">{storageStats.images.toLocaleString()}</span>
+                        </div>
+                      )}
+
+                      {storageStats.videos != null && storageStats.videos > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Videos</span>
+                          <span className="text-xs font-medium">{storageStats.videos.toLocaleString()}</span>
+                        </div>
+                      )}
+
+                      {storageStats.derivedResources != null && storageStats.derivedResources > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground pl-3">Derived</span>
+                          <span className="text-xs font-medium">{storageStats.derivedResources.toLocaleString()}</span>
+                        </div>
+                      )}
+
+                      {storageStats.storageLimitMB != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Remaining</span>
+                          <span className="text-sm font-medium text-success">
+                            {formatSize(storageStats.storageLimitMB - storageStats.storageUsedMB)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cloudinary: Last Sync */}
+                    {storageStats.lastSync != null && (
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <span className="text-xs text-muted-foreground">Last Sync</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(storageStats.lastSync).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )
+              ) : storageStatsError ? (
+                <div className="space-y-2 py-4">
+                  <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                    <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                    <p className="text-sm text-destructive">{storageStatsError}</p>
                   </div>
-                </>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">
                   No storage configured
@@ -1042,31 +1173,6 @@ export default function SettingPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={confirmTimesheet} onOpenChange={setConfirmTimesheet}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete timesheet data?</AlertDialogTitle>
-            <AlertDialogDescription>
-              All timesheet records with date before{" "}
-              <strong>{timesheetDate ? format(timesheetDate, "d MMM yyyy") : ""}</strong>{" "}
-              will be permanently deleted. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cleanupTimesheetsMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                handleTimesheetConfirm()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={cleanupTimesheetsMutation.isPending}
-            >
-              {cleanupTimesheetsMutation.isPending ? "Deleting..." : "Delete Data"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, DollarSign, Coffee, Calendar, CheckCircle, XCircle, Users, Tag } from "lucide-react"
+import { Clock, DollarSign, Coffee, Calendar, CheckCircle, XCircle, Users, Tag, Layers } from "lucide-react"
 
 interface ViewAwardDialogProps {
   award: any
@@ -248,15 +248,31 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
         </DialogHeader>
 
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="levelRates">Rates ({award.levelRates?.length || 0})</TabsTrigger>
             <TabsTrigger value="rules">Rules ({mockRules.length})</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
-            <TabsTrigger value="specificity">Rule Specificity</TabsTrigger>
+            <TabsTrigger value="specificity">Specificity</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Level Rates
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{award.levelRates?.length || 0}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Base rate configurations
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -295,7 +311,11 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">All</div>
+                  <div className="text-3xl font-bold">
+                    {award.levelRates?.length > 0
+                      ? [...new Set(award.levelRates.map((r: any) => r.employmentType))].length
+                      : 0}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     Employment types
                   </div>
@@ -329,6 +349,52 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
                     {award.description || "No description provided"}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="levelRates" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Award Level Rates</CardTitle>
+                <CardDescription>
+                  Base hourly rates for each level and employment type
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {award.levelRates && award.levelRates.length > 0 ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const grouped: Record<string, any[]> = {}
+                      award.levelRates.forEach((rate: any) => {
+                        if (!grouped[rate.level]) grouped[rate.level] = []
+                        grouped[rate.level].push(rate)
+                      })
+                      return Object.entries(grouped).map(([level, rates]) => (
+                        <div key={level} className="border rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Layers className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium capitalize">{level.replace('_', ' ')}</span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {rates.map((rate: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                                <span className="text-sm capitalize">{(rate.employmentType || '').replace('_', ' ')}</span>
+                                <span className="font-semibold">${Number(rate.hourlyRate).toFixed(2)}/hr</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No level rates configured</p>
+                    <p className="text-sm">Edit this award to add base hourly rates</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -407,19 +473,23 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {award.availableTags?.map((tag: string, index: number) => (
+                  {award.availableTags?.map((tag: any, index: number) => {
+                    const tagName = typeof tag === "string" ? tag : tag.name
+                    const tagDesc = typeof tag === "string" ? "Manual override tag for special circumstances" : (tag.description || "Manual override tag for special circumstances")
+                    return (
                     <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <Tag className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <Badge variant="secondary">{tag}</Badge>
+                          <Badge variant="secondary">{tagName}</Badge>
                           <div className="text-sm text-muted-foreground mt-1">
-                            Manual override tag for special circumstances
+                            {tagDesc}
                           </div>
                         </div>
                       </div>
                     </div>
-                  )) || (
+                    )
+                  }) || (
                     <div className="text-center py-8 text-muted-foreground">
                       <Tag className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       <p>No tags configured</p>

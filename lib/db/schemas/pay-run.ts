@@ -9,6 +9,9 @@ export interface IPayRun {
   approvedBy?: mongoose.Types.ObjectId // ref: User
   approvedAt?: Date
   exportedAt?: Date
+  exportType?: 'xero' | 'myob' | 'apa' | 'custom'
+  exportReference?: string
+  exportedBy?: mongoose.Types.ObjectId
   jobError?: string
   totals: {
     gross: number
@@ -53,6 +56,15 @@ const payRunSchema = new mongoose.Schema<IPayRunDocument>(
     },
     approvedAt: { type: Date },
     exportedAt: { type: Date },
+    exportType: {
+      type: String,
+      enum: ['xero', 'myob', 'apa', 'custom']
+    },
+    exportReference: { type: String },
+    exportedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
     jobError: { type: String },
     totals: {
       gross: { type: Number, default: 0 },

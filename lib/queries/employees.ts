@@ -181,3 +181,52 @@ export function useEmployeeAvailability(employeeId: string, params?: { date?: st
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
 }
+
+// ─── Employee Payroll & Compliance ───────────────────────
+
+export function useEmployeeTaxInfo(employeeId: string) {
+  return useQuery({
+    queryKey: [...employeeKeys.all, employeeId, 'tax-info'],
+    queryFn: () => employeesApi.getEmployeeTaxInfo(employeeId),
+    enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+}
+
+export function useEmployeeBankDetails(employeeId: string) {
+  return useQuery({
+    queryKey: [...employeeKeys.all, employeeId, 'bank-details'],
+    queryFn: () => employeesApi.getEmployeeBankDetails(employeeId),
+    enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+}
+
+export function useEmployeeContracts(employeeId: string) {
+  return useQuery({
+    queryKey: [...employeeKeys.all, employeeId, 'contracts'],
+    queryFn: () => employeesApi.getEmployeeContracts(employeeId),
+    enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useEmployeeQualifications(employeeId: string) {
+  return useQuery({
+    queryKey: [...employeeKeys.all, employeeId, 'qualifications'],
+    queryFn: () => employeesApi.getEmployeeQualifications(employeeId),
+    enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useEmployeeCompliance(employeeId: string) {
+  return useQuery({
+    queryKey: [...employeeKeys.all, employeeId, 'compliance'],
+    queryFn: () => employeesApi.getEmployeeCompliance(employeeId),
+    enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000,
+  })
+}

@@ -16,13 +16,20 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useLocations } from "@/lib/queries/locations"
 import { useTeams } from "@/lib/queries/teams"
-import { useUser } from "@/lib/queries/users"
 import { useEmployees } from "@/lib/queries/employees"
 import { useUpdateUser } from "@/lib/queries/users"
-import { UserRole } from "@/lib/config/roles"
+import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
+import { AlertCircle } from "lucide-react"
 import type { UserRow } from "./page"
 
 type Props = {
@@ -45,14 +52,14 @@ export function EditUserDialog({
   const [name, setName] = useState(user.name)
   const [email, setEmail] = useState(user.email || "")
   const [password, setPassword] = useState("")
+  const [selectedRole, setSelectedRole] = useState<string>(user.role)
   const [location, setLocation] = useState<string[]>(user.location ?? [])
-  const [managedRoles, setManagedRoles] = useState<string[]>([])
+  const [managedRoles, setManagedRoles] = useState<string[]>(user.managedRoles ?? [])
   const [linkedEmployee, setLinkedEmployee] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
   const teamsQuery = useTeams()
-  const userQuery = useUser(user.id)
   const employeesQuery = useEmployees(1000)
   const updateUserMutation = useUpdateUser()
 
@@ -63,62 +70,79 @@ export function EditUserDialog({
 
   const allRoles = teamsQuery.data?.teams || []
 
-  // Compute role options based on selected locations
-  const roleOptions = useMemo(() => {
-    if (location.length === 0) {
-      return []
-    }
-    return allRoles.map(r => ({
-      value: r.name,
-      label: r.name,
-    }))
+  // Role options the current user is allowed to assign
+  const roleOptions = useMemo(() => [
+    { value: UserRole.ADMIN, label: "Admin" },
+    { value: UserRole.MANAGER, label: "Manager" },
+    { value: UserRole.SUPERVISOR, label: "Supervisor" },
+    { value: UserRole.ACCOUNTS, label: "Accounts" },
+    { value: UserRole.USER, label: "User (Deprecated)" },
+    { value: UserRole.EMPLOYEE, label: "Employee" },
+  ], [])
+
+  // Determine if the current user can assign the selected role
+  const canAssignRole = useMemo(() => {
+    if (!selectedRole) return true
+    return canCreateUser(currentUserRole, selectedRole)
+  }, [currentUserRole, selectedRole])
+
+  // Team options for managed roles (depends on location selection)
+  const teamOptions = useMemo(() => {
+    if (location.length === 0) return []
+    return allRoles.map(r => ({ value: r.name, label: r.name }))
   }, [location.length, allRoles])
 
-  // Determine if we should show location field
+  // Show location field for roles that have location scope
   const showLocationField = useMemo(() => {
-    // Hide for global scope roles
-    return ![UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.ACCOUNTS].includes(user.role as UserRole)
-  }, [user.role])
+    return ![UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.ACCOUNTS].includes(selectedRole as UserRole)
+  }, [selectedRole])
 
-  // Determine if we should show managed roles field
+  // Show managed roles field only for supervisors
   const showManagedRolesField = useMemo(() => {
-    return user.role === UserRole.SUPERVISOR
-  }, [user.role])
+    return selectedRole === UserRole.SUPERVISOR
+  }, [selectedRole])
 
-  useEffect(() => {
-    if (userQuery.data && 'data' in userQuery.data) {
-      setManagedRoles(userQuery.data.data.managedRoles ?? [])
-    }
-  }, [userQuery.data])
-
-  useEffect(() => {
-    if (employeesQuery.data?.employees && user.email) {
-      // Find linked employee by email
-      const employee = employeesQuery.data.employees.find((emp) =>
-        emp.email && emp.email.toLowerCase() === user.email?.toLowerCase()
-      )
-      setLinkedEmployee(employee)
-    }
-  }, [employeesQuery.data, user.email])
-
+  // Reset form state when dialog opens with a (possibly different) user
   useEffect(() => {
     if (open && user) {
       setName(user.name)
       setEmail(user.email || "")
       setPassword("")
+      setSelectedRole(user.role)
       setLocation(user.location ?? [])
       setManagedRoles(user.managedRoles ?? [])
       setError(null)
     }
   }, [open, user])
 
+  // Clear managed roles when location is cleared
+  useEffect(() => {
+    if (location.length === 0) {
+      setManagedRoles([])
+    }
+  }, [location.length])
+
+  // Clear managed roles when role changes away from supervisor
+  useEffect(() => {
+    if (selectedRole !== UserRole.SUPERVISOR) {
+      setManagedRoles([])
+    }
+  }, [selectedRole])
+
+  // Find linked employee by email
+  useEffect(() => {
+    if (employeesQuery.data?.employees && user.email) {
+      const employee = employeesQuery.data.employees.find((emp) =>
+        emp.email && emp.email.toLowerCase() === user.email?.toLowerCase()
+      )
+      setLinkedEmployee(employee ?? null)
+    }
+  }, [employeesQuery.data, user.email])
+
   const syncFromEmployee = () => {
     if (linkedEmployee) {
-      // Sync locations
       const employeeLocationNames = linkedEmployee.locations?.map((loc: any) => loc.name) || []
       setLocation(employeeLocationNames)
-
-      // Sync managed roles from employee's current roles
       const employeeRoleNames = linkedEmployee.roles?.map((role: any) => role.role.name) || []
       setManagedRoles(employeeRoleNames)
     }
@@ -127,6 +151,11 @@ export function EditUserDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!isSelf && !canAssignRole) {
+      setError(`You don't have permission to assign the ${getRoleName(selectedRole)} role.`)
+      return
+    }
 
     try {
       const body = isSelf
@@ -137,9 +166,10 @@ export function EditUserDialog({
         : {
             name: name.trim(),
             email: email.trim().toLowerCase(),
+            role: selectedRole,
             ...(password ? { password } : {}),
             location: showLocationField ? location : [],
-            rights: [], // Deprecated
+            rights: [],
             managedRoles: showManagedRolesField ? managedRoles : [],
           }
 
@@ -226,6 +256,32 @@ export function EditUserDialog({
               />
             </Field>
 
+            {!isSelf && (
+              <Field>
+                <FieldLabel htmlFor="edit-user-role">Role *</FieldLabel>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger id="edit-user-role">
+                    <SelectValue placeholder="Select role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleOptions.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedRole && !canAssignRole && (
+                  <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      You don't have permission to assign the {getRoleName(selectedRole)} role.
+                    </p>
+                  </div>
+                )}
+              </Field>
+            )}
+
             {!isSelf && showLocationField && (
               <Field>
                 <FieldLabel>Locations</FieldLabel>
@@ -243,12 +299,15 @@ export function EditUserDialog({
               <Field>
                 <FieldLabel>Managed Roles</FieldLabel>
                 <MultiSelect
-                  options={roleOptions}
+                  options={teamOptions}
                   onValueChange={setManagedRoles}
                   defaultValue={managedRoles}
-                  placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
+                  placeholder={location.length === 0 ? "Select locations first..." : "Select roles this supervisor manages..."}
                   disabled={loading || location.length === 0}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Roles this supervisor can manage
+                </p>
               </Field>
             )}
 
@@ -262,7 +321,7 @@ export function EditUserDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || (!isSelf && !canAssignRole)}>
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>

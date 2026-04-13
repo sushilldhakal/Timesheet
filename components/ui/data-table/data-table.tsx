@@ -46,6 +46,7 @@ interface BaseDataTableProps<TData, TValue> {
   filterConfig?: FilterConfig[]
   toolbar?: (table: TableType<TData>) => React.ReactNode
   enableRowSelection?: boolean
+  onRowSelectionChange?: (rows: TData[]) => void
   onRowClick?: (row: TData) => void
   emptyMessage?: string
   getRowId?: (row: TData) => string
@@ -63,6 +64,9 @@ interface ClientDataTableProps<TData, TValue> extends BaseDataTableProps<TData, 
   searchKey?: string
   searchPlaceholder?: string
   initialPageSize?: number
+  /** Applied on first mount (TanStack Table initialState). */
+  initialSorting?: SortingState
+  initialColumnVisibility?: VisibilityState
   showSearch?: boolean
   searchValue?: string
   onSearchChange?: (value: string) => void
@@ -98,6 +102,7 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     filterConfig,
     toolbar,
     enableRowSelection = false,
+    onRowSelectionChange,
     onRowClick,
     emptyMessage = "No results.",
     getRowId,
@@ -127,6 +132,8 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     searchKey, 
     searchPlaceholder = "Search...", 
     initialPageSize = 25,
+    initialSorting,
+    initialColumnVisibility,
     showSearch = false,
     searchValue: controlledSearchValue,
     onSearchChange: controlledOnSearchChange,
@@ -170,6 +177,8 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
       pagination: {
         pageSize: initialPageSize,
       },
+      sorting: initialSorting ?? [],
+      columnVisibility: initialColumnVisibility ?? {},
     },
     enableRowSelection,
     onRowSelectionChange: setRowSelection,
@@ -196,6 +205,16 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
     getExpandedRowModel: hasExpansion ? getExpandedRowModel() : undefined,
     ...(getRowId && { getRowId }),
   })
+
+  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange)
+  onRowSelectionChangeRef.current = onRowSelectionChange
+
+  React.useEffect(() => {
+    onRowSelectionChangeRef.current?.(
+      table.getFilteredSelectedRowModel().rows.map((r) => r.original)
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowSelection])
 
   if (!mounted) {
     return (

@@ -137,7 +137,3 @@ export const cloudinaryCleanupResponseSchema = z.object({
   deleted: z.number(),
   errors: z.array(z.string()),
 })
-
-export const timesheetsCleanupResponseSchema = z.object({
-  deleted: z.number(),
-})

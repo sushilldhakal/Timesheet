@@ -135,10 +135,24 @@ export const awardRuleSchema = z.object({
 
 export type AwardRule = z.infer<typeof awardRuleSchema>;
 
+// ─── Award Level Rate Schema ───────────────────────────────
+export const awardLevelRateSchema = z.object({
+  level: z.string().min(1, 'Level name is required'),
+  employmentType: z.enum(['casual', 'part_time', 'full_time']),
+  hourlyRate: z.number().min(0, 'Rate must be positive'),
+  effectiveFrom: z.coerce.date(),
+  effectiveTo: z.coerce.date().optional().nullable(),
+});
+
+export type AwardLevelRate = z.infer<typeof awardLevelRateSchema>;
+
 // ─── Award Schema (Proper Structure) ──────────────────────
 export const awardSchema = z.object({
   name: z.string().min(1, 'Award name is required'),
   description: z.string().optional(),
+  
+  // Foundation: base hourly rates per level and employment type
+  levelRates: z.array(awardLevelRateSchema).default([]),
   
   // The rule engine
   rules: z.array(awardRuleSchema).default([]),

@@ -84,6 +84,7 @@ import { Progress } from '@/components/ui/progress';
 import { useMe } from '@/lib/queries/auth';
 import { useLocations } from '@/lib/queries/locations';
 import { useTeams } from '@/lib/queries/teams';
+import { useTeamGroups } from '@/lib/queries/team-groups';
 import { useEmployees } from '@/lib/queries/employees';
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent, useBulkDeleteCalendarEvents } from '@/lib/queries/calendar';
 import {
@@ -178,6 +179,7 @@ export default function SchedulingPage() {
   const userInfoQuery = useMe();
   const locationsQuery = useLocations();
   const teamsQuery = useTeams();
+  const teamGroupsQuery = useTeamGroups();
   const employeesQuery = useEmployees(1000);
   const locationTeamsQuery = useLocationTeamsForScheduling(selectedLocationId || null);
   const userSchedulingSettingsQuery = useUserSchedulingSettings();
@@ -238,7 +240,37 @@ export default function SchedulingPage() {
   const userInfo = userInfoQuery.data?.user;
 
   const locations = locationsQuery.data?.locations ?? EMPTY_CATEGORIES;
-  const roles = teamsQuery.data?.teams ?? EMPTY_CATEGORIES;
+
+  const groupMetaById = useMemo(() => {
+    const m = new Map<string, { name: string; color?: string; order: number }>();
+    for (const g of teamGroupsQuery.data?.teamGroups ?? []) {
+      m.set(g.id, { name: g.name, color: g.color, order: g.order ?? 0 });
+    }
+    return m;
+  }, [teamGroupsQuery.data?.teamGroups]);
+
+  const roles = useMemo(() => {
+    const raw = teamsQuery.data?.teams;
+    if (!raw?.length) return EMPTY_CATEGORIES;
+    const list = [...raw];
+    list.sort((a, b) => {
+      const goa = a.groupId ? groupMetaById.get(a.groupId)?.order ?? 0 : 1e9;
+      const gob = b.groupId ? groupMetaById.get(b.groupId)?.order ?? 0 : 1e9;
+      if (goa !== gob) return goa - gob;
+      const gna = a.groupId
+        ? (groupMetaById.get(a.groupId)?.name ?? a.groupName ?? '')
+        : '\uffff';
+      const gnb = b.groupId
+        ? (groupMetaById.get(b.groupId)?.name ?? b.groupName ?? '')
+        : '\uffff';
+      if (gna !== gnb) return gna.localeCompare(gnb);
+      const oa = a.order ?? 0;
+      const ob = b.order ?? 0;
+      if (oa !== ob) return oa - ob;
+      return a.name.localeCompare(b.name);
+    });
+    return list;
+  }, [teamsQuery.data?.teams, groupMetaById]);
   const employees = (employeesQuery.data?.employees ?? EMPTY_EMPLOYEES) as NonNullable<
     typeof employeesQuery.data
   >['employees'];
@@ -301,13 +333,34 @@ export default function SchedulingPage() {
   const schedulerCategories: Resource[] = useMemo(() => {
     const list = roles.filter((r: { id: string }) => roleIdsForScheduling.has(r.id));
     const source = list.length ? list : roles;
-    return source.map((r: { id: string; name: string }, idx: number) => ({
-      id: r.id,
-      name: r.name,
-      kind: 'category' as const,
-      colorIdx: idx,
-    }));
-  }, [roles, roleIdsForScheduling]);
+    return source.map(
+      (
+        r: {
+          id: string;
+          name: string;
+          groupId?: string;
+          color?: string;
+          groupName?: string;
+        },
+        idx: number,
+      ) => {
+        const gid = r.groupId;
+        const gMeta = gid ? groupMetaById.get(gid) : undefined;
+        return {
+          id: r.id,
+          name: r.name,
+          kind: 'category' as const,
+          colorIdx: idx,
+          meta: {
+            groupId: gid,
+            groupName: gid ? (gMeta?.name ?? r.groupName) : undefined,
+            groupColor: gid ? gMeta?.color : undefined,
+            teamColor: r.color,
+          },
+        };
+      },
+    );
+  }, [roles, roleIdsForScheduling, groupMetaById]);
 
   const schedulerEmployees: Resource[] = useMemo(() => {
     const locId = selectedLocationId;

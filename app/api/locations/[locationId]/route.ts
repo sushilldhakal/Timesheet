@@ -1,6 +1,7 @@
 import { z } from "zod"
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { connectDB, Location } from "@/lib/db"
+import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
 import { locationIdParamSchema, locationUpdateSchema } from "@/lib/validations/location"
@@ -40,12 +41,13 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     await connectDB()
 
     const doc = await Location.findById(params!.id).lean()
     if (!doc) return { status: 404, data: { error: "Location not found" } }
+    if (String(doc.tenantId) !== ctx.tenantId) return { status: 403, data: { error: "Unauthorized" } }
 
     return {
       status: 200,
@@ -90,16 +92,18 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     await connectDB()
 
     const existing = await Location.findById(params!.id)
     if (!existing) return { status: 404, data: { error: "Location not found" } }
+    if (String(existing.tenantId) !== ctx.tenantId) return { status: 403, data: { error: "Unauthorized" } }
 
     const patch = body ?? {}
     if (patch.name != null) {
       const dup = await Location.findOne({
+        tenantId: existing.tenantId,
         _id: { $ne: existing._id },
         name: { $regex: new RegExp(`^${String(patch.name).trim()}$`, "i") },
       }).lean()
@@ -152,12 +156,15 @@ export const DELETE = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) return { status: 401, data: { error: "Unauthorized" } }
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     await connectDB()
 
-    const deleted = await Location.findByIdAndDelete(params!.id)
-    if (!deleted) return { status: 404, data: { error: "Location not found" } }
+    const doc = await Location.findById(params!.id)
+    if (!doc) return { status: 404, data: { error: "Location not found" } }
+    if (String(doc.tenantId) !== ctx.tenantId) return { status: 403, data: { error: "Unauthorized" } }
+
+    await doc.deleteOne()
     return { status: 200, data: { success: true } }
   },
 })

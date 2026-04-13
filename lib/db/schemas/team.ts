@@ -14,10 +14,13 @@ export interface IDefaultScheduleTemplate {
 
 /** Scheduling "team" (job capacity), stored in MongoDB collection `teams`. */
 export interface ITeam {
+  tenantId: mongoose.Types.ObjectId
   name: string
   code?: string
   color?: string
-  groupId?: mongoose.Types.ObjectId // Reference to TeamGroup
+  groupId?: mongoose.Types.ObjectId
+  order?: number
+  groupSnapshot?: { name?: string }
   defaultScheduleTemplate?: IDefaultScheduleTemplate
   isActive: boolean
   createdBy?: mongoose.Types.ObjectId
@@ -45,12 +48,22 @@ const defaultScheduleTemplateSchema = new mongoose.Schema(
   { _id: false }
 )
 
+const groupSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+  },
+  { _id: false }
+)
+
 const teamSchema = new mongoose.Schema<ITeamDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: { type: String, required: true, trim: true },
     code: { type: String, trim: true, default: undefined },
     color: { type: String, default: undefined },
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: "TeamGroup", default: undefined },
+    order: { type: Number, default: 0 },
+    groupSnapshot: { type: groupSnapshotSchema, default: undefined },
     defaultScheduleTemplate: { type: defaultScheduleTemplateSchema, default: undefined },
     isActive: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: undefined },
@@ -61,7 +74,7 @@ const teamSchema = new mongoose.Schema<ITeamDocument>(
   }
 )
 
-teamSchema.index({ name: 1 }, { unique: true })
+teamSchema.index({ tenantId: 1, name: 1 }, { unique: true })
 
 export const Team =
   (mongoose.models.Team as mongoose.Model<ITeamDocument>) ??

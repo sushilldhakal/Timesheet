@@ -48,7 +48,7 @@ const BuddyPunchAlertSchema = new Schema<IBuddyPunchAlert>(
     },
     locationId: {
       type: Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Location",
       required: true,
     },
     deviceId: {

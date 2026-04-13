@@ -187,13 +187,3 @@ export async function cleanupCloudinary(data: CleanupRequest): Promise<CleanupRe
   })
   return response.json()
 }
-
-export async function cleanupTimesheets(data: CleanupRequest): Promise<CleanupResponse> {
-  const response = await fetch('/api/admin/cleanup/timesheets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(data),
-  })
-  return response.json()
-}

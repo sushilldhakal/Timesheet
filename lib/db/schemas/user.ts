@@ -12,8 +12,9 @@ export interface IUserSchedulingSettings {
 }
 
 export interface IUser {
+  tenantId: mongoose.Types.ObjectId
   name: string
-  email: string // Primary unique identifier for login
+  email: string
   password: string
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
 
@@ -25,7 +26,9 @@ export interface IUser {
   /** New normalized refs */
   locationIds?: mongoose.Types.ObjectId[]
   managedRoleIds?: mongoose.Types.ObjectId[]
-  createdBy: string | null // Audit trail - ID of user who created this user
+  /** Teams this user explicitly manages (permission scoping). */
+  teamIds?: mongoose.Types.ObjectId[]
+  createdBy: string | null
   /** Personal scheduler UI preferences; null = use built-in defaults */
   schedulingSettings?: IUserSchedulingSettings | null
   passwordResetToken?: string | null // Token for password reset
@@ -62,6 +65,7 @@ export interface IUserDocument extends IUser, mongoose.Document {
  */
 const userSchema = new mongoose.Schema<IUserDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: {
       type: String,
       trim: true,
@@ -70,10 +74,8 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     email: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       lowercase: true,
-      index: true,
     },
     password: {
       type: String,
@@ -101,6 +103,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
       default: [],
     },
     managedRoleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Team" }],
+    teamIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Team" }],
     createdBy: {
       type: String,
       default: null,
@@ -139,6 +142,8 @@ const userSchema = new mongoose.Schema<IUserDocument>(
     collection: "users",
   }
 )
+
+userSchema.index({ tenantId: 1, email: 1 }, { unique: true })
 
 // Normalize legacy location string to array
 userSchema.pre("save", async function (next) {

@@ -8,6 +8,7 @@ export const userCreateSchema = z.object({
   role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]),
   location: z.array(z.string()).optional(),
   managedRoles: z.array(z.string()).optional(),
+  teamIds: z.array(mongoIdSchema).optional(),
   employeeId: mongoIdSchema.optional()
 })
 
@@ -28,6 +29,7 @@ export const userResponseSchema = z.object({
   location: z.array(z.string()),
   rights: z.array(z.string()),
   managedRoles: z.array(z.string()),
+  teamIds: z.array(z.string()).optional(),
   createdAt: z.number().optional(),
 })
 
@@ -68,6 +70,7 @@ export const userAdminUpdateSchema = z.object({
   role: z.enum(["super_admin", "admin", "manager", "supervisor", "accounts", "user", "employee"]).optional(),
   location: z.array(z.string().trim()).optional(),
   managedRoles: z.array(z.string().trim()).optional(),
+  teamIds: z.array(mongoIdSchema).optional(),
 })
 
 export const userSelfUpdateSchema = z.object({

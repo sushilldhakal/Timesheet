@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
@@ -66,6 +67,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
   const [abn, setAbn] = useState("")
   const [contactEmail, setContactEmail] = useState("")
   const [defaultAwardId, setDefaultAwardId] = useState<string>("")
+  const [isActive, setIsActive] = useState(true)
   const [groupId, setGroupId] = useState<string>("")
   const [showNewGroupForm, setShowNewGroupForm] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
@@ -103,6 +105,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
     setAbn("")
     setContactEmail("")
     setDefaultAwardId("")
+    setIsActive(true)
     setGroupId("")
     setShowNewGroupForm(false)
     setNewGroupName("")
@@ -169,6 +172,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
         await createTeamMutation.mutateAsync({
           name: name.trim(),
           color,
+          isActive,
           groupId: finalGroupId || undefined,
           defaultScheduleTemplate: {
             standardHoursPerWeek: standardHours,
@@ -535,6 +539,20 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         Brief description of this shift pattern
+                      </p>
+                    </Field>
+
+                    <Field>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="add-team-active"
+                          checked={isActive}
+                          onCheckedChange={(checked) => setIsActive(checked === true)}
+                        />
+                        <FieldLabel htmlFor="add-team-active" className="mb-0">Active</FieldLabel>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Inactive teams won&apos;t appear in scheduling
                       </p>
                     </Field>
                   </>

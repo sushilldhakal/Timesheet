@@ -51,12 +51,12 @@ export const ScheduleSchema = new mongoose.Schema<ISchedule>(
     },
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Location",
       required: true,
     },
     roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      ref: "Team",
       required: true,
     },
     effectiveFrom: {

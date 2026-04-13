@@ -1,10 +1,9 @@
 "use client"
 
 import { useMemo } from "react"
-import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2, Settings } from "lucide-react"
+import { Pencil, Trash2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
@@ -37,8 +36,6 @@ export function LocationsTable({
   onEdit,
   onDelete,
 }: Props) {
-  const router = useRouter()
-
   const columns = useMemo<ColumnDef<CategoryRow>[]>(
     () => [
       {
@@ -141,15 +138,6 @@ export function LocationsTable({
           const c = row.original
           return (
             <div className="flex flex-wrap gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1"
-                onClick={() => router.push(`/dashboard/locations/${c.id}/teams`)}
-              >
-                <Settings className="h-4 w-4" />
-                Manage Teams
-              </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(c)}>
                 <Pencil className="h-4 w-4" />
                 <span className="sr-only">Edit</span>
@@ -170,7 +158,7 @@ export function LocationsTable({
         enableHiding: false,
       },
     ],
-    [onEdit, onDelete, router, teamsAssignedByLocationId]
+    [onEdit, onDelete, teamsAssignedByLocationId]
   )
 
   return (

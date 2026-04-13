@@ -3,6 +3,7 @@ import mongoose from "mongoose"
 export type GeofenceMode = "hard" | "soft"
 
 export interface ILocation {
+  tenantId: mongoose.Types.ObjectId
   name: string
   code?: string
   address?: string
@@ -16,6 +17,7 @@ export interface ILocation {
   timezone?: string
   costCenterId?: string
   color?: string
+  order?: number
   isActive: boolean
   createdBy?: mongoose.Types.ObjectId
   createdAt?: Date
@@ -26,6 +28,7 @@ export interface ILocationDocument extends ILocation, mongoose.Document {}
 
 const locationSchema = new mongoose.Schema<ILocationDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: { type: String, required: true, trim: true },
     code: { type: String, trim: true, default: undefined },
     address: { type: String, trim: true, default: undefined },
@@ -39,6 +42,7 @@ const locationSchema = new mongoose.Schema<ILocationDocument>(
     timezone: { type: String, default: "Australia/Sydney" },
     costCenterId: { type: String, trim: true, default: undefined },
     color: { type: String, default: undefined },
+    order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: undefined },
   },
@@ -48,7 +52,7 @@ const locationSchema = new mongoose.Schema<ILocationDocument>(
   }
 )
 
-locationSchema.index({ name: 1 }, { unique: true })
+locationSchema.index({ tenantId: 1, name: 1 }, { unique: true })
 
 export const Location =
   (mongoose.models.Location as mongoose.Model<ILocationDocument>) ??

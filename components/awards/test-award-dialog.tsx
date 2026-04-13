@@ -262,16 +262,19 @@ export function TestAwardDialog({ award, open, onOpenChange }: TestAwardDialogPr
               <div className="space-y-2">
                 <Label>Award Tags</Label>
                 <div className="flex flex-wrap gap-2">
-                  {award?.availableTags?.map((tag: string) => (
+                  {award?.availableTags?.map((tag: any) => {
+                    const tagName = typeof tag === "string" ? tag : tag.name
+                    return (
                     <Badge
-                      key={tag}
-                      variant={scenario.awardTags.includes(tag) ? "default" : "outline"}
+                      key={tagName}
+                      variant={scenario.awardTags.includes(tagName) ? "default" : "outline"}
                       className="cursor-pointer"
-                      onClick={() => toggleTag(tag)}
+                      onClick={() => toggleTag(tagName)}
                     >
-                      {tag}
+                      {tagName}
                     </Badge>
-                  )) || (
+                    )
+                  }) || (
                     <div className="text-sm text-muted-foreground">No tags available</div>
                   )}
                 </div>
@@ -384,7 +387,7 @@ export function TestAwardDialog({ award, open, onOpenChange }: TestAwardDialogPr
                     <div className="space-y-2">
                       <Label>Break Entitlements</Label>
                       {testResult.breakEntitlements.map((breakEnt, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div key={index} className="flex items-center justify-between p-3 text-purple-600 bg-primary rounded-lg">
                           <div className="flex items-center gap-3">
                             <Coffee className="h-4 w-4 text-purple-600" />
                             <span className="font-medium">

@@ -170,6 +170,10 @@ export function createApiRoute<
             { status: 400 }
           );
         }
+      } else if (resolvedParams && !config.request?.params) {
+        // Dynamic segments from the file path are still passed in `context.params`;
+        // many handlers read them without declaring `request.params` in the route config.
+        params = resolvedParams as z.infer<TParams>;
       }
 
       // Call handler with validated typed data

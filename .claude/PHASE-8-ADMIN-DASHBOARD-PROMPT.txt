@@ -1,0 +1,1006 @@
+IMPLEMENT PHASE 8: ADMIN COMPLIANCE DASHBOARD
+
+OBJECTIVE: Create comprehensive admin dashboard for organization-wide compliance monitoring, reporting, and management.
+
+REFERENCE:
+- Roadmap: /Users/sushildhakal/.claude/plans/COMPLETE-PHASES-2-8-ROADMAP.md (Phase 8)
+- Employee API: /lib/api/employees.ts
+- Compliance schema: /lib/db/schemas/employee-compliance.ts
+- Employee list page: /app/(dashboard)/dashboard/employees/page.tsx
+
+================================================================================
+FILE 1: Create Compliance Dashboard Utilities
+================================================================================
+
+FILE: /lib/utils/compliance-dashboard.ts
+
+```typescript
+import { differenceInDays } from 'date-fns'
+
+export interface ComplianceStats {
+  totalEmployees: number
+  fullyCurrent: number
+  warningCount: number
+  criticalCount: number
+  expiringPercentage: number
+}
+
+export interface ComplianceBreakdown {
+  wwc: { compliant: number; warning: number; critical: number }
+  policeClearance: { compliant: number; warning: number; critical: number }
+  foodHandling: { compliant: number; warning: number; critical: number }
+  induction: { completed: number; pending: number }
+  codeOfConduct: { signed: number; pending: number }
+}
+
+export interface ComplianceIssue {
+  employeeId: string
+  employeeName: string
+  issueType: string
+  severity: 'critical' | 'warning' | 'info'
+  description: string
+  expiryDate?: string
+  daysUntilExpiry?: number
+}
+
+export function calculateComplianceStats(
+  employees: any[],
+  complianceData: any[]
+): ComplianceStats {
+  const totalEmployees = employees.length
+
+  let fullyCurrent = 0
+  let warningCount = 0
+  let criticalCount = 0
+
+  employees.forEach((employee) => {
+    const compliance = complianceData.find((c) => c.employeeId === employee._id)
+    if (!compliance) return
+
+    let hasIssue = false
+    let hasCritical = false
+
+    // Check each compliance item
+    const statuses = [
+      { status: compliance.wwcStatus, expiry: compliance.wwcExpiryDate },
+      { status: compliance.policeClearanceStatus, expiry: compliance.policeClearanceExpiryDate },
+      { status: compliance.foodHandlingStatus, expiry: compliance.foodHandlingExpiryDate },
+    ]
+
+    statuses.forEach(({ status, expiry }) => {
+      if (status === 'expired' || status === 'pending') {
+        hasCritical = true
+        hasIssue = true
+      } else if (expiry) {
+        const daysLeft = differenceInDays(new Date(expiry), new Date())
+        if (daysLeft < 0) {
+          hasCritical = true
+          hasIssue = true
+        } else if (daysLeft < 30) {
+          hasIssue = true
+        }
+      }
+    })
+
+    if (!hasIssue) {
+      fullyCurrent++
+    } else if (hasCritical) {
+      criticalCount++
+    } else {
+      warningCount++
+    }
+  })
+
+  return {
+    totalEmployees,
+    fullyCurrent,
+    warningCount,
+    criticalCount,
+    expiringPercentage: totalEmployees > 0 ? Math.round(((warningCount + criticalCount) / totalEmployees) * 100) : 0,
+  }
+}
+
+export function getComplianceBreakdown(complianceData: any[]): ComplianceBreakdown {
+  return {
+    wwc: complianceData.reduce(
+      (acc, c) => {
+        if (c.wwcStatus === 'cleared') acc.compliant++
+        else if (c.wwcStatus === 'pending') acc.critical++
+        else if (c.wwcExpiryDate && differenceInDays(new Date(c.wwcExpiryDate), new Date()) < 30)
+          acc.warning++
+        else acc.compliant++
+        return acc
+      },
+      { compliant: 0, warning: 0, critical: 0 }
+    ),
+    policeClearance: complianceData.reduce(
+      (acc, c) => {
+        if (c.policeClearanceStatus === 'cleared') acc.compliant++
+        else if (c.policeClearanceStatus === 'pending') acc.critical++
+        else if (c.policeClearanceExpiryDate && differenceInDays(new Date(c.policeClearanceExpiryDate), new Date()) < 30)
+          acc.warning++
+        else acc.compliant++
+        return acc
+      },
+      { compliant: 0, warning: 0, critical: 0 }
+    ),
+    foodHandling: complianceData.reduce(
+      (acc, c) => {
+        if (c.foodHandlingStatus === 'completed') acc.compliant++
+        else if (c.foodHandlingStatus === 'pending') acc.critical++
+        else if (c.foodHandlingExpiryDate && differenceInDays(new Date(c.foodHandlingExpiryDate), new Date()) < 30)
+          acc.warning++
+        else acc.compliant++
+        return acc
+      },
+      { compliant: 0, warning: 0, critical: 0 }
+    ),
+    induction: complianceData.reduce(
+      (acc, c) => {
+        if (c.inductionCompleted) acc.completed++
+        else acc.pending++
+        return acc
+      },
+      { completed: 0, pending: 0 }
+    ),
+    codeOfConduct: complianceData.reduce(
+      (acc, c) => {
+        if (c.codeOfConductSigned) acc.signed++
+        else acc.pending++
+        return acc
+      },
+      { signed: 0, pending: 0 }
+    ),
+  }
+}
+
+export function getComplianceIssues(employees: any[], complianceData: any[]): ComplianceIssue[] {
+  const issues: ComplianceIssue[] = []
+
+  employees.forEach((employee) => {
+    const compliance = complianceData.find((c) => c.employeeId === employee._id)
+    if (!compliance) return
+
+    const employeeName = `${employee.firstName} ${employee.lastName}`
+
+    // Check WWC
+    if (compliance.wwcStatus === 'expired') {
+      issues.push({
+        employeeId: employee._id,
+        employeeName,
+        issueType: 'WWC',
+        severity: 'critical',
+        description: 'WWC has expired',
+        expiryDate: compliance.wwcExpiryDate,
+      })
+    } else if (compliance.wwcStatus === 'pending') {
+      issues.push({
+        employeeId: employee._id,
+        employeeName,
+        issueType: 'WWC',
+        severity: 'critical',
+        description: 'WWC pending',
+      })
+    } else if (compliance.wwcExpiryDate) {
+      const daysLeft = differenceInDays(new Date(compliance.wwcExpiryDate), new Date())
+      if (daysLeft < 0) {
+        issues.push({
+          employeeId: employee._id,
+          employeeName,
+          issueType: 'WWC',
+          severity: 'critical',
+          description: 'WWC has expired',
+          expiryDate: compliance.wwcExpiryDate,
+          daysUntilExpiry: daysLeft,
+        })
+      } else if (daysLeft < 30) {
+        issues.push({
+          employeeId: employee._id,
+          employeeName,
+          issueType: 'WWC',
+          severity: 'warning',
+          description: `WWC expiring in ${daysLeft} days`,
+          expiryDate: compliance.wwcExpiryDate,
+          daysUntilExpiry: daysLeft,
+        })
+      }
+    }
+
+    // Similar checks for other compliance items...
+    // (Police Clearance, Food Handling, Induction, Code of Conduct)
+  })
+
+  return issues.sort((a, b) => {
+    // Critical first, then by days until expiry
+    if (a.severity !== b.severity) {
+      return a.severity === 'critical' ? -1 : 1
+    }
+    if (a.daysUntilExpiry && b.daysUntilExpiry) {
+      return a.daysUntilExpiry - b.daysUntilExpiry
+    }
+    return 0
+  })
+}
+
+export function generateComplianceReport(
+  stats: ComplianceStats,
+  breakdown: ComplianceBreakdown,
+  issues: ComplianceIssue[]
+): string {
+  const now = new Date().toLocaleDateString()
+
+  return `COMPLIANCE REPORT
+Generated: ${now}
+
+EXECUTIVE SUMMARY
+================
+Total Employees: ${stats.totalEmployees}
+Fully Compliant: ${stats.fullyCurrent} (${Math.round((stats.fullyCurrent / stats.totalEmployees) * 100)}%)
+Warning (Expiring Soon): ${stats.warningCount} (${Math.round((stats.warningCount / stats.totalEmployees) * 100)}%)
+Critical Issues: ${stats.criticalCount} (${Math.round((stats.criticalCount / stats.totalEmployees) * 100)}%)
+
+COMPLIANCE BREAKDOWN
+====================
+Working With Children Check (WWC):
+  - Compliant: ${breakdown.wwc.compliant}
+  - Warning: ${breakdown.wwc.warning}
+  - Critical: ${breakdown.wwc.critical}
+
+Police Clearance:
+  - Compliant: ${breakdown.policeClearance.compliant}
+  - Warning: ${breakdown.policeClearance.warning}
+  - Critical: ${breakdown.policeClearance.critical}
+
+Food Handling Certification:
+  - Compliant: ${breakdown.foodHandling.compliant}
+  - Warning: ${breakdown.foodHandling.warning}
+  - Critical: ${breakdown.foodHandling.critical}
+
+Induction Completion:
+  - Completed: ${breakdown.induction.completed}
+  - Pending: ${breakdown.induction.pending}
+
+Code of Conduct:
+  - Signed: ${breakdown.codeOfConduct.signed}
+  - Pending: ${breakdown.codeOfConduct.pending}
+
+CRITICAL ISSUES (${issues.filter((i) => i.severity === 'critical').length})
+==========================
+${issues
+  .filter((i) => i.severity === 'critical')
+  .map((issue) => `- ${issue.employeeName}: ${issue.description} (${issue.issueType})`)
+  .join('\n')}
+
+WARNINGS (${issues.filter((i) => i.severity === 'warning').length})
+==========
+${issues
+  .filter((i) => i.severity === 'warning')
+  .map((issue) => `- ${issue.employeeName}: ${issue.description} (${issue.issueType})`)
+  .join('\n')}
+`
+}
+```
+
+================================================================================
+FILE 2: Create Compliance Overview Card Component
+================================================================================
+
+FILE: /components/admin/compliance/ComplianceOverviewCard.tsx
+
+```typescript
+'use client'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { AlertCircle, AlertTriangle, CheckCircle, Users } from 'lucide-react'
+
+interface ComplianceOverviewCardProps {
+  totalEmployees: number
+  fullyCurrent: number
+  warningCount: number
+  criticalCount: number
+  expiringPercentage: number
+}
+
+export function ComplianceOverviewCard({
+  totalEmployees,
+  fullyCurrent,
+  warningCount,
+  criticalCount,
+  expiringPercentage,
+}: ComplianceOverviewCardProps) {
+  const compliantPercentage = totalEmployees > 0 ? Math.round((fullyCurrent / totalEmployees) * 100) : 0
+
+  return (
+    <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+      <CardHeader>
+        <CardTitle>Compliance Overview</CardTitle>
+        <CardDescription>Organization-wide compliance status</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Main Progress */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Overall Compliance</span>
+            <span className="text-2xl font-bold">{compliantPercentage}%</span>
+          </div>
+          <Progress value={compliantPercentage} className="h-3" />
+          <p className="text-xs text-gray-600 mt-2">
+            {fullyCurrent} of {totalEmployees} employees are fully compliant
+          </p>
+        </div>
+
+        {/* Status Breakdown */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-md border border-green-200">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <div>
+              <p className="text-xs text-gray-600">Compliant</p>
+              <p className="text-2xl font-bold text-green-600">{fullyCurrent}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-md border border-amber-200">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <div>
+              <p className="text-xs text-gray-600">Expiring Soon</p>
+              <p className="text-2xl font-bold text-amber-600">{warningCount}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-red-50 rounded-md border border-red-200">
+            <AlertCircle className="h-5 w-5 text-red-600" />
+            <div>
+              <p className="text-xs text-gray-600">Critical</p>
+              <p className="text-2xl font-bold text-red-600">{criticalCount}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+FILE 3: Create Compliance Breakdown Component
+================================================================================
+
+FILE: /components/admin/compliance/ComplianceBreakdownCard.tsx
+
+```typescript
+'use client'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import type { ComplianceBreakdown } from '@/lib/utils/compliance-dashboard'
+
+interface ComplianceBreakdownCardProps {
+  breakdown: ComplianceBreakdown
+}
+
+export function ComplianceBreakdownCard({ breakdown }: ComplianceBreakdownCardProps) {
+  const ComplianceItem = ({
+    label,
+    compliant,
+    warning,
+    critical,
+  }: {
+    label: string
+    compliant: number
+    warning: number
+    critical: number
+  }) => {
+    const total = compliant + warning + critical
+    const compliantPercentage = total > 0 ? Math.round((compliant / total) * 100) : 0
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium">{label}</label>
+          <span className="text-sm text-gray-600">{compliantPercentage}% compliant</span>
+        </div>
+        <Progress value={compliantPercentage} className="h-2" />
+        <div className="flex gap-2 text-xs">
+          <span className="text-green-600">✓ {compliant}</span>
+          <span className="text-amber-600">⚠ {warning}</span>
+          <span className="text-red-600">✕ {critical}</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Compliance by Type</CardTitle>
+        <CardDescription>Status breakdown for each compliance requirement</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <ComplianceItem
+          label="Working With Children Check"
+          compliant={breakdown.wwc.compliant}
+          warning={breakdown.wwc.warning}
+          critical={breakdown.wwc.critical}
+        />
+
+        <ComplianceItem
+          label="Police Clearance"
+          compliant={breakdown.policeClearance.compliant}
+          warning={breakdown.policeClearance.warning}
+          critical={breakdown.policeClearance.critical}
+        />
+
+        <ComplianceItem
+          label="Food Handling Certification"
+          compliant={breakdown.foodHandling.compliant}
+          warning={breakdown.foodHandling.warning}
+          critical={breakdown.foodHandling.critical}
+        />
+
+        <div className="pt-4 border-t space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Induction Completed</label>
+            <span className="text-sm font-semibold">
+              {breakdown.induction.completed} / {breakdown.induction.completed + breakdown.induction.pending}
+            </span>
+          </div>
+          <Progress
+            value={
+              breakdown.induction.completed + breakdown.induction.pending > 0
+                ? Math.round(
+                    (breakdown.induction.completed / (breakdown.induction.completed + breakdown.induction.pending)) * 100
+                  )
+                : 0
+            }
+            className="h-2"
+          />
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Code of Conduct Signed</label>
+            <span className="text-sm font-semibold">
+              {breakdown.codeOfConduct.signed} / {breakdown.codeOfConduct.signed + breakdown.codeOfConduct.pending}
+            </span>
+          </div>
+          <Progress
+            value={
+              breakdown.codeOfConduct.signed + breakdown.codeOfConduct.pending > 0
+                ? Math.round(
+                    (breakdown.codeOfConduct.signed / (breakdown.codeOfConduct.signed + breakdown.codeOfConduct.pending)) *
+                      100
+                  )
+                : 0
+            }
+            className="h-2"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+FILE 4: Create Compliance Issues Table Component
+================================================================================
+
+FILE: /components/admin/compliance/ComplianceIssuesTable.tsx
+
+```typescript
+'use client'
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AlertCircle, AlertTriangle, Eye } from 'lucide-react'
+import Link from 'next/link'
+import type { ComplianceIssue } from '@/lib/utils/compliance-dashboard'
+
+interface ComplianceIssuesTableProps {
+  issues: ComplianceIssue[]
+  showAll?: boolean
+}
+
+export function ComplianceIssuesTable({ issues, showAll = false }: ComplianceIssuesTableProps) {
+  const displayIssues = showAll ? issues : issues.slice(0, 10)
+
+  if (issues.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Issues & Alerts</CardTitle>
+          <CardDescription>No compliance issues found</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md bg-green-50 border border-green-200 p-6 text-center">
+            <p className="text-green-800 font-semibold">✓ All employees are compliant!</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Issues & Alerts</CardTitle>
+        <CardDescription>
+          {issues.length} {issues.length === 1 ? 'issue' : 'issues'} found
+          {!showAll && issues.length > 10 && ` (showing 10 of ${issues.length})`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50">
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Issue Type</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Severity</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {displayIssues.map((issue, idx) => (
+                <TableRow key={idx} className="hover:bg-gray-50">
+                  <TableCell className="font-medium">{issue.employeeName}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{issue.issueType}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {issue.description}
+                    {issue.daysUntilExpiry && issue.daysUntilExpiry < 0 && (
+                      <span className="ml-2 text-red-600 font-semibold">
+                        (expired {Math.abs(issue.daysUntilExpiry)} days ago)
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {issue.severity === 'critical' ? (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          <Badge variant="destructive">Critical</Badge>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+                            Warning
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link href={`/dashboard/employees/${issue.employeeId}`}>
+                      <Button size="sm" variant="ghost" className="text-blue-600">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {!showAll && issues.length > 10 && (
+          <div className="mt-4 text-center">
+            <Link href="/dashboard/admin/compliance/issues">
+              <Button variant="outline">View All {issues.length} Issues</Button>
+            </Link>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+FILE 5: Create Compliance Expiry Calendar Component
+================================================================================
+
+FILE: /components/admin/compliance/ComplianceExpiryCalendar.tsx
+
+```typescript
+'use client'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { eachDayOfInterval, startOfMonth, endOfMonth, format, isToday, differenceInDays } from 'date-fns'
+import type { ComplianceIssue } from '@/lib/utils/compliance-dashboard'
+
+interface ComplianceExpiryCalendarProps {
+  issues: ComplianceIssue[]
+}
+
+export function ComplianceExpiryCalendar({ issues }: ComplianceExpiryCalendarProps) {
+  const today = new Date()
+  const monthStart = startOfMonth(today)
+  const monthEnd = endOfMonth(today)
+  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
+
+  // Group issues by expiry date
+  const issuesByDate = new Map<string, ComplianceIssue[]>()
+  issues.forEach((issue) => {
+    if (issue.expiryDate) {
+      const dateKey = format(new Date(issue.expiryDate), 'yyyy-MM-dd')
+      if (!issuesByDate.has(dateKey)) {
+        issuesByDate.set(dateKey, [])
+      }
+      issuesByDate.get(dateKey)!.push(issue)
+    }
+  })
+
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Upcoming Expirations</CardTitle>
+        <CardDescription>{format(today, 'MMMM yyyy')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Calendar Grid */}
+        <div>
+          <div className="grid grid-cols-7 gap-2 mb-2">
+            {weekDays.map((day) => (
+              <div key={day} className="text-center text-xs font-semibold text-gray-600 py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {daysInMonth.map((date) => {
+              const dateKey = format(date, 'yyyy-MM-dd')
+              const dayIssues = issuesByDate.get(dateKey) || []
+              const isTodayDate = isToday(date)
+
+              return (
+                <div
+                  key={dateKey}
+                  className={`p-2 rounded-md text-sm text-center relative border ${
+                    isTodayDate
+                      ? 'bg-blue-100 border-blue-300'
+                      : dayIssues.length > 0
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="font-semibold">{date.getDate()}</div>
+                  {dayIssues.length > 0 && (
+                    <div className="text-xs text-red-600 font-semibold">{dayIssues.length} exp.</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Upcoming Expirations List */}
+        <div className="space-y-3 border-t pt-4">
+          <h4 className="font-semibold text-sm">Next 10 Expirations</h4>
+          {Array.from(issuesByDate.entries())
+            .filter(([dateKey]) => {
+              const date = new Date(dateKey)
+              return differenceInDays(date, today) >= 0 && differenceInDays(date, today) <= 30
+            })
+            .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+            .slice(0, 10)
+            .map(([dateKey, dayIssues]) => (
+              <div key={dateKey} className="p-3 bg-gray-50 rounded-md">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold">{format(new Date(dateKey), 'MMM d, yyyy')}</p>
+                  <Badge variant={dayIssues[0].severity === 'critical' ? 'destructive' : 'secondary'}>
+                    {dayIssues.length} {dayIssues.length === 1 ? 'issue' : 'issues'}
+                  </Badge>
+                </div>
+                <ul className="text-xs space-y-1">
+                  {dayIssues.map((issue, idx) => (
+                    <li key={idx} className="text-gray-600">
+                      • {issue.employeeName} - {issue.issueType}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+================================================================================
+FILE 6: Create Admin Compliance Dashboard Page
+================================================================================
+
+FILE: /app/(dashboard)/dashboard/admin/compliance/page.tsx
+
+```typescript
+'use client'
+
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Download, RefreshCw } from 'lucide-react'
+import { getEmployees } from '@/lib/api/employees'
+import {
+  calculateComplianceStats,
+  getComplianceBreakdown,
+  getComplianceIssues,
+  generateComplianceReport,
+} from '@/lib/utils/compliance-dashboard'
+import { ComplianceOverviewCard } from '@/components/admin/compliance/ComplianceOverviewCard'
+import { ComplianceBreakdownCard } from '@/components/admin/compliance/ComplianceBreakdownCard'
+import { ComplianceIssuesTable } from '@/components/admin/compliance/ComplianceIssuesTable'
+import { ComplianceExpiryCalendar } from '@/components/admin/compliance/ComplianceExpiryCalendar'
+import { toast } from 'sonner'
+
+export default function AdminComplianceDashboardPage() {
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all')
+  const [issueTypeFilter, setIssueTypeFilter] = useState<string>('all')
+
+  // Fetch employees
+  const { data: employees, isLoading: employeesLoading } = useQuery({
+    queryKey: ['employees', 'admin'],
+    queryFn: getEmployees,
+  })
+
+  // Mock compliance data fetch - in real app, this would come from API
+  const { data: complianceData = [] } = useQuery({
+    queryKey: ['compliance', 'all'],
+    queryFn: async () => {
+      // This would fetch from /api/admin/compliance or similar
+      // For now, returning empty array
+      return []
+    },
+  })
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    if (!employees) return null
+    return calculateComplianceStats(employees, complianceData)
+  }, [employees, complianceData])
+
+  const breakdown = useMemo(() => {
+    return getComplianceBreakdown(complianceData)
+  }, [complianceData])
+
+  const allIssues = useMemo(() => {
+    if (!employees) return []
+    return getComplianceIssues(employees, complianceData)
+  }, [employees, complianceData])
+
+  // Filter issues
+  const filteredIssues = useMemo(() => {
+    return allIssues.filter((issue) => {
+      if (severityFilter !== 'all' && issue.severity !== severityFilter) return false
+      if (issueTypeFilter !== 'all' && issue.issueType !== issueTypeFilter) return false
+      return true
+    })
+  }, [allIssues, severityFilter, issueTypeFilter])
+
+  const handleExportReport = () => {
+    if (!stats) return
+
+    const report = generateComplianceReport(stats, breakdown, allIssues)
+
+    // Create blob and download
+    const blob = new Blob([report], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `compliance-report-${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    toast.success('Report downloaded successfully')
+  }
+
+  const handleRefresh = () => {
+    // Trigger refetch
+    toast.info('Refreshing compliance data...')
+  }
+
+  const issueTypes = [...new Set(allIssues.map((i) => i.issueType))]
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Compliance Dashboard</h1>
+          <p className="text-gray-600 mt-1">Organization-wide compliance monitoring and reporting</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={employeesLoading}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button onClick={handleExportReport} disabled={!stats}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Report
+          </Button>
+        </div>
+      </div>
+
+      {/* Overview */}
+      {stats && (
+        <ComplianceOverviewCard
+          totalEmployees={stats.totalEmployees}
+          fullyCurrent={stats.fullyCurrent}
+          warningCount={stats.warningCount}
+          criticalCount={stats.criticalCount}
+          expiringPercentage={stats.expiringPercentage}
+        />
+      )}
+
+      {/* Breakdown and Calendar */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ComplianceBreakdownCard breakdown={breakdown} />
+        <ComplianceExpiryCalendar issues={allIssues} />
+      </div>
+
+      {/* Issues Table with Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filter Issues</CardTitle>
+        </CardHeader>
+        <CardContent className="flex gap-4 flex-wrap">
+          <div className="flex-1 min-w-48">
+            <label className="text-sm font-medium">Severity</label>
+            <Select value={severityFilter} onValueChange={(v) => setSeverityFilter(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="critical">Critical Only</SelectItem>
+                <SelectItem value="warning">Warnings Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex-1 min-w-48">
+            <label className="text-sm font-medium">Issue Type</label>
+            <Select value={issueTypeFilter} onValueChange={setIssueTypeFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {issueTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Issues Table */}
+      <ComplianceIssuesTable issues={filteredIssues} showAll={true} />
+    </div>
+  )
+}
+```
+
+================================================================================
+FILE 7: Create Issues Detail Page
+================================================================================
+
+FILE: /app/(dashboard)/dashboard/admin/compliance/issues/page.tsx
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+import { getEmployees } from '@/lib/api/employees'
+import {
+  getComplianceIssues,
+} from '@/lib/utils/compliance-dashboard'
+import { ComplianceIssuesTable } from '@/components/admin/compliance/ComplianceIssuesTable'
+
+export default function ComplianceIssuesPage() {
+  const { data: employees } = useQuery({
+    queryKey: ['employees', 'admin'],
+    queryFn: getEmployees,
+  })
+
+  const { data: complianceData = [] } = useQuery({
+    queryKey: ['compliance', 'all'],
+    queryFn: async () => {
+      return []
+    },
+  })
+
+  const allIssues = employees ? getComplianceIssues(employees, complianceData) : []
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">All Compliance Issues</h1>
+        <p className="text-gray-600 mt-1">
+          Showing {allIssues.length} {allIssues.length === 1 ? 'issue' : 'issues'}
+        </p>
+      </div>
+
+      <ComplianceIssuesTable issues={allIssues} showAll={true} />
+    </div>
+  )
+}
+```
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+[ ] ComplianceOverviewCard displays stats correctly
+[ ] ComplianceBreakdownCard shows breakdown by type
+[ ] ComplianceIssuesTable displays all issues
+[ ] ComplianceExpiryCalendar shows upcoming expirations
+[ ] Admin compliance dashboard page loads
+[ ] Severity filter works (all/critical/warning)
+[ ] Issue type filter works
+[ ] Export report button generates text file
+[ ] Report includes all required sections
+[ ] Report can be downloaded
+[ ] Refresh button triggers data update
+[ ] Stats cards show correct calculations
+[ ] Progress bars display correct percentages
+[ ] Critical issues highlighted in red
+[ ] Warning issues highlighted in amber
+[ ] Compliant items shown in green
+[ ] Calendar displays correctly
+[ ] Upcoming expirations listed with count
+[ ] Links to employee profiles work
+[ ] Responsive design works on mobile/tablet
+[ ] Loading states show while fetching
+[ ] Empty state shows when no issues
+[ ] Toast notifications appear for actions
+[ ] Color coding consistent throughout
+[ ] Numbers and calculations accurate
+
+INTEGRATION NOTES:
+1. You'll need to create API endpoint for fetching organization-wide compliance data:
+   - POST /api/admin/compliance - fetches compliance stats
+   - GET /api/admin/compliance/breakdown - gets breakdown by type
+   - GET /api/admin/compliance/issues - gets all issues with filters
+
+2. Update getComplianceIssues() to fetch actual employee compliance data from database
+
+3. Compliance data should be aggregated from EmployeeCompliance collection
+
+4. Consider adding caching/optimization for large organizations
+
+START IMPLEMENTATION NOW.
+Phase 8 estimated time: 6-8 hours

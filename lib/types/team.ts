@@ -5,6 +5,12 @@ export interface Team {
   color?: string
   /** Reference to TeamGroup for organizational hierarchy */
   groupId?: string
+  /** UI ordering; lower first. */
+  order?: number
+  groupSnapshot?: { name?: string }
+  /** Populated on list for display (current group). */
+  groupName?: string
+  groupColor?: string
   /** Distinct employees with an active assignment to this team (any location) */
   staffCount?: number
   /** Dashboard users (manager/supervisor) with this team in managedRoleIds */
@@ -29,6 +35,7 @@ export interface CreateTeamRequest {
   code?: string
   color?: string
   groupId?: string
+  order?: number
   defaultScheduleTemplate?: {
     standardHoursPerWeek?: number
     shiftPattern?: {
@@ -46,6 +53,7 @@ export interface UpdateTeamRequest {
   code?: string
   color?: string
   groupId?: string
+  order?: number
   defaultScheduleTemplate?: {
     standardHoursPerWeek?: number
     shiftPattern?: {
