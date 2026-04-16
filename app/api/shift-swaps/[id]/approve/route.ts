@@ -5,6 +5,8 @@ import {
   shiftSwapRequestResponseSchema,
 } from "@/lib/validations/shift-swaps"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { shiftSwapService } from "@/lib/services/shift-swap/shift-swap-service"
 
 /**
  * PATCH /api/shift-swaps/[id]/approve
@@ -29,43 +31,13 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
-    const { connectDB } = await import("@/lib/db")
-    const { ShiftSwapManager } = await import("@/lib/managers/shift-swap-manager")
-
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
 
     const { id } = params!
-    const { managerId, organizationId } = body!
 
-    try {
-      await connectDB()
-      const shiftSwapManager = new ShiftSwapManager()
-      const swapRequest = await shiftSwapManager.approveSwapRequest(
-        id,
-        managerId,
-        organizationId
-      )
-
-      return { status: 200, data: { swapRequest } }
-    } catch (err: any) {
-      console.error("[api/shift-swaps/[id]/approve PATCH]", err)
-
-      if (err.message?.includes("not found")) {
-        return { status: 404, data: { error: err.message } }
-      }
-
-      if (err.message?.includes("not in PENDING_MANAGER")) {
-        return { status: 400, data: { error: err.message } }
-      }
-
-      return {
-        status: 500,
-        data: { error: "Failed to approve swap request" }
-      }
-    }
+    return { status: 200, data: await shiftSwapService.approve(id, body) }
   }
 })

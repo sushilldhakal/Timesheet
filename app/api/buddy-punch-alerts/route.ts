@@ -1,5 +1,4 @@
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB, BuddyPunchAlert } from "@/lib/db"
 import { 
   buddyPunchAlertsQuerySchema, 
   buddyPunchAlertCreateSchema,
@@ -7,6 +6,7 @@ import {
   buddyPunchAlertCreateResponseSchema,
 } from "@/lib/validations/buddy-punch-alerts"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { buddyPunchAlertsService } from "@/lib/services/monitoring/buddy-punch-alerts-service"
 
 // GET /api/buddy-punch-alerts - Dashboard list
 export const GET = createApiRoute({
@@ -24,56 +24,11 @@ export const GET = createApiRoute({
     401: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ query, context }) => {
-    const { status, employeeId, locationId, page = 1, limit = 50 } = query || {}
-
+  handler: async ({ query }) => {
     try {
-      await connectDB()
-
-      // Build query
-      const queryFilter: any = {}
-      if (status) queryFilter.status = status
-      if (employeeId) queryFilter.employeeId = employeeId
-      
-      console.log('[API] Buddy punch alerts query:', {
-        requestedLocationId: locationId,
-        status,
-      })
-      
-      // Filter by location (permission filtering is currently disabled)
-      if (locationId) {
-        queryFilter.locationId = locationId
-      }
-
-      const skip = (page - 1) * limit
-
-      console.log('[API] Final query:', queryFilter)
-
-      const [alerts, total] = await Promise.all([
-        BuddyPunchAlert.find(queryFilter)
-          .populate("employeeId", "name pin")
-          .populate("locationId", "name")
-          .populate("reviewedBy", "name")
-          .sort({ punchTime: -1 })
-          .skip(skip)
-          .limit(limit),
-        BuddyPunchAlert.countDocuments(queryFilter),
-      ])
-
-      console.log('[API] Found alerts:', alerts.length, 'total:', total)
-
       return { 
         status: 200, 
-        data: {
-          success: true,
-          alerts,
-          pagination: {
-            page,
-            limit,
-            total,
-            pages: Math.ceil(total / limit),
-          },
-        }
+        data: await buddyPunchAlertsService.list(query)
       }
     } catch (error: any) {
       console.error("Error fetching buddy punch alerts:", error)
@@ -100,36 +55,10 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const {
-      employeeId,
-      punchType,
-      punchTime,
-      matchScore,
-      capturedPhotoUrl,
-      enrolledPhotoUrl,
-      locationId,
-    } = body!
-
     try {
-      await connectDB()
-
-      const alert = await BuddyPunchAlert.create({
-        employeeId,
-        punchType,
-        punchTime,
-        matchScore,
-        capturedPhotoUrl,
-        enrolledPhotoUrl,
-        locationId,
-        status: "pending",
-      })
-
       return { 
         status: 200, 
-        data: {
-          success: true,
-          alert,
-        }
+        data: await buddyPunchAlertsService.create(body)
       }
     } catch (error: any) {
       console.error("Error creating buddy punch alert:", error)

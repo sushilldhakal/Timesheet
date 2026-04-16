@@ -1,8 +1,8 @@
 import { z } from "zod"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB, Employer } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employerService } from "@/lib/services/employer/employer-service"
 
 const employerResponseSchema = z.object({
   id: z.string(),
@@ -47,31 +47,7 @@ export const GET = createApiRoute({
     const auth = await getAuthFromCookie()
     if (!auth) return { status: 401, data: { error: "Unauthorized" } }
 
-    const search = query?.search?.trim()
-    const isActive = query?.isActive
-
-    await connectDB()
-    const filter: Record<string, unknown> = {}
-    if (typeof isActive === "boolean") filter.isActive = isActive
-    if (search) filter.name = { $regex: search, $options: "i" }
-
-    const employers = await Employer.find(filter).sort({ name: 1 }).lean()
-    return {
-      status: 200,
-      data: {
-        employers: employers.map((e: any) => ({
-          id: e._id.toString(),
-          name: e.name,
-          abn: e.abn,
-          contactEmail: e.contactEmail,
-          color: e.color,
-          defaultAwardId: e.defaultAwardId?.toString(),
-          isActive: e.isActive ?? true,
-          createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
-          updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
-        })),
-      },
-    }
+    return await employerService.list(query as any)
   },
 })
 
@@ -94,34 +70,6 @@ export const POST = createApiRoute({
     const auth = await getAuthFromCookie()
     if (!auth) return { status: 401, data: { error: "Unauthorized" } }
 
-    const payload = body!
-    await connectDB()
-
-    const existing = await Employer.findOne({
-      name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
-    }).lean()
-    if (existing) return { status: 409, data: { error: "An employer with this name already exists" } }
-
-    const created = await Employer.create({
-      ...payload,
-      name: payload.name.trim(),
-    })
-
-    return {
-      status: 200,
-      data: {
-        employer: {
-          id: created._id.toString(),
-          name: created.name,
-          abn: created.abn,
-          contactEmail: created.contactEmail,
-          color: created.color,
-          defaultAwardId: created.defaultAwardId?.toString(),
-          isActive: created.isActive ?? true,
-          createdAt: created.createdAt ? created.createdAt.toISOString() : null,
-          updatedAt: created.updatedAt ? created.updatedAt.toISOString() : null,
-        },
-      },
-    }
+    return await employerService.create(body)
   },
 })

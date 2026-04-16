@@ -24,7 +24,10 @@ export type PayRunJobResult = {
   }
 }
 
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  // Avoid connection attempts at import time (e.g. during OpenAPI generation).
+  lazyConnect: true,
+})
 
 // Helper function to format time for timesheet row
 function formatTime(date: Date): string {

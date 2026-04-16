@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB } from "@/lib/db"
-import { PublicHoliday } from "@/lib/db/schemas/public-holiday"
 import { z } from "zod"
+import { publicHolidayService } from "@/lib/services/public-holiday/public-holiday-service"
 
 const listQuerySchema = z.object({
   year: z.coerce.number().int().min(1900).max(2200).optional(),
@@ -49,30 +48,9 @@ export const GET = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-
-      const filter: Record<string, unknown> = {}
-      if (query?.state) filter.state = query.state
-      if (query?.year) {
-        const start = new Date(query.year, 0, 1)
-        const end = new Date(query.year, 11, 31, 23, 59, 59, 999)
-        filter.date = { $gte: start, $lte: end }
-      }
-
-      const publicHolidays = await PublicHoliday.find(filter).sort({ date: 1, state: 1 }).lean()
-
       return {
         status: 200,
-        data: {
-          publicHolidays: publicHolidays.map((h: any) => ({
-            _id: String(h._id),
-            date: h.date,
-            name: h.name,
-            state: h.state,
-            isRecurring: h.isRecurring,
-            createdAt: h.createdAt,
-          })),
-        },
+        data: await publicHolidayService.list(query),
       }
     } catch (err) {
       console.error("[api/public-holidays GET]", err)
@@ -112,37 +90,10 @@ export const POST = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-
-      const payload = body!
-      const normalizedDate = normalizeDateToLocalStartOfDay(payload.date)
-
-      const publicHoliday = await PublicHoliday.create({
-        date: normalizedDate,
-        name: payload.name,
-        state: payload.state,
-        isRecurring: payload.isRecurring,
-      })
-
-      return {
-        status: 201,
-        data: {
-          success: true,
-          publicHoliday: {
-            _id: String((publicHoliday as any)._id),
-            date: (publicHoliday as any).date,
-            name: (publicHoliday as any).name,
-            state: (publicHoliday as any).state,
-            isRecurring: (publicHoliday as any).isRecurring,
-            createdAt: (publicHoliday as any).createdAt,
-          },
-        },
-      }
+      return await publicHolidayService.create(body)
     } catch (err: any) {
-      const message = typeof err?.message === 'string' ? err.message : 'Failed to create public holiday'
-      const isDup = err?.code === 11000
       console.error("[api/public-holidays POST]", err)
-      return { status: isDup ? 400 : 500, data: { error: isDup ? "Public holiday already exists for that date/state" : message } }
+      return publicHolidayService.mapDup(err, typeof err?.message === "string" ? err.message : "Failed to create public holiday")
     }
   },
 })

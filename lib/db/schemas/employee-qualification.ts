@@ -2,6 +2,9 @@ import mongoose from 'mongoose'
 
 export interface IEmployeeQualification {
   employeeId: mongoose.Types.ObjectId
+  /** New ref to master Qualification (preferred). */
+  qualificationId?: mongoose.Types.ObjectId
+  /** Legacy field (kept for backward compatibility). */
   qualificationName: string
   issuingBody: string
   issueDate: Date
@@ -21,9 +24,17 @@ const employeeQualificationSchema = new mongoose.Schema<IEmployeeQualification>(
       required: true,
       index: true,
     },
+    qualificationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Qualification',
+      default: undefined,
+      index: true,
+    },
     qualificationName: {
       type: String,
-      required: true,
+      required: function (this: IEmployeeQualification) {
+        return !this.qualificationId
+      },
     },
     issuingBody: {
       type: String,
@@ -49,6 +60,10 @@ const employeeQualificationSchema = new mongoose.Schema<IEmployeeQualification>(
 )
 
 employeeQualificationSchema.index({ expiryDate: 1 }, { sparse: true })
+employeeQualificationSchema.index(
+  { employeeId: 1, qualificationId: 1 },
+  { unique: true, sparse: true }
+)
 
 export const EmployeeQualification =
   (mongoose.models.EmployeeQualification as mongoose.Model<IEmployeeQualification>) ??

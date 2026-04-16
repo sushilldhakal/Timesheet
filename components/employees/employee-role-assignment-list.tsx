@@ -157,10 +157,10 @@ export default function EmployeeRoleAssignmentList({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Briefcase className="h-5 w-5" />
-            Role Assignments
+            Team Assignments
           </CardTitle>
           <CardDescription>
-            Loading role assignments...
+            Loading team assignments...
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -178,10 +178,10 @@ export default function EmployeeRoleAssignmentList({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
-              Role Assignments
+              Team Assignments
             </CardTitle>
             <CardDescription>
-              Employee roles at different locations
+              Employee teams at different locations
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export default function EmployeeRoleAssignmentList({
             <div className="text-center py-8 border rounded-lg bg-muted/20">
               <Briefcase className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
               <p className="text-sm text-muted-foreground mb-3">
-                No role assignments yet
+                No team assignments yet
               </p>
               {!readOnly && onAdd && (
                 <Button onClick={onAdd} variant="outline" size="sm">

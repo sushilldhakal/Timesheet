@@ -1,9 +1,8 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayRun } from "@/lib/db/schemas/pay-run"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
 import mongoose from "mongoose"
+import { payRunService } from "@/lib/services/pay-run/pay-run-service"
 
 const createPayRunSchema = z.object({
   tenantId: z.string(),
@@ -56,71 +55,11 @@ export const POST = createApiRoute({
       }
     }
 
-    const { tenantId, startDate, endDate, notes } = body!
-
-    if (!tenantId || tenantId === "default" || !mongoose.Types.ObjectId.isValid(tenantId)) {
-      return {
-        status: 400,
-        data: { error: "Valid tenantId is required" }
-      }
-    }
-
-    // Validate date range
-    if (startDate >= endDate) {
-      return {
-        status: 400,
-        data: { error: "Start date must be before end date" }
-      }
-    }
-
     try {
-      await connectDB()
-
-      // Check for overlapping pay runs
-      const existingPayRun = await PayRun.findOne({
-        tenantId,
-        $or: [
-          // New range starts during existing range
-          { startDate: { $lte: startDate }, endDate: { $gt: startDate } },
-          // New range ends during existing range
-          { startDate: { $lt: endDate }, endDate: { $gte: endDate } },
-          // New range completely contains existing range
-          { startDate: { $gte: startDate }, endDate: { $lte: endDate } },
-          // Existing range completely contains new range
-          { startDate: { $lte: startDate }, endDate: { $gte: endDate } }
-        ]
-      })
-
-      if (existingPayRun) {
-        return {
-          status: 400,
-          data: { error: "Pay run date range overlaps with existing pay run" }
-        }
-      }
-
-      const payRun = await PayRun.create({
-        tenantId,
-        startDate,
-        endDate,
-        status: 'draft',
-        createdBy: ctx.auth.sub,
-        notes,
-        totals: {
-          gross: 0,
-          tax: 0,
-          super: 0,
-          net: 0,
-          totalHours: 0,
-          employeeCount: 0
-        }
-      })
-
+      const result = await payRunService.createPayRun({ ctx, body: body! })
       return {
         status: 201,
-        data: {
-          success: true,
-          payRun
-        }
+        data: result
       }
     } catch (err) {
       console.error("[api/pay-runs POST]", err)
@@ -179,46 +118,9 @@ export const GET = createApiRoute({
       }
     }
 
-    const { tenantId, status, page, limit } = query!
-
-    if (!tenantId || tenantId === "default" || !mongoose.Types.ObjectId.isValid(tenantId)) {
-      return {
-        status: 400,
-        data: { error: "Valid tenantId is required" }
-      }
-    }
-
     try {
-      await connectDB()
-
-      const filter: any = { tenantId }
-      if (status) {
-        filter.status = status
-      }
-
-      const skip = (page - 1) * limit
-      
-      const [payRuns, total] = await Promise.all([
-        PayRun.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        PayRun.countDocuments(filter)
-      ])
-
-      const totalPages = Math.ceil(total / limit)
-
-      return {
-        status: 200,
-        data: {
-          payRuns,
-          total,
-          page,
-          limit,
-          totalPages
-        }
-      }
+      const result = await payRunService.listPayRuns({ bodyQuery: query! })
+      return { status: 200, data: result }
     } catch (err) {
       console.error("[api/pay-runs GET]", err)
       return {

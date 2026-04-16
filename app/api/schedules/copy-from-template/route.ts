@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { TemplateManager } from "@/lib/managers/template-manager"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { schedulesTemplateCopyService } from "@/lib/services/scheduling/schedules-template-copy-service"
 
 // Request schema
 const copyFromTemplateRequestSchema = z.object({
@@ -48,18 +47,7 @@ export const POST = createApiRoute({
     }
 
     try {
-      const { templateId, employeeId, overwrite } = body!
-
-      await connectDB()
-      const templateManager = new TemplateManager()
-
-      const schedule = await templateManager.copyTemplateToEmployee(
-        templateId,
-        employeeId,
-        overwrite || false
-      )
-
-      return { status: 201, data: { schedule } }
+      return await schedulesTemplateCopyService.copyFromTemplate(body)
     } catch (err: any) {
       console.error("[api/schedules/copy-from-template POST]", err)
       

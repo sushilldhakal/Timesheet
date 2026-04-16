@@ -1,8 +1,8 @@
 import mongoose from "mongoose"
-import { Roster, IShift } from "../db/schemas/roster"
-import { Employee } from "../db/schemas/employee"
+import type { IShift } from "@/lib/db/queries/scheduling-types"
 import { AvailabilityManager } from "./availability-manager"
 import { AbsenceManager } from "./absence-manager"
+import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
 
 export interface StaffingGap {
   shiftId: string
@@ -56,7 +56,7 @@ export class GapIdentifier {
     rosterId: string,
     organizationId: string
   ): Promise<StaffingGap[]> {
-    const roster = await Roster.findById(rosterId)
+    const roster = await SchedulingModels.Roster.findById(rosterId)
     if (!roster) {
       throw new Error(`Roster not found: ${rosterId}`)
     }
@@ -127,7 +127,7 @@ export class GapIdentifier {
     organizationId: string
   ): Promise<SuggestedEmployee[]> {
     // Get all casual employees in the organization
-    const casualEmployees = await Employee.find({
+    const casualEmployees = await SchedulingModels.Employee.find({
       organizationId,
       employmentType: "CASUAL",
     })
@@ -183,7 +183,7 @@ export class GapIdentifier {
     organizationId: string
   ): Promise<SuggestedEmployee[]> {
     // Get all part-time employees in the organization
-    const partTimeEmployees = await Employee.find({
+    const partTimeEmployees = await SchedulingModels.Employee.find({
       organizationId,
       employmentType: "PART_TIME",
     })

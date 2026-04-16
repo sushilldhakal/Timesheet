@@ -1,11 +1,11 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB, Employee } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   pinCheckQuerySchema,
   pinCheckResponseSchema
 } from "@/lib/validations/employee-pin"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employeePinService } from "@/lib/services/employee/employee-pin-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -40,16 +40,7 @@ export const GET = createApiRoute({
     }
 
     try {
-      await connectDB()
-      const existing = await Employee.findOne({ pin: pin.trim() })
-      
-      return { 
-        status: 200, 
-        data: { 
-          available: !existing,
-          pin: pin.trim()
-        }
-      };
+      return await employeePinService.checkAvailability(pin)
     } catch (err) {
       console.error("[api/employees/check-pin]", err)
       return { status: 500, data: { error: "Failed to check PIN" } };

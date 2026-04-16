@@ -1,6 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { RosterManager } from "@/lib/managers/roster-manager"
+import { rosterService } from "@/lib/services/roster/roster-service"
 import { 
   weekIdParamSchema,
   rosterResponseSchema,
@@ -38,28 +37,7 @@ export const GET = createApiRoute({
     const weekId = params!.weekId
 
     try {
-      await connectDB()
-      
-      const rosterManager = new RosterManager()
-      const result = await rosterManager.getRoster(weekId)
-      
-      if (!result.success) {
-        if (result.error === "ROSTER_NOT_FOUND") {
-          return {
-            status: 404,
-            data: { error: result.message || "Roster not found" }
-          }
-        }
-        return {
-          status: 500,
-          data: { error: result.message || "Failed to fetch roster" }
-        }
-      }
-      
-      return {
-        status: 200,
-        data: { roster: result.roster }
-      }
+      return await rosterService.getRoster(weekId)
     } catch (err) {
       console.error("[api/rosters/[weekId] GET]", err)
       return {
@@ -100,34 +78,7 @@ export const DELETE = createApiRoute({
     const weekId = params!.weekId
 
     try {
-      await connectDB()
-      
-      const rosterManager = new RosterManager()
-      const result = await rosterManager.deleteRoster(weekId)
-      
-      if (!result.success) {
-        if (result.error === "ROSTER_NOT_FOUND") {
-          return {
-            status: 404,
-            data: { error: result.message || "Roster not found" }
-          }
-        }
-        if (result.error === "ROSTER_PUBLISHED") {
-          return {
-            status: 403,
-            data: { error: result.message || "Cannot delete published roster" }
-          }
-        }
-        return {
-          status: 500,
-          data: { error: result.message || "Failed to delete roster" }
-        }
-      }
-      
-      return {
-        status: 200,
-        data: { message: "Roster deleted successfully" }
-      }
+      return await rosterService.deleteRoster(weekId)
     } catch (err) {
       console.error("[api/rosters/[weekId] DELETE]", err)
       return {

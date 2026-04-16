@@ -55,7 +55,7 @@ export function UsersTable({
         cell: ({ row }) => {
           const role = row.original.role
           let variant: "default" | "secondary" | "outline" | "destructive" = "secondary"
-          let label = role
+          let label: string = role
           
           if (role === "admin") {
             variant = "destructive"

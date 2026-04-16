@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
-import { AvailabilityConstraint, IAvailabilityConstraint } from "../db/schemas/availability-constraint"
-import { Employee } from "../db/schemas/employee"
+import { AvailabilityDbQueries } from "@/lib/db/queries/availability"
+import { EmployeeDbQueries } from "@/lib/db/queries/employees"
 
 export interface ValidationResult {
   isValid: boolean
@@ -31,8 +31,8 @@ export class AvailabilityManager {
     const violations: string[] = []
 
     // Get all availability constraints for the employee
-    const constraints = await AvailabilityConstraint.find({
-      employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
+    const constraints = await AvailabilityDbQueries.listEmployeeConstraints({
+      employeeId: employeeId.toString(),
       organizationId,
     })
 
@@ -136,7 +136,7 @@ export class AvailabilityManager {
       query.employmentType = { $in: employmentTypes }
     }
 
-    const employees = await Employee.find(query)
+    const employees = await EmployeeDbQueries.findEmployees(query, { sort: { name: 1 }, offset: 0, limit: 10_000 })
 
     // Filter employees by availability
     const availableEmployees = []

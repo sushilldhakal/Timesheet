@@ -8,15 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   ArrowLeft, Pencil, Mail, Phone,
-  LayoutDashboard, DollarSign, ShieldCheck, FileText, Award,
+  LayoutDashboard, DollarSign, ShieldCheck, FileText, Award, Clock,
 } from "lucide-react"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
 import { EmployeeRoleAssignmentDialog } from "@/components/employees/employee-role-assignment-dialog"
-import { EmployeeTimesheetViewer } from "@/components/employees/employee-timesheet-viewer"
 import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"
-import type { Employee } from "@/lib/api/employees"
 import { useEmployee } from "@/lib/queries/employees"
 
 import { OverviewTab } from "@/components/employees/profile-tabs/overview-tab"
@@ -24,6 +22,7 @@ import { PayrollTab } from "@/components/employees/profile-tabs/payroll-tab"
 import { ComplianceTab } from "@/components/employees/profile-tabs/compliance-tab"
 import { ContractTab } from "@/components/employees/profile-tabs/contract-tab"
 import { DevelopmentTab } from "@/components/employees/profile-tabs/development-tab"
+import { TimesheetTab } from "@/components/employees/profile-tabs/timesheet-tab"
 
 function HeaderSkeleton() {
   return (
@@ -48,6 +47,22 @@ function EmployeeDetailPage() {
   const [activeTab, setActiveTab] = useState("overview")
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false)
   const [roleAssignmentDialogOpen, setRoleAssignmentDialogOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Allow deep-linking via URL hash (e.g. /employees/:id/#timesheet).
+  useEffect(() => {
+    if (!mounted) return
+    const hash = typeof window !== "undefined" ? window.location.hash : ""
+    const next = hash?.replace("#", "").trim()
+    if (!next) return
+    if (["overview", "timesheet", "payroll", "compliance", "contract", "development"].includes(next)) {
+      setActiveTab(next)
+    }
+  }, [mounted])
 
   const employeeQuery = useEmployee(id)
   const loading = employeeQuery.isLoading
@@ -92,6 +107,21 @@ function EmployeeDetailPage() {
     : null
 
   const refetchEmployee = () => employeeQuery.refetch()
+
+  // Avoid hydration mismatch when the client has a warm React Query cache
+  // but the server render shows the loading skeleton.
+  if (!mounted) {
+    return (
+      <div className="flex flex-col space-y-6 p-4 lg:p-8">
+        <HeaderSkeleton />
+        <Skeleton className="h-10 w-full max-w-lg" />
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -185,11 +215,25 @@ function EmployeeDetailPage() {
       </div>
 
       {/* ─── Tab Navigation ─────────────────────────────────── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v)
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href)
+            url.hash = v === "overview" ? "" : v
+            window.history.replaceState(null, "", url.toString())
+          }
+        }}
+      >
         <TabsList>
           <TabsTrigger value="overview" className="gap-1.5">
             <LayoutDashboard className="h-3.5 w-3.5" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="timesheet" className="gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            Timesheet
           </TabsTrigger>
           <TabsTrigger value="payroll" className="gap-1.5">
             <DollarSign className="h-3.5 w-3.5" />
@@ -228,14 +272,12 @@ function EmployeeDetailPage() {
                 onUpdate={refetchEmployee}
               />
             </div>
-
-            {/* Timesheet */}
-            <EmployeeTimesheetViewer
-              employeeId={employee.id}
-              employeeName={employee.name}
-              employeeImageUrl={employee.img || ""}
-            />
           </div>
+        </TabsContent>
+
+        {/* ── Timesheet ── */}
+        <TabsContent value="timesheet">
+          <TimesheetTab employeeId={employee.id} />
         </TabsContent>
 
         {/* ── Payroll ── */}

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { createApiRoute } from "@/lib/api/create-api-route"
@@ -8,6 +7,7 @@ import {
   mailTestResponseSchema,
 } from "@/lib/validations/admin"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { mailSettingsService } from "@/lib/services/admin/mail-settings-service"
 
 export const POST = createApiRoute({
   method: 'POST',
@@ -43,57 +43,7 @@ export const POST = createApiRoute({
       }
 
       const { testEmail } = body!;
-
-      await connectDB()
-      const { default: mongoose } = await import("mongoose")
-      
-      const MailSettings = mongoose.models.MailSettings || mongoose.model("MailSettings", new mongoose.Schema({
-        type: { type: String, default: "mail" },
-        fromEmail: String,
-        fromName: String,
-        apiKey: String,
-        updatedAt: Date,
-      }))
-
-      const doc = await MailSettings.findOne({ type: "mail" })
-
-      if (!doc?.apiKey) {
-        return {
-          status: 400,
-          data: { error: "Mail settings not configured" }
-        };
-      }
-
-      const res = await fetch("https://smtp.maileroo.com/api/v2/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${doc.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: {
-            address: doc.fromEmail,
-            display_name: doc.fromName || "Timesheet App",
-          },
-          to: [{ address: testEmail }],
-          subject: "Maileroo Test Email",
-          html: "<h2>✅ Mail settings working!</h2><p>Your Maileroo API is configured correctly.</p>",
-          plain: "Mail settings working! Your Maileroo API is configured correctly.",
-        }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        return {
-          status: 500,
-          data: { error: data?.message || JSON.stringify(data) }
-        };
-      }
-
-      return {
-        status: 200,
-        data: { success: true, message: "Test email sent successfully!" }
-      };
+      return await mailSettingsService.sendTest(testEmail)
     } catch (error: any) {
       console.error("[POST /api/admin/mail-settings/test]", error)
       return {

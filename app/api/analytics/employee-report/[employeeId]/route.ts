@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { VarianceAnalyticsService } from "@/lib/managers/variance-analytics-service"
-import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   analyticsEmployeeIdParamSchema,
@@ -11,6 +8,7 @@ import {
   analyticsErrorResponseSchema,
 } from "@/lib/validations/analytics"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { analyticsService } from "@/lib/services/analytics/analytics-service"
 
 const getEmployeeReport = createApiRoute({
   method: 'GET',
@@ -37,34 +35,9 @@ const getEmployeeReport = createApiRoute({
 
     const { employeeId } = params!
     const { startDate, endDate } = query!
-    
-    // Validate date range
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return { status: 400, data: { error: "Invalid date values" } }
-    }
-    if (start > end) {
-      return { status: 400, data: { error: "startDate must be before or equal to endDate" } }
-    }
 
     try {
-      await connectDB()
-      
-      const analyticsService = new VarianceAnalyticsService()
-      const result = await analyticsService.generateEmployeeReport(employeeId, startDate, endDate)
-      
-      if (!result.success) {
-        return { 
-          status: 500, 
-          data: { 
-            error: result.error, 
-            message: result.message 
-          }
-        }
-      }
-      
-      return { status: 200, data: { report: result.report } }
+      return await analyticsService.employeeReport(employeeId, startDate, endDate)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/analytics/employee-report/[employeeId] GET]", err)

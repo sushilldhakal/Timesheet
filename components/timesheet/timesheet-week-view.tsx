@@ -59,6 +59,13 @@ function formatMinutesLabel(totalMinutes: number): string {
   return formatMinutes(totalMinutes)
 }
 
+function minutesForDay(row: WeekAggApiRow, day: Date): number {
+  // API has historically returned either yyyy-MM-dd or dd-MM-yyyy keys.
+  const ymd = format(day, "yyyy-MM-dd")
+  const dmy = format(day, "dd-MM-yyyy")
+  return row.dailyMinutes?.[ymd] ?? row.dailyMinutes?.[dmy] ?? 0
+}
+
 function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
   const columns: ColumnDef<WeekViewEmployee>[] = [
     {
@@ -78,7 +85,7 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
       id: "role",
       accessorKey: "role",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Role" />
+        <DataTableColumnHeader column={column} title="Team" />
       ),
       enableSorting: true,
       enableHiding: true,
@@ -152,8 +159,7 @@ export function TimesheetWeekView({ data, selectedDate, loading, preAggregated, 
       const rows = aggregatedRows ?? []
       const employees: WeekViewEmployee[] = rows.map((row) => {
         const dailyHours: string[] = weekDays.map((day) => {
-          const ymd = format(day, "yyyy-MM-dd")
-          const mins = row.dailyMinutes[ymd] ?? 0
+          const mins = minutesForDay(row, day)
           return mins > 0 ? formatMinutesLabel(mins) : "—"
         })
         const totalFormatted = formatMinutesLabel(row.totalMinutes)
@@ -169,10 +175,9 @@ export function TimesheetWeekView({ data, selectedDate, loading, preAggregated, 
       })
 
       const dailyTotals = weekDays.map((day) => {
-        const ymd = format(day, "yyyy-MM-dd")
         let dayTotal = 0
         for (const row of rows) {
-          dayTotal += row.dailyMinutes[ymd] ?? 0
+          dayTotal += minutesForDay(row, day)
         }
         return formatMinutesLabel(dayTotal)
       })

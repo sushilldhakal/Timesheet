@@ -60,8 +60,8 @@
 <h1>Timesheet App — Database Schema</h1>
 <p class="subtitle">
   MongoDB collections derived from <code style="color:#79c0ff">lib/db/schemas/*.ts</code> Mongoose models.
-  All tenant-scoped collections carry a <code style="color:#79c0ff">tenantId</code> referencing <code style="color:#79c0ff">Employer</code>.
-  35 schema modules &middot; 28 top-level collections &middot; 2 embedded sub-schemas.
+  Most tenant-scoped collections carry a <code style="color:#79c0ff">tenantId</code> referencing <code style="color:#79c0ff">Employer</code> (the business/tenant entity).
+  38 schema modules &middot; 37 top-level collections &middot; 2 embedded sub-schemas.
 </p>
 
 <div class="legend">
@@ -600,6 +600,35 @@
       </div>
     </div>
 
+    <div class="card g-pay w300">
+      <div class="card-header">PayrollMapping <span class="collection-name">payroll_mappings</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">payrollSystemType</span><span class="field-type">xero | myob | apa | custom</span></div>
+        <div class="field"><span class="field-name">isDefault</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">mapping</span><span class="field-type">Mixed (export keys/IDs)</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Per-tenant export mappings for payroll systems. Usually one default per payrollSystemType.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w300">
+      <div class="card-header">Timesheet <span class="collection-name">timesheets</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
+        <div class="field"><span class="field-name">payPeriodStart / payPeriodEnd</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">shiftIds[]</span><span class="field-ref">→ DailyShift[]</span></div>
+        <div class="field"><span class="field-name">totalShifts / totalHours / totalCost</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">totalBreakMinutes</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">draft | submitted | approved | rejected | locked</span></div>
+        <div class="field"><span class="field-name">submittedBy / approvedBy / lockedBy</span><span class="field-ref">→ User?</span></div>
+        <div class="field"><span class="field-name">payRunId</span><span class="field-ref">→ PayRun?</span></div>
+        <div class="field"><span class="field-name">notes / submissionNotes / rejectionReason</span><span class="field-type">String?</span></div>
+        <div class="rel-tag">Approval workflow for pay periods; links a set of <span>daily_shifts</span> and optionally a <span>pay_run</span>.</div>
+      </div>
+    </div>
+
     <div class="card g-pay w280">
       <div class="card-header">PublicHoliday <span class="collection-name">public_holidays</span></div>
       <div class="card-body">
@@ -702,7 +731,7 @@
       <strong>Computed fields</strong> — <code>LocationRoleEnablement.isActive</code> and <code>EmployeeRoleAssignment.isActive</code> are computed from date ranges in pre-save hooks.<br><br>
       <strong>Embedded sub-schemas</strong> — <code>Schedule</code> (on <code>employees.schedules[]</code>) and <code>Shift</code> (on <code>rosters.shifts[]</code>) are not top-level collections.<br><br>
       <strong>Unix timestamps</strong> — <code>Tenant</code>, <code>User</code>, and <code>OAuthToken</code> store <code>createdAt</code>/<code>updatedAt</code> as Unix seconds (not Mongoose <code>timestamps</code>).<br><br>
-      <strong>RuleTemplate</strong> — Not re-exported from the schemas barrel (<code>schemas/index.ts</code>) but exists as a Mongoose model imported directly where needed.
+      <strong>RuleTemplate / PayrollMapping</strong> — These schema modules exist (<code>rule-template.ts</code>, <code>payroll-mapping.ts</code>) but are not re-exported from the schemas barrel (<code>schemas/index.ts</code>) in all environments; they may be imported directly where needed.
     </div>
   </div>
 </div>

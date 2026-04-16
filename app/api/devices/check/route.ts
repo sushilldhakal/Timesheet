@@ -1,7 +1,5 @@
-import { NextRequest, NextResponse } from "next/server"
-import { connectDB, Device } from "@/lib/db"
+import { deviceAuthService } from "@/lib/services/device/device-auth-service"
 import { logger } from "@/lib/utils/logger"
-import { z } from "zod"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   deviceCheckSchema,
@@ -26,52 +24,7 @@ export const POST = createApiRoute({
   handler: async ({ body }) => {
     try {
       const { deviceId } = body!;
-
-      await connectDB()
-      
-      // Check if device exists and is active
-      const device = await Device.findOne({ 
-        deviceId,
-        status: "active" 
-      }).lean()
-
-      if (!device) {
-        // Device not found or not active
-        logger.warn(`[api/devices/check] Unauthorized device attempt: ${deviceId}`)
-        return {
-          status: 200,
-          data: {
-            authorized: false,
-            error: "Device not authorized",
-            reason: "Device not found or inactive"
-          }
-        };
-      }
-
-      // Update last activity (fire and forget - don't wait)
-      Device.findByIdAndUpdate(device._id, {
-        lastActivity: new Date()
-      }).catch(err => {
-        logger.error("[api/devices/check] Failed to update lastActivity:", err)
-      })
-
-      // Device is authorized
-      logger.log(`[api/devices/check] Device authorized: ${deviceId} (${device.deviceName})`)
-      
-      return {
-        status: 200,
-        data: {
-          authorized: true,
-          device: {
-            id: (device as any)._id.toString(),
-            deviceId: device.deviceId,
-            deviceName: device.deviceName,
-            locationName: device.locationName,
-            lastActivity: device.lastActivity?.toISOString(),
-          }
-        }
-      };
-
+      return await deviceAuthService.check(deviceId)
     } catch (err) {
       logger.error("[api/devices/check]", err)
       return {

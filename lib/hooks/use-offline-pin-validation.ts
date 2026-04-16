@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { offlineDB, OfflineEmployee } from '@/lib/db/offline-db'
 import { toast } from "sonner"
@@ -14,10 +14,47 @@ export function useOfflinePinValidation() {
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
 
+  const isMountedRef = useRef(true)
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const safeSetStatus = useCallback((next: "idle" | "verifying" | "error" | "success") => {
+    if (!isMountedRef.current) return
+    setStatus(next)
+  }, [])
+
+  const safeSetErrorMessage = useCallback((next: string) => {
+    if (!isMountedRef.current) return
+    setErrorMessage(next)
+  }, [])
+
+  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      // If unmounted, don't run the callback (prevents setState on unmounted component)
+      if (!isMountedRef.current) return
+      fn()
+    }, ms)
+    timeoutsRef.current.push(id)
+    return id
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      for (const id of timeoutsRef.current) clearTimeout(id)
+      timeoutsRef.current = []
+    }
+  }, [])
+
   // Listen for online/offline events
-  React.useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!isMountedRef.current) return
+      setIsOnline(true)
+    }
+    const handleOffline = () => {
+      if (!isMountedRef.current) return
+      setIsOnline(false)
+    }
     
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -230,8 +267,8 @@ export function useOfflinePinValidation() {
     enteredPin: string, 
     userLocation?: { lat: number; lng: number }
   ) => {
-    setStatus("verifying")
-    setErrorMessage("")
+    safeSetStatus("verifying")
+    safeSetErrorMessage("")
 
     try {
       let employee: OfflineEmployee | null = null
@@ -243,6 +280,7 @@ export function useOfflinePinValidation() {
       if (isOnline) {
         // Try online first
         try {
+          const abortController = new AbortController()
           const payload: { pin: string; lat?: number; lng?: number } = { pin: enteredPin }
           
           if (userLocation) {
@@ -254,6 +292,7 @@ export function useOfflinePinValidation() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
+            signal: abortController.signal,
           })
           
           const data = await res.json()
@@ -283,12 +322,12 @@ export function useOfflinePinValidation() {
 
           } else if (res.status === 403 && data.geofenceViolation) {
             // Handle geofence violation
-            setStatus("error")
-            setErrorMessage(data.error)
+            safeSetStatus("error")
+            safeSetErrorMessage(data.error)
             toast.error(data.error)
-            setTimeout(() => {
-              setStatus("idle")
-              setErrorMessage("")
+            scheduleTimeout(() => {
+              safeSetStatus("idle")
+              safeSetErrorMessage("")
             }, 4000)
             return
           } else {
@@ -374,6 +413,7 @@ export function useOfflinePinValidation() {
         if (!isOnline) {
           logger.log(`[PinValidation] Creating offline employee session cookie`)
           try {
+          const abortController = new AbortController()
             const response = await fetch('/api/employee/offline-session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -381,7 +421,8 @@ export function useOfflinePinValidation() {
                 employeeId: employee.id,
                 pin: employee.pin,
                 offline: true
-              })
+            }),
+            signal: abortController.signal,
             })
             
             if (!response.ok) {
@@ -424,31 +465,31 @@ export function useOfflinePinValidation() {
       }
       
       // Show success state for 1.5 seconds before navigating
-      setStatus("success")
+      safeSetStatus("success")
       logger.log(`[PinValidation] Setting success status, will navigate to /clock in 1.5s`)
       
-      setTimeout(() => {
+      scheduleTimeout(() => {
         logger.log(`[PinValidation] Navigating to /clock (client-side)`)
         // Use client-side navigation to avoid full page reload
         router.replace("/clock")
         
         // Reset status after navigation attempt in case it fails
-        setTimeout(() => {
-          setStatus("idle")
+        scheduleTimeout(() => {
+          safeSetStatus("idle")
         }, 500)
       }, 1500)
 
     } catch (error) {
-      setStatus("error")
+      safeSetStatus("error")
       const message = error instanceof Error ? error.message : "Network error. Please try again."
-      setErrorMessage(message)
+      safeSetErrorMessage(message)
       
-      setTimeout(() => {
-        setStatus("idle")
-        setErrorMessage("")
+      scheduleTimeout(() => {
+        safeSetStatus("idle")
+        safeSetErrorMessage("")
       }, 800)
     }
-  }, [router, isOnline, syncOfflinePunches])
+  }, [router, isOnline, safeSetErrorMessage, safeSetStatus, scheduleTimeout, syncOfflinePunches])
 
   return {
     status,

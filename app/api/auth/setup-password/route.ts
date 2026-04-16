@@ -5,11 +5,10 @@
  * Used when admin creates employee without setting password
  */
 
-import { connectDB, Employee } from "@/lib/db"
-import { hashToken, isTokenValid } from "@/lib/utils/auth/auth-tokens"
 import { setupPasswordSchema, setupTokenVerificationResponseSchema, setupPasswordResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { passwordService } from "@/lib/services/auth/password-service"
 
 // GET - Verify setup token
 export const GET = createApiRoute({
@@ -37,42 +36,8 @@ export const GET = createApiRoute({
           data: { error: "Query parameters are required" }
         };
       }
-      
       const { token } = query;
-
-      await connectDB();
-      const hashedToken = hashToken(token);
-
-      // Find employee with setup token
-      const employee = await Employee.findOne({
-        passwordSetupToken: hashedToken,
-      })
-        .select("+passwordSetupToken +passwordSetupExpiry")
-        .lean();
-
-      if (!employee) {
-        return {
-          status: 400,
-          data: { error: "Invalid token" }
-        };
-      }
-
-      if (!isTokenValid(employee.passwordSetupExpiry)) {
-        return {
-          status: 400,
-          data: { error: "Token has expired" }
-        };
-      }
-
-      return {
-        status: 200,
-        data: {
-          valid: true,
-          email: employee.email,
-          name: employee.name,
-          pin: employee.pin,
-        }
-      };
+      return await passwordService.setupPasswordVerify(token);
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.error("[auth/setup-password GET]", err);
@@ -109,59 +74,8 @@ export const POST = createApiRoute({
           data: { error: "Request body is required" }
         };
       }
-      
       const { token, newPassword } = body;
-      await connectDB();
-      const hashedToken = hashToken(token);
-
-      // Find employee with setup token
-      const employee = await Employee.findOne({
-        passwordSetupToken: hashedToken,
-      }).select("+passwordSetupToken +passwordSetupExpiry");
-
-      if (!employee) {
-        return {
-          status: 400,
-          data: { error: "Invalid token" }
-        };
-      }
-
-      if (!isTokenValid(employee.passwordSetupExpiry)) {
-        return {
-          status: 400,
-          data: { error: "Token has expired" }
-        };
-      }
-
-      // Set password and clear setup token
-      employee.password = newPassword; // Will be hashed by pre-save hook
-      employee.passwordSetupToken = null;
-      employee.passwordSetupExpiry = null;
-      employee.passwordChangedAt = new Date();
-      employee.requirePasswordChange = false;
-      await employee.save();
-
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[Setup Password] Password set for employee: ${employee.email}`);
-      }
-
-      // Auto-login after setup
-      const { createEmployeeWebToken, setEmployeeWebCookie } = await import("@/lib/auth/employee-auth");
-      
-      const authToken = await createEmployeeWebToken({
-        sub: String(employee._id),
-        pin: employee.pin,
-      });
-
-      await setEmployeeWebCookie(authToken);
-
-      return {
-        status: 200,
-        data: {
-          message: "Password set successfully",
-          redirect: "/staff/dashboard",
-        }
-      };
+      return await passwordService.setupPassword(token, newPassword);
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.error("[auth/setup-password POST]", err);

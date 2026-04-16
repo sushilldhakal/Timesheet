@@ -39,7 +39,7 @@ export const GET = createApiRoute({
           name: ctx.auth.name,
         },
         tenantId: ctx.tenantId?.toString() || "",
-        locations: ctx.locations?.map(l => l.toString()) || [],
+        locations: ctx.userLocations ?? [],
       }
     }
   }

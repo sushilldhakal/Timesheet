@@ -1,4 +1,4 @@
-import { connectDB, User } from "./index"
+import { SetupAdminDbQueries } from "@/lib/db/queries/setup-admin"
 
 declare global {
   var __adminSetupChecked: boolean | undefined
@@ -10,13 +10,10 @@ declare global {
  * server cold start, then the result is cached. Never checks again until restart.
  */
 export async function needsAdminSetup(): Promise<boolean> {
-  // Always connect first, before checking cache (avoids hot-reload disconnect)
-  await connectDB()
-
   if (globalThis.__adminSetupChecked && globalThis.__adminExists !== undefined) {
     return !globalThis.__adminExists
   }
-  const count = await User.countDocuments({ role: "admin" })
+  const count = await SetupAdminDbQueries.countAdmins()
   const adminExists = count > 0
 
   globalThis.__adminSetupChecked = true

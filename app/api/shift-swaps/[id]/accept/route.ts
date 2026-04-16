@@ -1,12 +1,11 @@
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB } from "@/lib/db"
-import { ShiftSwapManager } from "@/lib/managers/shift-swap-manager"
 import { 
   shiftSwapIdParamSchema, 
   acceptShiftSwapSchema, 
   shiftSwapRequestResponseSchema,
 } from "@/lib/validations/shift-swaps"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { shiftSwapService } from "@/lib/services/shift-swap/shift-swap-service"
 
 /**
  * PATCH /api/shift-swaps/[id]/accept
@@ -32,29 +31,7 @@ export const PATCH = createApiRoute({
   },
   handler: async ({ params, body }) => {
     const { id } = params!
-    const { recipientId } = body!
 
-    try {
-      await connectDB()
-      const shiftSwapManager = new ShiftSwapManager()
-      const swapRequest = await shiftSwapManager.acceptSwapRequest(
-        id,
-        recipientId
-      )
-
-      return { status: 200, data: { swapRequest } }
-    } catch (err: any) {
-      console.error("[api/shift-swaps/[id]/accept PATCH]", err)
-
-      if (err.message?.includes("not found")) {
-        return { status: 404, data: { error: err.message } }
-      }
-
-      if (err.message?.includes("not in PENDING_RECIPIENT")) {
-        return { status: 400, data: { error: err.message } }
-      }
-
-      return { status: 500, data: { error: "Failed to accept swap request" } }
-    }
+    return { status: 200, data: await shiftSwapService.accept(id, body) }
   }
 })

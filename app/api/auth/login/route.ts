@@ -1,5 +1,4 @@
-import { connectDB, User } from "@/lib/db"
-import { createAuthToken, setAuthCookie } from "@/lib/auth/auth-helpers"
+import { authService } from "@/lib/services/auth/auth-service"
 import { loginSchema, loginResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 
@@ -28,56 +27,7 @@ export const POST = createApiRoute({
           data: { error: "Request body is required" }
         };
       }
-      
-      const { email, password } = body;
-      const normalizedEmail = email.trim().toLowerCase();
-
-      await connectDB();
-      const user = await User.findOne({ email: normalizedEmail })
-        .select("+password")
-        .lean();
-
-      if (!user || !user.password) {
-        return {
-          status: 401,
-          data: { error: "Invalid email or password" }
-        };
-      }
-
-      const bcrypt = await import("bcrypt");
-      const passwordMatch = await bcrypt.compare(password, user.password);
-      if (!passwordMatch) {
-        return {
-          status: 401,
-          data: { error: "Invalid email or password" }
-        };
-      }
-
-      const token = await createAuthToken({
-        sub: String(user._id),
-        email: user.email,
-        role: user.role,
-        location: Array.isArray(user.location) ? user.location[0] ?? "" : (user.location ?? ""),
-      });
-
-      await setAuthCookie(token);
-
-      const loc = user.location;
-      const location = Array.isArray(loc) ? loc : loc ? [loc] : [];
-
-      return {
-        status: 200,
-        data: {
-          user: {
-            id: String(user._id),
-            name: user.name ?? "",
-            email: user.email,
-            role: user.role,
-            location,
-            rights: (user.rights ?? []).map(right => String(right)),
-          },
-        }
-      };
+      return await authService.login(body)
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         console.error("[auth/login]", err);

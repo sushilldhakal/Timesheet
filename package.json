@@ -3,18 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "generate:openapi": "MONGODB_URI=placeholder GENERATING_OPENAPI=true tsx lib/openapi/generate.ts",
-    "generate:test-data": "node --env-file=.env scripts/generate-test-data.mjs",
+    "generate:test-data": "node --env-file=.env scripts/create-test-data.mjs",
     "clean": "rm -rf .next out node_modules/.cache",
     "type-check": "tsc --noEmit",
     "build:analyze": "ANALYZE=true npm run build",
     "test:awards": "tsx lib/utils/test-award-engine.ts && tsx lib/utils/test-public-holiday-detection.ts",
     "worker:payrun": "node --env-file=.env --loader tsx lib/jobs/payrun-worker.ts",
-    "seed:holidays": "npx tsx scripts/seed-public-holidays.mjs"
+    "seed:holidays": "npx tsx scripts/seed-public-holidays.mjs",
+    "audit:architecture": "tsx scripts/architecture-audit.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.4.3",

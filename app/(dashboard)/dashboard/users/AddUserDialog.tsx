@@ -29,6 +29,7 @@ import { useTeams } from "@/lib/queries/teams"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCreateUser } from "@/lib/queries/users"
 import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
+import type { CreateUserRequest } from "@/lib/api/users"
 import { AlertCircle } from "lucide-react"
 
 type Props = {
@@ -44,7 +45,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [selectedRole, setSelectedRole] = useState<string>("")
+  const [selectedRole, setSelectedRole] = useState<CreateUserRequest["role"] | "">("")
   const [location, setLocation] = useState<string[]>([])
   const [managedRoles, setManagedRoles] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -176,10 +177,10 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
       return
     }
 
-    const payload = {
+    const payload: CreateUserRequest = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      role: selectedRole,
+      role: selectedRole || undefined,
       ...(creationType === "manual" ? { password } : {}), // Only include password for manual creation
       location: showLocationField ? location : [],
       rights: [], // Deprecated, using role-based permissions
@@ -256,7 +257,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
 
             <Field>
               <FieldLabel htmlFor="add-user-role">Role *</FieldLabel>
-              <Select value={selectedRole} onValueChange={setSelectedRole} required>
+              <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as CreateUserRequest["role"])} required>
                 <SelectTrigger id="add-user-role">
                   <SelectValue placeholder="Select role..." />
                 </SelectTrigger>

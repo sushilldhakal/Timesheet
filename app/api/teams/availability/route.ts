@@ -1,14 +1,11 @@
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB } from "@/lib/db"
-import { RoleEnablementManager } from "@/lib/managers/role-enablement-manager"
-import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
 import {
   teamAvailabilityQuerySchema,
   teamsAvailabilityResponseSchema,
 } from "@/lib/validations/team"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import mongoose from "mongoose"
+import { teamAvailabilityService } from "@/lib/services/team/team-availability-service"
 
 export const GET = createApiRoute({
   method: "GET",
@@ -45,50 +42,8 @@ export const GET = createApiRoute({
       }
     }
 
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid location ID format" },
-      }
-    }
-
     try {
-      await connectDB()
-
-      const date = dateString ? new Date(dateString) : new Date()
-      const manager = new RoleEnablementManager()
-
-      const enablements = await manager.getEnabledRoles(locationId, date)
-
-      const teamsWithCounts = await Promise.all(
-        enablements.map(async (enablement) => {
-          const roleId = enablement.roleId as any
-
-          const employeeCount = await EmployeeRoleAssignment.countDocuments({
-            roleId: roleId._id,
-            locationId: new mongoose.Types.ObjectId(locationId),
-            validFrom: { $lte: date },
-            $or: [{ validTo: null }, { validTo: { $gte: date } }],
-          })
-
-          return {
-            teamId: roleId._id.toString(),
-            teamName: roleId.name,
-            teamColor: roleId.color,
-            employeeCount,
-            isEnabled: true,
-          }
-        })
-      )
-
-      return {
-        status: 200,
-        data: { teams: teamsWithCounts },
-        headers: {
-          "Cache-Control": "public, max-age=300, s-maxage=300",
-          "CDN-Cache-Control": "public, max-age=300",
-        },
-      }
+      return await teamAvailabilityService.getAvailability(locationId, dateString)
     } catch (err) {
       console.error("[api/teams/availability GET]", err)
       return {

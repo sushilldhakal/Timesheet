@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB } from "@/lib/db"
-import { PublicHoliday } from "@/lib/db/schemas/public-holiday"
 import { z } from "zod"
+import { publicHolidaySeedService } from "@/lib/services/public-holiday/public-holiday-seed-service"
 
 const seedBodySchema = z.object({
   year: z.coerce.number().int().min(1900).max(2200),
@@ -121,29 +120,9 @@ export const POST = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-
-      const year = body!.year
-      const holidays = buildSeedHolidays(year)
-
-      const ops = holidays.map((h) => ({
-        updateOne: {
-          filter: { date: h.date, state: h.state },
-          update: { $set: { date: h.date, state: h.state, name: h.name, isRecurring: h.isRecurring } },
-          upsert: true,
-        },
-      }))
-
-      const result = await PublicHoliday.bulkWrite(ops, { ordered: false })
-
-      const upserted = typeof result.upsertedCount === 'number' ? result.upsertedCount : 0
-      const matchedOrModified =
-        (typeof (result as any).matchedCount === 'number' ? (result as any).matchedCount : 0) +
-        (typeof (result as any).modifiedCount === 'number' ? (result as any).modifiedCount : 0)
-
       return {
         status: 200,
-        data: { success: true, year, upserted, matchedOrModified },
+        data: await publicHolidaySeedService.seedYear(body!.year),
       }
     } catch (err) {
       console.error("[api/public-holidays/seed POST]", err)

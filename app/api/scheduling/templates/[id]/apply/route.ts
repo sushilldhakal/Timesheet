@@ -1,9 +1,8 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { assertManagerSchedulingScope, assertUserLocationAccess } from "@/lib/auth/scheduling-scope"
-import { connectDB } from "@/lib/db"
-import { SchedulingTemplateManager } from "@/lib/managers/scheduling-template-manager"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { rosterWeekTemplateService } from "@/lib/services/scheduling/roster-week-template-service"
 
 const idParamSchema = z.object({
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid template id"),
@@ -43,30 +42,14 @@ export const POST = createApiRoute({
       return { status: 400, data: { error: "Invalid request" } }
     }
 
-    const locOk = await assertUserLocationAccess(ctx, body.locationId)
-    if (!locOk.ok) {
-      return { status: locOk.status, data: { error: locOk.error } }
-    }
-
-    const roleIds = body.roleIds ?? []
-    if (roleIds.length > 0) {
-      const scope = await assertManagerSchedulingScope(ctx, body.locationId, roleIds)
-      if (!scope.ok) {
-        return { status: scope.status, data: { error: scope.error } }
-      }
-    }
-
     try {
-      await connectDB()
-      const mgr = new SchedulingTemplateManager()
-      const result = await mgr.applyTemplate({
+      return await rosterWeekTemplateService.applyTemplate({
+        ctx,
         templateId: params.id,
-        targetWeekId: body.targetWeekId,
-        mode: body.mode,
-        locationId: body.locationId,
-        roleIds,
+        body,
+        assertUserLocationAccess,
+        assertManagerSchedulingScope,
       })
-      return { status: 200, data: result }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to apply template"
       console.error("[scheduling/templates/apply POST]", e)

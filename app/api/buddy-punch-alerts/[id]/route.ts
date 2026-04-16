@@ -1,5 +1,4 @@
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB, BuddyPunchAlert } from "@/lib/db"
 import { 
   buddyPunchAlertIdParamSchema, 
   buddyPunchAlertUpdateSchema,
@@ -7,6 +6,7 @@ import {
   buddyPunchAlertUpdateResponseSchema,
 } from "@/lib/validations/buddy-punch-alerts"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
+import { buddyPunchAlertsService } from "@/lib/services/monitoring/buddy-punch-alerts-service"
 
 // PATCH /api/buddy-punch-alerts/:id - Update status (dismiss/confirm)
 export const PATCH = createApiRoute({
@@ -27,38 +27,11 @@ export const PATCH = createApiRoute({
     404: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ params, body, context }) => {
+  handler: async ({ params, body }) => {
     const { id } = params!
-    const { status, notes } = body!
 
     try {
-      await connectDB()
-
-      const alert = await BuddyPunchAlert.findByIdAndUpdate(
-        id,
-        {
-          status,
-          notes,
-          reviewedBy: undefined, // context?.auth?.sub not available in createApiRoute
-          reviewedAt: new Date(),
-        },
-        { new: true }
-      ).populate("employeeId", "name pin")
-       .populate("locationId", "name")
-       .populate("reviewedBy", "name")
-
-      if (!alert) {
-        return { status: 404, data: { error: "Alert not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          message: "Alert updated successfully",
-          alert,
-        }
-      }
+      return await buddyPunchAlertsService.update(id, body)
     } catch (error: any) {
       console.error("Error updating buddy punch alert:", error)
       return { status: 500, data: { error: error.message || "Failed to update alert" } }
@@ -87,24 +60,7 @@ export const GET = createApiRoute({
     const { id } = params!
 
     try {
-      await connectDB()
-
-      const alert = await BuddyPunchAlert.findById(id)
-        .populate("employeeId", "name pin")
-        .populate("locationId", "name")
-        .populate("reviewedBy", "name")
-
-      if (!alert) {
-        return { status: 404, data: { error: "Alert not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          alert,
-        }
-      }
+      return await buddyPunchAlertsService.get(id)
     } catch (error: any) {
       console.error("Error fetching buddy punch alert:", error)
       return { status: 500, data: { error: error.message || "Failed to fetch alert" } }
@@ -133,21 +89,7 @@ export const DELETE = createApiRoute({
     const { id } = params!
 
     try {
-      await connectDB()
-
-      const alert = await BuddyPunchAlert.findByIdAndDelete(id)
-
-      if (!alert) {
-        return { status: 404, data: { error: "Alert not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          message: "Alert deleted successfully",
-        }
-      }
+      return await buddyPunchAlertsService.remove(id)
     } catch (error: any) {
       console.error("Error deleting buddy punch alert:", error)
       return { status: 500, data: { error: error.message || "Failed to delete alert" } }

@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { ComplianceManager } from "@/lib/managers/compliance-manager"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { rosterService } from "@/lib/services/roster/roster-service"
 
 // Validation schemas
 const weekIdParamSchema = z.object({
@@ -65,44 +64,7 @@ export const POST = createApiRoute({
 
     try {
       const { organizationId } = body!
-
-      await connectDB()
-
-      const { Roster } = await import("@/lib/db")
-      const roster = await Roster.findOne({ weekId })
-
-      if (!roster) {
-        return { 
-          status: 404, 
-          data: { error: "Roster not found" } 
-        }
-      }
-
-      const complianceManager = new ComplianceManager()
-      const violations = await complianceManager.validateRoster(
-        roster._id.toString(),
-        organizationId
-      )
-
-      // Check if any violations block publishing
-      const blockingViolations = violations.filter((v) => v.blockPublish)
-      const canPublish = blockingViolations.length === 0
-
-      return { 
-        status: 200, 
-        data: {
-          isCompliant: violations.length === 0,
-          violations: violations.map((v) => ({
-            employeeId: v.employeeId,
-            date: v.date,
-            ruleType: v.ruleType,
-            ruleName: v.ruleName,
-            message: v.message,
-            severity: v.severity,
-          })),
-          canPublish,
-        } 
-      }
+      return await rosterService.validateCompliance(weekId, organizationId)
     } catch (err) {
       console.error("[api/rosters/[weekId]/validate-compliance POST]", err)
       return { 

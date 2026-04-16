@@ -1,12 +1,8 @@
-import mongoose from "mongoose"
 import { addDays } from "date-fns"
-import { Roster, IShift, getWeekBoundaries } from "@/lib/db/schemas/roster"
-import {
-  RosterTemplate,
-  IRosterTemplateDocument,
-  ITemplateShift,
-} from "@/lib/db/schemas/roster-template"
+import type { IShift, IRosterTemplateDocument, ITemplateShift } from "@/lib/db/queries/scheduling-types"
+import { getWeekBoundaries } from "@/lib/db/queries/scheduling-types"
 import { setTimeFromDecimalHours } from "@/lib/utils/format/decimal-hours"
+import { SchedulingTemplatesDbQueries, oid } from "@/lib/db/queries/scheduling-templates"
 
 function shiftDateForDayOfWeek(weekStartDate: Date, dayOfWeek: number): Date {
   return addDays(new Date(weekStartDate), dayOfWeek === 0 ? 6 : dayOfWeek - 1)
@@ -19,14 +15,16 @@ function decimalHour(d: Date): number {
 export class SchedulingTemplateManager {
   async listForUser(userId: string, isAdmin: boolean): Promise<IRosterTemplateDocument[]> {
     if (isAdmin) {
-      return RosterTemplate.find({}).sort({ updatedAt: -1 }).lean() as unknown as IRosterTemplateDocument[]
+      return (await SchedulingTemplatesDbQueries.rosterTemplate
+        .findLean({})
+        .sort({ updatedAt: -1 })) as unknown as IRosterTemplateDocument[]
     }
-    const uid = new mongoose.Types.ObjectId(userId)
-    return RosterTemplate.find({
-      $or: [{ createdBy: uid }, { isGlobal: true }],
-    })
-      .sort({ updatedAt: -1 })
-      .lean() as unknown as IRosterTemplateDocument[]
+    const uid = oid(userId)
+    return (await SchedulingTemplatesDbQueries.rosterTemplate
+      .findLean({
+        $or: [{ createdBy: uid }, { isGlobal: true }],
+      })
+      .sort({ updatedAt: -1 })) as unknown as IRosterTemplateDocument[]
   }
 
   async createFromWeek(params: {
@@ -38,14 +36,14 @@ export class SchedulingTemplateManager {
     isGlobal?: boolean
   }): Promise<IRosterTemplateDocument> {
     const { name, weekId, locationId, roleIds, createdBy, isGlobal } = params
-    const roster = await Roster.findOne({ weekId })
+    const roster = await SchedulingTemplatesDbQueries.roster.findOne({ weekId })
     if (!roster) {
       throw new Error(`Roster not found for week ${weekId}`)
     }
 
-    const locOid = new mongoose.Types.ObjectId(locationId)
+    const locOid = oid(locationId)
     const roleOidSet =
-      roleIds.length > 0 ? new Set(roleIds.map((id) => new mongoose.Types.ObjectId(id).toString())) : null
+      roleIds.length > 0 ? new Set(roleIds.map((id) => oid(id).toString())) : null
 
     const templateShifts: ITemplateShift[] = []
     const distinctRoleIds = new Set<string>()
@@ -65,12 +63,12 @@ export class SchedulingTemplateManager {
 
     const resolvedRoleIds =
       roleIds.length > 0
-        ? roleIds.map((id) => new mongoose.Types.ObjectId(id))
-        : [...distinctRoleIds].map((id) => new mongoose.Types.ObjectId(id))
+        ? roleIds.map((id) => oid(id))
+        : [...distinctRoleIds].map((id) => oid(id))
 
-    const doc = await RosterTemplate.create({
+    const doc = await SchedulingTemplatesDbQueries.rosterTemplate.create({
       name,
-      createdBy: new mongoose.Types.ObjectId(createdBy),
+      createdBy: oid(createdBy),
       locationId: locOid,
       roleIds: resolvedRoleIds,
       isGlobal: !!isGlobal,
@@ -85,12 +83,12 @@ export class SchedulingTemplateManager {
     userId: string,
     isAdmin: boolean
   ): Promise<{ deleted: boolean }> {
-    const t = await RosterTemplate.findById(id)
+    const t = await SchedulingTemplatesDbQueries.rosterTemplate.findById(id)
     if (!t) return { deleted: false }
     if (!isAdmin && t.createdBy.toString() !== userId) {
       throw new Error("Forbidden")
     }
-    await RosterTemplate.deleteOne({ _id: id })
+    await SchedulingTemplatesDbQueries.rosterTemplate.deleteOne({ _id: id })
     return { deleted: true }
   }
 
@@ -102,8 +100,8 @@ export class SchedulingTemplateManager {
     roleIds: string[]
   }): Promise<{ shiftsCreated: number }> {
     const { templateId, targetWeekId, mode, locationId, roleIds } = params
-    const locOid = new mongoose.Types.ObjectId(locationId)
-    const template = await RosterTemplate.findById(templateId)
+    const locOid = oid(locationId)
+    const template = await SchedulingTemplatesDbQueries.rosterTemplate.findById(templateId)
     if (!template) {
       throw new Error("Template not found")
     }
@@ -112,11 +110,11 @@ export class SchedulingTemplateManager {
       throw new Error("Template location does not match target location")
     }
 
-    let roster = await Roster.findOne({ weekId: targetWeekId })
+    let roster = await SchedulingTemplatesDbQueries.roster.findOne({ weekId: targetWeekId })
     if (!roster) {
       const { start, end } = getWeekBoundaries(targetWeekId)
       const [yearStr, weekStr] = targetWeekId.split("-W")
-      roster = await Roster.create({
+      roster = await SchedulingTemplatesDbQueries.roster.create({
         weekId: targetWeekId,
         year: parseInt(yearStr, 10),
         weekNumber: parseInt(weekStr, 10),
@@ -127,7 +125,7 @@ export class SchedulingTemplateManager {
       })
     }
 
-    const roleSet = new Set(roleIds.map((r) => new mongoose.Types.ObjectId(r).toString()))
+    const roleSet = new Set(roleIds.map((r) => oid(r).toString()))
 
     if (mode === "replace") {
       roster.shifts = roster.shifts.filter((s) => {
@@ -156,7 +154,7 @@ export class SchedulingTemplateManager {
       setTimeFromDecimalHours(shiftEndTime, endH)
 
       const newShift: IShift = {
-        _id: new mongoose.Types.ObjectId(),
+        _id: oid(),
         employeeId: ts.employeeId ?? null,
         date: shiftDate,
         startTime: shiftStartTime,

@@ -1,11 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { Timesheet } from "@/lib/db/schemas/timesheet"
-import { DailyShift } from "@/lib/db/schemas/daily-shift"
-import { PayRun } from "@/lib/db/schemas/pay-run"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
-import mongoose from "mongoose"
+import { timesheetApprovalsService } from "@/lib/services/timesheet/timesheet-approvals-service"
 
 const lockSchema = z.object({
   payRunId: z.string().min(1, "payRunId is required"),
@@ -40,68 +36,6 @@ export const POST = createApiRoute({
       return { status: 401, data: { error: "Unauthorized" } }
     }
 
-    const allowedRoles = ["admin", "super_admin", "accounts"]
-    if (!allowedRoles.includes(ctx.auth.role)) {
-      return {
-        status: 403,
-        data: { error: "Only payroll admins can lock timesheets" },
-      }
-    }
-
-    try {
-      await connectDB()
-
-      const { payRunId } = body!
-
-      if (!mongoose.Types.ObjectId.isValid(payRunId)) {
-        return { status: 400, data: { error: "Invalid payRunId" } }
-      }
-
-      const payRun = await PayRun.findById(payRunId)
-      if (!payRun) {
-        return { status: 404, data: { error: "PayRun not found" } }
-      }
-
-      const timesheet = await Timesheet.findById(params!.id)
-      if (!timesheet) {
-        return { status: 404, data: { error: "Timesheet not found" } }
-      }
-
-      if (timesheet.status !== "approved") {
-        return {
-          status: 400,
-          data: {
-            error: `Cannot lock timesheet in '${timesheet.status}' status. Only approved timesheets can be locked.`,
-          },
-        }
-      }
-
-      const now = new Date()
-      const userId = ctx.auth.sub
-
-      timesheet.status = "locked"
-      timesheet.lockedBy = userId as any
-      timesheet.lockedAt = now
-      timesheet.payRunId = payRunId as any
-
-      await timesheet.save()
-
-      const lockResult = await DailyShift.updateMany(
-        { _id: { $in: timesheet.shiftIds } },
-        { status: "locked", lockedBy: userId, lockedAt: now }
-      )
-
-      return {
-        status: 200,
-        data: {
-          success: true,
-          timesheet,
-          lockedShifts: lockResult.modifiedCount,
-        },
-      }
-    } catch (err) {
-      console.error("[api/timesheets/[id]/lock POST]", err)
-      return { status: 500, data: { error: "Failed to lock timesheet" } }
-    }
+    return await timesheetApprovalsService.lock(ctx, params!.id, body)
   },
 })

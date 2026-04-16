@@ -1,7 +1,4 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { AbsenceManager } from "@/lib/managers/absence-manager"
-import { LeaveType } from "@/lib/db/schemas/leave-record"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
@@ -11,6 +8,7 @@ import {
   leaveRecordCreateResponseSchema
 } from "@/lib/validations/employee-absences"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employeeAbsencesService } from "@/lib/services/employee/employee-absences-service"
 
 /**
  * GET /api/employees/[id]/absences?startDate=...&endDate=...
@@ -53,18 +51,7 @@ export const GET = createApiRoute({
     const { startDate, endDate } = query;
 
     try {
-      await connectDB()
-      const absenceManager = new AbsenceManager()
-      const absences = await absenceManager.getLeaveRecords(
-        id,
-        new Date(startDate),
-        new Date(endDate)
-      )
-
-      return {
-        status: 200,
-        data: { absences }
-      };
+      return await employeeAbsencesService.list(id, startDate, endDate)
     } catch (err) {
       console.error("[api/employees/[id]/absences GET]", err)
       return {
@@ -116,20 +103,7 @@ export const POST = createApiRoute({
     const { startDate, endDate, leaveType, notes } = body;
 
     try {
-      await connectDB()
-      const absenceManager = new AbsenceManager()
-      const leaveRecord = await absenceManager.createLeaveRecord(
-        id,
-        new Date(startDate),
-        new Date(endDate),
-        leaveType as LeaveType,
-        notes
-      )
-
-      return {
-        status: 201,
-        data: { leaveRecord }
-      };
+      return await employeeAbsencesService.create(id, body)
     } catch (err) {
       console.error("[api/employees/[id]/absences POST]", err)
       return {

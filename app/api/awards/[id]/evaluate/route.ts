@@ -1,10 +1,8 @@
-import { connectDB } from "@/lib/db"
-import Award from "@/lib/db/schemas/award"
-import { AwardEngine } from "@/lib/engines/award-engine"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { awardIdParamSchema, awardEvaluationRequestSchema, awardEvaluationResponseSchema } from "@/lib/validations/award"
 import { shiftContextSchema } from "@/lib/validations/awards"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { awardEvaluationService } from "@/lib/services/award/award-evaluation-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -36,38 +34,6 @@ export const POST = createApiRoute({
 
     const { id } = params;
 
-    try {
-      await connectDB()
-      
-      const award = await Award.findById(id)
-      if (!award) {
-        return {
-          status: 404,
-          data: { error: "Award not found" }
-        };
-      }
-
-      if (!award.isActive) {
-        return {
-          status: 400,
-          data: { error: "Award is not active" }
-        };
-      }
-
-      // Use the new AwardEngine to process the shift
-      const engine = new AwardEngine(award)
-      const result = engine.processShift(body)
-
-      return {
-        status: 200,
-        data: result
-      };
-    } catch (err) {
-      console.error("[api/awards/[id]/evaluate POST]", err)
-      return {
-        status: 500,
-        data: { error: "Failed to evaluate award rules" }
-      };
-    }
+    return await awardEvaluationService.evaluateById({ id, context: body })
   }
 });

@@ -40,7 +40,7 @@ function ProfilePage() {
   })
 
   const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
-    return changePasswordMutation.mutateAsync({
+    await changePasswordMutation.mutateAsync({
       currentPassword,
       newPassword,
     })
@@ -48,7 +48,7 @@ function ProfilePage() {
 
   useEffect(() => {
     if (user) {
-      setUsername(user.username)
+      setUsername(user.username ?? "")
     }
   }, [user])
 

@@ -1,4 +1,4 @@
-import type { ISchedule } from "../db/schemas/schedule"
+import type { ISchedule } from "@/lib/db/queries/scheduling-types"
 
 export interface ShiftPattern {
   dayOfWeek: number[]

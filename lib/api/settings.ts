@@ -64,6 +64,16 @@ export interface StorageStats {
   storageLimitMB: number | null
   assets: number
   bandwidth: number | null
+  // Cloudinary plan/credits (optional; depends on provider + endpoint payload)
+  plan?: string
+  credits?: number
+  creditsUsed?: number
+  creditsLimit?: number
+  creditsUsedPercent?: number
+  storageCredits?: number
+  bandwidthCredits?: number
+  transformationsCredits?: number
+  derivedResources?: number
   images?: number
   videos?: number
   transformations?: number

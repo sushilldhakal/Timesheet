@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server"
-import { readFile } from "node:fs/promises"
-import path from "node:path"
+import { openApiService } from "@/lib/services/openapi/openapi-service"
 
 // Serve the generated OpenAPI spec from public/openapi.json
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), "public", "openapi.json")
-    const file = await readFile(filePath, "utf8")
-    const json = JSON.parse(file)
+    const json = await openApiService.readSpecFromPublic()
     return NextResponse.json(json, {
       headers: {
         "Cache-Control": "public, max-age=3600",

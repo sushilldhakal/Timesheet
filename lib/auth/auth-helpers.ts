@@ -14,6 +14,7 @@ import { cookies } from "next/headers"
 export type AuthPayload = {
   sub: string
   email: string
+  name?: string
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string
 }
@@ -52,6 +53,7 @@ function getSecret() {
 export async function createAuthToken(payload: AuthPayload): Promise<string> {
   return new SignJWT({
     email: payload.email,
+    name: payload.name ?? "",
     role: payload.role,
     location: payload.location ?? "",
   })
@@ -72,6 +74,7 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
     return {
       sub,
       email: payload.email as string,
+      name: typeof (payload as any).name === "string" && String((payload as any).name).trim() ? String((payload as any).name) : undefined,
       role: validRole as "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
     }

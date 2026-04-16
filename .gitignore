@@ -1,51 +1,68 @@
-# dependencies
-/node_modules
-/.pnp
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+/node_modules/
+/.pnp/
 .pnp.js
-.yarn/install-state.gz
+.yarn/
 
-# Ignore all .md files except root README.md only
-*.md
-!/README.md
-# testing
-/coverage
-.kiro
-.cursor
-# next.js
+# -----------------------------------------------------------------------------
+# Build output / framework artifacts
+# -----------------------------------------------------------------------------
 /.next/
 /out/
-/full-calendar
-/big-calender
-# production
-/build
+/build/
+*.tsbuildinfo
+next-env.d.ts
 
-# misc
-.DS_Store
-*.pem
-.openclaw/
-8009
-8009.pub
-# debug
+# -----------------------------------------------------------------------------
+# Logs / debug
+# -----------------------------------------------------------------------------
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files (never commit real secrets)
+# -----------------------------------------------------------------------------
+# Environment / secrets (never commit)
+# -----------------------------------------------------------------------------
 .env
 .env*.local
-env.txt
 .env.development
 .env.production
+env.txt
 
-# vercel
-.vercel
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-scripts/
-skills-lock.json
-package-lock.json
+# -----------------------------------------------------------------------------
+# Editor / OS / tool folders
+# -----------------------------------------------------------------------------
+.DS_Store
 /.vscode/
-/.agents
+/.vercel/
+
+# -----------------------------------------------------------------------------
+# Ignore all dotfiles/dotfolders by default (keep .gitignore tracked)
+# -----------------------------------------------------------------------------
+.*
+!.gitignore
+
+# -----------------------------------------------------------------------------
+# Project-specific folders
+# -----------------------------------------------------------------------------
+docs/
+scripts/
+/full-calendar/
+/big-calender/
 /shadcn-scheduler/
+
+# -----------------------------------------------------------------------------
+# Docs policy
+# -----------------------------------------------------------------------------
+*.md
+!/README.md
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+*.pem
+.openclaw/
+8009
+8009.pub

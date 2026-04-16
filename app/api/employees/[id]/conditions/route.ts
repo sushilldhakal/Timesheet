@@ -1,5 +1,3 @@
-import { getEmployeeConditions } from "@/lib/utils/employees/award-resolver";
-import { connectDB } from "@/lib/db";
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
@@ -7,6 +5,7 @@ import {
   employeeConditionsResponseSchema
 } from "@/lib/validations/employee-conditions"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employeeConditionsService } from "@/lib/services/employee/employee-conditions-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -34,18 +33,7 @@ export const GET = createApiRoute({
     const date = dateParam ? new Date(dateParam) : new Date();
 
     try {
-      await connectDB();
-
-      const conditions = await getEmployeeConditions(id, date);
-
-      if (!conditions) {
-        return {
-          status: 404,
-          data: { error: "No active award conditions found for this employee" }
-        };
-      }
-
-      return { status: 200, data: conditions };
+      return await employeeConditionsService.get(id, date)
     } catch (error: any) {
       console.error("Error fetching employee conditions:", error);
       return {

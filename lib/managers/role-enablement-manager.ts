@@ -1,7 +1,7 @@
 import mongoose from "mongoose"
-import { LocationRoleEnablement, ILocationRoleEnablement } from "../db/schemas/location-role-enablement"
-import { Location } from "../db/schemas/location"
-import { Team } from "../db/schemas/team"
+import type { ILocationRoleEnablement } from "@/lib/db/queries/scheduling-types"
+import { CoreEntitiesDbQueries } from "@/lib/db/queries/core-entities"
+import { LocationRoleEnablementDbQueries } from "@/lib/db/queries/location-role-enablement"
 
 export interface EnableRoleParams {
   locationId: mongoose.Types.ObjectId | string
@@ -91,7 +91,7 @@ export class RoleEnablementManager {
       }
 
       // Verify location exists
-      const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString()))
+      const location = await CoreEntitiesDbQueries.locationFindById(locationId.toString())
       if (!location) {
         throw new RoleEnablementError(
           `Location with ID ${locationId} not found`,
@@ -101,7 +101,7 @@ export class RoleEnablementManager {
       }
 
       // Verify role exists
-      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await CoreEntitiesDbQueries.teamFindById(roleId.toString())
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,
@@ -139,7 +139,7 @@ export class RoleEnablementManager {
         ]
       }
 
-      const overlapping = await LocationRoleEnablement.findOne(overlappingQuery)
+      const overlapping = await LocationRoleEnablementDbQueries.findOne(overlappingQuery)
       if (overlapping) {
         throw new RoleEnablementError(
           `Role is already enabled at this location during the specified period. ` +
@@ -152,7 +152,7 @@ export class RoleEnablementManager {
       }
 
       // Create the enablement record
-      const enablement = new LocationRoleEnablement({
+      const enablement = LocationRoleEnablementDbQueries.createDoc({
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         effectiveFrom,
@@ -257,7 +257,7 @@ export class RoleEnablementManager {
       const now = new Date()
 
       // Find the active enablement (no effectiveTo or effectiveTo in the future)
-      const enablement = await LocationRoleEnablement.findOne({
+      const enablement = await LocationRoleEnablementDbQueries.findOne({
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         effectiveFrom: { $lte: now },
@@ -353,7 +353,7 @@ export class RoleEnablementManager {
         throw new RoleEnablementError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const enablements = await LocationRoleEnablement.find({
+      const enablements = await LocationRoleEnablementDbQueries.find({
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         effectiveFrom: { $lte: date },
         $or: [
@@ -440,7 +440,7 @@ export class RoleEnablementManager {
         throw new RoleEnablementError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const enablement = await LocationRoleEnablement.findOne({
+      const enablement = await LocationRoleEnablementDbQueries.findOne({
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         effectiveFrom: { $lte: date },
@@ -517,7 +517,7 @@ export class RoleEnablementManager {
         throw new RoleEnablementError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const enablements = await LocationRoleEnablement.find({
+      const enablements = await LocationRoleEnablementDbQueries.find({
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         effectiveFrom: { $lte: date },
         $or: [
@@ -631,7 +631,7 @@ export class RoleEnablementManager {
       }
 
       // Verify role exists
-      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await CoreEntitiesDbQueries.teamFindById(roleId.toString())
       if (!role) {
         throw new RoleEnablementError(
           `Role with ID ${roleId} not found`,
@@ -642,9 +642,7 @@ export class RoleEnablementManager {
 
       // Verify all locations exist and are of type 'location'
       const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id.toString()))
-      const locations = await Location.find({
-        _id: { $in: locationObjectIds },
-      })
+      const locations = await CoreEntitiesDbQueries.locationsFindByIds(locationIds.map((id) => id.toString()))
 
       if (locations.length !== locationIds.length) {
         const foundIds = locations.map(loc => loc._id.toString())
@@ -684,7 +682,7 @@ export class RoleEnablementManager {
         ]
       }
 
-      const overlapping = await LocationRoleEnablement.find(overlappingQuery)
+      const overlapping = await LocationRoleEnablementDbQueries.find(overlappingQuery)
       if (overlapping.length > 0) {
         const overlappingLocationIds = overlapping.map(e => e.locationId.toString())
         throw new RoleEnablementError(
@@ -704,7 +702,7 @@ export class RoleEnablementManager {
         createdBy: new mongoose.Types.ObjectId(userId.toString()),
       }))
 
-      const created = await LocationRoleEnablement.insertMany(enablements)
+      const created = await LocationRoleEnablementDbQueries.insertMany(enablements)
       return created
     } catch (error) {
       // Re-throw RoleEnablementError as-is

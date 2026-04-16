@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayRun } from "@/lib/db/schemas/pay-run"
-import { DailyShift } from "@/lib/db/schemas/daily-shift"
-import { generatePayrollExport, convertRowsToCSV } from "@/lib/payroll/export-payrun"
+import { payrollExportService } from "@/lib/services/payroll/payroll-export-service"
 
 export async function POST(req: NextRequest) {
   const ctx = await getAuthWithUserLocations()
@@ -28,47 +25,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { rows, summary, errors } = await generatePayrollExport(
-      payRunId,
-      payrollSystemType,
-      options
-    )
+    const result = await payrollExportService.exportCsv({ ctx, payRunId, payrollSystemType, fileName, options })
+    if (result.status !== 200) return NextResponse.json(result.data, { status: result.status })
 
-    if (!rows.length) {
-      return NextResponse.json(
-        { error: 'No shifts to export', errors },
-        { status: 400 }
-      )
-    }
-
-    const csv = convertRowsToCSV(rows)
-
-    await connectDB()
-
-    await PayRun.findByIdAndUpdate(payRunId, {
-      exportedAt: new Date(),
-      exportType: payrollSystemType,
-      exportReference: fileName || `payroll-export-${payRunId}.csv`,
-      exportedBy: ctx.auth.sub,
-      status: 'exported'
-    })
-
-    await DailyShift.updateMany(
-      { 'paySnapshot.payRunId': payRunId },
-      {
-        exportedAt: new Date(),
-        status: 'exported'
-      }
-    )
-
-    const finalFileName = fileName || `payroll-export-${payRunId}.csv`
-
-    return new Response(csv, {
+    return new Response(result.data.csv, {
       headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${finalFileName}"`,
-        'X-Export-Summary': JSON.stringify(summary)
-      }
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${result.data.fileName}"`,
+        "X-Export-Summary": JSON.stringify(result.data.summary),
+      },
     })
   } catch (err) {
     console.error("[api/payroll/export POST]", err)
@@ -95,16 +60,13 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const { rows, summary, errors } = await generatePayrollExport(
-      payRunId,
-      payrollSystemType
-    )
+    const { rows, summary, errors, rowCount } = await payrollExportService.preview({ payRunId, payrollSystemType })
 
     return NextResponse.json({
       rows,
       summary,
       errors,
-      rowCount: rows.length
+      rowCount
     })
   } catch (err) {
     console.error("[api/payroll/export GET]", err)

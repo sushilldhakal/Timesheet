@@ -1,7 +1,5 @@
 import type { Right } from "@/lib/config/rights"
-import mongoose from "mongoose"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB, User } from "@/lib/db"
 import { 
   userIdParamSchema, 
   userAdminUpdateSchema, 
@@ -11,8 +9,8 @@ import {
   userDeleteResponseSchema,
 } from "@/lib/validations/user"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { userService } from "@/lib/services/user/user-service"
 
 /** GET /api/users/[id] - Get single user (admin or self) */
 export const GET = createApiRoute({
@@ -38,51 +36,8 @@ export const GET = createApiRoute({
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
-    const auth = ctx.auth
-
-    const { id } = params!
-
-    if (!isAdminOrSuperAdmin(auth.role) && auth.sub !== id) {
-      return { status: 403, data: { error: "Forbidden" } }
-    }
-
-    try {
-      await connectDB()
-      const user = await User.findById(id).select("-password").lean()
-
-      if (!user) {
-        return { status: 404, data: { error: "User not found" } }
-      }
-      if (String(user.tenantId) !== ctx.tenantId) {
-        return { status: 403, data: { error: "Unauthorized" } }
-      }
-
-      if (user.role === "super_admin" && !isSuperAdmin(auth.role)) {
-        return { status: 404, data: { error: "User not found" } }
-      }
-
-      const location = Array.isArray(user.location) ? user.location : user.location ? [String(user.location)] : []
-
-      return {
-        status: 200,
-        data: {
-          user: {
-            id: user._id,
-            name: user.name ?? "",
-            email: user.email ?? "",
-            role: user.role,
-            location,
-            rights: user.rights ?? [],
-            managedRoles: user.managedRoles ?? [],
-            teamIds: Array.isArray(user.teamIds) ? user.teamIds.map((x) => String(x)) : [],
-            createdAt: user.createdAt,
-          },
-        }
-      }
-    } catch (err) {
-      console.error("[api/users/[id] GET]", err)
-      return { status: 500, data: { error: "Failed to fetch user" } }
-    }
+    const result = await userService.getUser({ ctx, id: params!.id })
+    return { status: 200, data: result }
   }
 });
 
@@ -112,132 +67,8 @@ export const PATCH = createApiRoute({
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
-    const auth = ctx.auth
-
-    const { id } = params!
-    const isSelf = auth.sub === id
-    const isAdminOrSuper = isAdminOrSuperAdmin(auth.role)
-
-    if (!isAdminOrSuper && !isSelf) {
-      return { status: 403, data: { error: "Forbidden" } }
-    }
-
-    try {
-      await connectDB()
-      const existing = await User.findById(id).select("+password")
-      if (!existing) {
-        return { status: 404, data: { error: "User not found" } }
-      }
-      if (String(existing.tenantId) !== ctx.tenantId) {
-        return { status: 403, data: { error: "Unauthorized" } }
-      }
-
-      if (existing.role === "super_admin" && !isSuperAdmin(auth.role)) {
-        return { status: 403, data: { error: "Forbidden" } }
-      }
-
-      if (isAdminOrSuper) {
-        // Admin: full update
-        const parsedUpdate = userAdminUpdateSchema.safeParse(body)
-        if (!parsedUpdate.success) {
-          return {
-            status: 400,
-            data: { error: "Validation failed", issues: parsedUpdate.error.flatten().fieldErrors }
-          }
-        }
-
-        const { name, email, password, role, location, managedRoles, teamIds } = parsedUpdate.data
-
-        if (email !== undefined) {
-          const duplicate = await User.findOne({
-            tenantId: existing.tenantId,
-            email: email.toLowerCase(),
-            _id: { $ne: id },
-          })
-          if (duplicate) {
-            return { status: 409, data: { error: "Email already exists" } }
-          }
-          existing.email = email.toLowerCase()
-        }
-        if (name !== undefined) existing.name = name.trim()
-        if (password) existing.password = password
-        if (role !== undefined) existing.role = role
-        if (location !== undefined) existing.location = location
-        if (managedRoles !== undefined) existing.managedRoles = managedRoles
-        if (teamIds !== undefined) {
-          existing.teamIds = teamIds.map((tid) => new mongoose.Types.ObjectId(tid))
-        }
-
-        await existing.save()
-
-        const u = await User.findById(id).select("-password").lean()
-        const loc = u?.location
-        const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : []
-
-        return {
-          status: 200,
-          data: {
-            user: {
-              id: u?._id,
-              name: u?.name ?? "",
-              email: u?.email ?? "",
-              role: u?.role,
-              location: locArr,
-              rights: u?.rights ?? [],
-              managedRoles: u?.managedRoles ?? [],
-              teamIds: Array.isArray(u?.teamIds) ? u.teamIds.map((x) => String(x)) : [],
-            },
-          }
-        }
-      }
-
-      // User: self-update (email and password only)
-      const parsedSelf = userSelfUpdateSchema.safeParse(body)
-      if (!parsedSelf.success) {
-        return {
-          status: 400,
-          data: { error: "Validation failed", issues: parsedSelf.error.flatten().fieldErrors }
-        }
-      }
-
-      const { email: newEmail, password } = parsedSelf.data
-
-      if (newEmail) {
-        const emailDuplicate = await User.findOne({
-          tenantId: existing.tenantId,
-          email: newEmail.toLowerCase(),
-          _id: { $ne: id },
-        })
-        if (emailDuplicate) {
-          return { status: 409, data: { error: "Email already exists" } }
-        }
-        existing.email = newEmail.toLowerCase()
-      }
-
-      if (password) existing.password = password
-      await existing.save()
-
-      const u = await User.findById(id).select("-password").lean()
-      const loc = u?.location
-      const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : []
-
-      return {
-        status: 200,
-        data: {
-          user: {
-            id: u?._id,
-            name: u?.name ?? "",
-            email: u?.email ?? "",
-            role: u?.role,
-            location: locArr,
-            rights: u?.rights ?? [],
-          },
-        }
-      }
-    } catch (err) {
-      console.error("[api/users/[id] PATCH]", err)
-      return { status: 500, data: { error: "Failed to update user" } }
-    }
+    const result = await userService.updateUser({ ctx, id: params!.id, body })
+    return { status: 200, data: result }
   }
 });
 
@@ -265,34 +96,7 @@ export const DELETE = createApiRoute({
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
-    const auth = ctx.auth
-    if (!isAdminOrSuperAdmin(auth.role)) {
-      return { status: 403, data: { error: "Forbidden" } }
-    }
-
-    const { id } = params!
-
-    if (auth.sub === id) {
-      return { status: 400, data: { error: "Cannot delete your own account" } }
-    }
-
-    try {
-      await connectDB()
-      const target = await User.findById(id).select("role tenantId").lean()
-      if (!target) {
-        return { status: 404, data: { error: "User not found" } }
-      }
-      if (String(target.tenantId) !== ctx.tenantId) {
-        return { status: 403, data: { error: "Unauthorized" } }
-      }
-      if (target.role === "super_admin" && !isSuperAdmin(auth.role)) {
-        return { status: 403, data: { error: "Forbidden" } }
-      }
-      await User.findByIdAndDelete(id)
-      return { status: 200, data: { success: true } }
-    } catch (err) {
-      console.error("[api/users/[id] DELETE]", err)
-      return { status: 500, data: { error: "Failed to delete user" } }
-    }
+    const result = await userService.deleteUser({ ctx, id: params!.id })
+    return { status: 200, data: result }
   }
 });

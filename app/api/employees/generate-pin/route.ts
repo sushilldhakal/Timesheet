@@ -1,8 +1,8 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB, Employee } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { pinGenerationResponseSchema } from "@/lib/validations/employee-pin"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employeePinGenerationService } from "@/lib/services/employee/employee-pin-generation-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -23,22 +23,7 @@ export const GET = createApiRoute({
     }
 
     try {
-      await connectDB()
-      const existing = await Employee.find({}, { pin: 1 }).lean()
-      const usedPins = new Set((existing || []).map((e) => String(e.pin ?? "")))
-
-      let pin: string
-      let attempts = 0
-      const maxAttempts = 100
-      do {
-        pin = String(Math.floor(1000 + Math.random() * 9000))
-        attempts++
-        if (attempts >= maxAttempts) {
-          return { status: 500, data: { error: "Could not generate unique PIN. Try again." } };
-        }
-      } while (usedPins.has(pin))
-
-      return { status: 200, data: { pin } };
+      return await employeePinGenerationService.generateUniquePin()
     } catch (err) {
       console.error("[api/employees/generate-pin]", err)
       return { status: 500, data: { error: "Failed to generate PIN" } };

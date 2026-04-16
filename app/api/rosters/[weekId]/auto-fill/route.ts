@@ -1,7 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { assertManagerSchedulingScope } from "@/lib/auth/scheduling-scope"
-import { connectDB } from "@/lib/db"
-import { AutoFillEngine } from "@/lib/managers/auto-fill-engine"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   weekIdParamSchema,
@@ -9,6 +7,7 @@ import {
   autoFillResponseSchema,
 } from "@/lib/validations/roster-operations"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { rosterService } from "@/lib/services/roster/roster-service"
 
 export const POST = createApiRoute({
   method: "POST",
@@ -49,46 +48,7 @@ export const POST = createApiRoute({
     const types = employmentTypes || ["FULL_TIME", "PART_TIME"]
 
     try {
-      await connectDB()
-
-      const { Roster } = await import("@/lib/db")
-      let roster = await Roster.findOne({ weekId })
-
-      if (!roster) {
-        const { getWeekBoundaries } = await import("@/lib/db/schemas/roster")
-        const { start, end } = getWeekBoundaries(weekId)
-        const [yearStr, weekStr] = weekId.split("-W")
-
-        roster = await Roster.create({
-          weekId: weekId,
-          year: parseInt(yearStr, 10),
-          weekNumber: parseInt(weekStr, 10),
-          weekStartDate: start,
-          weekEndDate: end,
-          shifts: [],
-          status: "draft",
-        })
-      }
-
-      const autoFillEngine = new AutoFillEngine()
-      const result = await autoFillEngine.fillRoster(
-        roster._id.toString(),
-        locationId,
-        managedRoles,
-        types,
-        { replaceDrafts: !!replaceDrafts }
-      )
-
-      return {
-        status: 200,
-        data: {
-          successCount: result.successCount,
-          failureCount: result.failureCount,
-          skippedCount: result.skippedCount,
-          violations: result.violations,
-          skippedEmployees: result.skippedEmployees,
-        },
-      }
+      return await rosterService.autoFillRoster(weekId, locationId, managedRoles, employmentTypes, replaceDrafts)
     } catch (err) {
       console.error("[api/rosters/[weekId]/auto-fill POST]", err)
       return { status: 500, data: { error: "Failed to auto-fill roster" } }

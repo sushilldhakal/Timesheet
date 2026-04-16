@@ -1,10 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayRun } from "@/lib/db/schemas/pay-run"
-import { PayItem } from "@/lib/db/schemas/pay-item"
-import { Employee } from "@/lib/db/schemas/employee"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { payRunService } from "@/lib/services/pay-run/pay-run-service"
 
 const payRunParamsSchema = z.object({
   id: z.string()
@@ -76,80 +73,8 @@ export const GET = createApiRoute({
     const { id } = params!
 
     try {
-      await connectDB()
-
-      // Fetch pay run
-      const payRun = await PayRun.findById(id).lean()
-
-      if (!payRun) {
-        return {
-          status: 404,
-          data: { error: "Pay run not found" }
-        }
-      }
-
-      // Fetch all pay items for this pay run
-      const payItems = await PayItem.find({ payRunId: payRun._id })
-        .sort({ employeeId: 1, from: 1 })
-        .lean()
-
-      // Group by employee
-      const employeeMap = new Map<string, {
-        employeeId: string
-        employeeName: string
-        totalHours: number
-        totalAmount: number
-        payItems: any[]
-      }>()
-
-      for (const item of payItems) {
-        const employeeId = item.employeeId.toString()
-
-        if (!employeeMap.has(employeeId)) {
-          // Fetch employee name
-          const employee = await Employee.findById(employeeId).select('name').lean()
-          
-          employeeMap.set(employeeId, {
-            employeeId,
-            employeeName: employee?.name || 'Unknown Employee',
-            totalHours: 0,
-            totalAmount: 0,
-            payItems: []
-          })
-        }
-
-        const employeeData = employeeMap.get(employeeId)!
-        employeeData.totalHours += item.hours
-        employeeData.totalAmount += item.amount
-        employeeData.payItems.push({
-          type: item.type,
-          name: item.name,
-          exportName: item.exportName,
-          from: item.from,
-          to: item.to,
-          hours: item.hours,
-          rate: item.rate,
-          multiplier: item.multiplier,
-          amount: item.amount
-        })
-      }
-
-      // Convert map to array
-      const employees = Array.from(employeeMap.values())
-
-      return {
-        status: 200,
-        data: {
-          payRun: {
-            _id: payRun._id.toString(),
-            startDate: payRun.startDate,
-            endDate: payRun.endDate,
-            status: payRun.status,
-            totals: payRun.totals
-          },
-          employees
-        }
-      }
+      const result = await payRunService.exportPayRun(id)
+      return { status: 200, data: result }
 
     } catch (err) {
       console.error("[api/pay-runs/[id]/export GET]", err)

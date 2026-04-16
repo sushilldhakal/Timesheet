@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useOfflinePinValidation } from "@/lib/hooks/use-offline-pin-validation"
 import { useDeviceAuth } from "@/lib/hooks/use-device-auth"
 
@@ -21,6 +21,7 @@ export function Home() {
   const [pin, setPin] = useState("")
   const [time12, setTime12] = useState(() => formatTime12hr(new Date()))
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const isMountedRef = useRef(true)
 
   // Use offline-capable PIN validation
   const { status, errorMessage, isOnline, verifyPin } = useOfflinePinValidation()
@@ -44,11 +45,18 @@ export function Home() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   // Get user location on mount
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          if (!isMountedRef.current) return
           setUserLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,

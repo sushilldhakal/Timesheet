@@ -1,7 +1,6 @@
-import Award from '@/lib/db/schemas/award'
-import { AwardVersionHistory } from '@/lib/db/schemas/award-version-history'
 import type { IAward } from '@/lib/db/schemas/award'
 import type { IAwardVersionHistoryDocument } from '@/lib/db/schemas/award-version-history'
+import { AwardVersionsDbQueries } from "@/lib/db/queries/award-versions"
 
 /**
  * Retrieves the correct award version that was effective on a given date.
@@ -11,7 +10,7 @@ export async function getAwardForDate(
   awardId: string,
   shiftDate: Date
 ): Promise<IAward | IAwardVersionHistoryDocument | null> {
-  const award = await Award.findById(awardId)
+  const award = await AwardVersionsDbQueries.ensureAwardExists(awardId)
   if (!award) return null
 
   const isCurrentVersionValid =
@@ -22,14 +21,7 @@ export async function getAwardForDate(
     return award
   }
 
-  const historicalVersion = await AwardVersionHistory.findOne({
-    baseAwardId: awardId,
-    effectiveFrom: { $lte: shiftDate },
-    $or: [
-      { effectiveTo: null },
-      { effectiveTo: { $gt: shiftDate } }
-    ]
-  }).sort({ effectiveFrom: -1 })
+  const historicalVersion = await AwardVersionsDbQueries.findHistoryEffectiveForDate({ baseAwardId: awardId, shiftDate })
 
   return historicalVersion
 }
@@ -38,12 +30,10 @@ export async function getAwardForDate(
  * Returns all versions of an award (current + historical), ordered newest first.
  */
 export async function getAwardHistory(awardId: string) {
-  const award = await Award.findById(awardId).lean()
+  const award = await AwardVersionsDbQueries.ensureAwardExistsLean(awardId)
   if (!award) return []
 
-  const history = await AwardVersionHistory.find({ baseAwardId: awardId })
-    .sort({ effectiveFrom: -1 })
-    .lean()
+  const history = await AwardVersionsDbQueries.listHistoryLean(awardId)
 
   const currentEntry = {
     _id: award._id,
@@ -75,17 +65,14 @@ export async function getAwardHistory(awardId: string) {
  * Checks current Award first, then falls back to version history.
  */
 export async function getAwardVersion(awardId: string, version: string) {
-  const award = await Award.findById(awardId).lean()
+  const award = await AwardVersionsDbQueries.ensureAwardExistsLean(awardId)
   if (!award) return null
 
   if (award.version === version) {
     return { ...award, isCurrent: true }
   }
 
-  const historicalVersion = await AwardVersionHistory.findOne({
-    baseAwardId: awardId,
-    version,
-  }).lean()
+  const historicalVersion = await AwardVersionsDbQueries.findHistoryByVersionLean({ baseAwardId: awardId, version })
 
   if (!historicalVersion) return null
 

@@ -5,6 +5,8 @@ import {
   denyAbsenceResponseSchema,
 } from "@/lib/validations/absences"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { absenceActionsService } from "@/lib/services/absence/absence-actions-service"
 
 /**
  * PATCH /api/absences/[id]/deny
@@ -29,10 +31,6 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
-    const { connectDB } = await import("@/lib/db")
-    const { AbsenceManager } = await import("@/lib/managers/absence-manager")
-
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
@@ -41,31 +39,6 @@ export const PATCH = createApiRoute({
     const { id } = params!
     const { denierId, reason } = body!
 
-    try {
-      await connectDB()
-      const absenceManager = new AbsenceManager()
-      const leaveRecord = await absenceManager.denyLeaveRecord(id, denierId, reason)
-
-      return {
-        status: 200,
-        data: { leaveRecord },
-      }
-    } catch (err: unknown) {
-      console.error("[api/absences/[id]/deny PATCH]", err)
-      const message = err instanceof Error ? err.message : ""
-
-      if (message.includes("not found")) {
-        return { status: 404, data: { error: message } }
-      }
-
-      if (message.includes("PENDING")) {
-        return { status: 400, data: { error: message } }
-      }
-
-      return {
-        status: 500,
-        data: { error: "Failed to deny leave record" },
-      }
-    }
+    return { status: 200, data: await absenceActionsService.deny(id, denierId, reason) }
   },
 })

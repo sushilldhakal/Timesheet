@@ -1,7 +1,8 @@
 import mongoose from "mongoose"
-import { Employee, IEmployeeDocument } from "../db/schemas/employee"
-import { ISchedule } from "../db/schemas/schedule"
+import type { ISchedule } from "@/lib/db/queries/scheduling-types"
 import { validateSchedule } from "@/lib/utils/validation/schedule-validation"
+import { EmployeeDbQueries } from "@/lib/db/queries/employees"
+import { oid } from "@/lib/db/queries/scheduling-core"
 
 /**
  * Schedule Manager
@@ -30,7 +31,7 @@ export class ScheduleManager {
       }
 
       // Find the employee
-      const employee = await Employee.findById(employeeId)
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
       if (!employee) {
         return {
           success: false,
@@ -41,7 +42,7 @@ export class ScheduleManager {
 
       // Create new schedule with generated _id
       const newSchedule = {
-        _id: new mongoose.Types.ObjectId(),
+        _id: oid(),
         ...scheduleData,
       } as ISchedule
 
@@ -81,7 +82,7 @@ export class ScheduleManager {
   ): Promise<{ success: true; schedule: ISchedule } | { success: false; error: string; message: string }> {
     try {
       // Find the employee
-      const employee = await Employee.findById(employeeId)
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
       if (!employee) {
         return {
           success: false,
@@ -156,7 +157,7 @@ export class ScheduleManager {
   ): Promise<{ success: true } | { success: false; error: string; message: string }> {
     try {
       // Find the employee
-      const employee = await Employee.findById(employeeId)
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
       if (!employee) {
         return {
           success: false,
@@ -206,7 +207,7 @@ export class ScheduleManager {
   ): Promise<{ success: true; schedules: ISchedule[] } | { success: false; error: string; message: string }> {
     try {
       // Find the employee
-      const employee = await Employee.findById(employeeId)
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
       if (!employee) {
         return {
           success: false,

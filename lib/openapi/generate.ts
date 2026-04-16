@@ -3,6 +3,13 @@ import { writeFileSync } from 'fs';
 import { z } from 'zod';
 import { routes } from './registry';
 
+function normalizeOpenApiPath(nextPath: string): string {
+  // Convert Next.js App Router dynamic segments to OpenAPI format.
+  // Example: /api/daily-shifts/[id]/approve -> /api/daily-shifts/{id}/approve
+  // Example: /api/foo/[...slug] -> /api/foo/{slug}
+  return nextPath.replace(/\[(?:\.\.\.)?([^\]]+)\]/g, '{$1}');
+}
+
 // Helper to convert Zod schema to JSON Schema for OpenAPI (Zod v4 native API)
 function schemaToJsonSchema(schema: unknown): Record<string, unknown> | undefined {
   if (!schema) return undefined;
@@ -86,6 +93,7 @@ function generateOpenAPISpec() {
     'Rosters': 'Roster and shift scheduling',
     'Schedules': 'Schedule templates and management',
     'Timesheets': 'Timesheet tracking and management',
+    'DailyShifts': 'Day-level shift operations (approvals, edits, queries)',
     'Teams': 'Team management and availability',
     'Calendar': 'Calendar events and scheduling',
     'Awards': 'Award and recognition management',
@@ -114,16 +122,17 @@ function generateOpenAPISpec() {
   // Convert routes to OpenAPI paths
   routes.forEach((route) => {
     const { method, path, summary, description, tags, security, requestBody, parameters, responses } = route;
+    const openApiPath = normalizeOpenApiPath(path);
 
     // Track stats
-    if (!pathStats.has(path)) {
-      pathStats.set(path, new Set());
+    if (!pathStats.has(openApiPath)) {
+      pathStats.set(openApiPath, new Set());
     }
-    pathStats.get(path)!.add(method);
+    pathStats.get(openApiPath)!.add(method);
 
     // Initialize path if it doesn't exist
-    if (!spec.paths[path]) {
-      spec.paths[path] = {};
+    if (!spec.paths[openApiPath]) {
+      spec.paths[openApiPath] = {};
     }
 
     // Build operation object
@@ -195,7 +204,7 @@ function generateOpenAPISpec() {
     }
 
     // Add operation to path
-    spec.paths[path][method] = operation;
+    spec.paths[openApiPath][method] = operation;
   });
 
   // Write to file

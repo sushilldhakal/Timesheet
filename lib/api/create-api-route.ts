@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodSchema, z } from 'zod';
 import { routes } from '@/lib/openapi/registry';
+import { isApiError } from '@/lib/api/api-error';
 
 // Configuration object for createApiRoute
 interface ApiRouteConfig<
@@ -189,6 +190,22 @@ export function createApiRoute<
       return NextResponse.json(result.data, { status: result.status });
 
     } catch (error) {
+      if (isApiError(error)) {
+        const details = process.env.NODE_ENV === 'development' ? error.details : undefined;
+        const existingId =
+          details && typeof details === 'object' && details !== null && 'existingId' in details
+            ? (details as any).existingId
+            : undefined;
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code,
+            details,
+            existingId,
+          },
+          { status: error.status }
+        );
+      }
       // Catch errors and return 500 with error message
       console.error('API Route Error:', error);
       return NextResponse.json(

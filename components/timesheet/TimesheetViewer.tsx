@@ -31,6 +31,7 @@ export function TimesheetViewer({
   error,
   onExportCsv,
   onPrint,
+  renderEntries,
 }: {
   title: string
   subtitle?: string
@@ -52,6 +53,11 @@ export function TimesheetViewer({
   error?: unknown
   onExportCsv?: () => void
   onPrint?: () => void
+  renderEntries?: (args: {
+    entries: TimesheetEntryRow[]
+    employeeName: string
+    employeeImageUrl?: string
+  }) => React.ReactNode
 }) {
   return (
     <div className="space-y-6">
@@ -178,11 +184,15 @@ export function TimesheetViewer({
                 </div>
               ) : (
                 <>
-                  <TimesheetEntriesList
-                    entries={entries}
-                    employeeName={employeeName}
-                    employeeImageUrl={employeeImageUrl}
-                  />
+                  {renderEntries ? (
+                    renderEntries({ entries, employeeName, employeeImageUrl })
+                  ) : (
+                    <TimesheetEntriesList
+                      entries={entries}
+                      employeeName={employeeName}
+                      employeeImageUrl={employeeImageUrl}
+                    />
+                  )}
                   <div className="mt-6">
                     <TimesheetShiftChart entries={entries} />
                   </div>

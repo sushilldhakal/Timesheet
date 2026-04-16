@@ -1,6 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { RosterManager } from "@/lib/managers/roster-manager"
+import { rosterService } from "@/lib/services/roster/roster-service"
 import { 
   createRosterSchema,
   createRosterResponseSchema,
@@ -37,50 +36,7 @@ export const POST = createApiRoute({
     const { weekId, autoPopulate = true } = body!
 
     try {
-      await connectDB()
-      
-      const rosterManager = new RosterManager()
-      
-      // Create roster
-      const createResult = await rosterManager.createRoster(weekId)
-      
-      if (!createResult.success) {
-        return {
-          status: 400,
-          data: { error: createResult.error || "Failed to create roster" }
-        }
-      }
-      
-      // Auto-populate if requested
-      if (autoPopulate) {
-        const populateResult = await rosterManager.populateRosterFromSchedules(weekId)
-        
-        if (!populateResult.success) {
-          return {
-            status: 207, // Multi-status: roster created but population failed
-            data: { 
-              roster: createResult.roster,
-              shiftsGenerated: 0
-            }
-          }
-        }
-        
-        return {
-          status: 201,
-          data: { 
-            roster: createResult.roster,
-            shiftsGenerated: populateResult.shiftsCreated || 0
-          }
-        }
-      }
-      
-      return {
-        status: 201,
-        data: { 
-          roster: createResult.roster,
-          shiftsGenerated: 0
-        }
-      }
+      return await rosterService.createRoster(weekId, autoPopulate)
     } catch (err) {
       console.error("[api/rosters POST]", err)
       return {

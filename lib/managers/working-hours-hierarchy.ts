@@ -1,7 +1,6 @@
 import mongoose from "mongoose"
-import { Employee } from "../db/schemas/employee"
-import Award from "../db/schemas/award"
-import { ISchedule } from "../db/schemas/schedule"
+import type { ISchedule } from "@/lib/db/queries/scheduling-types"
+import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
 
 export interface WorkingHoursConfig {
   standardHoursPerWeek: number
@@ -52,7 +51,7 @@ export class WorkingHoursHierarchy {
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
-      const employee = await Employee.findById(employeeId)
+      const employee = await SchedulingModels.Employee.findById(employeeId)
       if (!employee || !employee.schedules || employee.schedules.length === 0) {
         return null
       }
@@ -86,8 +85,7 @@ export class WorkingHoursHierarchy {
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
-      // Import EmployeeRoleAssignment
-      const { EmployeeRoleAssignment } = await import("../db/schemas/employee-role-assignment")
+      const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
       
       // Get active role assignments for this employee
       const roleAssignments = await EmployeeRoleAssignment.find({
@@ -131,12 +129,12 @@ export class WorkingHoursHierarchy {
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
-      const employee = await Employee.findById(employeeId)
+      const employee = await SchedulingModels.Employee.findById(employeeId)
       if (!employee || !employee.awardId || !employee.awardLevel || !employee.employmentType) {
         return null
       }
 
-      const award = await Award.findById(employee.awardId)
+      const award = await SchedulingModels.Award.findById(employee.awardId)
       if (!award) {
         return null
       }

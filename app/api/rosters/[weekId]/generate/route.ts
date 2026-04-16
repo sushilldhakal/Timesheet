@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { RosterManager } from "@/lib/managers/roster-manager"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { rosterService } from "@/lib/services/roster/roster-service"
 
 // Validation schemas
 const weekIdParamSchema = z.object({
@@ -55,81 +54,7 @@ export const POST = createApiRoute({
     const weekId = params!.weekId
 
     try {
-      await connectDB()
-
-      const rosterManager = new RosterManager()
-
-      // Check if roster exists, create if not
-      const existingRoster = await rosterManager.getRoster(weekId)
-      if (!existingRoster.success) {
-        const createResult = await rosterManager.createRoster(weekId)
-        if (!createResult.success) {
-          return { 
-            status: 400, 
-            data: { 
-              error: createResult.error, 
-              message: createResult.message 
-            } 
-          }
-        }
-      }
-
-      // Generate based on mode
-      if (body!.mode === "copy") {
-        if (!body!.copyFromWeekId) {
-          return { 
-            status: 400, 
-            data: { 
-              error: "copyFromWeekId is required when mode is 'copy'" 
-            } 
-          }
-        }
-
-        const result = await rosterManager.copyRosterFromWeek(weekId, body!.copyFromWeekId)
-
-        if (!result.success) {
-          return { 
-            status: 400, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-
-        return { 
-          status: 200, 
-          data: {
-            message: "Roster copied successfully",
-            shiftsCreated: result.shiftsCreated,
-          } 
-        }
-      } else {
-        // Mode: schedules
-        const result = await rosterManager.populateRosterFromSchedules(
-          weekId,
-          body!.includeEmploymentTypes,
-          body!.locationIds
-        )
-
-        if (!result.success) {
-          return { 
-            status: 400, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-
-        return { 
-          status: 200, 
-          data: {
-            message: "Roster generated from schedules",
-            shiftsCreated: result.shiftsCreated,
-          } 
-        }
-      }
+      return await rosterService.generateRoster(weekId, body)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/rosters/[weekId]/generate POST]", err)

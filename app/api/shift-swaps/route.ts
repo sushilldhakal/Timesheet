@@ -6,6 +6,8 @@ import {
   shiftSwapRequestResponseSchema,
 } from "@/lib/validations/shift-swaps"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { shiftSwapService } from "@/lib/services/shift-swap/shift-swap-service"
 
 /**
  * GET /api/shift-swaps?status=...&employeeId=...
@@ -27,10 +29,6 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ query }) => {
-    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
-    const { connectDB } = await import("@/lib/db")
-    const { ShiftSwapManager } = await import("@/lib/managers/shift-swap-manager")
-
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
@@ -38,19 +36,7 @@ export const GET = createApiRoute({
 
     const { status, employeeId } = query || {}
 
-    try {
-      await connectDB()
-      const shiftSwapManager = new ShiftSwapManager()
-      const swapRequests = await shiftSwapManager.getSwapRequests(status as any, employeeId)
-
-      return { status: 200, data: { swapRequests } }
-    } catch (err) {
-      console.error("[api/shift-swaps GET]", err)
-      return {
-        status: 500,
-        data: { error: "Failed to fetch swap requests" }
-      }
-    }
+    return { status: 200, data: await shiftSwapService.list(status as any, employeeId) }
   }
 })
 
@@ -75,34 +61,11 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
-    const { connectDB } = await import("@/lib/db")
-    const { ShiftSwapManager } = await import("@/lib/managers/shift-swap-manager")
-
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
 
-    const { requestorId, recipientId, shiftAssignmentId, reason } = body!
-
-    try {
-      await connectDB()
-      const shiftSwapManager = new ShiftSwapManager()
-      const swapRequest = await shiftSwapManager.createSwapRequest(
-        requestorId,
-        recipientId,
-        shiftAssignmentId,
-        reason
-      )
-
-      return { status: 201, data: { swapRequest } }
-    } catch (err) {
-      console.error("[api/shift-swaps POST]", err)
-      return {
-        status: 500,
-        data: { error: "Failed to create swap request" }
-      }
-    }
+    return { status: 201, data: await shiftSwapService.create(body) }
   }
 })

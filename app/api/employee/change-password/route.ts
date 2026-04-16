@@ -1,8 +1,8 @@
-import { connectDB, Employee } from "@/lib/db"
 import { getEmployeeFromWebCookie } from "@/lib/auth/employee-auth"
 import { changeEmployeePasswordSchema } from "@/lib/validations/employee-clock"
 import { successResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { employeeAuthService } from "@/lib/services/employee/employee-auth-service"
 
 export const POST = createApiRoute({
   method: 'POST',
@@ -40,42 +40,7 @@ export const POST = createApiRoute({
       }
 
       const { currentPassword, newPassword } = body;
-
-      await connectDB();
-
-      const employee = await Employee.findById(employeeAuth.sub)
-        .select("+password");
-
-      if (!employee) {
-        return {
-          status: 404,
-          data: { error: "Employee not found" }
-        };
-      }
-
-      // Verify current password
-      if (employee.password) {
-        const isCurrentPasswordValid = await employee.comparePassword(currentPassword);
-        if (!isCurrentPasswordValid) {
-          return {
-            status: 400,
-            data: { error: "Current password is incorrect" }
-          };
-        }
-      }
-
-      // Update password
-      employee.password = newPassword;
-      employee.requirePasswordChange = false;
-      employee.passwordSetByAdmin = false;
-      employee.passwordChangedAt = new Date();
-      
-      await employee.save();
-
-      return {
-        status: 200,
-        data: { message: "Password changed successfully" }
-      };
+      return await employeeAuthService.changePassword(employeeAuth.sub, { currentPassword, newPassword })
     } catch (err) {
       console.error("[api/employee/change-password]", err);
       return {

@@ -1,9 +1,8 @@
 import { z } from "zod"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB, Employer } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import mongoose from "mongoose"
+import { employerService } from "@/lib/services/employer/employer-service"
 
 const employerResponseSchema = z.object({
   id: z.string(),
@@ -44,30 +43,7 @@ export const GET = createApiRoute({
     if (!auth) return { status: 401, data: { error: "Unauthorized" } }
 
     const { id } = params as { id: string }
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return { status: 404, data: { error: "Invalid employer ID" } }
-    }
-
-    await connectDB()
-    const employer = await Employer.findById(id).lean()
-    if (!employer) return { status: 404, data: { error: "Employer not found" } }
-
-    return {
-      status: 200,
-      data: {
-        employer: {
-          id: employer._id.toString(),
-          name: employer.name,
-          abn: employer.abn,
-          contactEmail: employer.contactEmail,
-          color: employer.color,
-          defaultAwardId: employer.defaultAwardId?.toString(),
-          isActive: employer.isActive ?? true,
-          createdAt: employer.createdAt ? new Date(employer.createdAt).toISOString() : null,
-          updatedAt: employer.updatedAt ? new Date(employer.updatedAt).toISOString() : null,
-        },
-      },
-    }
+    return await employerService.getById(id)
   },
 })
 
@@ -92,55 +68,7 @@ export const PATCH = createApiRoute({
     if (!auth) return { status: 401, data: { error: "Unauthorized" } }
 
     const { id } = params as { id: string }
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return { status: 404, data: { error: "Invalid employer ID" } }
-    }
-
-    const payload = body!
-    await connectDB()
-
-    const employer = await Employer.findById(id)
-    if (!employer) return { status: 404, data: { error: "Employer not found" } }
-
-    // Check for duplicate name if name is being updated
-    if (payload.name && payload.name.trim() !== employer.name) {
-      const existing = await Employer.findOne({
-        _id: { $ne: id },
-        name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
-      }).lean()
-      if (existing) return { status: 409, data: { error: "An employer with this name already exists" } }
-    }
-
-    // Update fields
-    if (payload.name !== undefined) employer.name = payload.name.trim()
-    if (payload.abn !== undefined) employer.abn = payload.abn
-    if (payload.contactEmail !== undefined) employer.contactEmail = payload.contactEmail
-    if (payload.color !== undefined) employer.color = payload.color
-    if (payload.defaultAwardId !== undefined) {
-      employer.defaultAwardId = payload.defaultAwardId 
-        ? new mongoose.Types.ObjectId(payload.defaultAwardId) 
-        : undefined
-    }
-    if (payload.isActive !== undefined) employer.isActive = payload.isActive
-
-    await employer.save()
-
-    return {
-      status: 200,
-      data: {
-        employer: {
-          id: employer._id.toString(),
-          name: employer.name,
-          abn: employer.abn,
-          contactEmail: employer.contactEmail,
-          color: employer.color,
-          defaultAwardId: employer.defaultAwardId?.toString(),
-          isActive: employer.isActive ?? true,
-          createdAt: employer.createdAt ? employer.createdAt.toISOString() : null,
-          updatedAt: employer.updatedAt ? employer.updatedAt.toISOString() : null,
-        },
-      },
-    }
+    return await employerService.update(id, body)
   },
 })
 
@@ -162,17 +90,6 @@ export const DELETE = createApiRoute({
     if (!auth) return { status: 401, data: { error: "Unauthorized" } }
 
     const { id } = params as { id: string }
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return { status: 404, data: { error: "Invalid employer ID" } }
-    }
-
-    await connectDB()
-    const employer = await Employer.findByIdAndDelete(id)
-    if (!employer) return { status: 404, data: { error: "Employer not found" } }
-
-    return {
-      status: 200,
-      data: { success: true },
-    }
+    return await employerService.delete(id)
   },
 })

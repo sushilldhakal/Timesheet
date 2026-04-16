@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayrollMapping } from "@/lib/db/schemas/payroll-mapping"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { payrollMappingsService } from "@/lib/services/payroll/payroll-mappings-service"
 
 const querySchema = z.object({
   payrollSystemType: z.enum(['xero', 'myob', 'apa', 'custom']).optional()
@@ -50,18 +49,7 @@ export const GET = createApiRoute({
     }
 
     try {
-      await connectDB()
-
-      const filter: Record<string, unknown> = { tenantId: ctx.tenantId }
-      if (query?.payrollSystemType) {
-        filter.payrollSystemType = query.payrollSystemType
-      }
-
-      const mappings = await PayrollMapping.find(filter)
-        .sort({ isDefault: -1, updatedAt: -1 })
-        .lean()
-
-      return { status: 200, data: { mappings } }
+      return { status: 200, data: await payrollMappingsService.list(ctx, query) }
     } catch (err) {
       console.error("[api/payroll/mappings GET]", err)
       return { status: 500, data: { error: "Failed to fetch payroll mappings" } }
@@ -89,25 +77,7 @@ export const POST = createApiRoute({
     }
 
     try {
-      await connectDB()
-
-      if (body!.isDefault) {
-        await PayrollMapping.updateMany(
-          {
-            tenantId: ctx.tenantId,
-            payrollSystemType: body!.payrollSystemType,
-            isDefault: true
-          },
-          { isDefault: false }
-        )
-      }
-
-      const mapping = await PayrollMapping.create({
-        ...body,
-        tenantId: ctx.tenantId
-      })
-
-      return { status: 201, data: { mapping } }
+      return { status: 201, data: await payrollMappingsService.create(ctx, body) }
     } catch (err) {
       console.error("[api/payroll/mappings POST]", err)
       return { status: 500, data: { error: "Failed to create payroll mapping" } }

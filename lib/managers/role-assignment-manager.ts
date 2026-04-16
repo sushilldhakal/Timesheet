@@ -1,9 +1,9 @@
 import mongoose from "mongoose"
-import { EmployeeRoleAssignment, IEmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
-import { Employee } from "../db/schemas/employee"
-import { Location } from "../db/schemas/location"
-import { Team } from "../db/schemas/team"
+import type { IEmployeeRoleAssignment } from "@/lib/db/queries/scheduling-types"
 import { RoleEnablementManager } from "./role-enablement-manager"
+import { EmployeeDbQueries } from "@/lib/db/queries/employees"
+import { CoreEntitiesDbQueries } from "@/lib/db/queries/core-entities"
+import { EmployeeRoleAssignmentsDbQueries } from "@/lib/db/queries/employee-role-assignments"
 
 export interface AssignRoleParams {
   employeeId: mongoose.Types.ObjectId | string
@@ -114,7 +114,7 @@ export class RoleAssignmentManager {
       }
 
       // Create the assignment record
-      const assignment = new EmployeeRoleAssignment({
+      const assignment = EmployeeRoleAssignmentsDbQueries.createDoc({
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
@@ -218,9 +218,7 @@ export class RoleAssignmentManager {
       const now = new Date()
 
       // Find the assignment
-      const assignment = await EmployeeRoleAssignment.findById(
-        new mongoose.Types.ObjectId(assignmentId.toString())
-      )
+      const assignment = await EmployeeRoleAssignmentsDbQueries.findById(assignmentId.toString())
 
       if (!assignment) {
         throw new RoleAssignmentError(
@@ -370,7 +368,7 @@ export class RoleAssignmentManager {
         ]
       }
 
-      const assignments = await EmployeeRoleAssignment.find(query)
+      const assignments = await EmployeeRoleAssignmentsDbQueries.find(query)
         .populate("roleId", "name color type")
         .populate("locationId", "name color type lat lng")
         .populate("assignedBy", "name email")
@@ -462,7 +460,7 @@ export class RoleAssignmentManager {
         throw new RoleAssignmentError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const assignments = await EmployeeRoleAssignment.find({
+      const assignments = await EmployeeRoleAssignmentsDbQueries.find({
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         validFrom: { $lte: date },
@@ -569,7 +567,7 @@ export class RoleAssignmentManager {
         throw new RoleAssignmentError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const assignment = await EmployeeRoleAssignment.findOne({
+      const assignment = await EmployeeRoleAssignmentsDbQueries.findOne({
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
@@ -665,9 +663,7 @@ export class RoleAssignmentManager {
       }
 
       // Verify employee exists
-      const employee = await Employee.findById(
-        new mongoose.Types.ObjectId(employeeId.toString())
-      )
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
       if (!employee) {
         return {
           valid: false,
@@ -677,7 +673,7 @@ export class RoleAssignmentManager {
       }
 
       // Verify role exists
-      const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString()))
+      const role = await CoreEntitiesDbQueries.teamFindById(roleId.toString())
       if (!role) {
         return {
           valid: false,
@@ -687,7 +683,7 @@ export class RoleAssignmentManager {
       }
 
       // Verify location exists
-      const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString()))
+      const location = await CoreEntitiesDbQueries.locationFindById(locationId.toString())
       if (!location) {
         return {
           valid: false,
@@ -761,7 +757,7 @@ export class RoleAssignmentManager {
         ]
       }
 
-      const overlapping = await EmployeeRoleAssignment.findOne(overlappingQuery)
+      const overlapping = await EmployeeRoleAssignmentsDbQueries.findOne(overlappingQuery)
       if (overlapping) {
         return {
           valid: false,

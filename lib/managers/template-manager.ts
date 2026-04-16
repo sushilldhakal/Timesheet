@@ -1,8 +1,7 @@
-import mongoose from "mongoose"
-import { ISchedule } from "../db/schemas/schedule"
-import { RosterTemplate } from "../db/schemas/roster-template"
+import type { ISchedule } from "@/lib/db/queries/scheduling-types"
 import type { ShiftPattern, RoleTemplate } from "./template-manager-types"
 import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
+import { SchedulingRoleTemplatesDbQueries } from "@/lib/db/queries/scheduling-role-templates"
 
 export type { ShiftPattern, RoleTemplate } from "./template-manager-types"
 
@@ -31,15 +30,15 @@ export class TemplateManager {
       dayOfWeek,
       startHour,
       endHour,
-      roleId: new mongoose.Types.ObjectId(rid),
+      roleId: SchedulingRoleTemplatesDbQueries.oid(rid),
       employeeId: undefined as undefined,
     }))
 
-    const doc = await RosterTemplate.create({
+    const doc = await SchedulingRoleTemplatesDbQueries.rosterTemplate.create({
       name: `Role template ${roleId.slice(-6)}`,
-      createdBy: new mongoose.Types.ObjectId(createdByUserId),
-      locationId: new mongoose.Types.ObjectId(locId),
-      roleIds: [new mongoose.Types.ObjectId(rid)],
+      createdBy: SchedulingRoleTemplatesDbQueries.oid(createdByUserId),
+      locationId: SchedulingRoleTemplatesDbQueries.oid(locId),
+      roleIds: [SchedulingRoleTemplatesDbQueries.oid(rid)],
       isGlobal: false,
       templateShifts,
     })
@@ -52,20 +51,19 @@ export class TemplateManager {
     employeeId: string,
     overwrite: boolean = false
   ): Promise<ISchedule> {
-    const { Employee } = await import("../db/schemas/employee")
-    const template = await RosterTemplate.findById(templateId)
+    const template = await SchedulingRoleTemplatesDbQueries.rosterTemplate.findById(templateId)
     if (!template || !template.templateShifts.length) {
       throw new Error(`Template not found: ${templateId}`)
     }
 
-    const employee = await Employee.findById(employeeId)
+    const employee = await SchedulingRoleTemplatesDbQueries.employeeFindById(employeeId)
     if (!employee) {
       throw new Error(`Employee not found: ${employeeId}`)
     }
 
     const byKey = new Map<
       string,
-      { dayOfWeek: number[]; startHour: number; endHour: number; locationId: mongoose.Types.ObjectId; roleId: mongoose.Types.ObjectId }
+      { dayOfWeek: number[]; startHour: number; endHour: number; locationId: any; roleId: any }
     >()
     for (const ts of template.templateShifts) {
       const k = `${ts.startHour}-${ts.endHour}-${ts.roleId}-${template.locationId}`
@@ -88,7 +86,7 @@ export class TemplateManager {
       const baseEnd = new Date()
       setTimeFromDecimalHours(baseEnd, g.endHour)
       newSchedules.push({
-        _id: new mongoose.Types.ObjectId(),
+        _id: SchedulingRoleTemplatesDbQueries.oid(),
         dayOfWeek: [...new Set(g.dayOfWeek)].sort((a, b) => a - b),
         startTime: base,
         endTime: baseEnd,
@@ -114,9 +112,11 @@ export class TemplateManager {
   }
 
   async getRoleTemplate(roleId: string, _organizationId: string): Promise<RoleTemplate | null> {
-    const doc = await RosterTemplate.findOne({
-      roleIds: new mongoose.Types.ObjectId(roleId),
-    }).sort({ updatedAt: -1 })
+    const doc = await SchedulingRoleTemplatesDbQueries.rosterTemplate
+      .findOne({
+        roleIds: SchedulingRoleTemplatesDbQueries.oid(roleId),
+      })
+      .sort({ updatedAt: -1 })
     if (!doc || !doc.templateShifts.length) return null
     const ts0 = doc.templateShifts[0]
     const shiftPattern: ShiftPattern = {
@@ -135,14 +135,14 @@ export class TemplateManager {
   }
 
   async updateRoleTemplate(templateId: string, shiftPattern: ShiftPattern): Promise<RoleTemplate> {
-    const doc = await RosterTemplate.findById(templateId)
+    const doc = await SchedulingRoleTemplatesDbQueries.rosterTemplate.findById(templateId)
     if (!doc) {
       throw new Error(`Template not found: ${templateId}`)
     }
 
     const startHour = hoursFromDate(new Date(shiftPattern.startTime))
     const endHour = hoursFromDate(new Date(shiftPattern.endTime))
-    const rid = new mongoose.Types.ObjectId(shiftPattern.roleId)
+    const rid = SchedulingRoleTemplatesDbQueries.oid(shiftPattern.roleId)
 
     doc.templateShifts = shiftPattern.dayOfWeek.map((dayOfWeek) => ({
       dayOfWeek,
@@ -150,7 +150,7 @@ export class TemplateManager {
       endHour,
       roleId: rid,
     }))
-    doc.locationId = new mongoose.Types.ObjectId(shiftPattern.locationId)
+    doc.locationId = SchedulingRoleTemplatesDbQueries.oid(shiftPattern.locationId)
     doc.roleIds = [rid]
     await doc.save()
 
@@ -162,11 +162,11 @@ export class TemplateManager {
       ? {}
       : {
           $or: [
-            { createdBy: new mongoose.Types.ObjectId(userId) },
+            { createdBy: SchedulingRoleTemplatesDbQueries.oid(userId) },
             { isGlobal: true },
           ],
         }
-    const docs = await RosterTemplate.find(q).sort({ updatedAt: -1 })
+    const docs = await SchedulingRoleTemplatesDbQueries.rosterTemplate.find(q).sort({ updatedAt: -1 })
     return docs.map((doc) => {
       const ts0 = doc.templateShifts[0]
       const roleId = doc.roleIds[0]?.toString() || ""
@@ -183,7 +183,7 @@ export class TemplateManager {
   }
 
   async deleteRoleTemplate(templateId: string): Promise<void> {
-    const r = await RosterTemplate.findByIdAndDelete(templateId)
+    const r = await SchedulingRoleTemplatesDbQueries.rosterTemplate.findByIdAndDelete(templateId)
     if (!r) {
       throw new Error(`Template not found: ${templateId}`)
     }
@@ -195,7 +195,7 @@ export class TemplateManager {
     roleId: string,
     organizationId: string
   ): RoleTemplate {
-    const d = doc as { _id: mongoose.Types.ObjectId; createdAt?: Date; updatedAt?: Date }
+    const d = doc as { _id: any; createdAt?: Date; updatedAt?: Date }
     return {
       _id: d._id.toString(),
       roleId,
@@ -213,12 +213,12 @@ function syntheticTime(hour: number): Date {
 
 function scheduleFromPattern(shiftPattern: ShiftPattern): ISchedule {
   return {
-    _id: new mongoose.Types.ObjectId(),
+    _id: SchedulingRoleTemplatesDbQueries.oid(),
     dayOfWeek: shiftPattern.dayOfWeek,
     startTime: new Date(shiftPattern.startTime),
     endTime: new Date(shiftPattern.endTime),
-    locationId: new mongoose.Types.ObjectId(shiftPattern.locationId),
-    roleId: new mongoose.Types.ObjectId(shiftPattern.roleId),
+    locationId: SchedulingRoleTemplatesDbQueries.oid(shiftPattern.locationId),
+    roleId: SchedulingRoleTemplatesDbQueries.oid(shiftPattern.roleId),
     effectiveFrom: new Date(),
     effectiveTo: null,
     priority: 1,

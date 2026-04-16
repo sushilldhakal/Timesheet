@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { VarianceAnalyticsService } from "@/lib/managers/variance-analytics-service"
-import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   analyticsShiftIdParamSchema,
@@ -10,6 +7,7 @@ import {
   analyticsErrorResponseSchema,
 } from "@/lib/validations/analytics"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { analyticsService } from "@/lib/services/analytics/analytics-service"
 
 const getPunctuality = createApiRoute({
   method: 'GET',
@@ -37,37 +35,7 @@ const getPunctuality = createApiRoute({
     const { shiftId } = params!
 
     try {
-      await connectDB()
-      
-      const analyticsService = new VarianceAnalyticsService()
-      const result = await analyticsService.calculatePunctuality(shiftId)
-      
-      if (!result.success) {
-        if (result.error === "SHIFT_NOT_FOUND" || result.error === "NO_TIMESHEET") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            }
-          }
-        }
-        return { 
-          status: 500, 
-          data: { 
-            error: result.error, 
-            message: result.message 
-          }
-        }
-      }
-      
-      return { 
-        status: 200, 
-        data: {
-          status: result.status,
-          minutes: result.minutes,
-        }
-      }
+      return await analyticsService.punctuality(shiftId)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/analytics/punctuality/[shiftId] GET]", err)

@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
-import { LeaveRecord, LeaveType, ILeaveRecord } from "../db/schemas/leave-record"
-import { Roster, IShift } from "../db/schemas/roster"
+import type { LeaveType, ILeaveRecord, IShift } from "@/lib/db/queries/scheduling-types"
+import { WorkforceModels } from "@/lib/db/queries/workforce-models"
 
 /**
  * Absence Manager
@@ -23,7 +23,7 @@ export class AbsenceManager {
     leaveType: LeaveType,
     notes?: string
   ): Promise<ILeaveRecord> {
-    const leaveRecord = await LeaveRecord.create({
+    const leaveRecord = await WorkforceModels.LeaveRecord.create({
       employeeId: new mongoose.Types.ObjectId(employeeId),
       startDate,
       endDate,
@@ -48,7 +48,7 @@ export class AbsenceManager {
     startDate: Date,
     endDate: Date
   ): Promise<ILeaveRecord[]> {
-    return await LeaveRecord.find({
+    return await WorkforceModels.LeaveRecord.find({
       employeeId: new mongoose.Types.ObjectId(employeeId),
       $or: [
         // Leave starts within range
@@ -72,7 +72,7 @@ export class AbsenceManager {
     date: Date
   ): Promise<boolean> {
     // Query for approved leave records that overlap this date
-    const leaveRecords = await LeaveRecord.find({
+    const leaveRecords = await WorkforceModels.LeaveRecord.find({
       employeeId: new mongoose.Types.ObjectId(employeeId),
       status: "APPROVED",
       startDate: { $lte: date },
@@ -87,7 +87,7 @@ export class AbsenceManager {
    * @param leaveRecordId - The leave record to process
    */
   async blockShiftsForLeave(leaveRecordId: string): Promise<void> {
-    const leaveRecord = await LeaveRecord.findById(leaveRecordId)
+    const leaveRecord = await WorkforceModels.LeaveRecord.findById(leaveRecordId)
     if (!leaveRecord) {
       throw new Error(`Leave record not found: ${leaveRecordId}`)
     }
@@ -97,7 +97,7 @@ export class AbsenceManager {
     }
 
     // Find all rosters that overlap with the leave period
-    const rosters = await Roster.find({
+    const rosters = await WorkforceModels.Roster.find({
       weekStartDate: { $lte: leaveRecord.endDate },
       weekEndDate: { $gte: leaveRecord.startDate },
     })
@@ -142,13 +142,13 @@ export class AbsenceManager {
    * @returns Array of shifts requiring replacement
    */
   async identifyReplacementNeeds(leaveRecordId: string): Promise<IShift[]> {
-    const leaveRecord = await LeaveRecord.findById(leaveRecordId)
+    const leaveRecord = await WorkforceModels.LeaveRecord.findById(leaveRecordId)
     if (!leaveRecord) {
       throw new Error(`Leave record not found: ${leaveRecordId}`)
     }
 
     // Find all rosters that overlap with the leave period
-    const rosters = await Roster.find({
+    const rosters = await WorkforceModels.Roster.find({
       weekStartDate: { $lte: leaveRecord.endDate },
       weekEndDate: { $gte: leaveRecord.startDate },
     })

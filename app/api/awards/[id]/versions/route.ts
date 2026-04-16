@@ -1,11 +1,8 @@
-import { connectDB } from '@/lib/db'
-import Award from '@/lib/db/schemas/award'
-import { getAwardHistory } from '@/lib/awards/get-award-for-date'
-import { createNewAwardVersion } from '@/lib/awards/create-award-version'
 import { createApiRoute } from '@/lib/api/create-api-route'
 import { awardIdParamSchema } from '@/lib/validations/award'
 import { errorResponseSchema } from '@/lib/validations/auth'
 import { z } from 'zod'
+import { awardVersionsService } from '@/lib/services/award/award-versions-service'
 
 const versionsListResponseSchema = z.object({
   versions: z.array(z.object({
@@ -55,39 +52,8 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    try {
-      await connectDB()
-      const { id } = params!
-
-      const award = await Award.findById(id)
-      if (!award) {
-        return { status: 404, data: { error: 'Award not found' } }
-      }
-
-      const versions = await getAwardHistory(id)
-
-      const serialized = versions.map((v: any) => ({
-        _id: v._id?.toString(),
-        baseAwardId: v.baseAwardId?.toString(),
-        name: v.name,
-        description: v.description,
-        version: v.version,
-        effectiveFrom: v.effectiveFrom instanceof Date ? v.effectiveFrom.toISOString() : v.effectiveFrom,
-        effectiveTo: v.effectiveTo instanceof Date ? v.effectiveTo.toISOString() : v.effectiveTo ?? null,
-        changelog: v.changelog ?? null,
-        isCurrent: v.isCurrent,
-        rules: v.rules ?? [],
-        levelRates: v.levelRates ?? [],
-        availableTags: v.availableTags ?? [],
-        createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : v.createdAt,
-        createdBy: v.createdBy?.toString(),
-      }))
-
-      return { status: 200, data: { versions: serialized } }
-    } catch (error: any) {
-      console.error('Error fetching award versions:', error)
-      return { status: 500, data: { error: 'Failed to fetch versions', details: error.message } }
-    }
+    const { id } = params!
+    return await awardVersionsService.listVersions(id)
   },
 })
 
@@ -109,57 +75,7 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    try {
-      await connectDB()
-      const { id } = params!
-      const {
-        rules,
-        levelRates,
-        availableTags,
-        name,
-        description,
-        changelog,
-        effectiveFrom: effectiveFromStr,
-        versionBump,
-      } = body!
-
-      const award = await Award.findById(id)
-      if (!award) {
-        return { status: 404, data: { error: 'Award not found' } }
-      }
-
-      const effectiveFrom = new Date(effectiveFromStr)
-      const now = new Date()
-      if (effectiveFrom <= now) {
-        return {
-          status: 400,
-          data: { error: 'effectiveFrom must be a future date' },
-        }
-      }
-
-      const updatedAward = await createNewAwardVersion(
-        award,
-        { rules, levelRates, availableTags, name, description },
-        { changelog, effectiveFrom, versionBump }
-      )
-
-      return {
-        status: 201,
-        data: {
-          award: {
-            ...updatedAward.toObject(),
-            _id: updatedAward._id.toString(),
-            effectiveFrom: updatedAward.effectiveFrom.toISOString(),
-            effectiveTo: updatedAward.effectiveTo?.toISOString() ?? null,
-            createdAt: updatedAward.createdAt.toISOString(),
-            updatedAt: updatedAward.updatedAt.toISOString(),
-          },
-          message: `Version ${updatedAward.version} created successfully`,
-        },
-      }
-    } catch (error: any) {
-      console.error('Error creating award version:', error)
-      return { status: 500, data: { error: 'Failed to create version', details: error.message } }
-    }
+    const { id } = params!
+    return await awardVersionsService.createVersion(id, body)
   },
 })

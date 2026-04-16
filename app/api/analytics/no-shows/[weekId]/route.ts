@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { VarianceAnalyticsService } from "@/lib/managers/variance-analytics-service"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   analyticsWeekIdParamSchema,
@@ -9,6 +7,7 @@ import {
   analyticsErrorResponseSchema,
 } from "@/lib/validations/analytics"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { analyticsService } from "@/lib/services/analytics/analytics-service"
 
 const getNoShows = createApiRoute({
   method: 'GET',
@@ -36,37 +35,7 @@ const getNoShows = createApiRoute({
     const { weekId } = params!
 
     try {
-      await connectDB()
-      
-      const analyticsService = new VarianceAnalyticsService()
-      const result = await analyticsService.detectNoShows(weekId)
-      
-      if (!result.success) {
-        if (result.error === "ROSTER_NOT_FOUND") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            }
-          }
-        }
-        return { 
-          status: 500, 
-          data: { 
-            error: result.error, 
-            message: result.message 
-          }
-        }
-      }
-      
-      return { 
-        status: 200, 
-        data: {
-          noShows: result.noShows,
-          count: result.noShows.length,
-        }
-      }
+      return await analyticsService.noShows(weekId)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/analytics/no-shows/[weekId] GET]", err)

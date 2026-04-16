@@ -4,6 +4,8 @@ import {
   varianceResponseSchema, 
 } from "@/lib/validations/analytics"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { analyticsService } from "@/lib/services/analytics/analytics-service"
 
 /** GET /api/analytics/variance/[shiftId] - Calculate variance for a specific shift */
 export const GET = createApiRoute({
@@ -24,54 +26,15 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const { getAuthWithUserLocations } = await import("@/lib/auth/auth-api")
-    const { connectDB } = await import("@/lib/db")
-    const { VarianceAnalyticsService } = await import("@/lib/managers/variance-analytics-service")
-    const mongoose = await import("mongoose")
-
     const ctx = await getAuthWithUserLocations()
     if (!ctx) {
       return { status: 401, data: { error: "Unauthorized" } }
     }
 
     const { shiftId } = params!
-    
-    // Validate shiftId format
-    if (!mongoose.Types.ObjectId.isValid(shiftId)) {
-      return { 
-        status: 400, 
-        data: { error: "Invalid shift ID format" } 
-      }
-    }
 
     try {
-      await connectDB()
-      
-      const analyticsService = new VarianceAnalyticsService()
-      const result = await analyticsService.calculateVariance(shiftId)
-      
-      if (!result.success) {
-        if (result.error === "SHIFT_NOT_FOUND") {
-          return {
-            status: 404,
-            data: { error: result.error, message: result.message }
-          }
-        }
-        return {
-          status: 500,
-          data: { error: result.error, message: result.message }
-        }
-      }
-      
-      return {
-        status: 200,
-        data: {
-          scheduledHours: result.scheduledHours,
-          actualHours: result.actualHours,
-          variance: result.variance,
-          timesheetCount: result.timesheetCount,
-        }
-      }
+      return await analyticsService.variance(shiftId)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/analytics/variance/[shiftId] GET]", err)

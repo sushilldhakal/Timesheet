@@ -1,8 +1,6 @@
-import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB, User } from "@/lib/db"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
-import type { IUserSchedulingSettings } from "@/lib/db/schemas/user"
+import { userSchedulingSettingsService } from "@/lib/services/user/user-scheduling-settings-service"
 
 const dayHoursSchema = z
   .object({
@@ -35,18 +33,9 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async () => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
     try {
-      await connectDB()
-      const user = await User.findById(auth.sub).select("schedulingSettings").lean()
-      return {
-        status: 200,
-        data: { schedulingSettings: user?.schedulingSettings ?? null },
-      }
+      const result = await userSchedulingSettingsService.get()
+      return { status: 200, data: result }
     } catch (e) {
       console.error("[scheduling-settings GET]", e)
       return { status: 500, data: { error: "Failed to load settings" } }
@@ -68,38 +57,9 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
-    if (!body) {
-      return { status: 400, data: { error: "Body required" } }
-    }
-
-    const workingHours: IUserSchedulingSettings["workingHours"] = {}
-    if (body.workingHours) {
-      for (const [k, v] of Object.entries(body.workingHours)) {
-        const n = Number(k)
-        if (Number.isInteger(n) && n >= 0 && n <= 6) {
-          workingHours[n] = v
-        }
-      }
-    }
-
-    const next: IUserSchedulingSettings = {
-      visibleFrom: body.visibleFrom,
-      visibleTo: body.visibleTo,
-      workingHours,
-    }
-
     try {
-      await connectDB()
-      await User.updateOne({ _id: auth.sub }, { $set: { schedulingSettings: next } })
-      return {
-        status: 200,
-        data: { schedulingSettings: next },
-      }
+      const result = await userSchedulingSettingsService.update(body)
+      return { status: 200, data: result }
     } catch (e) {
       console.error("[scheduling-settings PATCH]", e)
       return { status: 500, data: { error: "Failed to save settings" } }

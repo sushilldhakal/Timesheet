@@ -69,6 +69,10 @@ type StorageStats = {
   lastSync?: Date
   // R2 specific
   other?: number
+  bucketName?: string
+
+  // Allow provider-specific extended stats without breaking the UI
+  [key: string]: any
 }
 
 export default function SettingPage() {
@@ -771,8 +775,10 @@ export default function SettingPage() {
                         <span className="text-sm font-medium">Total Storage</span>
                         <span className="text-sm font-medium">{formatSize(storageStats.storageUsedMB)}</span>
                       </div>
-                      {storageStats.bucketName && (
-                        <p className="text-xs text-muted-foreground">Bucket: {storageStats.bucketName}</p>
+                      {Boolean((storageStats as any).bucketName) && (
+                        <p className="text-xs text-muted-foreground">
+                          Bucket: {(storageStats as any).bucketName}
+                        </p>
                       )}
                     </div>
 
@@ -783,37 +789,43 @@ export default function SettingPage() {
                         <span className="text-sm font-medium">{storageStats.assets.toLocaleString()}</span>
                       </div>
 
-                      {storageStats.images > 0 && (
+                      {(storageStats.images ?? 0) > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground pl-3">Images</span>
                           <span className="text-xs font-medium">
-                            {storageStats.images.toLocaleString()}
-                            {storageStats.imageSizeMB != null && (
-                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.imageSizeMB)})</span>
+                            {(storageStats.images ?? 0).toLocaleString()}
+                            {(storageStats as any).imageSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">
+                                ({formatSize((storageStats as any).imageSizeMB)})
+                              </span>
                             )}
                           </span>
                         </div>
                       )}
 
-                      {storageStats.videos > 0 && (
+                      {(storageStats.videos ?? 0) > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground pl-3">Videos</span>
                           <span className="text-xs font-medium">
-                            {storageStats.videos.toLocaleString()}
-                            {storageStats.videoSizeMB != null && (
-                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.videoSizeMB)})</span>
+                            {(storageStats.videos ?? 0).toLocaleString()}
+                            {(storageStats as any).videoSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">
+                                ({formatSize((storageStats as any).videoSizeMB)})
+                              </span>
                             )}
                           </span>
                         </div>
                       )}
 
-                      {storageStats.other > 0 && (
+                      {(storageStats.other ?? 0) > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground pl-3">Other</span>
                           <span className="text-xs font-medium">
-                            {storageStats.other.toLocaleString()}
-                            {storageStats.otherSizeMB != null && (
-                              <span className="text-muted-foreground font-normal ml-1">({formatSize(storageStats.otherSizeMB)})</span>
+                            {(storageStats.other ?? 0).toLocaleString()}
+                            {(storageStats as any).otherSizeMB != null && (
+                              <span className="text-muted-foreground font-normal ml-1">
+                                ({formatSize((storageStats as any).otherSizeMB)})
+                              </span>
                             )}
                           </span>
                         </div>
@@ -823,38 +835,38 @@ export default function SettingPage() {
                     {/* R2: File size stats */}
                     <div className="pt-3 border-t space-y-2.5">
                       <span className="text-sm font-medium">File Sizes</span>
-                      {storageStats.avgFileSizeKB != null && (
+                      {(storageStats as any).avgFileSizeKB != null && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground pl-3">Average</span>
-                          <span className="text-xs font-medium">{formatSizeKB(storageStats.avgFileSizeKB)}</span>
+                          <span className="text-xs font-medium">{formatSizeKB((storageStats as any).avgFileSizeKB)}</span>
                         </div>
                       )}
-                      {storageStats.largestFileSizeKB != null && storageStats.largestFileSizeKB > 0 && (
+                      {(storageStats as any).largestFileSizeKB != null && (storageStats as any).largestFileSizeKB > 0 && (
                         <div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground pl-3">Largest</span>
-                            <span className="text-xs font-medium">{formatSizeKB(storageStats.largestFileSizeKB)}</span>
+                            <span className="text-xs font-medium">{formatSizeKB((storageStats as any).largestFileSizeKB)}</span>
                           </div>
-                          {storageStats.largestFileName && (
-                            <p className="text-[10px] text-muted-foreground pl-3 truncate" title={storageStats.largestFileName}>
-                              {storageStats.largestFileName}
+                          {(storageStats as any).largestFileName && (
+                            <p className="text-[10px] text-muted-foreground pl-3 truncate" title={(storageStats as any).largestFileName}>
+                              {(storageStats as any).largestFileName}
                             </p>
                           )}
                         </div>
                       )}
-                      {storageStats.smallestFileSizeKB != null && storageStats.assets > 1 && (
+                      {(storageStats as any).smallestFileSizeKB != null && storageStats.assets > 1 && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground pl-3">Smallest</span>
-                          <span className="text-xs font-medium">{formatSizeKB(storageStats.smallestFileSizeKB)}</span>
+                          <span className="text-xs font-medium">{formatSizeKB((storageStats as any).smallestFileSizeKB)}</span>
                         </div>
                       )}
                     </div>
 
                     {/* R2: File types */}
-                    {storageStats.topExtensions?.length > 0 && (
+                    {(storageStats as any).topExtensions?.length > 0 && (
                       <div className="pt-3 border-t space-y-2.5">
                         <span className="text-sm font-medium">File Types</span>
-                        {storageStats.topExtensions.map((ext: any) => (
+                        {(storageStats as any).topExtensions.map((ext: any) => (
                           <div key={ext.ext} className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground pl-3">.{ext.ext}</span>
                             <span className="text-xs font-medium">
@@ -867,13 +879,13 @@ export default function SettingPage() {
                     )}
 
                     {/* R2: Folders */}
-                    {storageStats.folderCount > 0 && (
+                    {(storageStats as any).folderCount > 0 && (
                       <div className="pt-3 border-t space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Folders</span>
-                          <span className="text-xs font-medium">{storageStats.folderCount}</span>
+                          <span className="text-xs font-medium">{(storageStats as any).folderCount}</span>
                         </div>
-                        {storageStats.folders?.map((folder: string) => (
+                        {(storageStats as any).folders?.map((folder: string) => (
                           <p key={folder} className="text-[10px] text-muted-foreground pl-3 truncate" title={folder}>
                             /{folder}
                           </p>
@@ -882,22 +894,22 @@ export default function SettingPage() {
                     )}
 
                     {/* R2: Date range */}
-                    {(storageStats.oldestFile || storageStats.newestFile) && (
+                    {((storageStats as any).oldestFile || (storageStats as any).newestFile) && (
                       <div className="pt-3 border-t space-y-2.5">
                         <span className="text-sm font-medium">Date Range</span>
-                        {storageStats.oldestFile && (
+                        {(storageStats as any).oldestFile && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground pl-3">Oldest</span>
                             <span className="text-xs font-medium">
-                              {new Date(storageStats.oldestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              {new Date((storageStats as any).oldestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                           </div>
                         )}
-                        {storageStats.newestFile && (
+                        {(storageStats as any).newestFile && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground pl-3">Newest</span>
                             <span className="text-xs font-medium">
-                              {new Date(storageStats.newestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              {new Date((storageStats as any).newestFile).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                           </div>
                         )}

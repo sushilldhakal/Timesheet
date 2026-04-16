@@ -1,8 +1,4 @@
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB } from "@/lib/db"
-import { RoleEnablementManager, RoleEnablementError } from "@/lib/managers/role-enablement-manager"
-import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
-import { LocationRoleEnablement } from "@/lib/db/schemas/location-role-enablement"
 import {
   locationIdPathParamSchema as locationIdParamSchema,
   enableTeamSchema,
@@ -12,7 +8,7 @@ import {
 } from "@/lib/validations/location"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import mongoose from "mongoose"
+import { locationTeamsService } from "@/lib/services/location/location-teams-service"
 
 export const GET = createApiRoute({
   method: "GET",
@@ -50,87 +46,12 @@ export const GET = createApiRoute({
       }
     }
 
-    const dateParam = query?.date
-    const includeInactive = query?.includeInactive || false
-
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid location ID" },
-      }
-    }
-
     try {
-      await connectDB()
-
-      const { Location } = await import("@/lib/db")
-      const location = await Location.findById(locationId).lean()
-
-      if (!location) {
-        return {
-          status: 404,
-          data: { error: "Location not found" },
-        }
-      }
-
-      const date = dateParam ? new Date(dateParam) : new Date()
-
-      if (isNaN(date.getTime())) {
-        return {
-          status: 400,
-          data: { error: "Invalid date parameter" },
-        }
-      }
-
-      const manager = new RoleEnablementManager()
-
-      const enablements = await manager.getEnabledRoles(locationId, date)
-
-      const teamsWithCounts = await Promise.all(
-        enablements.map(async (enablement) => {
-          const roleId = enablement.roleId as any
-
-          const employeeCount = await EmployeeRoleAssignment.countDocuments({
-            roleId: roleId._id,
-            locationId: new mongoose.Types.ObjectId(locationId),
-            validFrom: { $lte: date },
-            $or: [{ validTo: null }, { validTo: { $gte: date } }],
-          })
-
-          return {
-            teamId: roleId._id.toString(),
-            teamName: roleId.name,
-            teamColor: roleId.color,
-            effectiveFrom: enablement.effectiveFrom,
-            effectiveTo: enablement.effectiveTo,
-            isActive: enablement.isActive,
-            employeeCount,
-          }
-        })
-      )
-
-      void includeInactive
-
-      return {
-        status: 200,
-        data: { teams: teamsWithCounts },
-      }
+      return await locationTeamsService.listEnabledTeams({ auth, locationId, query })
     } catch (err) {
       console.error("[api/locations/[locationId]/teams GET]", err)
-
-      if (err instanceof RoleEnablementError) {
-        return {
-          status: err.statusCode,
-          data: { error: err.message },
-        }
-      }
-
-      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-        return {
-          status: 503,
-          data: { error: "Database connection error. Please try again later." },
-        }
-      }
+      const mapped = locationTeamsService.mapError(err)
+      if (mapped) return mapped
 
       return {
         status: 500,
@@ -175,86 +96,12 @@ export const POST = createApiRoute({
       }
     }
 
-    const { teamId, effectiveFrom, effectiveTo } = body!
-
-    if (!teamId) {
-      return {
-        status: 400,
-        data: { error: "Team ID is required" },
-      }
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid location ID" },
-      }
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(teamId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid team ID" },
-      }
-    }
-
     try {
-      await connectDB()
-
-      const manager = new RoleEnablementManager()
-      const enablement = (await manager.enableRole({
-        locationId,
-        roleId: teamId,
-        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
-        effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
-        userId: auth.sub,
-      })) as any
-
-      const populatedEnablement = await LocationRoleEnablement.findById(enablement._id).populate(
-        "roleId",
-        "name color"
-      )
-
-      if (!populatedEnablement) {
-        return {
-          status: 500,
-          data: { error: "Failed to retrieve created enablement" },
-        }
-      }
-
-      const teamData = populatedEnablement.roleId as any
-
-      return {
-        status: 201,
-        data: {
-          enablement: {
-            id: populatedEnablement._id.toString(),
-            locationId: populatedEnablement.locationId.toString(),
-            teamId: teamData._id.toString(),
-            teamName: teamData.name,
-            teamColor: teamData.color,
-            effectiveFrom: populatedEnablement.effectiveFrom,
-            effectiveTo: populatedEnablement.effectiveTo,
-            isActive: populatedEnablement.isActive,
-          },
-        },
-      }
+      return await locationTeamsService.enableTeam({ auth, locationId, body })
     } catch (err: any) {
       console.error("[api/locations/[locationId]/teams POST]", err)
-
-      if (err instanceof RoleEnablementError) {
-        return {
-          status: err.statusCode,
-          data: { error: err.message },
-        }
-      }
-
-      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-        return {
-          status: 503,
-          data: { error: "Database connection error. Please try again later." },
-        }
-      }
+      const mapped = locationTeamsService.mapError(err)
+      if (mapped) return mapped
 
       return {
         status: 500,

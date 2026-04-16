@@ -1,10 +1,8 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { RosterManager } from "@/lib/managers/roster-manager"
-import { SchedulingValidator } from "@/lib/validations/scheduling-validator"
-import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { apiErrors } from "@/lib/api/api-error"
+import { rosterService } from "@/lib/services/roster/roster-service"
 
 // Validation schemas
 const shiftParamsSchema = z.object({
@@ -59,151 +57,11 @@ export const PUT = createApiRoute({
   },
   handler: async ({ body, params }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
     const weekId = params!.weekId
     const shiftId = params!.shiftId
-
-    try {
-      await connectDB()
-      
-      const rosterManager = new RosterManager()
-      
-      // Prepare update data (only include provided fields)
-      const updateData: Record<string, unknown> = {}
-      
-      if (body!.employeeId !== undefined) {
-        updateData.employeeId = body!.employeeId ? new mongoose.Types.ObjectId(body!.employeeId) : null
-      }
-      if (body!.date) {
-        updateData.date = new Date(body!.date)
-      }
-      if (body!.startTime) {
-        updateData.startTime = new Date(body!.startTime)
-      }
-      if (body!.endTime) {
-        updateData.endTime = new Date(body!.endTime)
-      }
-      if (body!.locationId) {
-        updateData.locationId = new mongoose.Types.ObjectId(body!.locationId)
-      }
-      if (body!.roleId) {
-        updateData.roleId = new mongoose.Types.ObjectId(body!.roleId)
-      }
-      if (body!.notes !== undefined) {
-        updateData.notes = body!.notes
-      }
-      
-      // If role, location, employee, or date are being updated, validate the shift
-      if (body!.roleId || body!.locationId || body!.employeeId !== undefined || body!.date) {
-        // Get the current shift to merge with updates
-        const currentRoster = await rosterManager.getRoster(weekId)
-        if (!currentRoster.success || !currentRoster.roster) {
-          return { 
-            status: 404, 
-            data: { 
-              error: "ROSTER_NOT_FOUND", 
-              message: "Roster not found" 
-            } 
-          }
-        }
-        
-        const currentShift = currentRoster.roster.shifts.find(
-          (s) => s._id?.toString() === shiftId
-        )
-        
-        if (!currentShift) {
-          return { 
-            status: 404, 
-            data: { 
-              error: "SHIFT_NOT_FOUND", 
-              message: "Shift not found" 
-            } 
-          }
-        }
-        
-        // Merge current shift data with updates for validation
-        const employeeIdToValidate = body!.employeeId !== undefined 
-          ? (body!.employeeId ? new mongoose.Types.ObjectId(body!.employeeId) : null)
-          : currentShift.employeeId
-        const roleIdToValidate = body!.roleId 
-          ? new mongoose.Types.ObjectId(body!.roleId)
-          : currentShift.roleId
-        const locationIdToValidate = body!.locationId 
-          ? new mongoose.Types.ObjectId(body!.locationId)
-          : currentShift.locationId
-        const dateToValidate = body!.date 
-          ? new Date(body!.date)
-          : currentShift.date
-        
-        // Validate the updated shift
-        const validator = new SchedulingValidator()
-        const validationResult = await validator.validateShift(
-          employeeIdToValidate,
-          roleIdToValidate,
-          locationIdToValidate,
-          dateToValidate
-        )
-        
-        if (!validationResult.valid) {
-          return { 
-            status: 400, 
-            data: {
-              error: "VALIDATION_FAILED",
-              message: validationResult.message || validationResult.error,
-              details: validationResult.error,
-            } 
-          }
-        }
-      }
-      
-      const result = await rosterManager.updateShift(weekId, shiftId, updateData)
-      
-      if (!result.success) {
-        if (result.error === "ROSTER_NOT_FOUND") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-        if (result.error === "SHIFT_NOT_FOUND") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-        return { 
-          status: 400, 
-          data: { 
-            error: result.error, 
-            message: result.message 
-          } 
-        }
-      }
-      
-      return { 
-        status: 200, 
-        data: { shift: result.shift } 
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error"
-      console.error("[api/rosters/[weekId]/shifts/[shiftId] PUT]", err)
-      return { 
-        status: 500, 
-        data: { 
-          error: "Failed to update shift", 
-          details: process.env.NODE_ENV === "development" ? message : undefined 
-        } 
-      }
-    }
+    if (!ctx) throw apiErrors.unauthorized()
+    const data = await rosterService.updateShift({ weekId, shiftId, update: body! as any })
+    return { status: 200, data }
   }
 });
 
@@ -226,61 +84,10 @@ export const DELETE = createApiRoute({
   },
   handler: async ({ params }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
     const weekId = params!.weekId
     const shiftId = params!.shiftId
-
-    try {
-      await connectDB()
-      
-      const rosterManager = new RosterManager()
-      const result = await rosterManager.deleteShift(weekId, shiftId)
-      
-      if (!result.success) {
-        if (result.error === "ROSTER_NOT_FOUND") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-        if (result.error === "SHIFT_NOT_FOUND") {
-          return { 
-            status: 404, 
-            data: { 
-              error: result.error, 
-              message: result.message 
-            } 
-          }
-        }
-        return { 
-          status: 500, 
-          data: { 
-            error: result.error, 
-            message: result.message 
-          } 
-        }
-      }
-      
-      return { 
-        status: 200, 
-        data: { message: "Shift deleted successfully" } 
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error"
-      console.error("[api/rosters/[weekId]/shifts/[shiftId] DELETE]", err)
-      return { 
-        status: 500, 
-        data: { 
-          error: "Failed to delete shift", 
-          details: process.env.NODE_ENV === "development" ? message : undefined 
-        } 
-      }
-    }
+    if (!ctx) throw apiErrors.unauthorized()
+    const data = await rosterService.deleteShift({ weekId, shiftId })
+    return { status: 200, data }
   }
 });

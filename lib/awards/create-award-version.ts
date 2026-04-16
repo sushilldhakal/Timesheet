@@ -1,6 +1,5 @@
-import Award from '@/lib/db/schemas/award'
-import { AwardVersionHistory } from '@/lib/db/schemas/award-version-history'
 import type { IAward, IAwardRule, IAwardLevelRate, IAwardTag } from '@/lib/db/schemas/award'
+import { AwardVersionsDbQueries } from "@/lib/db/queries/award-versions"
 
 export function incrementVersion(currentVersion: string, bump: 'major' | 'minor' | 'patch' = 'minor'): string {
   const parts = currentVersion.split('.').map(Number)
@@ -39,7 +38,7 @@ export async function createNewAwardVersion(
     metadata.versionBump ?? 'minor'
   )
 
-  await AwardVersionHistory.create({
+  await AwardVersionsDbQueries.createHistory({
     tenantId: (existingAward as any).tenantId ?? undefined,
     baseAwardId: existingAward._id,
     name: existingAward.name,
@@ -71,11 +70,7 @@ export async function createNewAwardVersion(
   if (updates.name !== undefined) updatePayload.name = updates.name
   if (updates.description !== undefined) updatePayload.description = updates.description
 
-  const updatedAward = await Award.findByIdAndUpdate(
-    existingAward._id,
-    updatePayload,
-    { new: true, runValidators: true }
-  )
+  const updatedAward = await AwardVersionsDbQueries.findAwardByIdAndUpdate(existingAward._id.toString(), updatePayload)
 
   if (!updatedAward) {
     throw new Error('Failed to update award - award not found')

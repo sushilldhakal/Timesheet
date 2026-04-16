@@ -335,7 +335,7 @@ export default function EmployeesPage() {
               </HoverCardTrigger>
               <HoverCardContent className="w-80" align="start">
                 <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">Role Assignments</h4>
+                  <h4 className="text-sm font-semibold">Team Assignments</h4>
                   <div className="space-y-2">
                     {activeRoles.map((role, index) => (
                       <div

@@ -113,7 +113,7 @@ export function OverviewTab({ employee, onNavigate }: OverviewTabProps) {
               )}
               <InfoRow label="Employment Type" value={employee.employmentType} />
               <InfoRow label="Standard Hours/Week" value={employee.standardHoursPerWeek != null ? `${employee.standardHoursPerWeek} hrs` : null} />
-              <InfoRow label="Current Roles" value={roleNames} />
+              <InfoRow label="Current Teams" value={roleNames} />
               <InfoRow label="Locations" value={locationNames} />
               {employee.award && (
                 <>

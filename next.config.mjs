@@ -10,6 +10,10 @@ const require = createRequire(import.meta.url);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+
+  // Next.js 16 enables Turbopack by default. We keep our custom `webpack`
+  // config (used for dev watch ignores + a few client fallbacks), and add an
+  // explicit empty Turbopack config to avoid build-time mismatch errors.
   turbopack: {},
 
   async headers() {
@@ -74,6 +78,22 @@ const nextConfig = {
   },
 
   webpack: (config, { dev, isServer, webpack }) => {
+    if (dev) {
+      const toAdd = [
+        "**/.claude/**",
+        "**/.cursor/**",
+        "**/.agents/**",
+      ];
+      const prev = config.watchOptions ?? {};
+      const ignored = prev.ignored;
+      const nextIgnored = Array.isArray(ignored)
+        ? [...ignored, ...toAdd]
+        : typeof ignored === "string"
+          ? [ignored, ...toAdd]
+          : toAdd;
+      config.watchOptions = { ...prev, ignored: nextIgnored };
+    }
+
     if (!isServer) {
 
       // Polyfill Node built-ins that Human/TFJS may reference

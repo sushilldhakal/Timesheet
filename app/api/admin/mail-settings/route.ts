@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { createApiRoute } from "@/lib/api/create-api-route"
@@ -8,6 +7,7 @@ import {
   mailSettingsResponseSchema,
 } from "@/lib/validations/admin"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
+import { mailSettingsService } from "@/lib/services/admin/mail-settings-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -38,35 +38,9 @@ export const GET = createApiRoute({
         };
       }
 
-      await connectDB()
-      const { default: mongoose } = await import("mongoose")
-      
-      const MailSettings = mongoose.models.MailSettings || mongoose.model("MailSettings", new mongoose.Schema({
-        type: { type: String, default: "mail" },
-        fromEmail: String,
-        fromName: String,
-        apiKey: String,
-        updatedAt: Date,
-      }))
-
-      const doc = await MailSettings.findOne({ type: "mail" })
-
-      if (!doc) {
-        return {
-          status: 200,
-          data: { settings: null }
-        };
-      }
-
       return {
         status: 200,
-        data: {
-          settings: {
-            fromEmail: doc.fromEmail || "",
-            fromName: doc.fromName || "",
-            hasApiKey: !!doc.apiKey,
-          },
-        }
+        data: await mailSettingsService.get(),
       };
     } catch (error) {
       console.error("[GET /api/admin/mail-settings]", error)
@@ -113,36 +87,9 @@ export const POST = createApiRoute({
 
       const { apiKey, fromEmail, fromName } = body!;
 
-      await connectDB()
-      const { default: mongoose } = await import("mongoose")
-      
-      const MailSettings = mongoose.models.MailSettings || mongoose.model("MailSettings", new mongoose.Schema({
-        type: { type: String, default: "mail" },
-        fromEmail: String,
-        fromName: String,
-        apiKey: String,
-        updatedAt: Date,
-      }))
-
-      const update: any = {
-        type: "mail",
-        fromEmail,
-        fromName: fromName || "",
-        updatedAt: new Date(),
-      }
-
-      // Only update apiKey if a new one was provided
-      if (apiKey) update.apiKey = apiKey
-
-      await MailSettings.updateOne(
-        { type: "mail" },
-        { $set: update },
-        { upsert: true }
-      )
-
       return {
         status: 200,
-        data: { success: true }
+        data: await mailSettingsService.save(body),
       };
     } catch (error) {
       console.error("[POST /api/admin/mail-settings]", error)

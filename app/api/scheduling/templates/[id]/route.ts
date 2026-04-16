@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { SchedulingTemplateManager } from "@/lib/managers/scheduling-template-manager"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { rosterWeekTemplateService } from "@/lib/services/scheduling/roster-week-template-service"
 
 const idParamSchema = z.object({
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid template id"),
@@ -29,16 +28,9 @@ export const DELETE = createApiRoute({
     }
 
     const id = params!.id
-    const isAdmin = ctx.auth.role === "admin" || ctx.auth.role === "super_admin"
 
     try {
-      await connectDB()
-      const mgr = new SchedulingTemplateManager()
-      const { deleted } = await mgr.deleteTemplate(id, ctx.auth.sub, isAdmin)
-      if (!deleted) {
-        return { status: 404, data: { error: "Not found" } }
-      }
-      return { status: 200, data: { ok: true } }
+      return await rosterWeekTemplateService.deleteTemplate({ ctx, id })
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed"
       if (msg === "Forbidden") {

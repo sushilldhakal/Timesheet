@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayRun } from "@/lib/db/schemas/pay-run"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { payRunService } from "@/lib/services/pay-run/pay-run-service"
 
 const payRunParamsSchema = z.object({
   id: z.string()
@@ -59,21 +58,8 @@ export const GET = createApiRoute({
     const { id } = params!
 
     try {
-      await connectDB()
-
-      const payRun = await PayRun.findById(id).lean()
-
-      if (!payRun) {
-        return {
-          status: 404,
-          data: { error: "Pay run not found" }
-        }
-      }
-
-      return {
-        status: 200,
-        data: { payRun }
-      }
+      const result = await payRunService.getPayRun(id)
+      return { status: 200, data: result }
     } catch (err) {
       console.error("[api/pay-runs/[id] GET]", err)
       return {

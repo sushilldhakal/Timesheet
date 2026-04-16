@@ -1,9 +1,7 @@
-import { NextRequest, NextResponse } from "next/server"
-import { connectDB, User } from "@/lib/db"
-import { setAdminExistsCache } from "@/lib/db/setup"
 import { adminCreateSchema } from "@/lib/validations/user"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { adminCreateResponseSchema } from "@/lib/validations/setup"
+import { setupAdminService } from "@/lib/services/setup/setup-admin-service"
 
 export const POST = createApiRoute({
   method: 'POST',
@@ -23,37 +21,7 @@ export const POST = createApiRoute({
   },
   handler: async ({ body }) => {
     try {
-      const { username, password } = body!;
-
-      await connectDB()
-
-      const existing = await User.findOne({ username: username.toLowerCase() })
-      if (existing) {
-        return {
-          status: 409,
-          data: { success: false, error: "Username already exists" }
-        };
-      }
-
-      const now = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
-
-      await User.create({
-        name: "Administrator",
-        username: username.toLowerCase(),
-        password,
-        role: "admin",
-        location: [],
-        rights: [],
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      setAdminExistsCache(true)
-
-      return {
-        status: 200,
-        data: { success: true }
-      };
+      return await setupAdminService.createAdmin(body)
     } catch (err) {
       console.error("[setup/create-admin]", err)
       return {

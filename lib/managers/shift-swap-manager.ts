@@ -1,8 +1,8 @@
 import mongoose from "mongoose"
-import { ShiftSwapRequest, IShiftSwapRequest, SwapStatus } from "../db/schemas/shift-swap-request"
-import { Roster } from "../db/schemas/roster"
+import type { IShiftSwapRequest, SwapStatus } from "@/lib/db/queries/scheduling-types"
 import { AvailabilityManager } from "./availability-manager"
 import { ComplianceManager } from "./compliance-manager"
+import { WorkforceModels } from "@/lib/db/queries/workforce-models"
 
 /**
  * Shift Swap Manager
@@ -31,7 +31,7 @@ export class ShiftSwapManager {
     shiftAssignmentId: string,
     reason?: string
   ): Promise<IShiftSwapRequest> {
-    const swapRequest = await ShiftSwapRequest.create({
+    const swapRequest = await WorkforceModels.ShiftSwapRequest.create({
       requestorId: new mongoose.Types.ObjectId(requestorId),
       recipientId: new mongoose.Types.ObjectId(recipientId),
       requestorShiftId: new mongoose.Types.ObjectId(shiftAssignmentId),
@@ -61,7 +61,7 @@ export class ShiftSwapManager {
     swapRequestId: string,
     recipientId: string
   ): Promise<IShiftSwapRequest> {
-    const swapRequest = await ShiftSwapRequest.findById(swapRequestId)
+    const swapRequest = await WorkforceModels.ShiftSwapRequest.findById(swapRequestId)
     if (!swapRequest) {
       throw new Error(`Swap request not found: ${swapRequestId}`)
     }
@@ -99,7 +99,7 @@ export class ShiftSwapManager {
     managerId: string,
     organizationId: string
   ): Promise<IShiftSwapRequest> {
-    const swapRequest = await ShiftSwapRequest.findById(swapRequestId)
+    const swapRequest = await WorkforceModels.ShiftSwapRequest.findById(swapRequestId)
     if (!swapRequest) {
       throw new Error(`Swap request not found: ${swapRequestId}`)
     }
@@ -146,7 +146,7 @@ export class ShiftSwapManager {
     managerId: string,
     reason: string
   ): Promise<IShiftSwapRequest> {
-    const swapRequest = await ShiftSwapRequest.findById(swapRequestId)
+    const swapRequest = await WorkforceModels.ShiftSwapRequest.findById(swapRequestId)
     if (!swapRequest) {
       throw new Error(`Swap request not found: ${swapRequestId}`)
     }
@@ -175,7 +175,7 @@ export class ShiftSwapManager {
    * @param swapRequestId - The approved swap request
    */
   async executeSwap(swapRequestId: string): Promise<void> {
-    const swapRequest = await ShiftSwapRequest.findById(swapRequestId)
+    const swapRequest = await WorkforceModels.ShiftSwapRequest.findById(swapRequestId)
     if (!swapRequest) {
       throw new Error(`Swap request not found: ${swapRequestId}`)
     }
@@ -228,7 +228,7 @@ export class ShiftSwapManager {
       query.$or = [{ requestorId: empId }, { recipientId: empId }]
     }
 
-    return await ShiftSwapRequest.find(query)
+    return await WorkforceModels.ShiftSwapRequest.find(query)
       .sort({ requestedAt: -1 })
       .populate("requestorId", "name")
       .populate("recipientId", "name")

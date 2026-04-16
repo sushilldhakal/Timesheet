@@ -30,6 +30,7 @@ import { useEmployees } from "@/lib/queries/employees"
 import { useUpdateUser } from "@/lib/queries/users"
 import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
 import { AlertCircle } from "lucide-react"
+import type { UpdateUserRequest } from "@/lib/api/users"
 import type { UserRow } from "./page"
 
 type Props = {
@@ -52,7 +53,7 @@ export function EditUserDialog({
   const [name, setName] = useState(user.name)
   const [email, setEmail] = useState(user.email || "")
   const [password, setPassword] = useState("")
-  const [selectedRole, setSelectedRole] = useState<string>(user.role)
+  const [selectedRole, setSelectedRole] = useState<UpdateUserRequest["role"]>(user.role)
   const [location, setLocation] = useState<string[]>(user.location ?? [])
   const [managedRoles, setManagedRoles] = useState<string[]>(user.managedRoles ?? [])
   const [linkedEmployee, setLinkedEmployee] = useState<any>(null)
@@ -153,12 +154,12 @@ export function EditUserDialog({
     setError(null)
 
     if (!isSelf && !canAssignRole) {
-      setError(`You don't have permission to assign the ${getRoleName(selectedRole)} role.`)
+      setError(`You don't have permission to assign the ${getRoleName(selectedRole ?? null)} role.`)
       return
     }
 
     try {
-      const body = isSelf
+      const body: UpdateUserRequest = isSelf
         ? {
             email: email.trim().toLowerCase(),
             ...(password ? { password } : {}),
@@ -259,7 +260,7 @@ export function EditUserDialog({
             {!isSelf && (
               <Field>
                 <FieldLabel htmlFor="edit-user-role">Role *</FieldLabel>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as UpdateUserRequest["role"])}>
                   <SelectTrigger id="edit-user-role">
                     <SelectValue placeholder="Select role..." />
                   </SelectTrigger>

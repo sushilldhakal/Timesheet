@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB } from "@/lib/db"
-import { PublicHoliday } from "@/lib/db/schemas/public-holiday"
 import { z } from "zod"
+import { publicHolidayService } from "@/lib/services/public-holiday/public-holiday-service"
 
 const paramsSchema = z.object({
   id: z.string(),
@@ -49,23 +48,7 @@ export const GET = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-      const holiday = await PublicHoliday.findById(params!.id).lean()
-      if (!holiday) return { status: 404, data: { error: "Public holiday not found" } }
-
-      return {
-        status: 200,
-        data: {
-          publicHoliday: {
-            _id: String((holiday as any)._id),
-            date: (holiday as any).date,
-            name: (holiday as any).name,
-            state: (holiday as any).state,
-            isRecurring: (holiday as any).isRecurring,
-            createdAt: (holiday as any).createdAt,
-          },
-        },
-      }
+      return await publicHolidayService.get(params!.id)
     } catch (err) {
       console.error("[api/public-holidays/[id] GET]", err)
       return { status: 500, data: { error: "Failed to fetch public holiday" } }
@@ -106,43 +89,10 @@ export const PUT = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-
-      const updates: Record<string, unknown> = {}
-      if (body?.date) updates.date = normalizeDateToLocalStartOfDay(body.date)
-      if (typeof body?.name === 'string') updates.name = body.name
-      if (typeof body?.state === 'string') updates.state = body.state
-      if (typeof body?.isRecurring === 'boolean') updates.isRecurring = body.isRecurring
-
-      const updated = await PublicHoliday.findByIdAndUpdate(
-        params!.id,
-        { $set: updates },
-        { new: true, runValidators: true }
-      )
-
-      if (!updated) return { status: 404, data: { error: "Public holiday not found" } }
-
-      return {
-        status: 200,
-        data: {
-          success: true,
-          publicHoliday: {
-            _id: String((updated as any)._id),
-            date: (updated as any).date,
-            name: (updated as any).name,
-            state: (updated as any).state,
-            isRecurring: (updated as any).isRecurring,
-            createdAt: (updated as any).createdAt,
-          },
-        },
-      }
+      return await publicHolidayService.update(params!.id, body)
     } catch (err: any) {
-      const isDup = err?.code === 11000
       console.error("[api/public-holidays/[id] PUT]", err)
-      return {
-        status: isDup ? 400 : 500,
-        data: { error: isDup ? "Public holiday already exists for that date/state" : "Failed to update public holiday" },
-      }
+      return publicHolidayService.mapDup(err, "Failed to update public holiday")
     }
   },
 })
@@ -168,10 +118,7 @@ export const DELETE = createApiRoute({
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
     try {
-      await connectDB()
-      const deleted = await PublicHoliday.findByIdAndDelete(params!.id)
-      if (!deleted) return { status: 404, data: { error: "Public holiday not found" } }
-      return { status: 200, data: { success: true } }
+      return await publicHolidayService.remove(params!.id)
     } catch (err) {
       console.error("[api/public-holidays/[id] DELETE]", err)
       return { status: 500, data: { error: "Failed to delete public holiday" } }

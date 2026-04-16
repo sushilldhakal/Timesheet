@@ -1,9 +1,8 @@
 import { z } from "zod"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB, TeamGroup } from "@/lib/db"
-import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { teamGroupService } from "@/lib/services/team/team-group-service"
 
 const teamGroupResponseSchema = z.object({
   id: z.string(),
@@ -46,32 +45,8 @@ export const GET = createApiRoute({
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
-    const search = query?.search?.trim()
-    const isActive = query?.isActive
-
-    await connectDB()
-    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
-    const filter: Record<string, unknown> = { tenantId: tid }
-    if (typeof isActive === "boolean") filter.isActive = isActive
-    if (search) filter.name = { $regex: search, $options: "i" }
-
-    const teamGroups = await TeamGroup.find(filter).sort({ order: 1, name: 1 }).lean()
-
-    return {
-      status: 200,
-      data: {
-        teamGroups: teamGroups.map((group: any) => ({
-          id: group._id.toString(),
-          name: group.name,
-          description: group.description,
-          color: group.color,
-          order: group.order ?? 0,
-          isActive: group.isActive ?? true,
-          createdAt: group.createdAt ? new Date(group.createdAt).toISOString() : null,
-          updatedAt: group.updatedAt ? new Date(group.updatedAt).toISOString() : null,
-        })),
-      },
-    }
+    const result = await teamGroupService.listTeamGroups({ tenantId: ctx.tenantId, query })
+    return { status: 200, data: result }
   },
 })
 
@@ -94,37 +69,7 @@ export const POST = createApiRoute({
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
-    const payload = body!
-    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
-    await connectDB()
-
-    const existing = await TeamGroup.findOne({
-      tenantId: tid,
-      name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
-    }).lean()
-    if (existing) return { status: 409, data: { error: "A team group with this name already exists" } }
-
-    const created = await TeamGroup.create({
-      ...payload,
-      tenantId: tid,
-      name: payload.name.trim(),
-      order: payload.order ?? 0,
-    })
-
-    return {
-      status: 200,
-      data: {
-        teamGroup: {
-          id: created._id.toString(),
-          name: created.name,
-          description: created.description,
-          color: created.color,
-          order: created.order ?? 0,
-          isActive: created.isActive ?? true,
-          createdAt: created.createdAt ? created.createdAt.toISOString() : null,
-          updatedAt: created.updatedAt ? created.updatedAt.toISOString() : null,
-        },
-      },
-    }
+    const result = await teamGroupService.createTeamGroup({ tenantId: ctx.tenantId, body: body! })
+    return { status: 200, data: result }
   },
 })

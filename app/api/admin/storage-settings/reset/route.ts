@@ -1,9 +1,8 @@
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
-import { connectDB } from "@/lib/db"
-import { StorageSettings } from "@/lib/db/schemas/storage-settings"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { storageSettingsService } from "@/lib/services/admin/storage-settings-service"
 
 // Response schemas
 const resetResponseSchema = z.object({
@@ -38,16 +37,9 @@ export const DELETE = createApiRoute({
       if (!isAdminOrSuperAdmin(auth.role)) {
         return { status: 403, data: { error: "Forbidden" } }
       }
-
-      await connectDB()
-      await StorageSettings.deleteMany({})
-
       return { 
         status: 200, 
-        data: { 
-          success: true, 
-          message: "All storage settings cleared. Please re-enter your credentials." 
-        } 
+        data: await storageSettingsService.resetAll(),
       }
     } catch (error) {
       console.error("[DELETE /api/admin/storage-settings/reset]", error)

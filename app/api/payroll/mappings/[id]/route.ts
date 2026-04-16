@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayrollMapping } from "@/lib/db/schemas/payroll-mapping"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { payrollMappingsService } from "@/lib/services/payroll/payroll-mappings-service"
 
 const paramsSchema = z.object({
   id: z.string()
@@ -50,18 +49,7 @@ export const GET = createApiRoute({
     }
 
     try {
-      await connectDB()
-
-      const mapping = await PayrollMapping.findOne({
-        _id: params!.id,
-        tenantId: ctx.tenantId
-      }).lean()
-
-      if (!mapping) {
-        return { status: 404, data: { error: "Payroll mapping not found" } }
-      }
-
-      return { status: 200, data: { mapping } }
+      return await payrollMappingsService.get(ctx, params!.id)
     } catch (err) {
       console.error("[api/payroll/mappings/[id] GET]", err)
       return { status: 500, data: { error: "Failed to fetch payroll mapping" } }
@@ -90,36 +78,7 @@ export const PUT = createApiRoute({
     }
 
     try {
-      await connectDB()
-
-      const existing = await PayrollMapping.findOne({
-        _id: params!.id,
-        tenantId: ctx.tenantId
-      })
-
-      if (!existing) {
-        return { status: 404, data: { error: "Payroll mapping not found" } }
-      }
-
-      if (body!.isDefault) {
-        await PayrollMapping.updateMany(
-          {
-            tenantId: ctx.tenantId,
-            payrollSystemType: existing.payrollSystemType,
-            isDefault: true,
-            _id: { $ne: existing._id }
-          },
-          { isDefault: false }
-        )
-      }
-
-      const mapping = await PayrollMapping.findByIdAndUpdate(
-        params!.id,
-        { $set: body },
-        { new: true, runValidators: true }
-      ).lean()
-
-      return { status: 200, data: { mapping } }
+      return await payrollMappingsService.update(ctx, params!.id, body)
     } catch (err) {
       console.error("[api/payroll/mappings/[id] PUT]", err)
       return { status: 500, data: { error: "Failed to update payroll mapping" } }
@@ -149,24 +108,7 @@ export const DELETE = createApiRoute({
     }
 
     try {
-      await connectDB()
-
-      const mapping = await PayrollMapping.findOne({
-        _id: params!.id,
-        tenantId: ctx.tenantId
-      })
-
-      if (!mapping) {
-        return { status: 404, data: { error: "Payroll mapping not found" } }
-      }
-
-      if (mapping.isDefault) {
-        return { status: 400, data: { error: "Cannot delete default payroll mapping. Unset it as default first." } }
-      }
-
-      await PayrollMapping.findByIdAndDelete(params!.id)
-
-      return { status: 200, data: { message: "Payroll mapping deleted" } }
+      return await payrollMappingsService.remove(ctx, params!.id)
     } catch (err) {
       console.error("[api/payroll/mappings/[id] DELETE]", err)
       return { status: 500, data: { error: "Failed to delete payroll mapping" } }

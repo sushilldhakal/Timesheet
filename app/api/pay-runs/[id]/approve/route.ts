@@ -1,8 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { PayRun } from "@/lib/db/schemas/pay-run"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { payRunService } from "@/lib/services/pay-run/pay-run-service"
 
 const payRunParamsSchema = z.object({
   id: z.string()
@@ -45,42 +44,8 @@ export const POST = createApiRoute({
     const { id } = params!
 
     try {
-      await connectDB()
-
-      const payRun = await PayRun.findById(id)
-
-      if (!payRun) {
-        return {
-          status: 404,
-          data: { error: "Pay run not found" }
-        }
-      }
-
-      if (payRun.status !== 'calculated') {
-        return {
-          status: 400,
-          data: { error: `Cannot approve pay run with status '${payRun.status}'. Must be 'calculated'.` }
-        }
-      }
-
-      payRun.status = 'approved'
-      payRun.approvedBy = ctx.auth.sub as any
-      payRun.approvedAt = new Date()
-
-      await payRun.save()
-
-      return {
-        status: 200,
-        data: {
-          success: true,
-          payRun: {
-            _id: payRun._id.toString(),
-            status: payRun.status,
-            approvedBy: payRun.approvedBy!.toString(),
-            approvedAt: payRun.approvedAt!
-          }
-        }
-      }
+      const result = await payRunService.approvePayRun({ ctx, id })
+      return { status: 200, data: result }
     } catch (err) {
       console.error("[api/pay-runs/[id]/approve POST]", err)
       return {

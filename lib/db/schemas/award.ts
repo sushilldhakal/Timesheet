@@ -133,7 +133,10 @@ export interface IAward extends Document {
   name: string;
   description?: string;
   rules: IAwardRule[];
-  availableTags: IAwardTag[];
+  /** New tag reference list (preferred). */
+  awardTagIds?: mongoose.Types.ObjectId[];
+  /** Legacy embedded tags (kept for backward compatibility / migration). */
+  availableTags?: IAwardTag[];
   levelRates: IAwardLevelRate[];
   isActive: boolean;
 
@@ -282,7 +285,14 @@ const AwardSchema = new Schema<IAward>(
     name: { type: String, required: true },
     description: { type: String },
     rules: [AwardRuleSchema],
-    availableTags: [AwardTagSchema],
+    awardTagIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "AwardTag",
+      },
+    ],
+    // Legacy embedded tags (migration source)
+    availableTags: { type: [AwardTagSchema], default: undefined },
     levelRates: [AwardLevelRateSchema],
     isActive: { type: Boolean, default: true },
 
@@ -306,6 +316,7 @@ AwardSchema.index({ "rules.conditions.daysOfWeek": 1 });
 AwardSchema.index({ "rules.conditions.employmentTypes": 1 });
 AwardSchema.index({ "rules.priority": -1 });
 AwardSchema.index({ effectiveFrom: 1, effectiveTo: 1 });
+AwardSchema.index({ awardTagIds: 1 });
 
 // Instance method for rule evaluation (basic version - full logic in AwardEngine)
 AwardSchema.methods.evaluateRules = function(context: {
@@ -350,4 +361,8 @@ AwardSchema.methods.evaluateRules = function(context: {
   }).sort((a: IAwardRule, b: IAwardRule) => b.priority - a.priority);
 };
 
-export default mongoose.models.Award || mongoose.model<IAward>("Award", AwardSchema);
+export const Award =
+  (mongoose.models.Award as mongoose.Model<IAward> | undefined) ??
+  mongoose.model<IAward>("Award", AwardSchema);
+
+export default Award;

@@ -5,11 +5,10 @@
  * Works for both admins and employees
  */
 
-import { connectDB, User, Employee } from "@/lib/db"
-import { hashToken, isTokenValid } from "@/lib/utils/auth/auth-tokens"
 import { resetPasswordSchema, tokenVerificationResponseSchema, resetPasswordResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { passwordService } from "@/lib/services/auth/password-service"
 
 // GET - Verify reset token
 export const GET = createApiRoute({
@@ -37,54 +36,8 @@ export const GET = createApiRoute({
           data: { error: "Query parameters are required" }
         };
       }
-      
       const { token } = query;
-
-      await connectDB();
-      const hashedToken = hashToken(token);
-
-      // Check users collection
-      const user = await User.findOne({
-        passwordResetToken: hashedToken,
-      })
-        .select("+passwordResetToken +passwordResetExpiry")
-        .lean();
-
-      if (user && isTokenValid(user.passwordResetExpiry)) {
-        return {
-          status: 200,
-          data: {
-            valid: true,
-            email: user.email || user.username,
-            name: user.name,
-            type: "admin" as const,
-          }
-        };
-      }
-
-      // Check employees collection
-      const employee = await Employee.findOne({
-        passwordResetToken: hashedToken,
-      })
-        .select("+passwordResetToken +passwordResetExpiry")
-        .lean();
-
-      if (employee && isTokenValid(employee.passwordResetExpiry)) {
-        return {
-          status: 200,
-          data: {
-            valid: true,
-            email: employee.email,
-            name: employee.name,
-            type: "employee" as const,
-          }
-        };
-      }
-
-      return {
-        status: 400,
-        data: { error: "Invalid or expired token" }
-      };
+      return await passwordService.resetPasswordVerify(token);
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.error("[auth/reset-password GET]", err);
@@ -121,67 +74,8 @@ export const POST = createApiRoute({
           data: { error: "Request body is required" }
         };
       }
-      
       const { token, newPassword } = body;
-      await connectDB();
-      const hashedToken = hashToken(token);
-
-      // Check users collection
-      const user = await User.findOne({
-        passwordResetToken: hashedToken,
-      }).select("+passwordResetToken +passwordResetExpiry");
-
-      if (user && isTokenValid(user.passwordResetExpiry)) {
-        // Update password and clear reset token
-        user.password = newPassword; // Will be hashed by pre-save hook
-        user.passwordResetToken = null;
-        user.passwordResetExpiry = null;
-        await user.save();
-
-        if (process.env.NODE_ENV === "development") {
-          console.log(`[Reset Password] Password reset for user: ${user.email || user.username}`);
-        }
-
-        return {
-          status: 200,
-          data: {
-            message: "Password reset successfully",
-            userType: "admin" as const,
-          }
-        };
-      }
-
-      // Check employees collection
-      const employee = await Employee.findOne({
-        passwordResetToken: hashedToken,
-      }).select("+passwordResetToken +passwordResetExpiry");
-
-      if (employee && isTokenValid(employee.passwordResetExpiry)) {
-        // Update password and clear reset token
-        employee.password = newPassword; // Will be hashed by pre-save hook
-        employee.passwordResetToken = null;
-        employee.passwordResetExpiry = null;
-        employee.passwordChangedAt = new Date();
-        employee.requirePasswordChange = false; // Clear force change flag
-        await employee.save();
-
-        if (process.env.NODE_ENV === "development") {
-          console.log(`[Reset Password] Password reset for employee: ${employee.email}`);
-        }
-
-        return {
-          status: 200,
-          data: {
-            message: "Password reset successfully",
-            userType: "employee" as const,
-          }
-        };
-      }
-
-      return {
-        status: 400,
-        data: { error: "Invalid or expired token" }
-      };
+      return await passwordService.resetPassword(token, newPassword);
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.error("[auth/reset-password POST]", err);

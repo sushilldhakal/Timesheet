@@ -1,10 +1,9 @@
 import { z } from "zod"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB, Location } from "@/lib/db"
-import mongoose from "mongoose"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { locationCreateSchema, locationQuerySchema } from "@/lib/validations/location"
+import { locationService } from "@/lib/services/location/location-service"
 
 const locationResponseSchema = z.object({
   id: z.string(),
@@ -43,38 +42,9 @@ export const GET = createApiRoute({
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
-    const search = query?.search?.trim()
-    const isActive = query?.isActive
-
-    await connectDB()
-    const filter: Record<string, unknown> = { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
-    if (typeof isActive === "boolean") filter.isActive = isActive
-    if (search) filter.name = { $regex: search, $options: "i" }
-
-    const locations = await Location.find(filter).sort({ order: 1, name: 1 }).lean()
     return {
       status: 200,
-      data: {
-        locations: locations.map((l: any) => ({
-          id: l._id.toString(),
-          name: l.name,
-          code: l.code,
-          address: l.address,
-          lat: l.lat,
-          lng: l.lng,
-          radius: l.radius,
-          geofenceMode: l.geofenceMode,
-          openingHour: l.openingHour,
-          closingHour: l.closingHour,
-          workingDays: l.workingDays,
-          timezone: l.timezone,
-          costCenterId: l.costCenterId,
-          color: l.color,
-          isActive: l.isActive ?? true,
-          createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : null,
-          updatedAt: l.updatedAt ? new Date(l.updatedAt).toISOString() : null,
-        })),
-      },
+      data: await locationService.list(ctx, query),
     }
   },
 })
@@ -98,47 +68,7 @@ export const POST = createApiRoute({
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
-    const payload = body!
-    const tid = new mongoose.Types.ObjectId(ctx.tenantId)
-    await connectDB()
-
-    const existing = await Location.findOne({
-      tenantId: tid,
-      name: { $regex: new RegExp(`^${payload.name.trim()}$`, "i") },
-    }).lean()
-    if (existing) return { status: 409, data: { error: "A location with this name already exists" } }
-
-    const created = await Location.create({
-      ...payload,
-      tenantId: tid,
-      name: payload.name.trim(),
-      createdBy: ctx.auth.sub,
-    })
-
-    return {
-      status: 200,
-      data: {
-        location: {
-          id: created._id.toString(),
-          name: created.name,
-          code: created.code,
-          address: created.address,
-          lat: created.lat,
-          lng: created.lng,
-          radius: created.radius,
-          geofenceMode: created.geofenceMode,
-          openingHour: created.openingHour,
-          closingHour: created.closingHour,
-          workingDays: created.workingDays,
-          timezone: created.timezone,
-          costCenterId: created.costCenterId,
-          color: created.color,
-          isActive: created.isActive ?? true,
-          createdAt: created.createdAt ? created.createdAt.toISOString() : null,
-          updatedAt: created.updatedAt ? created.updatedAt.toISOString() : null,
-        },
-      },
-    }
+    return await locationService.create(ctx, body)
   },
 })
 

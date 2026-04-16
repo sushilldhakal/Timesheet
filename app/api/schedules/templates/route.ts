@@ -1,6 +1,4 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { TemplateManager } from "@/lib/managers/template-manager"
 import { 
   templateQuerySchema,
   templateCreateSchema,
@@ -9,6 +7,7 @@ import {
 } from "@/lib/validations/schedule"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { roleTemplateService } from "@/lib/services/scheduling/role-template-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -38,10 +37,7 @@ export const GET = createApiRoute({
     const organizationId = query?.organizationId ?? ""
 
     try {
-      await connectDB()
-      const templateManager = new TemplateManager()
-      const isAdmin = ctx.auth.role === "admin" || ctx.auth.role === "super_admin"
-      const templates = await templateManager.listRoleTemplates(ctx.auth.sub, isAdmin, organizationId)
+      const { templates } = await roleTemplateService.listRoleTemplates(ctx, organizationId)
 
       return {
         status: 200,
@@ -82,33 +78,10 @@ export const POST = createApiRoute({
       }
     }
 
-    const { roleId, organizationId, shiftPattern } = body!
-
     try {
-      await connectDB()
-      const templateManager = new TemplateManager()
-
-      const template = await templateManager.createRoleTemplate(
-        roleId,
-        organizationId,
-        {
-          dayOfWeek: shiftPattern.dayOfWeek,
-          startTime: new Date(shiftPattern.startTime),
-          endTime: new Date(shiftPattern.endTime),
-          locationId: shiftPattern.locationId as string,
-          roleId: (shiftPattern.roleId ?? roleId) as string,
-          isRotating: shiftPattern.isRotating || false,
-          rotationCycle: shiftPattern.rotationCycle,
-          rotationStartDate: shiftPattern.rotationStartDate
-            ? new Date(shiftPattern.rotationStartDate)
-            : undefined,
-        },
-        ctx.auth.sub
-      )
-
       return {
         status: 201,
-        data: { template }
+        data: await roleTemplateService.createRoleTemplate(ctx, body)
       }
     } catch (err) {
       console.error("[api/schedules/templates POST]", err)

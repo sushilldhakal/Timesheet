@@ -1,5 +1,4 @@
 import { createApiRoute } from "@/lib/api/create-api-route"
-import { connectDB, StaffFaceProfile } from "@/lib/db"
 import { 
   employeeIdParamSchema, 
   faceProfileUpdateSchema,
@@ -7,6 +6,7 @@ import {
   faceProfileCreateResponseSchema,
 } from "@/lib/validations/face-profiles"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
+import { faceProfilesService } from "@/lib/services/monitoring/face-profiles-service"
 
 // GET /api/face-profiles/:employeeId - Fetch profile for employee
 export const GET = createApiRoute({
@@ -29,24 +29,7 @@ export const GET = createApiRoute({
     const { employeeId } = params!
 
     try {
-      await connectDB()
-
-      const profile = await StaffFaceProfile.findOne({
-        employeeId,
-        isActive: true,
-      }).select("-descriptor")
-
-      if (!profile) {
-        return { status: 404, data: { error: "Face profile not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          profile,
-        }
-      }
+      return await faceProfilesService.get(employeeId)
     } catch (error: any) {
       console.error("Error fetching face profile:", error)
       return { status: 500, data: { error: error.message || "Failed to fetch face profile" } }
@@ -75,23 +58,7 @@ export const DELETE = createApiRoute({
     const { employeeId } = params!
 
     try {
-      await connectDB()
-
-      const profile = await StaffFaceProfile.findOneAndDelete({
-        employeeId,
-      })
-
-      if (!profile) {
-        return { status: 404, data: { error: "Face profile not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          message: "Face profile deleted successfully",
-        }
-      }
+      return await faceProfilesService.remove(employeeId)
     } catch (error: any) {
       console.error("Error deleting face profile:", error)
       return { status: 500, data: { error: error.message || "Failed to delete face profile" } }
@@ -123,26 +90,7 @@ export const PATCH = createApiRoute({
     const { isActive } = body!
 
     try {
-      await connectDB()
-
-      const profile = await StaffFaceProfile.findOneAndUpdate(
-        { employeeId },
-        { isActive },
-        { new: true }
-      )
-
-      if (!profile) {
-        return { status: 404, data: { error: "Face profile not found" } }
-      }
-
-      return { 
-        status: 200, 
-        data: {
-          success: true,
-          message: `Face profile ${isActive ? "activated" : "deactivated"} successfully`,
-          profile,
-        }
-      }
+      return await faceProfilesService.setActive(employeeId, isActive)
     } catch (error: any) {
       console.error("Error updating face profile:", error)
       return { status: 500, data: { error: error.message || "Failed to update face profile" } }

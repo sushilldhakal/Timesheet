@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
-import { deleteFilesOlderThanDate } from "@/lib/storage"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   cleanupRequestSchema,
   cloudinaryCleanupResponseSchema,
 } from "@/lib/validations/admin"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { cloudinaryCleanupService } from "@/lib/services/admin/cloudinary-cleanup-service"
 
 const cleanupCloudinary = createApiRoute({
   method: 'POST',
@@ -37,9 +37,7 @@ const cleanupCloudinary = createApiRoute({
 
     const { beforeDate } = body!
 
-    const { deleted, errors } = await deleteFilesOlderThanDate(beforeDate, "timesheet")
-
-    return { status: 200, data: { deleted, errors } }
+    return { status: 200, data: await cloudinaryCleanupService.cleanup(beforeDate) }
   }
 })
 

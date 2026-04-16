@@ -1,10 +1,8 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { connectDB } from "@/lib/db"
-import { Timesheet } from "@/lib/db/schemas/timesheet"
-import { DailyShift } from "@/lib/db/schemas/daily-shift"
-import { Employee } from "@/lib/db/schemas/employee"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
+import { apiErrors } from "@/lib/api/api-error"
+import { timesheetService } from "@/lib/services/timesheet/timesheet-service"
 
 const idParamsSchema = z.object({ id: z.string() })
 
@@ -24,39 +22,9 @@ export const GET = createApiRoute({
   },
   handler: async ({ params }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
-    try {
-      await connectDB()
-
-      const timesheet = await Timesheet.findById(params!.id)
-        .populate("employeeId", "name pin email")
-        .populate("submittedBy", "email")
-        .populate("approvedBy", "email")
-        .populate("rejectedBy", "email")
-        .populate("lockedBy", "email")
-        .lean()
-
-      if (!timesheet) {
-        return { status: 404, data: { error: "Timesheet not found" } }
-      }
-
-      const shifts = await DailyShift.find({
-        _id: { $in: timesheet.shiftIds },
-      })
-        .sort({ date: 1 })
-        .lean()
-
-      return {
-        status: 200,
-        data: { timesheet: { ...timesheet, shifts } },
-      }
-    } catch (err) {
-      console.error("[api/timesheets/[id] GET]", err)
-      return { status: 500, data: { error: "Failed to fetch timesheet" } }
-    }
+    if (!ctx) throw apiErrors.unauthorized()
+    const data = await timesheetService.getTimesheetById(params!.id)
+    return { status: 200, data }
   },
 })
 
@@ -82,37 +50,8 @@ export const PUT = createApiRoute({
   },
   handler: async ({ params, body }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } }
-    }
-
-    try {
-      await connectDB()
-
-      const timesheet = await Timesheet.findById(params!.id)
-      if (!timesheet) {
-        return { status: 404, data: { error: "Timesheet not found" } }
-      }
-
-      if (timesheet.status !== "draft") {
-        return {
-          status: 400,
-          data: {
-            error: `Cannot update timesheet in '${timesheet.status}' status. Only draft timesheets can be edited.`,
-          },
-        }
-      }
-
-      if (body?.notes !== undefined) timesheet.notes = body.notes
-      if (body?.submissionNotes !== undefined)
-        timesheet.submissionNotes = body.submissionNotes
-
-      await timesheet.save()
-
-      return { status: 200, data: { success: true, timesheet } }
-    } catch (err) {
-      console.error("[api/timesheets/[id] PUT]", err)
-      return { status: 500, data: { error: "Failed to update timesheet" } }
-    }
+    if (!ctx) throw apiErrors.unauthorized()
+    const data = await timesheetService.updateTimesheetNotes(params!.id, body ?? {})
+    return { status: 200, data }
   },
 })

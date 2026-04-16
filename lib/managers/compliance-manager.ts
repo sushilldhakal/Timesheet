@@ -1,5 +1,6 @@
 import mongoose from "mongoose"
-import { ComplianceRule, ComplianceRuleType, IComplianceBreakRule } from "../db/schemas/compliance-rule"
+import type { ComplianceRuleType, IComplianceBreakRule } from "@/lib/db/queries/scheduling-types"
+import { ComplianceRulesDbQueries } from "@/lib/db/queries/compliance-rules"
 
 export interface ComplianceViolation {
   employeeId: string
@@ -60,7 +61,7 @@ export class ComplianceManager {
     const violations: ComplianceViolation[] = []
 
     // Get all active compliance rules for the organization
-    const rules = await ComplianceRule.find({
+    const rules = await ComplianceRulesDbQueries.find({
       organizationId,
       isActive: true,
     })
@@ -282,7 +283,7 @@ export class ComplianceManager {
     organizationId: string
   ): Promise<BreakRequirement | null> {
     // Get all active break requirement rules
-    const rules = await ComplianceRule.find({
+    const rules = await ComplianceRulesDbQueries.find({
       organizationId,
       ruleType: "BREAK_REQUIREMENT",
       isActive: true,

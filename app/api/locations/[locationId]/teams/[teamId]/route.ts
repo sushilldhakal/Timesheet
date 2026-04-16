@@ -1,7 +1,4 @@
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { connectDB } from "@/lib/db"
-import { RoleEnablementManager, RoleEnablementError } from "@/lib/managers/role-enablement-manager"
-import { LocationRoleEnablement } from "@/lib/db/schemas/location-role-enablement"
 import {
   locationTeamParamsSchema,
   updateEnablementSchema,
@@ -9,7 +6,7 @@ import {
 } from "@/lib/validations/location"
 import { successResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
-import mongoose from "mongoose"
+import { locationTeamsService } from "@/lib/services/location/location-teams-service"
 
 export const DELETE = createApiRoute({
   method: "DELETE",
@@ -46,46 +43,12 @@ export const DELETE = createApiRoute({
       }
     }
 
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid location ID" },
-      }
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(teamId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid team ID" },
-      }
-    }
-
     try {
-      await connectDB()
-
-      const manager = new RoleEnablementManager()
-      await manager.disableRole(locationId, teamId, auth.sub)
-
-      return {
-        status: 200,
-        data: { message: "Team disabled at location" },
-      }
+      return await locationTeamsService.disableTeam({ auth, locationId, teamId })
     } catch (err: any) {
       console.error("[api/locations/[locationId]/teams/[teamId] DELETE]", err)
-
-      if (err instanceof RoleEnablementError) {
-        return {
-          status: err.statusCode,
-          data: { error: err.message },
-        }
-      }
-
-      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-        return {
-          status: 503,
-          data: { error: "Database connection error. Please try again later." },
-        }
-      }
+      const mapped = locationTeamsService.mapError(err)
+      if (mapped) return mapped
 
       return {
         status: 500,
@@ -134,115 +97,14 @@ export const PATCH = createApiRoute({
 
     const { effectiveFrom, effectiveTo } = body!
 
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid location ID" },
-      }
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(teamId)) {
-      return {
-        status: 400,
-        data: { error: "Invalid team ID" },
-      }
-    }
-
     try {
-      await connectDB()
-
-      const now = new Date()
-      const enablement = await LocationRoleEnablement.findOne({
-        locationId: new mongoose.Types.ObjectId(locationId),
-        roleId: new mongoose.Types.ObjectId(teamId),
-        effectiveFrom: { $lte: now },
-        $or: [{ effectiveTo: null }, { effectiveTo: { $gt: now } }],
-      })
-
-      if (!enablement) {
-        return {
-          status: 404,
-          data: { error: "No active team enablement found" },
-        }
-      }
-
-      if (effectiveFrom) {
-        const newEffectiveFrom = new Date(effectiveFrom)
-
-        if (isNaN(newEffectiveFrom.getTime())) {
-          return {
-            status: 400,
-            data: { error: "Invalid effectiveFrom date" },
-          }
-        }
-
-        if (enablement.effectiveTo && newEffectiveFrom > enablement.effectiveTo) {
-          return {
-            status: 400,
-            data: { error: "effectiveFrom must be before or equal to effectiveTo" },
-          }
-        }
-
-        enablement.effectiveFrom = newEffectiveFrom
-      }
-
-      if (effectiveTo !== undefined) {
-        const newEffectiveTo = effectiveTo ? new Date(effectiveTo) : null
-
-        if (newEffectiveTo && isNaN(newEffectiveTo.getTime())) {
-          return {
-            status: 400,
-            data: { error: "Invalid effectiveTo date" },
-          }
-        }
-
-        if (newEffectiveTo && enablement.effectiveFrom > newEffectiveTo) {
-          return {
-            status: 400,
-            data: { error: "effectiveFrom must be before or equal to effectiveTo" },
-          }
-        }
-
-        enablement.effectiveTo = newEffectiveTo
-      }
-
-      await enablement.save()
-
-      await enablement.populate("roleId", "name color")
-
-      const teamData = enablement.roleId as any
-
-      return {
-        status: 200,
-        data: {
-          enablement: {
-            id: enablement._id.toString(),
-            locationId: enablement.locationId.toString(),
-            teamId: teamData._id.toString(),
-            teamName: teamData.name,
-            teamColor: teamData.color,
-            effectiveFrom: enablement.effectiveFrom,
-            effectiveTo: enablement.effectiveTo,
-            isActive: enablement.isActive,
-          },
-        },
-      }
+      void effectiveFrom
+      void effectiveTo
+      return await locationTeamsService.updateEnablement({ auth, locationId, teamId, body })
     } catch (err: any) {
       console.error("[api/locations/[locationId]/teams/[teamId] PATCH]", err)
-
-      if (err.name === "ValidationError") {
-        return {
-          status: 400,
-          data: { error: `Validation error: ${err.message}` },
-        }
-      }
-
-      if (err instanceof Error && (err.message?.includes("connection") || err.message?.includes("timeout"))) {
-        return {
-          status: 503,
-          data: { error: "Database connection error. Please try again later." },
-        }
-      }
+      const mapped = locationTeamsService.mapError(err)
+      if (mapped) return mapped
 
       return {
         status: 500,

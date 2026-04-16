@@ -1,11 +1,6 @@
 import mongoose from "mongoose"
 import { addDays } from "date-fns"
-import { Roster, IShift } from "../db/schemas/roster"
-import { Employee, IEmployeeDocument } from "../db/schemas/employee"
-import { EmployeeRoleAssignment } from "../db/schemas/employee-role-assignment"
-import { Location } from "../db/schemas/location"
-import { Team } from "../db/schemas/team"
-import { AvailabilityConstraint } from "../db/schemas/availability-constraint"
+import type { IShift, IEmployeeDocument } from "@/lib/db/queries/scheduling-types"
 import { WorkingHoursHierarchy, WorkingHoursConfig } from "./working-hours-hierarchy"
 import { AvailabilityManager } from "./availability-manager"
 import { ComplianceManager } from "./compliance-manager"
@@ -13,6 +8,7 @@ import { AbsenceManager } from "./absence-manager"
 import { SchedulingValidator } from "../validations/scheduling-validator"
 import { RosterManager } from "./roster-manager"
 import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
+import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
 
 export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT"
 
@@ -108,12 +104,12 @@ export class AutoFillEngine {
       return result
     }
 
-    const roster = await Roster.findById(rosterId)
+    const roster = await SchedulingModels.Roster.findById(rosterId)
     if (!roster) {
       throw new Error(`Roster not found: ${rosterId}`)
     }
 
-    const location = await Location.findById(locOid)
+    const location = await SchedulingModels.Location.findById(locOid)
     if (!location) {
       throw new Error(`Location not found: ${locationId}`)
     }
@@ -137,16 +133,16 @@ export class AutoFillEngine {
       }
     }
 
-    const assignments = await EmployeeRoleAssignment.find({
+    const assignments = await SchedulingModels.EmployeeRoleAssignment.find({
       locationId: locOid,
       roleId: { $in: roleOids },
       isActive: true,
     }).lean()
 
     const employeeIds = Array.from(new Set(assignments.map((a) => a.employeeId.toString())))
-    const employees = await Employee.find({ _id: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    const employees = await SchedulingModels.Employee.find({ _id: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) } })
 
-    const constraints = await AvailabilityConstraint.find({
+    const constraints = await SchedulingModels.AvailabilityConstraint.find({
       employeeId: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) },
     }).lean()
 
@@ -191,7 +187,7 @@ export class AutoFillEngine {
       for (const a of empAssignments) {
         if (!roleOids.some((r) => r.equals(a.roleId as mongoose.Types.ObjectId))) continue
 
-        const role = await Team.findById(a.roleId)
+        const role = await SchedulingModels.Team.findById(a.roleId)
         if (!role) continue
 
         await this.fillForAssignment({

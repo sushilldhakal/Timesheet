@@ -1,7 +1,4 @@
-import { getAuthWithUserLocations, employeeLocationFilter } from "@/lib/auth/auth-api"
-import { connectDB, Employee } from "@/lib/db"
-import { ScheduleManager } from "@/lib/managers/schedule-manager"
-import mongoose from "mongoose"
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
@@ -11,6 +8,7 @@ import {
   scheduleDeleteResponseSchema
 } from "@/lib/validations/employee-schedules"
 import { errorResponseSchema } from "@/lib/validations/auth"
+import { employeeSchedulesService } from "@/lib/services/employee/employee-schedules-service"
 
 /** PUT /api/employees/[id]/schedules/[scheduleId] - Update a schedule */
 export const PUT = createApiRoute({
@@ -41,65 +39,9 @@ export const PUT = createApiRoute({
       return { status: 400, data: { error: "Employee ID, schedule ID and request body are required" } };
     }
 
-    const { id, scheduleId } = params!;
-
-    // Validate IDs
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return { status: 400, data: { error: "Invalid employee ID" } };
-    }
-    if (!mongoose.Types.ObjectId.isValid(scheduleId)) {
-      return { status: 400, data: { error: "Invalid schedule ID" } };
-    }
-
     try {
-      await connectDB()
-
-      // Check if employee exists and user has access
-      const empFilter: Record<string, unknown> = { _id: id }
-      const locFilter = employeeLocationFilter(ctx.userLocations)
-      if (Object.keys(locFilter).length > 0) {
-        empFilter.$and = [locFilter]
-      }
-
-      const employee = await Employee.findOne(empFilter)
-      if (!employee) {
-        return { status: 404, data: { error: "Employee not found" } };
-      }
-
-      // Build update data
-      const updateData: Record<string, unknown> = {}
-      if (body!.dayOfWeek !== undefined) {
-        updateData.dayOfWeek = body!.dayOfWeek
-      }
-      if (body!.startTime !== undefined) {
-        updateData.startTime = new Date(body!.startTime)
-      }
-      if (body!.endTime !== undefined) {
-        updateData.endTime = new Date(body!.endTime)
-      }
-      if (body!.locationId !== undefined) {
-        updateData.locationId = new mongoose.Types.ObjectId(body!.locationId)
-      }
-      if (body!.roleId !== undefined) {
-        updateData.roleId = new mongoose.Types.ObjectId(body!.roleId)
-      }
-      if (body!.effectiveFrom !== undefined) {
-        updateData.effectiveFrom = new Date(body!.effectiveFrom)
-      }
-      if (body!.effectiveTo !== undefined) {
-        updateData.effectiveTo = body!.effectiveTo ? new Date(body!.effectiveTo) : null
-      }
-
-      // Update schedule using ScheduleManager
-      const scheduleManager = new ScheduleManager()
-      const result = await scheduleManager.updateSchedule(id, scheduleId, updateData)
-
-      if (!result.success) {
-        const statusCode = result.error === "SCHEDULE_NOT_FOUND" ? 404 : 400
-        return { status: statusCode, data: { error: result.error, message: result.message } };
-      }
-
-      return { status: 200, data: { schedule: result.schedule } };
+      const result = await employeeSchedulesService.updateSchedule({ ctx, employeeId: params.id, scheduleId: params.scheduleId, body })
+      return { status: 200, data: result }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error"
       console.error("[api/employees/[id]/schedules/[scheduleId] PUT]", err)
@@ -141,41 +83,9 @@ export const DELETE = createApiRoute({
       return { status: 400, data: { error: "Employee ID and schedule ID are required" } };
     }
 
-    const { id, scheduleId } = params!;
-    
-    // Validate IDs
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return { status: 400, data: { error: "Invalid employee ID" } };
-    }
-    if (!mongoose.Types.ObjectId.isValid(scheduleId)) {
-      return { status: 400, data: { error: "Invalid schedule ID" } };
-    }
-
     try {
-      await connectDB()
-      
-      // Check if employee exists and user has access
-      const empFilter: Record<string, unknown> = { _id: id }
-      const locFilter = employeeLocationFilter(ctx.userLocations)
-      if (Object.keys(locFilter).length > 0) {
-        empFilter.$and = [locFilter]
-      }
-      
-      const employee = await Employee.findOne(empFilter)
-      if (!employee) {
-        return { status: 404, data: { error: "Employee not found" } };
-      }
-
-      // Delete schedule using ScheduleManager
-      const scheduleManager = new ScheduleManager()
-      const result = await scheduleManager.deleteSchedule(id, scheduleId)
-      
-      if (!result.success) {
-        const statusCode = result.error === "SCHEDULE_NOT_FOUND" ? 404 : 400
-        return { status: statusCode, data: { error: result.error, message: result.message } };
-      }
-      
-      return { status: 200, data: { success: true } };
+      const result = await employeeSchedulesService.deleteSchedule({ ctx, employeeId: params.id, scheduleId: params.scheduleId })
+      return { status: 200, data: result }
     } catch (err) {
       console.error("[api/employees/[id]/schedules/[scheduleId] DELETE]", err)
       return { status: 500, data: { error: "Failed to delete schedule" } };

@@ -1,11 +1,10 @@
 import mongoose from "mongoose"
-import { Roster, IRoster, IShift, getWeekBoundaries } from "../db/schemas/roster"
-import { Employee, IEmployeeDocument } from "../db/schemas/employee"
-import { ISchedule } from "../db/schemas/schedule"
+import type { IRoster, IShift, IEmployeeDocument, ISchedule } from "@/lib/db/queries/scheduling-types"
 import { getISOWeek, getISOWeekYear, addDays } from "date-fns"
-import Award from "../db/schemas/award"
 import { SchedulingValidator } from "../validations/scheduling-validator"
 import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
+import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
+import { getWeekBoundaries as getWeekBoundariesFn } from "@/lib/db/queries/scheduling-types"
 
 /**
  * Roster Manager
@@ -28,7 +27,7 @@ export class RosterManager {
   ): Promise<{ success: true; roster: IRoster } | { success: false; error: string; message: string }> {
     try {
       // Check if roster already exists
-      const existingRoster = await Roster.findOne({ weekId })
+      const existingRoster = await SchedulingModels.Roster.findOne({ weekId })
       if (existingRoster) {
         return {
           success: false,
@@ -38,7 +37,7 @@ export class RosterManager {
       }
 
       // Calculate week boundaries
-      const { start: weekStartDate, end: weekEndDate } = getWeekBoundaries(weekId)
+      const { start: weekStartDate, end: weekEndDate } = getWeekBoundariesFn(weekId)
       const year = getISOWeekYear(weekStartDate)
       const weekNumber = getISOWeek(weekStartDate)
 
@@ -63,7 +62,7 @@ export class RosterManager {
       }
 
       // Reload the roster to get populated shifts
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -100,7 +99,7 @@ export class RosterManager {
   ): Promise<{ success: true; shiftsCreated: number } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -110,7 +109,7 @@ export class RosterManager {
       }
 
       // Calculate week boundaries
-      const { start: weekStartDate, end: weekEndDate } = getWeekBoundaries(weekId)
+      const { start: weekStartDate, end: weekEndDate } = getWeekBoundariesFn(weekId)
 
       // Build query for employees - don't require schedules, we'll use hierarchy
       const query: any = {}
@@ -127,8 +126,7 @@ export class RosterManager {
       // Filter by location if specified
       if (locationIds && locationIds.length > 0) {
         // Import EmployeeRoleAssignment to filter by location
-        const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
-        const mongoose = await import("mongoose")
+        const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
         
         // Find employees who have role assignments at the specified locations
         const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id))
@@ -144,13 +142,13 @@ export class RosterManager {
       }
 
       // Query ALL employees (not just those with schedules)
-      const employees = await Employee.find(query)
+      const employees = await SchedulingModels.Employee.find(query)
 
 
 
       // Import Location model and EmployeeRoleAssignment to fetch role assignments
-      const { Location } = await import("@/lib/db")
-      const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+      const Location = SchedulingModels.Location
+      const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
       const { WorkingHoursHierarchy } = await import("@/lib/managers/working-hours-hierarchy")
       const workingHoursHierarchy = new WorkingHoursHierarchy()
 
@@ -608,7 +606,7 @@ export class RosterManager {
       }
 
       // Fetch the award
-      const award = await Award.findById(awardId)
+      const award = await SchedulingModels.Award.findById(awardId)
       if (!award) {
         return 0
       }
@@ -698,7 +696,7 @@ export class RosterManager {
     weekId: string
   ): Promise<{ success: true; roster: IRoster } | { success: false; error: string; message: string }> {
     try {
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -742,7 +740,7 @@ export class RosterManager {
   ): Promise<{ success: true; shift: IShift } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -780,7 +778,7 @@ export class RosterManager {
       // Calculate estimated cost if employee is assigned
       let estimatedCost = 0
       if (shiftData.employeeId) {
-        const employee = await Employee.findById(shiftData.employeeId)
+        const employee = await SchedulingModels.Employee.findById(shiftData.employeeId)
         if (employee) {
           estimatedCost = await this.calculateShiftCost(
             {
@@ -852,7 +850,7 @@ export class RosterManager {
   ): Promise<{ success: true; shift: IShift } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -922,7 +920,7 @@ export class RosterManager {
       // Recalculate estimated cost if employee is assigned
       let estimatedCost = existingShift.estimatedCost
       if (updatedShiftData.employeeId) {
-        const employee = await Employee.findById(updatedShiftData.employeeId)
+        const employee = await SchedulingModels.Employee.findById(updatedShiftData.employeeId)
         if (employee) {
           estimatedCost = await this.calculateShiftCost(
             {
@@ -984,7 +982,7 @@ export class RosterManager {
   ): Promise<{ success: true } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
-      const roster = await Roster.findOne({ weekId })
+      const roster = await SchedulingModels.Roster.findOne({ weekId })
       if (!roster) {
         return {
           success: false,
@@ -1038,7 +1036,7 @@ export class RosterManager {
     weekId: string
   ): Promise<{ valid: boolean; error?: string; message?: string }> {
     // Get week boundaries
-    const { start: weekStartDate, end: weekEndDate } = getWeekBoundaries(weekId)
+    const { start: weekStartDate, end: weekEndDate } = getWeekBoundariesFn(weekId)
 
     // Basic validation
     if (!shiftData.employeeId || !shiftData.date || !shiftData.startTime || !shiftData.endTime) {
@@ -1063,7 +1061,7 @@ export class RosterManager {
       weekId: string
     ): Promise<{ success: true; roster: IRoster } | { success: false; error: string; message: string }> {
       try {
-        const roster = await Roster.findOne({ weekId })
+        const roster = await SchedulingModels.Roster.findOne({ weekId })
         if (!roster) {
           return {
             success: false,
@@ -1098,7 +1096,7 @@ export class RosterManager {
       roleIds: Array<mongoose.Types.ObjectId | string>
     ): Promise<{ success: true; roster: IRoster; publishedCount: number } | { success: false; error: string; message: string }> {
       try {
-        const roster = await Roster.findOne({ weekId })
+        const roster = await SchedulingModels.Roster.findOne({ weekId })
         if (!roster) {
           return {
             success: false,
@@ -1145,7 +1143,7 @@ export class RosterManager {
       weekId: string
     ): Promise<{ success: true; roster: IRoster } | { success: false; error: string; message: string }> {
       try {
-        const roster = await Roster.findOne({ weekId })
+        const roster = await SchedulingModels.Roster.findOne({ weekId })
         if (!roster) {
           return {
             success: false,
@@ -1200,7 +1198,7 @@ export class RosterManager {
         }
 
         // Delete the roster
-        await Roster.deleteOne({ weekId })
+        await SchedulingModels.Roster.deleteOne({ weekId })
 
         return {
           success: true,
@@ -1226,7 +1224,7 @@ export class RosterManager {
     ): Promise<{ success: true; shiftsCreated: number } | { success: false; error: string; message: string }> {
       try {
         // Find target roster
-        const targetRoster = await Roster.findOne({ weekId: targetWeekId })
+        const targetRoster = await SchedulingModels.Roster.findOne({ weekId: targetWeekId })
         if (!targetRoster) {
           return {
             success: false,
@@ -1236,7 +1234,7 @@ export class RosterManager {
         }
 
         // Find source roster
-        const sourceRoster = await Roster.findOne({ weekId: sourceWeekId })
+        const sourceRoster = await SchedulingModels.Roster.findOne({ weekId: sourceWeekId })
         if (!sourceRoster) {
           return {
             success: false,
@@ -1254,8 +1252,8 @@ export class RosterManager {
         }
 
         // Calculate week boundaries
-        const { start: targetWeekStart } = getWeekBoundaries(targetWeekId)
-        const { start: sourceWeekStart } = getWeekBoundaries(sourceWeekId)
+        const { start: targetWeekStart } = getWeekBoundariesFn(targetWeekId)
+        const { start: sourceWeekStart } = getWeekBoundariesFn(sourceWeekId)
 
         // Calculate day offset between weeks
         const dayOffset = Math.round(
@@ -1273,7 +1271,7 @@ export class RosterManager {
           // Recalculate cost if employee is assigned
           let estimatedCost = 0
           if (sourceShift.employeeId) {
-            const employee = await Employee.findById(sourceShift.employeeId)
+            const employee = await SchedulingModels.Employee.findById(sourceShift.employeeId)
             if (employee) {
               estimatedCost = await this.calculateShiftCost(
                 {
@@ -1337,7 +1335,7 @@ export class RosterManager {
     > {
       try {
         // Find the roster
-        const roster = await Roster.findOne({ weekId })
+        const roster = await SchedulingModels.Roster.findOne({ weekId })
         if (!roster) {
           return {
             success: false,

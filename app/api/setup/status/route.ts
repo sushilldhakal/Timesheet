@@ -1,10 +1,9 @@
 
 
 import { NextResponse } from "next/server"
-import { needsAdminSetup } from "@/lib/db/setup"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { setupStatusResponseSchema } from "@/lib/validations/setup"
-import { mongoose } from "@/lib/db"
+import { setupStatusService } from "@/lib/services/setup/setup-status-service"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -19,20 +18,9 @@ export const GET = createApiRoute({
   },
   handler: async () => {
     try {
-      const setupRequired = await needsAdminSetup()
       return {
         status: 200,
-        data: { 
-          success: true,
-          data: {
-            isSetupComplete: !setupRequired,
-            hasAdmin: !setupRequired,
-            databaseConnected: true,
-            requiredSteps: setupRequired ? ['Create admin user'] : [],
-            completedSteps: setupRequired ? [] : ['Create admin user'],
-            needsSetup: setupRequired
-          }
-        }
+        data: await setupStatusService.getStatus(),
       };
     } catch (err) {
       console.error("[setup/status]", err)
