@@ -28,7 +28,7 @@ export const GET = createApiRoute({
   },
   handler: async ({ query }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) throw apiErrors.unauthorized()
+    if (!ctx?.tenantId) throw apiErrors.unauthorized()
     const data = await timesheetService.getDashboard(
       { tenantId: ctx.tenantId, userLocations: ctx.userLocations ?? undefined },
       query as any
@@ -57,7 +57,7 @@ export const POST = createApiRoute({
   },
   handler: async ({ body }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) throw apiErrors.unauthorized()
+    if (!ctx?.tenantId) throw apiErrors.unauthorized()
     const result = await timesheetService.createTimesheet(body!)
     return { status: 201, data: result }
   },

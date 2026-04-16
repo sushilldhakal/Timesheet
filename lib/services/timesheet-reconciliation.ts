@@ -79,6 +79,32 @@ export type WeekReconciliationResponse = {
   status: { overall: "PASS" | "WARN" | "FAIL"; message: string }
 }
 
+export type RangeReconciliationResponse = {
+  employeeId: string
+  rangeStartUtc: string
+  rangeEndUtc: string
+  rosters: { count: number; rosterIds: string[] }
+  actual: { count: number }
+  days: Array<{
+    date: string
+    reconciledShifts: ReconciledShift[]
+    totals: {
+      rosterMinutes: number
+      actualMinutes: number
+      varianceMinutes: number
+    }
+  }>
+  variances: {
+    totalRosterMinutes: number
+    totalActualMinutes: number
+    totalVarianceMinutes: number
+    missingActualCount: number
+    extraActualCount: number
+  }
+  compliance: ReturnType<typeof runComplianceChecks> & { rules: Required<ComplianceRuleConfig> }
+  status: { overall: "PASS" | "WARN" | "FAIL"; message: string }
+}
+
 function isoDateOnlyUtc(d: Date) {
   return d.toISOString().slice(0, 10)
 }
@@ -156,6 +182,97 @@ export async function fetchTimesheetWithRoster(input: {
   } catch (error) {
     console.error("[fetchTimesheetWithRoster] Error:", error)
     throw error
+  }
+}
+
+function parseYmdToUtcStart(dateString: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateString))
+  if (!m) throw new Error("Invalid date; expected yyyy-MM-dd")
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0))
+  if (Number.isNaN(dt.getTime())) throw new Error("Invalid date; expected yyyy-MM-dd")
+  return dt
+}
+
+function parseYmdToUtcEnd(dateString: string): Date {
+  const start = parseYmdToUtcStart(dateString)
+  return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 23, 59, 59, 999))
+}
+
+export async function fetchTimesheetWithRosterRange(input: {
+  tenantId: string
+  employeeId: string
+  startDate: string // yyyy-MM-dd
+  endDate: string // yyyy-MM-dd
+}): Promise<{
+  range: { start: Date; end: Date }
+  roster: { rosterIds: string[]; shifts: Array<IRosterShift & { _id: any }>; count: number }
+  actual: any[]
+}> {
+  await connectDB()
+
+  const tenantObjectId = new mongoose.Types.ObjectId(input.tenantId)
+  const employeeObjectId = new mongoose.Types.ObjectId(input.employeeId)
+
+  const startUTC = parseYmdToUtcStart(input.startDate)
+  const endUTC = parseYmdToUtcEnd(input.endDate)
+
+  if (startUTC.getTime() > endUTC.getTime()) {
+    throw new Error("startDate must be <= endDate")
+  }
+
+  // Roster shifts: pull all published rosters overlapping the range and filter to the employee's shifts in-range.
+  const rosterAgg = await Roster.aggregate([
+    {
+      $match: {
+        tenantId: tenantObjectId,
+        status: "published",
+        weekStartDate: { $lte: endUTC },
+        weekEndDate: { $gte: startUTC },
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        shifts: {
+          $filter: {
+            input: "$shifts",
+            as: "s",
+            cond: {
+              $and: [
+                { $eq: ["$$s.employeeId", employeeObjectId] },
+                { $gte: ["$$s.date", startUTC] },
+                { $lte: ["$$s.date", endUTC] },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ])
+
+  const rosterIds = (rosterAgg ?? [])
+    .map((r: any) => (r?._id ? String(r._id) : null))
+    .filter(Boolean) as string[]
+
+  const rosterShifts = (rosterAgg ?? []).flatMap((r: any) => (r?.shifts ?? [])) as Array<IRosterShift & { _id: any }>
+
+  // Actuals: single range query, scoped to tenant+employee for the range.
+  const actual = await DailyShift.find({
+    tenantId: tenantObjectId,
+    employeeId: employeeObjectId,
+    date: { $gte: startUTC, $lte: endUTC },
+    status: { $ne: "rejected" },
+  })
+    .sort({ date: 1 })
+    .lean()
+
+  return {
+    range: { start: startUTC, end: endUTC },
+    roster: { rosterIds, shifts: rosterShifts, count: rosterIds.length },
+    actual,
   }
 }
 
@@ -436,6 +553,71 @@ export async function reconcileWeek(input: {
     }
   } catch (error) {
     console.error("[reconcileWeek] Error fetching/reconciling week:", { ...input, error: error instanceof Error ? error.message : error })
+    throw error
+  }
+}
+
+export async function reconcileRange(input: {
+  tenantId: string
+  employeeId: string
+  startDate: string // yyyy-MM-dd
+  endDate: string // yyyy-MM-dd
+  rules?: ComplianceRuleConfig
+}): Promise<RangeReconciliationResponse> {
+  try {
+    const { range, roster, actual } = await fetchTimesheetWithRosterRange(input)
+    const { reconciled } = compareRosterVsActual({ rosterShifts: roster.shifts, actualShifts: actual })
+
+    const byDay = new Map<string, ReconciledShift[]>()
+    for (const s of reconciled) {
+      if (!byDay.has(s.date)) byDay.set(s.date, [])
+      byDay.get(s.date)!.push(s)
+    }
+
+    const days = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, shifts]) => {
+        const rosterMinutes = shifts.reduce((sum, s) => {
+          if (!s.roster?.startTimeUtc || !s.roster?.endTimeUtc) return sum
+          return sum + durationMinutes(new Date(s.roster.startTimeUtc), new Date(s.roster.endTimeUtc))
+        }, 0)
+        const actualMinutes = shifts.reduce((sum, s) => {
+          if (!s.actual?.startTimeUtc || !s.actual?.endTimeUtc) return sum
+          return (
+            sum +
+            durationMinutes(
+              s.actual.startTimeUtc ? new Date(s.actual.startTimeUtc) : null,
+              s.actual.endTimeUtc ? new Date(s.actual.endTimeUtc) : null,
+            )
+          )
+        }, 0)
+        return {
+          date,
+          reconciledShifts: shifts,
+          totals: { rosterMinutes, actualMinutes, varianceMinutes: actualMinutes - rosterMinutes },
+        }
+      })
+
+    const variances = generateVarianceReport(reconciled)
+    const compliance = validateComplianceRules({ reconciled, rules: input.rules })
+    const status = calculateTimesheetStatus(compliance, variances)
+
+    return {
+      employeeId: input.employeeId,
+      rangeStartUtc: range.start.toISOString(),
+      rangeEndUtc: range.end.toISOString(),
+      rosters: { count: roster.count, rosterIds: roster.rosterIds },
+      actual: { count: actual.length },
+      days,
+      variances,
+      compliance,
+      status,
+    }
+  } catch (error) {
+    console.error("[reconcileRange] Error fetching/reconciling range:", {
+      ...input,
+      error: error instanceof Error ? error.message : error,
+    })
     throw error
   }
 }

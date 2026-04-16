@@ -9,7 +9,7 @@ export interface IComplianceBreakRule {
 
 export interface IComplianceRule {
   _id: mongoose.Types.ObjectId
-  organizationId: string
+  tenantId: mongoose.Types.ObjectId
   name: string
   ruleType: ComplianceRuleType
   
@@ -46,11 +46,7 @@ const BreakRuleSchema = new mongoose.Schema<IComplianceBreakRule>(
 
 const complianceRuleSchema = new mongoose.Schema<IComplianceRuleDocument>(
   {
-    organizationId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: {
       type: String,
       required: true,
@@ -101,8 +97,8 @@ const complianceRuleSchema = new mongoose.Schema<IComplianceRuleDocument>(
 )
 
 // Indexes
-complianceRuleSchema.index({ organizationId: 1, ruleType: 1 })
-complianceRuleSchema.index({ isActive: 1 })
+complianceRuleSchema.index({ tenantId: 1, ruleType: 1 })
+complianceRuleSchema.index({ tenantId: 1, isActive: 1 })
 
 export const ComplianceRule =
   (mongoose.models.ComplianceRule as mongoose.Model<IComplianceRuleDocument>) ??

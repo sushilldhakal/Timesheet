@@ -5,6 +5,7 @@ export type LeaveStatus = "PENDING" | "APPROVED" | "DENIED"
 
 export interface ILeaveRecord {
   _id: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   startDate: Date
   endDate: Date
@@ -30,6 +31,7 @@ export interface ILeaveRecordDocument extends ILeaveRecord, mongoose.Document {}
 
 const leaveRecordSchema = new mongoose.Schema<ILeaveRecordDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
@@ -95,9 +97,9 @@ const leaveRecordSchema = new mongoose.Schema<ILeaveRecordDocument>(
 )
 
 // Indexes for efficient querying
-leaveRecordSchema.index({ employeeId: 1, startDate: 1, endDate: 1 })
-leaveRecordSchema.index({ status: 1 })
-leaveRecordSchema.index({ startDate: 1, endDate: 1 })
+leaveRecordSchema.index({ tenantId: 1, employeeId: 1, startDate: 1, endDate: 1 })
+leaveRecordSchema.index({ tenantId: 1, status: 1 })
+leaveRecordSchema.index({ tenantId: 1, startDate: 1, endDate: 1 })
 
 // Validation: endDate must be after or equal to startDate
 leaveRecordSchema.pre("validate", function (next) {

@@ -277,7 +277,7 @@ function EmployeeDetailPage() {
 
         {/* ── Timesheet ── */}
         <TabsContent value="timesheet">
-          <TimesheetTab employeeId={employee.id} />
+          <TimesheetTab employeeId={employee.id} employeeName={employee.name} employeeImage={employee.img} />
         </TabsContent>
 
         {/* ── Payroll ── */}

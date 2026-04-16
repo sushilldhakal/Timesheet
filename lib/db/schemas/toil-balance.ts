@@ -12,7 +12,7 @@ export interface ITOILEntry {
 
 // ─── TOIL Balance ─────────────────────────────────────────
 export interface ITOILBalance extends Document {
-  organisationId: mongoose.Types.ObjectId;
+  tenantId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId;
   pin: string;
   year: number;
@@ -40,7 +40,7 @@ const TOILEntrySchema = new Schema<ITOILEntry>(
 
 const TOILBalanceSchema = new Schema<ITOILBalance>(
   {
-    organisationId: { type: Schema.Types.ObjectId, ref: "Organisation", required: true, index: true },
+    tenantId: { type: Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: { type: Schema.Types.ObjectId, ref: "Employee", required: true, index: true },
     pin: { type: String, required: true },
     year: { type: Number, required: true },
@@ -51,7 +51,7 @@ const TOILBalanceSchema = new Schema<ITOILBalance>(
 );
 
 // Create compound unique index on employeeId and year
-TOILBalanceSchema.index({ employeeId: 1, year: 1 }, { unique: true });
+TOILBalanceSchema.index({ tenantId: 1, employeeId: 1, year: 1 }, { unique: true });
 
 // Create index on expiryDate for expiry processing
 TOILBalanceSchema.index({ "entries.expiryDate": 1 });

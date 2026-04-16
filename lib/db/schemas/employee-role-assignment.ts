@@ -5,6 +5,7 @@ import mongoose from "mongoose"
  * Replaces legacy Employee.role field (roleId references Team documents)
  */
 export interface IEmployeeRoleAssignment {
+  tenantId: mongoose.Types.ObjectId  // ref: Employer
   employeeId: mongoose.Types.ObjectId  // ref: Employee
   roleId: mongoose.Types.ObjectId      // ref: Team (scheduling team id)
   locationId: mongoose.Types.ObjectId  // ref: Location
@@ -23,6 +24,7 @@ export interface IEmployeeRoleAssignmentDocument extends IEmployeeRoleAssignment
 
 const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignmentDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
@@ -129,15 +131,15 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
 // Compound indexes for query performance
 // Unique index to prevent duplicate assignments for the same employee/role/location with the same start date
 employeeRoleAssignmentSchema.index(
-  { employeeId: 1, roleId: 1, locationId: 1, validFrom: 1 },
+  { tenantId: 1, employeeId: 1, roleId: 1, locationId: 1, validFrom: 1 },
   { unique: true }
 )
 
 // Index for getting employee's current assignments
-employeeRoleAssignmentSchema.index({ employeeId: 1, isActive: 1 })
+employeeRoleAssignmentSchema.index({ tenantId: 1, employeeId: 1, isActive: 1 })
 
 // Index for getting employees for a role at a location
-employeeRoleAssignmentSchema.index({ locationId: 1, roleId: 1, isActive: 1 })
+employeeRoleAssignmentSchema.index({ tenantId: 1, locationId: 1, roleId: 1, isActive: 1 })
 
 // Pre-save hook to compute isActive field
 employeeRoleAssignmentSchema.pre("save", function (next) {

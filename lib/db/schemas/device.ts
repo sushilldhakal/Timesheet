@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 
 export interface IDevice {
+  tenantId: mongoose.Types.ObjectId
   deviceId?: string // Optional - set during activation
   deviceName: string // Admin-friendly label (e.g., "Kiosk 1 - Port Melbourne")
   locationName: string // Human-readable location
@@ -22,10 +23,10 @@ export interface IDeviceDocument extends IDevice, mongoose.Document {}
 
 const deviceSchema = new mongoose.Schema<IDeviceDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     deviceId: {
       type: String,
       required: false, // Not required during creation, set during activation
-      unique: true, // This creates the unique index
       trim: true,
       sparse: true, // Allow multiple null values
     },
@@ -105,6 +106,7 @@ deviceSchema.index({ status: 1 })
 deviceSchema.index({ locationName: 1 })
 deviceSchema.index({ lastActivity: -1 })
 // activationCode index is defined in the schema field above
+deviceSchema.index({ tenantId: 1, deviceId: 1 }, { unique: true, sparse: true })
 
 export const Device =
   (mongoose.models.Device as mongoose.Model<IDeviceDocument>) ??

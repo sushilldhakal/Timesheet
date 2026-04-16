@@ -7,6 +7,7 @@ import { apiErrors } from "@/lib/api/api-error"
 import { connectDB } from "@/lib/db"
 import { DailyShift } from "@/lib/db/schemas/daily-shift"
 import { getWeekBoundaries } from "@/lib/db/schemas/roster"
+import { scope } from "@/lib/db/tenant-model"
 
 const paramsSchema = z.object({ employeeId: z.string() })
 
@@ -37,7 +38,7 @@ export const GET = createApiRoute({
   },
   handler: async ({ params, query }) => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
 
     const allowedRoles = ["admin", "super_admin", "manager", "supervisor", "accounts"]
     if (!allowedRoles.includes(String(ctx.auth.role))) {
@@ -69,8 +70,8 @@ export const GET = createApiRoute({
     const startUTC = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 0, 0, 0, 0))
     const endUTC = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999))
 
-    const shifts = await DailyShift.find({
-      tenantId: new mongoose.Types.ObjectId(String(ctx.tenantId)),
+    const DailyShiftScoped = scope(DailyShift as any, String(ctx.tenantId))
+    const shifts = await DailyShiftScoped.find({
       employeeId: new mongoose.Types.ObjectId(employeeId),
       date: { $gte: startUTC, $lte: endUTC },
       status: { $ne: "rejected" },

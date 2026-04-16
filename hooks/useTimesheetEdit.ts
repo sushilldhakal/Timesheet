@@ -88,6 +88,37 @@ export type WeekReconciliationResponse = {
   status: { overall: "PASS" | "WARN" | "FAIL"; message: string }
 }
 
+export type RangeReconciliationResponse = {
+  employeeId: string
+  rangeStartUtc: string
+  rangeEndUtc: string
+  rosters: { count: number; rosterIds: string[] }
+  actual: { count: number }
+  days: Array<{
+    date: string // YYYY-MM-DD
+    reconciledShifts: ReconciledShift[]
+    totals: { rosterMinutes: number; actualMinutes: number; varianceMinutes: number }
+  }>
+  variances: {
+    totalRosterMinutes: number
+    totalActualMinutes: number
+    totalVarianceMinutes: number
+    missingActualCount: number
+    extraActualCount: number
+  }
+  compliance: {
+    summary: { passing: number; total: number; warnings: number; blockingFailures: number }
+    results: Array<any>
+    rules: {
+      maxHoursPerWeek: number
+      minRestHoursBetweenShifts: number
+      maxConsecutiveDays: number
+      rosterVarianceThresholdMinutes: number
+    }
+  }
+  status: { overall: "PASS" | "WARN" | "FAIL"; message: string }
+}
+
 /**
  * Stable UI model exposed by this hook.
  *
@@ -111,6 +142,10 @@ export type TimesheetEditDay = {
   rows: TimesheetEditRow[]
   totals: { rosterMinutes: number; actualMinutes: number; varianceMinutes: number }
 }
+
+export type TimesheetPeriod =
+  | { kind: "week"; weekId: string }
+  | { kind: "range"; startDate: string; endDate: string }
 
 type Draft = {
   startTime: string | null
@@ -252,16 +287,16 @@ function toIsoWeekId(inputWeekId: string): string {
   return inputWeekId
 }
 
-export function useTimesheetEdit(employeeId: string, weekId: string) {
+export function useTimesheetEdit(employeeId: string, period: TimesheetPeriod) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [week, setWeek] = useState<WeekReconciliationResponse | null>(null)
+  const [week, setWeek] = useState<(WeekReconciliationResponse | RangeReconciliationResponse) | null>(null)
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [savingByShiftId, setSavingByShiftId] = useState<Record<string, boolean>>({})
   const [approvingByShiftId, setApprovingByShiftId] = useState<Record<string, boolean>>({})
 
-  const lastGoodWeekRef = useRef<WeekReconciliationResponse | null>(null)
+  const lastGoodWeekRef = useRef<(WeekReconciliationResponse | RangeReconciliationResponse) | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
@@ -271,13 +306,21 @@ export function useTimesheetEdit(employeeId: string, weekId: string) {
     setLoading(true)
     setLoadError(null)
     try {
-      const backendWeekId = toIsoWeekId(weekId)
-      const data = await apiJson<WeekReconciliationResponse>(
-        `/api/timesheets/employee/${encodeURIComponent(employeeId)}/week/${encodeURIComponent(
-          backendWeekId,
-        )}`,
-        { signal: ac.signal }
-      )
+      const data =
+        period.kind === "week"
+          ? await apiJson<WeekReconciliationResponse>(
+              `/api/timesheets/employee/${encodeURIComponent(employeeId)}/week/${encodeURIComponent(
+                toIsoWeekId(period.weekId),
+              )}`,
+              { signal: ac.signal },
+            )
+          : await apiJson<RangeReconciliationResponse>(
+              `/api/timesheets/employee/${encodeURIComponent(employeeId)}/range?${new URLSearchParams({
+                startDate: period.startDate,
+                endDate: period.endDate,
+              }).toString()}`,
+              { signal: ac.signal },
+            )
       setWeek(data)
       lastGoodWeekRef.current = data
 
@@ -304,7 +347,7 @@ export function useTimesheetEdit(employeeId: string, weekId: string) {
     } finally {
       setLoading(false)
     }
-  }, [employeeId, weekId])
+  }, [employeeId, period])
 
   useEffect(() => {
     void load()

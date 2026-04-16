@@ -2,6 +2,12 @@ import mongoose from "mongoose"
 
 const activityLogSchema = new mongoose.Schema(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employer",
+      required: true,
+      index: true,
+    },
     action: {
       type: String,
       required: true,
@@ -30,8 +36,8 @@ const activityLogSchema = new mongoose.Schema(
 )
 
 // Index for faster queries
-activityLogSchema.index({ userId: 1, createdAt: -1 })
-activityLogSchema.index({ category: 1, createdAt: -1 })
+activityLogSchema.index({ tenantId: 1, userId: 1, createdAt: -1 })
+activityLogSchema.index({ tenantId: 1, category: 1, createdAt: -1 })
 
 export const ActivityLog =
   mongoose.models.ActivityLog || mongoose.model("ActivityLog", activityLogSchema)

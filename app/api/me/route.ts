@@ -23,7 +23,7 @@ export const GET = createApiRoute({
   },
   handler: async () => {
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
+    if (!ctx?.tenantId) {
       return {
         status: 401,
         data: { error: "Unauthorized" }

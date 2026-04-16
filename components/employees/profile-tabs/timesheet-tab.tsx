@@ -1,28 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { addWeeks, endOfISOWeek, format, getISOWeek, getISOWeekYear, setISOWeek, setISOWeekYear, startOfISOWeek, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns"
+import { format, getISOWeek, getISOWeekYear, startOfISOWeek, endOfISOWeek, startOfMonth, endOfMonth, parseISO, isValid } from "date-fns"
 import type { TimesheetEntryRow } from "@/components/timesheet/TimesheetEntriesList"
 import { TimesheetViewer } from "@/components/timesheet/TimesheetViewer"
 import { TimesheetDayRow } from "@/components/TimesheetDayRow"
 import { useMe } from "@/lib/queries/auth"
 import { useTimesheetEdit } from "@/hooks/useTimesheetEdit"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
-
-function weekIdToDate(weekId: string): Date | null {
-  const m = /^(\d{4})-W(\d{2})$/.exec(weekId)
-  if (!m) return null
-  const year = Number(m[1])
-  const week = Number(m[2])
-  if (!Number.isFinite(year) || !Number.isFinite(week)) return null
-  if (week < 1 || week > 53) return null
-
-  let d = new Date()
-  d = setISOWeekYear(d, year)
-  d = setISOWeek(d, week)
-  d = startOfISOWeek(d)
-  return Number.isNaN(d.getTime()) ? null : d
-}
+import { useQueries } from "@tanstack/react-query"
+import * as teamsApi from "@/lib/api/teams"
 
 function makeWeekId(d: Date): string {
   const year = getISOWeekYear(d)
@@ -68,15 +55,23 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
 
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [view, setView] = useState<TimesheetView>("week")
+  const [useCustomRange, setUseCustomRange] = useState(false)
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
 
   const weekId = useMemo(() => makeWeekId(selectedDate), [selectedDate])
-  const weekDate = useMemo(() => weekIdToDate(weekId) ?? selectedDate, [weekId, selectedDate])
 
   // Calculate date range based on current view
-  const dateRange = useMemo(() => getDateRangeForView(view, weekDate), [view, weekDate])
+  const dateRange = useMemo(() => getDateRangeForView(view, selectedDate), [view, selectedDate])
 
-  const startDate = useMemo(() => format(dateRange.start, "yyyy-MM-dd"), [dateRange.start])
-  const endDate = useMemo(() => format(dateRange.end, "yyyy-MM-dd"), [dateRange.end])
+  const startDate = useMemo(() => {
+    if (useCustomRange && customStartDate) return customStartDate
+    return format(dateRange.start, "yyyy-MM-dd")
+  }, [dateRange.start, useCustomRange, customStartDate])
+  const endDate = useMemo(() => {
+    if (useCustomRange && customEndDate) return customEndDate
+    return format(dateRange.end, "yyyy-MM-dd")
+  }, [dateRange.end, useCustomRange, customEndDate])
 
   const [awardTagOptions, setAwardTagOptions] = useState<Array<{ label: string; value: string }>>([])
   useEffect(() => {
@@ -102,6 +97,12 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
     }
   }, [])
 
+  const period = useMemo(() => {
+    return view === "week" && !useCustomRange
+      ? ({ kind: "week", weekId } as const)
+      : ({ kind: "range", startDate, endDate } as const)
+  }, [view, useCustomRange, weekId, startDate, endDate])
+
   const {
     loading,
     loadError,
@@ -116,7 +117,7 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
     savingByShiftId,
     approvingByShiftId,
     rollbackToLastGood,
-  } = useTimesheetEdit(employeeId, weekId)
+  } = useTimesheetEdit(employeeId, period)
 
   // Filter days based on current view
   const filteredDays = useMemo(() => {
@@ -133,6 +134,41 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
       return dayDate >= rangeStart && dayDate <= rangeEnd
     })
   }, [days, startDate, endDate])
+
+  const locationIdsInView = useMemo(() => {
+    const ids = new Set<string>()
+    for (const day of filteredDays ?? []) {
+      const shifts = (day as any)?.reconciledShifts ?? []
+      for (const s of shifts) {
+        const loc = s?.roster?.locationId
+        if (loc) ids.add(String(loc))
+      }
+    }
+    return [...ids]
+  }, [filteredDays])
+
+  const teamsAvailabilityQueries = useQueries({
+    queries: locationIdsInView.map((locationId) => ({
+      queryKey: ["teams", "availability", { locationId }],
+      queryFn: () => teamsApi.getTeamsAvailability({ locationId }),
+      staleTime: 60_000,
+    })),
+  })
+
+  const teamsByLocationId = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>()
+    for (let i = 0; i < locationIdsInView.length; i++) {
+      const locId = locationIdsInView[i]!
+      const q = teamsAvailabilityQueries[i]
+      const rows = (q?.data as any)?.teams
+      if (!Array.isArray(rows)) continue
+      const list = rows
+        .map((t: any) => ({ id: String(t.teamId ?? ""), name: String(t.teamName ?? "") }))
+        .filter((t: any) => Boolean(t.id && t.name))
+      map.set(locId, list)
+    }
+    return map
+  }, [locationIdsInView, teamsAvailabilityQueries])
 
   // Feed the chart with either clocked times (preferred) or rostered times (fallback),
   // so roster-only future days still show.
@@ -162,17 +198,49 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
       <TimesheetViewer
         title="Timesheet"
         subtitle="Daily punch records and hours worked"
-        employeeName=""
+        employeeName={employeeName ?? ""}
+        employeeImageUrl={employeeImage}
         view={view}
-        onViewChange={(newView) => setView(newView)}
-        selectedDate={weekDate}
+        onViewChange={(newView) => {
+          setView(newView)
+          // Leaving day view should clear any custom range selection.
+          if (newView !== "day") {
+            setUseCustomRange(false)
+            setCustomStartDate("")
+            setCustomEndDate("")
+          }
+        }}
+        selectedDate={selectedDate}
         onSelectedDateChange={(d) => setSelectedDate(d)}
-        useCustomRange={false}
-        customStartDate=""
-        customEndDate=""
+        useCustomRange={useCustomRange}
+        customStartDate={customStartDate}
+        customEndDate={customEndDate}
         startDate={startDate}
         endDate={endDate}
-        onCustomRangeChange={() => {}}
+        onCustomRangeChange={(start, end) => {
+          if (!start && !end) {
+            setUseCustomRange(false)
+            setCustomStartDate("")
+            setCustomEndDate("")
+            return
+          }
+
+          const s = parseISO(start)
+          const e = parseISO(end || start)
+          if (!isValid(s) || !isValid(e)) return
+
+          if (start === (end || start)) {
+            setUseCustomRange(false)
+            setCustomStartDate("")
+            setCustomEndDate("")
+            setSelectedDate(s)
+            return
+          }
+
+          setUseCustomRange(true)
+          setCustomStartDate(start)
+          setCustomEndDate(end || start)
+        }}
         onToday={() => setSelectedDate(new Date())}
         entries={chartEntries}
         loading={loading}
@@ -199,6 +267,7 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
                   checksSummary={checksSummary as any}
                   employeeImage={employeeImage}
                   employeeName={employeeName}
+                  teamsByLocationId={teamsByLocationId}
                 />
               ))}
             </div>

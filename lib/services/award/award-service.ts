@@ -2,14 +2,14 @@ import { AwardsDbQueries } from '@/lib/db/queries/awards';
 import { connectDB } from '@/lib/db';
 
 export class AwardService {
-  async list(query: any) {
+  async list(args: { tenantId: string; query: any }) {
     await connectDB();
-    const { page = 1, limit = 50, search = '' } = query || {};
+    const { page = 1, limit = 50, search = '' } = args.query || {};
     const mongoQuery: any = {};
     if (search) mongoQuery.name = { $regex: search, $options: 'i' };
 
-    const total = await AwardsDbQueries.count(mongoQuery);
-    const awards = await AwardsDbQueries.listLean({ query: mongoQuery, page, limit });
+    const total = await AwardsDbQueries.count({ tenantId: args.tenantId, query: mongoQuery });
+    const awards = await AwardsDbQueries.listLean({ tenantId: args.tenantId, query: mongoQuery, page, limit });
 
     return {
       awards: (awards as any[]).map((award) => ({
@@ -27,9 +27,9 @@ export class AwardService {
     };
   }
 
-  async create(body: any) {
+  async create(args: { tenantId: string; body: any }) {
     await connectDB();
-    const award = await AwardsDbQueries.create(body);
+    const award = await AwardsDbQueries.create({ tenantId: args.tenantId, body: args.body });
     return {
       ...award.toObject(),
       _id: award._id.toString(),
@@ -38,9 +38,9 @@ export class AwardService {
     };
   }
 
-  async get(id: string) {
+  async get(args: { tenantId: string; id: string }) {
     await connectDB();
-    const award = await AwardsDbQueries.findByIdLean(id);
+    const award = await AwardsDbQueries.findByIdLean({ tenantId: args.tenantId, id: args.id });
     if (!award) return { status: 404, data: { error: 'Award not found' } };
     return {
       status: 200,
@@ -53,9 +53,9 @@ export class AwardService {
     };
   }
 
-  async update(id: string, body: any) {
+  async update(args: { tenantId: string; id: string; body: any }) {
     await connectDB();
-    const award = await AwardsDbQueries.findByIdAndUpdate(id, body);
+    const award = await AwardsDbQueries.findByIdAndUpdate({ tenantId: args.tenantId, id: args.id, body: args.body });
     if (!award) return { status: 404, data: { error: 'Award not found' } };
     return {
       status: 200,
@@ -68,9 +68,9 @@ export class AwardService {
     };
   }
 
-  async remove(id: string) {
+  async remove(args: { tenantId: string; id: string }) {
     await connectDB();
-    const assignedEmployees = await AwardsDbQueries.countAssignedEmployees(id);
+    const assignedEmployees = await AwardsDbQueries.countAssignedEmployees(args.id);
     if (assignedEmployees > 0) {
       return {
         status: 409,
@@ -81,7 +81,7 @@ export class AwardService {
       };
     }
 
-    const award = await AwardsDbQueries.deleteById(id);
+    const award = await AwardsDbQueries.deleteById({ tenantId: args.tenantId, id: args.id });
     if (!award) return { status: 404, data: { error: 'Award not found' } };
     return { status: 200, data: { message: 'Award deleted successfully' } };
   }

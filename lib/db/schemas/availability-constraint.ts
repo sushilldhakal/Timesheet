@@ -9,8 +9,8 @@ export interface ITimeRange {
 
 export interface IAvailabilityConstraint {
   _id: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
-  organizationId?: string // For multi-organization support
   
   // Day-level restrictions
   unavailableDays: number[] // 0=Sunday, 1=Monday, etc.
@@ -49,15 +49,11 @@ const TimeRangeSchema = new mongoose.Schema<ITimeRange>(
 
 const availabilityConstraintSchema = new mongoose.Schema<IAvailabilityConstraintDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
       required: true,
-      index: true,
-    },
-    organizationId: {
-      type: String,
-      default: undefined,
       index: true,
     },
     unavailableDays: {
@@ -109,8 +105,8 @@ const availabilityConstraintSchema = new mongoose.Schema<IAvailabilityConstraint
 )
 
 // Indexes
-availabilityConstraintSchema.index({ employeeId: 1, organizationId: 1 })
-availabilityConstraintSchema.index({ temporaryStartDate: 1, temporaryEndDate: 1 })
+availabilityConstraintSchema.index({ tenantId: 1, employeeId: 1 })
+availabilityConstraintSchema.index({ tenantId: 1, temporaryStartDate: 1, temporaryEndDate: 1 })
 
 // Validation: temporaryEndDate must be after temporaryStartDate
 availabilityConstraintSchema.pre("validate", function (next) {

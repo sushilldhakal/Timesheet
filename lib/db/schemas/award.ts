@@ -130,6 +130,7 @@ export interface ITimeSegment {
 
 // ─── Award Interface (Enhanced) ───────────────────────────
 export interface IAward extends Document {
+  tenantId?: mongoose.Types.ObjectId | null;
   name: string;
   description?: string;
   rules: IAwardRule[];
@@ -282,6 +283,7 @@ const AwardRuleSchema = new Schema<IAwardRule>(
 
 const AwardSchema = new Schema<IAward>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: "Employer", default: null, index: true },
     name: { type: String, required: true },
     description: { type: String },
     rules: [AwardRuleSchema],
@@ -310,12 +312,12 @@ const AwardSchema = new Schema<IAward>(
 );
 
 // Create indexes for efficient querying
-AwardSchema.index({ name: 1 }, { unique: true });
+AwardSchema.index({ tenantId: 1, name: 1 }, { unique: true });
 AwardSchema.index({ isActive: 1 });
 AwardSchema.index({ "rules.conditions.daysOfWeek": 1 });
 AwardSchema.index({ "rules.conditions.employmentTypes": 1 });
 AwardSchema.index({ "rules.priority": -1 });
-AwardSchema.index({ effectiveFrom: 1, effectiveTo: 1 });
+AwardSchema.index({ tenantId: 1, effectiveFrom: 1, effectiveTo: 1 });
 AwardSchema.index({ awardTagIds: 1 });
 
 // Instance method for rule evaluation (basic version - full logic in AwardEngine)

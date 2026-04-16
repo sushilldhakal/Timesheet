@@ -18,6 +18,10 @@ export type AuthPayload = {
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string
   tenantId?: string
+  /** Multi-tenant scoping: [] means no restriction (admin-like). */
+  locations?: string[]
+  /** Multi-tenant scoping: [] means no restriction (admin-like). */
+  managedRoles?: string[]
 }
 
 export type EmployeeAuthPayload = {
@@ -56,12 +60,21 @@ function getSecret(): Uint8Array {
 }
 
 export async function createAuthToken(payload: AuthPayload): Promise<string> {
+  const locations = Array.isArray(payload.locations)
+    ? payload.locations.map(String).filter(Boolean)
+    : []
+  const managedRoles = Array.isArray(payload.managedRoles)
+    ? payload.managedRoles.map(String).filter(Boolean)
+    : []
+
   return new SignJWT({
     email: payload.email,
     name: payload.name ?? "",
     role: payload.role,
     location: payload.location ?? "",
     tenantId: payload.tenantId ?? "",
+    locations,
+    managedRoles,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
@@ -84,6 +97,12 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
       role: validRole as "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
       tenantId: typeof (payload as any).tenantId === "string" && (payload as any).tenantId ? (payload as any).tenantId : undefined,
+      locations: Array.isArray((payload as any).locations)
+        ? ((payload as any).locations as any[]).map(String).filter(Boolean)
+        : undefined,
+      managedRoles: Array.isArray((payload as any).managedRoles)
+        ? ((payload as any).managedRoles as any[]).map(String).filter(Boolean)
+        : undefined,
     }
   } catch {
     return null

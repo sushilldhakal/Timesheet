@@ -49,37 +49,23 @@ export async function getAuthWithUserLocations(): Promise<AuthWithLocations | nu
   const auth = await getAuthFromCookie()
   if (!auth) return null
 
-  // Fast path: admins see everything and tenantId is embedded in the JWT — no DB round-trip needed
-  if ((auth.role === "admin" || auth.role === "super_admin") && auth.tenantId) {
-    return { auth, tenantId: auth.tenantId, userLocations: null, managedRoles: null }
+  const tenantId = auth.tenantId ? String(auth.tenantId) : ""
+  if (!tenantId) return null
+
+  // Admins see everything (no location/role filters)
+  if (auth.role === "admin" || auth.role === "super_admin") {
+    return { auth, tenantId, userLocations: null, managedRoles: null }
   }
 
-  try {
-    await connectDB()
-    const user = await User.findById(auth.sub).select("tenantId location managedRoles").lean()
-    if (!user?.tenantId) return null
+  // JWT-only scoping (DB-free). Empty arrays mean "no restriction".
+  const locations = Array.isArray(auth.locations) ? auth.locations : []
+  const managedRoles = Array.isArray(auth.managedRoles) ? auth.managedRoles : []
 
-    const tenantId = String(user.tenantId)
-
-    if (auth.role === "admin" || auth.role === "super_admin") {
-      return { auth, tenantId, userLocations: null, managedRoles: null }
-    }
-
-    const locs = user?.location
-    const userLocations: string[] = Array.isArray(locs)
-      ? locs.map((x) => String(x).trim()).filter(Boolean)
-      : locs != null && String(locs).trim() !== ""
-        ? [String(locs).trim()]
-        : []
-    
-    const roles = user?.managedRoles
-    const managedRoles: string[] = Array.isArray(roles)
-      ? roles.map((x) => String(x).trim()).filter(Boolean)
-      : []
-    
-    return { auth, tenantId, userLocations, managedRoles }
-  } catch {
-    return null
+  return {
+    auth,
+    tenantId,
+    userLocations: locations.length > 0 ? locations : [],
+    managedRoles: managedRoles.length > 0 ? managedRoles : [],
   }
 }
 

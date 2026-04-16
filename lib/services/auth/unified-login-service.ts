@@ -1,5 +1,8 @@
 import { connectDB, User, Employee } from "@/lib/db";
-import { createAuthToken, setAuthCookie } from "@/lib/auth/auth-helpers";
+import { setAuthCookie } from "@/lib/auth/auth-helpers";
+import { Employer } from "@/lib/db/schemas/employer";
+import { UserTenant } from "@/lib/db/schemas/user-tenant";
+import { createFullAuthToken, createPreAuthToken, setPreAuthCookie, clearPreAuthCookie } from "@/lib/auth/tenant-context";
 
 export class UnifiedLoginService {
   private async employeeWebLogin(employee: any) {
@@ -49,13 +52,86 @@ export class UnifiedLoginService {
       if (user && (user as any).password) {
         const ok = await bcrypt.compare(password, (user as any).password);
         if (ok) {
-          const token = await createAuthToken({
-            sub: String((user as any)._id),
+          const userId = String((user as any)._id)
+          const memberships = await UserTenant.find({ userId: (user as any)._id, isActive: true })
+            .select("tenantId role location managedRoles")
+            .lean()
+
+          const effectiveMemberships =
+            memberships.length > 0
+              ? memberships
+              : (user as any).tenantId
+                ? [
+                    {
+                      tenantId: (user as any).tenantId,
+                      role: (user as any).role ?? "user",
+                      location: Array.isArray((user as any).location) ? (user as any).location : [],
+                      managedRoles: Array.isArray((user as any).managedRoles) ? (user as any).managedRoles : [],
+                    },
+                  ]
+                : []
+
+          if (effectiveMemberships.length > 1) {
+            const tenantIds = effectiveMemberships.map((m: any) => String(m.tenantId))
+            const employers = await Employer.find({ _id: { $in: tenantIds } }).select("name").lean()
+            const employersById = new Map(employers.map((e: any) => [String((e as any)._id), e]))
+
+            const preauth = await createPreAuthToken({
+              sub: userId,
+              email: (user as any).email,
+              name: (user as any).name ?? "",
+            })
+            await setPreAuthCookie(preauth)
+
+            return {
+              success: true,
+              userType: "admin" as const,
+              requiresOrgSelection: true,
+              orgs: tenantIds
+                .map((id) => {
+                  const employer = employersById.get(id) as any
+                  if (!employer) return null
+                  const name = String(employer.name ?? "")
+                  const slug = name
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/(^-|-$)/g, "")
+                  return { id, name, slug }
+                })
+                .filter(Boolean),
+            }
+          }
+
+          await clearPreAuthCookie()
+
+          const membership = effectiveMemberships[0] as any | undefined
+          const tenantId = membership?.tenantId
+            ? String(membership.tenantId)
+            : (user as any).tenantId
+              ? String((user as any).tenantId)
+              : ""
+          const role = String(membership?.role ?? (user as any).role ?? "user")
+          const locations = Array.isArray(membership?.location)
+            ? membership.location.map(String).filter(Boolean)
+            : Array.isArray((user as any).location)
+              ? (user as any).location.map(String).filter(Boolean)
+              : []
+          const managedRoles = Array.isArray(membership?.managedRoles)
+            ? membership.managedRoles.map(String).filter(Boolean)
+            : Array.isArray((user as any).managedRoles)
+              ? (user as any).managedRoles.map(String).filter(Boolean)
+              : []
+
+          const token = await createFullAuthToken({
+            sub: userId,
             email: (user as any).email,
-            role: (user as any).role,
-            location: Array.isArray((user as any).location) ? (user as any).location[0] : (user as any).location,
-            tenantId: (user as any).tenantId ? String((user as any).tenantId) : undefined,
-          });
+            name: (user as any).name ?? "",
+            tenantId,
+            role,
+            locations,
+            managedRoles,
+          })
           await setAuthCookie(token);
           return {
             success: true,
@@ -65,8 +141,8 @@ export class UnifiedLoginService {
               id: (user as any)._id,
               name: (user as any).name,
               email: (user as any).email,
-              role: (user as any).role,
-              location: (user as any).location,
+              role,
+              location: locations,
               rights: (user as any).rights ?? [],
             },
           };
@@ -80,13 +156,86 @@ export class UnifiedLoginService {
     if (user && (user as any).password) {
       const ok = await bcrypt.compare(password, (user as any).password);
       if (ok) {
-        const token = await createAuthToken({
-          sub: String((user as any)._id),
+        const userId = String((user as any)._id)
+        const memberships = await UserTenant.find({ userId: (user as any)._id, isActive: true })
+          .select("tenantId role location managedRoles")
+          .lean()
+
+        const effectiveMemberships =
+          memberships.length > 0
+            ? memberships
+            : (user as any).tenantId
+              ? [
+                  {
+                    tenantId: (user as any).tenantId,
+                    role: (user as any).role ?? "user",
+                    location: Array.isArray((user as any).location) ? (user as any).location : [],
+                    managedRoles: Array.isArray((user as any).managedRoles) ? (user as any).managedRoles : [],
+                  },
+                ]
+              : []
+
+        if (effectiveMemberships.length > 1) {
+          const tenantIds = effectiveMemberships.map((m: any) => String(m.tenantId))
+          const employers = await Employer.find({ _id: { $in: tenantIds } }).select("name").lean()
+          const employersById = new Map(employers.map((e: any) => [String((e as any)._id), e]))
+
+          const preauth = await createPreAuthToken({
+            sub: userId,
+            email: (user as any).email,
+            name: (user as any).name ?? "",
+          })
+          await setPreAuthCookie(preauth)
+
+          return {
+            success: true,
+            userType: "admin" as const,
+            requiresOrgSelection: true,
+            orgs: tenantIds
+              .map((id) => {
+                const employer = employersById.get(id) as any
+                if (!employer) return null
+                const name = String(employer.name ?? "")
+                const slug = name
+                  .toLowerCase()
+                  .trim()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/(^-|-$)/g, "")
+                return { id, name, slug }
+              })
+              .filter(Boolean),
+          }
+        }
+
+        await clearPreAuthCookie()
+
+        const membership = effectiveMemberships[0] as any | undefined
+        const tenantId = membership?.tenantId
+          ? String(membership.tenantId)
+          : (user as any).tenantId
+            ? String((user as any).tenantId)
+            : ""
+        const role = String(membership?.role ?? (user as any).role ?? "user")
+        const locations = Array.isArray(membership?.location)
+          ? membership.location.map(String).filter(Boolean)
+          : Array.isArray((user as any).location)
+            ? (user as any).location.map(String).filter(Boolean)
+            : []
+        const managedRoles = Array.isArray(membership?.managedRoles)
+          ? membership.managedRoles.map(String).filter(Boolean)
+          : Array.isArray((user as any).managedRoles)
+            ? (user as any).managedRoles.map(String).filter(Boolean)
+            : []
+
+        const token = await createFullAuthToken({
+          sub: userId,
           email: (user as any).email,
-          role: (user as any).role,
-          location: Array.isArray((user as any).location) ? (user as any).location[0] : (user as any).location,
-          tenantId: (user as any).tenantId ? String((user as any).tenantId) : undefined,
-        });
+          name: (user as any).name ?? "",
+          tenantId,
+          role,
+          locations,
+          managedRoles,
+        })
         await setAuthCookie(token);
         return {
           success: true,
@@ -96,8 +245,8 @@ export class UnifiedLoginService {
             id: (user as any)._id,
             name: (user as any).name,
             email: (user as any).email,
-            role: (user as any).role,
-            location: (user as any).location,
+            role,
+            location: locations,
             rights: (user as any).rights ?? [],
           },
         };

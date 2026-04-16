@@ -7,6 +7,7 @@ import {
 } from "@/lib/validations/award";
 import { errorResponseSchema } from "@/lib/validations/auth";
 import { awardService } from "@/lib/services/award/award-service";
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -23,9 +24,11 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ query }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
     return {
       status: 200,
-      data: await awardService.list(query),
+      data: await awardService.list({ tenantId: ctx.tenantId, query }),
     };
   }
 });
@@ -47,10 +50,12 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
     try {
       return {
         status: 201,
-        data: await awardService.create(body),
+        data: await awardService.create({ tenantId: ctx.tenantId, body }),
       };
     } catch (error: any) {
       console.error("Error creating award:", error);

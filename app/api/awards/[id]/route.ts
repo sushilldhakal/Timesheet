@@ -7,6 +7,7 @@ import {
 } from "@/lib/validations/award";
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth";
 import { awardService } from "@/lib/services/award/award-service";
+import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -24,8 +25,10 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
     const { id } = params!;
-    return await awardService.get(id);
+    return await awardService.get({ tenantId: ctx.tenantId, id });
   }
 });
 
@@ -48,8 +51,10 @@ export const PUT = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
     const { id } = params!;
-    return await awardService.update(id, body);
+    return await awardService.update({ tenantId: ctx.tenantId, id, body });
   }
 });
 
@@ -70,7 +75,9 @@ export const DELETE = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
+    const ctx = await getAuthWithUserLocations()
+    if (!ctx?.tenantId) return { status: 401, data: { error: "Unauthorized" } }
     const { id } = params!;
-    return await awardService.remove(id);
+    return await awardService.remove({ tenantId: ctx.tenantId, id });
   }
 });

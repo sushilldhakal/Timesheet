@@ -4,7 +4,7 @@ export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "PUBLISH" | "APPROVE"
 
 export interface IAuditLog {
   _id: mongoose.Types.ObjectId
-  organizationId?: string
+  tenantId: mongoose.Types.ObjectId
   rosterId?: mongoose.Types.ObjectId | null
   employeeId?: mongoose.Types.ObjectId | null
   userId: mongoose.Types.ObjectId // User who performed the action
@@ -23,11 +23,7 @@ export interface IAuditLogDocument extends IAuditLog, mongoose.Document {}
 
 const auditLogSchema = new mongoose.Schema<IAuditLogDocument>(
   {
-    organizationId: {
-      type: String,
-      default: undefined,
-      index: true,
-    },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     rosterId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Roster",
@@ -86,12 +82,12 @@ const auditLogSchema = new mongoose.Schema<IAuditLogDocument>(
 )
 
 // Indexes for efficient querying
-auditLogSchema.index({ organizationId: 1, createdAt: -1 })
-auditLogSchema.index({ employeeId: 1, createdAt: -1 })
-auditLogSchema.index({ rosterId: 1, createdAt: -1 })
-auditLogSchema.index({ userId: 1, createdAt: -1 })
-auditLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 })
-auditLogSchema.index({ action: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, employeeId: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, rosterId: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, userId: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, entityType: 1, entityId: 1, createdAt: -1 })
+auditLogSchema.index({ tenantId: 1, action: 1, createdAt: -1 })
 
 export const AuditLog =
   (mongoose.models.AuditLog as mongoose.Model<IAuditLogDocument>) ??

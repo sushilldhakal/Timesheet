@@ -11,6 +11,7 @@ export interface IAuditEntry {
 
 export interface IShiftSwapRequest {
   _id: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
   requestorId: mongoose.Types.ObjectId
   recipientId: mongoose.Types.ObjectId
   requestorShiftId: mongoose.Types.ObjectId // Shift the requestor wants to swap
@@ -51,6 +52,7 @@ const AuditEntrySchema = new mongoose.Schema<IAuditEntry>(
 
 const shiftSwapRequestSchema = new mongoose.Schema<IShiftSwapRequestDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     requestorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
@@ -129,9 +131,9 @@ const shiftSwapRequestSchema = new mongoose.Schema<IShiftSwapRequestDocument>(
 )
 
 // Indexes
-shiftSwapRequestSchema.index({ requestorId: 1, status: 1 })
-shiftSwapRequestSchema.index({ recipientId: 1, status: 1 })
-shiftSwapRequestSchema.index({ status: 1, requestedAt: 1 })
+shiftSwapRequestSchema.index({ tenantId: 1, requestorId: 1, status: 1 })
+shiftSwapRequestSchema.index({ tenantId: 1, recipientId: 1, status: 1 })
+shiftSwapRequestSchema.index({ tenantId: 1, status: 1, requestedAt: 1 })
 
 export const ShiftSwapRequest =
   (mongoose.models.ShiftSwapRequest as mongoose.Model<IShiftSwapRequestDocument>) ??

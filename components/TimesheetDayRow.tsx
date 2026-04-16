@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { format } from "date-fns"
+import { format, getISOWeek, getISOWeekYear } from "date-fns"
 import { Edit2, User, CheckCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,34 @@ import {
 function parseLocalDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number)
   return new Date(y, m - 1, d)
+}
+
+function weekIdFromYmd(dateStr: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr))
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(Date.UTC(y, mo - 1, d))
+  if (Number.isNaN(dt.getTime())) return null
+  const weekYear = getISOWeekYear(dt)
+  const week = getISOWeek(dt)
+  return `${weekYear}-W${String(week).padStart(2, "0")}`
+}
+
+async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const res = await fetch(input, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(text || `Request failed (${res.status})`)
+  }
+  return (await res.json()) as T
 }
 
 type Draft = {
@@ -214,6 +242,7 @@ function TimesheetShiftCard({
   checksSummary,
   employeeImage,
   employeeName,
+  teamsByLocationId,
 }: {
   dayDate: string
   shift: ReconciledShift
@@ -230,8 +259,10 @@ function TimesheetShiftCard({
   checksSummary?: { passing: number; total: number } | null
   employeeImage?: string
   employeeName?: string
+  teamsByLocationId?: Map<string, Array<{ id: string; name: string }>>
 }) {
   const [editMode, setEditMode] = useState(false)
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(shift.roster?.roleId || "")
   const dailyShiftId = shift.actual?.dailyShiftId ?? null
   const draft = dailyShiftId ? getDraft(dailyShiftId) : null
   const dirty = dailyShiftId ? isDirty(dailyShiftId) : false
@@ -240,6 +271,7 @@ function TimesheetShiftCard({
   const approved = dailyShiftId ? shiftIsApproved(shift.actual) : false
   const isPayrollLocked = dailyShiftId ? shiftIsLocked(shift.actual) : false
   const locked = isPayrollLocked || saving || approving
+  const canEditTeam = Boolean(canApprove) && !locked
 
   const rStartLabel = safeIsoToHHmm(shift.roster?.startTimeUtc) || ""
   const rEndLabel = safeIsoToHHmm(shift.roster?.endTimeUtc) || ""
@@ -318,13 +350,41 @@ function TimesheetShiftCard({
 
             {/* Team and Award Tag selects */}
             <div className="space-y-2">
-              <select
-                className="w-full px-2.5 py-1.5 bg-secondary text-foreground text-xs rounded border border-border hover:border-accent/50 transition-colors"
-                defaultValue={shift.roster?.roleId || ""}
-              >
-                <option value="">Select Team</option>
-                {/* Teams would be loaded from API in production */}
-              </select>
+              {(() => {
+                const locId = shift.roster?.locationId ? String(shift.roster.locationId) : ""
+                const teams = locId && teamsByLocationId ? teamsByLocationId.get(locId) ?? [] : []
+                return (
+                  <select
+                    className="w-full px-2.5 py-1.5 bg-secondary text-foreground text-xs rounded border border-border hover:border-accent/50 transition-colors"
+                    value={selectedTeamId}
+                    disabled={!editMode || !canEditTeam || !shift.rosterShiftId || teams.length === 0}
+                    onChange={async (e) => {
+                      const next = e.target.value
+                      setSelectedTeamId(next)
+                      const rosterShiftId = shift.rosterShiftId
+                      const weekId = weekIdFromYmd(dayDate)
+                      if (!rosterShiftId || !weekId) return
+                      if (!next) return
+                      try {
+                        await apiJson(`/api/rosters/${encodeURIComponent(weekId)}/shifts/${encodeURIComponent(rosterShiftId)}`, {
+                          method: "PUT",
+                          body: JSON.stringify({ roleId: next }),
+                        })
+                      } catch (err) {
+                        // Revert on failure
+                        setSelectedTeamId(shift.roster?.roleId || "")
+                      }
+                    }}
+                  >
+                    <option value="">Select Team</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                )
+              })()}
 
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground block">Award Tags</label>
@@ -676,6 +736,7 @@ export function TimesheetDayRow({
   awardTagOptions = [],
   employeeImage,
   employeeName,
+  teamsByLocationId,
 }: {
   day: ReconciledDay
   getDraft: (dailyShiftId: string) => Draft | null
@@ -692,6 +753,7 @@ export function TimesheetDayRow({
   awardTagOptions?: Array<{ label: string; value: string }>
   employeeImage?: string
   employeeName?: string
+  teamsByLocationId?: Map<string, Array<{ id: string; name: string }>>
 }) {
   const shifts = day.reconciledShifts ?? []
 
@@ -720,6 +782,7 @@ export function TimesheetDayRow({
             awardTagOptions={awardTagOptions ?? []}
             employeeImage={employeeImage}
             employeeName={employeeName}
+            teamsByLocationId={teamsByLocationId}
           />
         ))
       )}

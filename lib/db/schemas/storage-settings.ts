@@ -5,6 +5,7 @@ import mongoose from "mongoose"
  * Stores encrypted cloud storage credentials (Cloudinary or Cloudflare R2)
  */
 export interface IStorageSettings {
+  tenantId: mongoose.Types.ObjectId
   provider: "cloudinary" | "r2"
   isActive: boolean
   
@@ -29,6 +30,7 @@ export interface IStorageSettingsDocument extends IStorageSettings, mongoose.Doc
 
 const storageSettingsSchema = new mongoose.Schema<IStorageSettingsDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     provider: {
       type: String,
       enum: ["cloudinary", "r2"],
@@ -63,7 +65,10 @@ const storageSettingsSchema = new mongoose.Schema<IStorageSettingsDocument>(
 )
 
 // Only one active storage provider at a time
-storageSettingsSchema.index({ isActive: 1 }, { unique: true, partialFilterExpression: { isActive: true } })
+storageSettingsSchema.index(
+  { tenantId: 1, isActive: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } }
+)
 
 export const StorageSettings =
   (mongoose.models.StorageSettings as mongoose.Model<IStorageSettingsDocument>) ??

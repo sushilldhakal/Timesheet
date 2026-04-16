@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose"
 
 export interface IStaffFaceProfile extends Document {
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   descriptor: number[]
   enrolledAt: Date
@@ -14,11 +15,11 @@ export interface IStaffFaceProfile extends Document {
 
 const StaffFaceProfileSchema = new Schema<IStaffFaceProfile>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: {
       type: Schema.Types.ObjectId,
       ref: "Employee",
       required: true,
-      unique: true,
       index: true,
     },
     descriptor: {
@@ -63,7 +64,8 @@ const StaffFaceProfileSchema = new Schema<IStaffFaceProfile>(
 )
 
 // Index for efficient queries
-StaffFaceProfileSchema.index({ employeeId: 1, isActive: 1 })
+StaffFaceProfileSchema.index({ tenantId: 1, employeeId: 1 }, { unique: true })
+StaffFaceProfileSchema.index({ tenantId: 1, employeeId: 1, isActive: 1 })
 
 export const StaffFaceProfile =
   (mongoose.models.StaffFaceProfile as mongoose.Model<IStaffFaceProfile>) ??

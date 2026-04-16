@@ -12,6 +12,7 @@ export interface IPayConditionHistory {
 }
 
 export interface IEmployee {
+  tenantId: mongoose.Types.ObjectId
   name: string
   pin: string
   /** Legacy (pre-migration) fields */
@@ -97,6 +98,7 @@ const PayConditionHistorySchema = new mongoose.Schema<IPayConditionHistory>(
 
 const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: { type: String, required: true, trim: true },
     pin: { type: String, required: true },
     employer: { type: [String], default: [] },
@@ -170,11 +172,11 @@ employeeSchema.index({ pin: 1 })
 employeeSchema.index({ awardId: 1 })
 employeeSchema.index({ locationIds: 1 })
 employeeSchema.index({ employerIds: 1 })
-employeeSchema.index({ isActive: 1, employerId: 1 })
+employeeSchema.index({ tenantId: 1, isActive: 1 })
 employeeSchema.index({ terminatedAt: 1 }, { sparse: true })
 // Sparse compound index for efficient roster auto-population queries
 employeeSchema.index(
-  { "schedules.effectiveFrom": 1, "schedules.effectiveTo": 1 },
+  { tenantId: 1, "schedules.effectiveFrom": 1, "schedules.effectiveTo": 1 },
   { sparse: true }
 )
 
