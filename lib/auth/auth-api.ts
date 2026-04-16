@@ -27,7 +27,8 @@ export async function verifyAuth(_req: NextRequest) {
     
     return {
       _id: user._id,
-      username: user.username,
+      name: (user as any).name ?? "",
+      email: (user as any).email ?? "",
       role: user.role,
       location: Array.isArray(user.location) ? user.location : user.location ? [user.location] : [],
       managedRoles: user.managedRoles ?? [],
@@ -47,6 +48,11 @@ export async function verifyAuth(_req: NextRequest) {
 export async function getAuthWithUserLocations(): Promise<AuthWithLocations | null> {
   const auth = await getAuthFromCookie()
   if (!auth) return null
+
+  // Fast path: admins see everything and tenantId is embedded in the JWT — no DB round-trip needed
+  if ((auth.role === "admin" || auth.role === "super_admin") && auth.tenantId) {
+    return { auth, tenantId: auth.tenantId, userLocations: null, managedRoles: null }
+  }
 
   try {
     await connectDB()

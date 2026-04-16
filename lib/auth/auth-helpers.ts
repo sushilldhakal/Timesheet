@@ -17,6 +17,7 @@ export type AuthPayload = {
   name?: string
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string
+  tenantId?: string
 }
 
 export type EmployeeAuthPayload = {
@@ -39,7 +40,10 @@ const COOKIE_NAME = "auth_token"
 const MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 const IS_PRODUCTION = process.env.NODE_ENV === "production"
 
-function getSecret() {
+// Cache the encoded secret at module load time so we don't re-encode on every request
+let _cachedSecret: Uint8Array | null = null
+function getSecret(): Uint8Array {
+  if (_cachedSecret) return _cachedSecret
   const secret = process.env.JWT_SECRET?.trim()
   if (!secret || secret.length < 32) {
     const len = secret?.length ?? 0
@@ -47,7 +51,8 @@ function getSecret() {
       `JWT_SECRET must be set in TimeSheet/.env (min 32 characters). Current length: ${len}. Add: JWT_SECRET=<your-secret> then restart the dev server. Generate one: openssl rand -hex 32`
     )
   }
-  return new TextEncoder().encode(secret)
+  _cachedSecret = new TextEncoder().encode(secret)
+  return _cachedSecret
 }
 
 export async function createAuthToken(payload: AuthPayload): Promise<string> {
@@ -56,6 +61,7 @@ export async function createAuthToken(payload: AuthPayload): Promise<string> {
     name: payload.name ?? "",
     role: payload.role,
     location: payload.location ?? "",
+    tenantId: payload.tenantId ?? "",
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
@@ -77,6 +83,7 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
       name: typeof (payload as any).name === "string" && String((payload as any).name).trim() ? String((payload as any).name) : undefined,
       role: validRole as "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
+      tenantId: typeof (payload as any).tenantId === "string" && (payload as any).tenantId ? (payload as any).tenantId : undefined,
     }
   } catch {
     return null

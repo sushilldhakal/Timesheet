@@ -16,14 +16,14 @@ export interface ManagedDevice {
   locationName: string
   locationAddress?: string
   status: 'active' | 'disabled' | 'revoked'
-  registeredBy: { name: string; username: string }
+  registeredBy: { name: string; email?: string }
   registeredAt: string
   lastActivity: string
   lastUsedBy?: { name: string }
   totalPunches: number
   activationCode?: string
   activationCodeExpiry?: string
-  revokedBy?: { name: string; username: string }
+  revokedBy?: { name: string; email?: string }
   revokedAt?: string
   revocationReason?: string
 }

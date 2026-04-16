@@ -99,7 +99,7 @@ export class PasswordService {
 
     const user = await User.findOne({ passwordResetToken: hashedToken }).select("+passwordResetToken +passwordResetExpiry").lean();
     if (user && isTokenValid((user as any).passwordResetExpiry)) {
-      return { status: 200, data: { valid: true, email: (user as any).email || (user as any).username, name: (user as any).name, type: "admin" as const } };
+      return { status: 200, data: { valid: true, email: (user as any).email, name: (user as any).name, type: "admin" as const } };
     }
 
     const employee = await Employee.findOne({ passwordResetToken: hashedToken }).select("+passwordResetToken +passwordResetExpiry").lean();

@@ -507,7 +507,7 @@ export class TimesheetService {
     let pins: string[] = [];
     const employeeMap = new Map<string, TimesheetEmployeeMeta>();
 
-    const locFilter = employeeLocationFilter(ctx.userLocations);
+    const locFilter = employeeLocationFilter(ctx.userLocations ?? null);
 
     if (employeeIds.length > 0) {
       const emps = await TimesheetDbQueries.findEmployeesByIds(employeeIds);

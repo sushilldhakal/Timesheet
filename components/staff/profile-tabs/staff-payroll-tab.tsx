@@ -62,47 +62,27 @@ export function StaffPayrollTab({ employeeId }: StaffPayrollTabProps) {
             <DollarSign className="h-5 w-5" />
             Tax Information
           </CardTitle>
-          <CardDescription>Your tax file details (read-only)</CardDescription>
+          <CardDescription>Your tax details (masked, read-only)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {taxInfo ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Tax File Number (TFN)</p>
-                  <p className="text-sm font-mono font-semibold mt-1">{maskTFN(taxInfo.tfn || '')}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Tax ID Type</p>
+                  <p className="text-sm font-semibold mt-1">{taxInfo.taxIdType || 'Not provided'}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Australian Business Number (ABN)</p>
-                  <p className="text-sm font-mono font-semibold mt-1">{taxInfo.abn || 'Not provided'}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Tax ID (masked)</p>
+                  <p className="text-sm font-mono font-semibold mt-1">{taxInfo.taxIdMasked || 'Not provided'}</p>
                 </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h4 className="font-semibold text-sm mb-4">Superannuation Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Superannuation Fund</p>
-                    <p className="text-sm font-semibold mt-1">{taxInfo.superannuationFund || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Member Number</p>
-                    <p className="text-sm font-mono font-semibold mt-1">
-                      {maskAccountNumber(taxInfo.superannuationMemberNumber || '')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Tax Withholding %</p>
-                    <p className="text-sm font-semibold mt-1">{taxInfo.taxWithholdingPercentage ?? 0}%</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">HELP/HECS Debt</p>
-                    <div className="mt-1">
-                      <Badge variant={taxInfo.helpDebt ? 'destructive' : 'default'}>
-                        {taxInfo.helpDebt ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Country</p>
+                  <p className="text-sm font-semibold mt-1">{taxInfo.countryName || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Currency</p>
+                  <p className="text-sm font-semibold mt-1">{taxInfo.currency || '—'}</p>
                 </div>
               </div>
             </>

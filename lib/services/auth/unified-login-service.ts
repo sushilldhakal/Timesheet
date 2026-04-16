@@ -54,6 +54,7 @@ export class UnifiedLoginService {
             email: (user as any).email,
             role: (user as any).role,
             location: Array.isArray((user as any).location) ? (user as any).location[0] : (user as any).location,
+            tenantId: (user as any).tenantId ? String((user as any).tenantId) : undefined,
           });
           await setAuthCookie(token);
           return {
@@ -84,6 +85,7 @@ export class UnifiedLoginService {
           email: (user as any).email,
           role: (user as any).role,
           location: Array.isArray((user as any).location) ? (user as any).location[0] : (user as any).location,
+          tenantId: (user as any).tenantId ? String((user as any).tenantId) : undefined,
         });
         await setAuthCookie(token);
         return {

@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { addWeeks, endOfISOWeek, format, getISOWeek, getISOWeekYear, setISOWeek, setISOWeekYear, startOfISOWeek } from "date-fns"
+import { addWeeks, endOfISOWeek, format, getISOWeek, getISOWeekYear, setISOWeek, setISOWeekYear, startOfISOWeek, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns"
 import type { TimesheetEntryRow } from "@/components/timesheet/TimesheetEntriesList"
 import { TimesheetViewer } from "@/components/timesheet/TimesheetViewer"
 import { TimesheetDayRow } from "@/components/TimesheetDayRow"
 import { useMe } from "@/lib/queries/auth"
 import { useTimesheetEdit } from "@/hooks/useTimesheetEdit"
+import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 
 function weekIdToDate(weekId: string): Date | null {
   const m = /^(\d{4})-W(\d{2})$/.exec(weekId)
@@ -29,6 +30,28 @@ function makeWeekId(d: Date): string {
   return `${year}-W${String(week).padStart(2, "0")}`
 }
 
+// Calculate date range based on view type
+function getDateRangeForView(view: TimesheetView, selectedDate: Date): { start: Date; end: Date } {
+  switch (view) {
+    case "day":
+      return {
+        start: selectedDate,
+        end: selectedDate,
+      }
+    case "month":
+      return {
+        start: startOfMonth(selectedDate),
+        end: endOfMonth(selectedDate),
+      }
+    case "week":
+    default:
+      return {
+        start: startOfISOWeek(selectedDate),
+        end: endOfISOWeek(selectedDate),
+      }
+  }
+}
+
 function safeIsoToHHmm(iso?: string | null): string | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -44,11 +67,16 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
   const canApprove = ["admin", "super_admin", "manager", "supervisor", "accounts"].includes(role)
 
   const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [view, setView] = useState<TimesheetView>("week")
+
   const weekId = useMemo(() => makeWeekId(selectedDate), [selectedDate])
   const weekDate = useMemo(() => weekIdToDate(weekId) ?? selectedDate, [weekId, selectedDate])
 
-  const startDate = useMemo(() => format(startOfISOWeek(weekDate), "yyyy-MM-dd"), [weekDate])
-  const endDate = useMemo(() => format(endOfISOWeek(weekDate), "yyyy-MM-dd"), [weekDate])
+  // Calculate date range based on current view
+  const dateRange = useMemo(() => getDateRangeForView(view, weekDate), [view, weekDate])
+
+  const startDate = useMemo(() => format(dateRange.start, "yyyy-MM-dd"), [dateRange.start])
+  const endDate = useMemo(() => format(dateRange.end, "yyyy-MM-dd"), [dateRange.end])
 
   const [awardTagOptions, setAwardTagOptions] = useState<Array<{ label: string; value: string }>>([])
   useEffect(() => {
@@ -90,11 +118,27 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
     rollbackToLastGood,
   } = useTimesheetEdit(employeeId, weekId)
 
+  // Filter days based on current view
+  const filteredDays = useMemo(() => {
+    if (!days) return []
+
+    // Parse date range
+    const rangeStart = new Date(startDate)
+    const rangeEnd = new Date(endDate)
+    rangeEnd.setHours(23, 59, 59, 999)
+
+    return days.filter((day: any) => {
+      const dayDate = new Date(day.date)
+      dayDate.setHours(12, 0, 0, 0) // Set to noon to avoid timezone issues
+      return dayDate >= rangeStart && dayDate <= rangeEnd
+    })
+  }, [days, startDate, endDate])
+
   // Feed the chart with either clocked times (preferred) or rostered times (fallback),
   // so roster-only future days still show.
   const chartEntries: TimesheetEntryRow[] = useMemo(() => {
     const out: TimesheetEntryRow[] = []
-    for (const day of days ?? []) {
+    for (const day of filteredDays ?? []) {
       const shifts = (day as any)?.reconciledShifts ?? (day as any)?.rows ?? []
       if (!Array.isArray(shifts) || shifts.length === 0) continue
 
@@ -111,7 +155,7 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
       }
     }
     return out
-  }, [days])
+  }, [filteredDays])
 
   return (
     <div className="pt-2">
@@ -119,8 +163,8 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
         title="Timesheet"
         subtitle="Daily punch records and hours worked"
         employeeName=""
-        view="week"
-        onViewChange={() => {}}
+        view={view}
+        onViewChange={(newView) => setView(newView)}
         selectedDate={weekDate}
         onSelectedDateChange={(d) => setSelectedDate(d)}
         useCustomRange={false}
@@ -138,7 +182,7 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
           if (loadError) return null
           return (
             <div className="space-y-3">
-              {(days ?? []).map((day) => (
+              {(filteredDays ?? []).map((day) => (
                 <TimesheetDayRow
                   key={day.date}
                   day={day as any}

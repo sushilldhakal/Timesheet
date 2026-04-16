@@ -118,8 +118,10 @@ export default function SettingPage() {
 
   // Update activity logs when query data changes
   useEffect(() => {
-    if (activityLogsQuery.data) {
-      const newLogs = activityLogsQuery.data.logs.map((log: any) => ({
+    const logs = (activityLogsQuery.data as any)?.logs
+    const total = (activityLogsQuery.data as any)?.total
+    if (Array.isArray(logs)) {
+      const newLogs = logs.map((log: any) => ({
         id: log._id,
         action: log.action,
         timestamp: new Date(log.createdAt),
@@ -128,8 +130,12 @@ export default function SettingPage() {
       }))
       
       setActivityLogs(newLogs)
-      const totalPages = Math.ceil((activityLogsQuery.data.total || 0) / 10)
+      const totalPages = Math.ceil((typeof total === "number" ? total : 0) / 10)
       setTotalLogsPages(totalPages)
+    } else if (activityLogsQuery.data) {
+      // Defensive: backend may return { error } or a different shape.
+      setActivityLogs([])
+      setTotalLogsPages(1)
     }
   }, [activityLogsQuery.data])
 
@@ -458,7 +464,7 @@ export default function SettingPage() {
               {/* Unsaved Changes Warning */}
               {hasUnsavedChanges && (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-yellow-900">Unsaved Changes</p>
                     <p className="text-sm text-yellow-700">Remember to save before switching providers.</p>

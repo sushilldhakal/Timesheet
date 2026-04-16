@@ -5,6 +5,7 @@ import { SchedulingValidator } from "../validations/scheduling-validator"
 import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
 import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
 import { getWeekBoundaries as getWeekBoundariesFn } from "@/lib/db/queries/scheduling-types"
+import { Award } from "@/lib/db/schemas/award"
 
 /**
  * Roster Manager
@@ -42,7 +43,7 @@ export class RosterManager {
       const weekNumber = getISOWeek(weekStartDate)
 
       // Create new roster with empty shifts array
-      const newRoster = new Roster({
+      const newRoster = new SchedulingModels.Roster({
         weekId,
         year,
         weekNumber,
@@ -612,7 +613,9 @@ export class RosterManager {
       }
 
       // Find the matching award level
-      const level = award.levels.find((l: { label: string }) => l.label === awardLevel)
+      const levels = (award as any)?.levels
+      if (!Array.isArray(levels)) return 0
+      const level = levels.find((l: { label: string }) => l.label === awardLevel)
       if (!level) {
         return 0
       }
@@ -1179,7 +1182,7 @@ export class RosterManager {
       weekId: string
     ): Promise<{ success: true } | { success: false; error: string; message: string }> {
       try {
-        const roster = await Roster.findOne({ weekId })
+        const roster = await SchedulingModels.Roster.findOne({ weekId })
         if (!roster) {
           return {
             success: false,

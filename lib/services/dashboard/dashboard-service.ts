@@ -740,13 +740,13 @@ export class DashboardService {
     const permCtx = await getUserPermissionContext(ctx.auth.sub);
     if (!permCtx) return { status: 404, data: { error: 'User not found' } };
 
-    const user = await User.findById(ctx.auth.sub).select('username').lean();
+    const user = await User.findById(ctx.auth.sub).select('email name').lean();
 
     if (permCtx.managedLocations.length === 0 && permCtx.managedRoles.length === 0) {
       const emptyResponse = {
         metadata: {
           userId: ctx.auth.sub,
-          username: (user as any)?.username || '',
+          email: (user as any)?.email || '',
           effectiveDate: effectiveDate.toISOString(),
           validationTimestamp: new Date().toISOString(),
           managedLocationsCount: 0,
@@ -838,7 +838,7 @@ export class DashboardService {
     const response = {
       metadata: {
         userId: ctx.auth.sub,
-        username: (user as any)?.username || '',
+        email: (user as any)?.email || '',
         effectiveDate: effectiveDate.toISOString(),
         validationTimestamp: new Date().toISOString(),
         managedLocationsCount: permCtx.managedLocations.length,

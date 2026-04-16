@@ -89,9 +89,10 @@ export class EmployeeTimesheetService {
 
     // Parse sortBy param and map to database field names
     let dbSortBy: 'date' | 'totalWorkingHours' | 'totalBreakMinutes' = 'date';
-    if (sortBy === 'totalminutes' || sortBy === 'total_minutes') {
+    const sortKey = String(sortBy ?? '').toLowerCase();
+    if (sortKey === 'totalminutes' || sortKey === 'total_minutes') {
       dbSortBy = 'totalWorkingHours';
-    } else if (sortBy === 'breakminutes' || sortBy === 'break_minutes') {
+    } else if (sortKey === 'breakminutes' || sortKey === 'break_minutes') {
       dbSortBy = 'totalBreakMinutes';
     }
 

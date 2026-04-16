@@ -53,7 +53,7 @@ export function OnboardingStep5() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField control={form.control} name="contractType" render={({ field }) => (
+          <FormField control={form.control} name="contractType" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Contract Type *</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>
@@ -69,7 +69,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="startDate" render={({ field }) => (
+          <FormField control={form.control} name="startDate" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Start Date *</FormLabel>
               <FormControl><Input type="date" {...field} /></FormControl>
@@ -77,7 +77,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="endDate" render={({ field }) => (
+          <FormField control={form.control} name="endDate" render={({ field }: any) => (
             <FormItem>
               <FormLabel>End Date (Optional)</FormLabel>
               <FormControl><Input type="date" {...field} /></FormControl>
@@ -86,7 +86,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="wageType" render={({ field }) => (
+          <FormField control={form.control} name="wageType" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Wage Type *</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>
@@ -101,7 +101,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="salary" render={({ field }) => (
+          <FormField control={form.control} name="salary" render={({ field }: any) => (
             <FormItem>
               <FormLabel>
                 {wageType === 'salary' && 'Annual Salary (AUD) *'}
@@ -118,7 +118,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="noticePeriod" render={({ field }) => (
+          <FormField control={form.control} name="noticePeriod" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Notice Period (days)</FormLabel>
               <FormControl><Input type="number" placeholder="2" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} min={0} /></FormControl>
@@ -126,7 +126,7 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="probationPeriodEnd" render={({ field }) => (
+          <FormField control={form.control} name="probationPeriodEnd" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Probation Period End (Optional)</FormLabel>
               <FormControl><Input type="date" {...field} /></FormControl>

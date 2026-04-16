@@ -122,7 +122,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="contractType"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Contract Type *</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
@@ -146,7 +146,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="startDate"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Start Date *</FormLabel>
                   <FormControl>
@@ -160,7 +160,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="endDate"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>End Date (leave blank for permanent)</FormLabel>
                   <FormControl>
@@ -175,7 +175,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="wageType"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Wage Type *</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
@@ -198,7 +198,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="salary"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>
                     {wageType === 'salary' && 'Annual Salary (AUD) *'}
@@ -227,7 +227,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="noticePeriod"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Notice Period (days)</FormLabel>
                   <FormControl>
@@ -249,7 +249,7 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="probationPeriodEnd"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Probation Period End (optional)</FormLabel>
                   <FormControl>

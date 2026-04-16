@@ -24,7 +24,6 @@ export interface UnifiedLoginResponse {
     id: string
     name?: string
     email: string
-    username?: string
     role?: string
     location?: string | string[]
     rights?: string[]

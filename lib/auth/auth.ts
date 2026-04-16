@@ -7,7 +7,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production"
 
 export type AuthPayload = {
   sub: string // userId
-  username: string
+  email: string
+  name?: string
   role: "admin" | "user" | "super_admin"
   location?: string
 }
@@ -25,7 +26,8 @@ function getSecret() {
 
 export async function createAuthToken(payload: AuthPayload): Promise<string> {
   return new SignJWT({
-    username: payload.username,
+    email: payload.email,
+    name: payload.name ?? "",
     role: payload.role,
     location: payload.location ?? "",
   })
@@ -45,7 +47,8 @@ export async function verifyAuthToken(token: string): Promise<AuthPayload | null
     const validRole = ["admin", "user", "super_admin"].includes(role) ? role : "user"
     return {
       sub,
-      username: payload.username as string,
+      email: payload.email as string,
+      name: typeof (payload as any).name === "string" && String((payload as any).name).trim() ? String((payload as any).name) : undefined,
       role: validRole as "admin" | "user" | "super_admin",
       location: (payload.location as string) ?? "",
     }

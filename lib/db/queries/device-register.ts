@@ -3,7 +3,7 @@ import { User } from '@/lib/db/schemas/user';
 
 export class DeviceRegisterDbQueries {
   static async findAdminByEmailOrUsernameWithPasswordLean(normalizedInput: string) {
-    return User.findOne({ $or: [{ email: normalizedInput }, { username: normalizedInput }] }).select('+password').lean();
+    return User.findOne({ email: normalizedInput }).select('+password').lean();
   }
 
   static async createDevice(args: any) {

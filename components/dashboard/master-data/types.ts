@@ -16,6 +16,8 @@ export type CategoryRow = {
   contactEmail?: string
   defaultAwardId?: string
   isActive?: boolean
+  /** Team group id (API uses `groupId` in some endpoints). */
+  groupId?: string | null
   /** Workforce team group (not wired yet — reserved for a follow-up) */
   teamGroup?: string | null
   /** Display sort; lower first. */

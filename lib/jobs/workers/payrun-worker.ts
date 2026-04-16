@@ -157,7 +157,7 @@ async function processPayRunCalculation(job: Job<PayRunJobData>): Promise<PayRun
           )
 
           // Process shift through award engine
-          const awardEngine = new AwardEngine(award)
+          const awardEngine = new AwardEngine(award as any)
           const result = awardEngine.processShift(shiftContext)
 
           // Create pay items from the result
@@ -274,7 +274,6 @@ export function createPayRunWorker() {
     concurrency: parseInt(process.env.PAYRUN_WORKER_CONCURRENCY || '2'), // Process 2 pay runs concurrently
     maxStalledCount: 1, // Retry stalled jobs once
     stalledInterval: 30 * 1000, // Check for stalled jobs every 30 seconds
-    maxMemoryUsage: 1024 * 1024 * 1024, // 1GB memory limit per worker
   })
 
   // Worker event handlers

@@ -49,10 +49,10 @@ export class EmployeeTaxInfoService {
     const countryConfig = getCountryConfig(countrySnapshot as CountryCode);
 
     const taxSchema = getTaxSchema(countrySnapshot as CountryCode);
-    const validatedTaxData = taxSchema.parse(taxData);
+    const validatedTaxData = taxSchema.parse(taxData) as any;
 
     const bankSchema = getBankSchema(countrySnapshot as CountryCode);
-    const validatedBankData = bankSchema.parse(bankData);
+    const validatedBankData = bankSchema.parse(bankData) as any;
 
     const taxIdValue =
       validatedTaxData.taxId ||
@@ -141,7 +141,7 @@ export class EmployeeTaxInfoService {
 
     if (body.taxData) {
       const taxSchema = getTaxSchema(countryCode);
-      const validatedTaxData = taxSchema.parse(body.taxData);
+      const validatedTaxData = taxSchema.parse(body.taxData) as any;
       const taxIdValue =
         validatedTaxData.taxId ||
         validatedTaxData.pan ||
@@ -161,7 +161,7 @@ export class EmployeeTaxInfoService {
 
     if (body.bankData) {
       const bankSchema = getBankSchema(countryCode);
-      const validatedBankData = bankSchema.parse(body.bankData);
+      const validatedBankData = bankSchema.parse(body.bankData) as any;
 
       let routingValue = '';
       let routingType = '';

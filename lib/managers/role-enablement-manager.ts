@@ -703,7 +703,8 @@ export class RoleEnablementManager {
       }))
 
       const created = await LocationRoleEnablementDbQueries.insertMany(enablements)
-      return created
+      // insertMany returns Mongoose documents; normalize to plain objects for our manager contract
+      return (created as any[]).map((d) => (typeof d?.toObject === "function" ? d.toObject() : d)) as any
     } catch (error) {
       // Re-throw RoleEnablementError as-is
       if (error instanceof RoleEnablementError) {

@@ -30,12 +30,12 @@ export const deviceResponseSchema = z.object({
   registeredBy: z.object({
     _id: z.string(),
     name: z.string(),
-    username: z.string()
+    email: z.string().email().optional()
   }).optional(),
   revokedBy: z.object({
     _id: z.string(),
     name: z.string(),
-    username: z.string()
+    email: z.string().email().optional()
   }).optional(),
   registeredAt: z.string(),
   revokedAt: z.string().optional(),

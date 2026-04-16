@@ -35,6 +35,8 @@ export type ReconciledShift = {
     dailyShiftId: string
     startTimeUtc: string | null
     endTimeUtc: string | null
+    breakInTimeUtc?: string | null
+    breakOutTimeUtc?: string | null
     status: string
     source: string
     totalBreakMinutes?: number | null
@@ -467,7 +469,7 @@ export function useTimesheetEdit(employeeId: string, weekId: string) {
               if (payload.clockInUtc !== undefined) nextActual.startTimeUtc = payload.clockInUtc
               if (payload.clockOutUtc !== undefined) nextActual.endTimeUtc = payload.clockOutUtc
               if (payload.breaks !== undefined) {
-                if (payload.breaks.length > 0) {
+                if (Array.isArray(payload.breaks) && payload.breaks.length > 0) {
                   nextActual.breakInTimeUtc = payload.breaks[0].startTimeUtc
                   nextActual.breakOutTimeUtc = payload.breaks[0].endTimeUtc
                 } else {

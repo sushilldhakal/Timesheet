@@ -26,7 +26,7 @@ export async function connectDB(): Promise<MongooseInstance> {
   if (!cached.promise) {
     cached.promise = mongoose.connect(MONGODB_URI!, {
       bufferCommands: true,
-      socketTimeoutMS: 45000, // Socket timeout after 45 seconds
+      socketTimeoutMS: 5000, // Fail fast if DB is unresponsive
       serverSelectionTimeoutMS: 10000, // Server selection timeout after 10 seconds
     })
   }

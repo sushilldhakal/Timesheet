@@ -94,7 +94,7 @@ export const dashboardStatsResponseSchema = z.object({
 export const userStatsResponseSchema = z.object({
   metadata: z.object({
     userId: z.string(),
-    username: z.string(),
+    email: z.string().email(),
     effectiveDate: z.string(),
     validationTimestamp: z.string(),
     managedLocationsCount: z.number(),

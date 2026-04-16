@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 import { AnalyticsDbQueries } from "@/lib/db/queries/analytics"
 import { connectDB } from "@/lib/db"
+import type { IShift } from "@/lib/db/queries/scheduling-types"
 
 type ShiftLike = {
   _id: { toString(): string }
@@ -201,7 +202,9 @@ export class VarianceAnalyticsService {
       const award = await AnalyticsDbQueries.findAwardById(awardId.toString())
       if (!award) return { success: true, actualCost: 0 }
 
-      const level = award.levels.find((l: { label: string }) => l.label === awardLevel)
+      const levels = (award as any)?.levels
+      if (!Array.isArray(levels)) return { success: true, actualCost: 0 }
+      const level = levels.find((l: { label: string }) => l.label === awardLevel)
       if (!level) return { success: true, actualCost: 0 }
 
       const conditionSet = level.conditions.find((c: { employmentType: string }) => c.employmentType === employmentType)

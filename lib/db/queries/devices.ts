@@ -11,8 +11,8 @@ export class DeviceDbQueries {
 
   static async listDevicesLean() {
     return Device.find()
-      .populate('registeredBy', 'name username')
-      .populate('revokedBy', 'name username')
+      .populate('registeredBy', 'name email')
+      .populate('revokedBy', 'name email')
       .sort({ registeredAt: -1 })
       .lean();
   }

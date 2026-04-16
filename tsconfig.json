@@ -90,10 +90,12 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts", "scripts/seed-public-holidays.mjs",
+    "scripts/seed-public-holidays.mjs",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
+    ".next",
     "big-calendar/**/*",
     "full-calendar/**/*",
     "tests/**/*"

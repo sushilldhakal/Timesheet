@@ -35,7 +35,7 @@ export class DeviceService {
       activationCodeExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
-    await (device as any).populate('registeredBy', 'name username');
+    await (device as any).populate('registeredBy', 'name email');
 
     return {
       success: true,
@@ -102,8 +102,8 @@ export class DeviceService {
     }
 
     await (device as any).save();
-    await (device as any).populate('registeredBy', 'name username');
-    await (device as any).populate('revokedBy', 'name username');
+    await (device as any).populate('registeredBy', 'name email');
+    await (device as any).populate('revokedBy', 'name email');
 
     return { success: true, device };
   }

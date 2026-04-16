@@ -32,7 +32,6 @@ export class DeviceRegisterService {
         console.log('[device/register] User details:', {
           id: (adminUser as any)._id,
           email: (adminUser as any).email,
-          username: (adminUser as any).username,
           role: (adminUser as any).role,
         });
       }

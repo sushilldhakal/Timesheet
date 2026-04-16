@@ -12,9 +12,7 @@ export function useAuth() {
     setIsHydrated(true);
   }, []);
 
-  // Ensure role is available (API may omit it for legacy users; infer admin from username)
-  const userRole =
-    user?.role ?? (user?.username === "admin" ? "admin" : null);
+  const userRole = user?.role ?? null;
     
   return {
     user,

@@ -140,7 +140,9 @@ export class WorkingHoursHierarchy {
       }
 
       // Find the matching award level
-      const level = award.levels.find((l: any) => l.label === employee.awardLevel)
+      const levels = (award as any)?.levels
+      if (!Array.isArray(levels)) return null
+      const level = levels.find((l: any) => l.label === employee.awardLevel)
       if (!level) {
         return null
       }

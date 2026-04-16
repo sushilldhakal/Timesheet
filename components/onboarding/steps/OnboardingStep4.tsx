@@ -52,7 +52,7 @@ export function OnboardingStep4() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField control={form.control} name="bankName" render={({ field }) => (
+          <FormField control={form.control} name="bankName" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Bank Name *</FormLabel>
               <FormControl><Input placeholder="e.g., Commonwealth Bank" {...field} /></FormControl>
@@ -60,7 +60,7 @@ export function OnboardingStep4() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="accountNumber" render={({ field }) => (
+          <FormField control={form.control} name="accountNumber" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Account Number *</FormLabel>
               <FormControl><Input type="password" placeholder="Account number (will be masked)" {...field} className="font-mono" /></FormControl>
@@ -69,7 +69,7 @@ export function OnboardingStep4() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="bsbCode" render={({ field }) => (
+          <FormField control={form.control} name="bsbCode" render={({ field }: any) => (
             <FormItem>
               <FormLabel>BSB Code *</FormLabel>
               <FormControl><Input placeholder="000-000" {...field} className="font-mono" /></FormControl>
@@ -78,7 +78,7 @@ export function OnboardingStep4() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="accountHolderName" render={({ field }) => (
+          <FormField control={form.control} name="accountHolderName" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Account Holder Name *</FormLabel>
               <FormControl><Input placeholder="Name on the bank account" {...field} /></FormControl>
@@ -86,7 +86,7 @@ export function OnboardingStep4() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="accountType" render={({ field }) => (
+          <FormField control={form.control} name="accountType" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Account Type *</FormLabel>
               <FormControl>

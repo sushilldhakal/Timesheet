@@ -68,8 +68,10 @@ export default function MailSettingsPage() {
   }, [mailSettingsQuery.data])
 
   useEffect(() => {
-    if (activityLogsQuery.data) {
-      const newLogs = activityLogsQuery.data.logs.map((log: any) => ({
+    const logs = (activityLogsQuery.data as any)?.logs
+    const total = (activityLogsQuery.data as any)?.total
+    if (Array.isArray(logs)) {
+      const newLogs = logs.map((log: any) => ({
         id: log._id,
         action: log.action,
         timestamp: new Date(log.createdAt),
@@ -77,7 +79,10 @@ export default function MailSettingsPage() {
         status: log.status,
       }))
       setActivityLogs(newLogs)
-      setTotalLogsPages(Math.ceil((activityLogsQuery.data.total || 0) / 10))
+      setTotalLogsPages(Math.ceil((typeof total === "number" ? total : 0) / 10))
+    } else if (activityLogsQuery.data) {
+      setActivityLogs([])
+      setTotalLogsPages(1)
     }
   }, [activityLogsQuery.data])
 

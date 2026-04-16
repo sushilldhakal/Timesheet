@@ -180,7 +180,7 @@ export class AbsenceManager {
     leaveRecordId: string,
     approverId: string
   ): Promise<ILeaveRecord> {
-    const leaveRecord = await LeaveRecord.findById(leaveRecordId)
+    const leaveRecord = await WorkforceModels.LeaveRecord.findById(leaveRecordId)
     if (!leaveRecord) {
       throw new Error(`Leave record not found: ${leaveRecordId}`)
     }
@@ -212,7 +212,7 @@ export class AbsenceManager {
     denierId: string,
     reason: string
   ): Promise<ILeaveRecord> {
-    const leaveRecord = await LeaveRecord.findById(leaveRecordId)
+    const leaveRecord = await WorkforceModels.LeaveRecord.findById(leaveRecordId)
     if (!leaveRecord) {
       throw new Error(`Leave record not found: ${leaveRecordId}`)
     }

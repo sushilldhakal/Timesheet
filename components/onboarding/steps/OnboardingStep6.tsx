@@ -51,7 +51,7 @@ export function OnboardingStep6() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-3 p-4 bg-muted/50 rounded-md">
             <h3 className="font-semibold">Working With Children Check (WWC)</h3>
-            <FormField control={form.control} name="wwcStatus" render={({ field }) => (
+            <FormField control={form.control} name="wwcStatus" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Status *</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -66,7 +66,7 @@ export function OnboardingStep6() {
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="wwcExpiryDate" render={({ field }) => (
+            <FormField control={form.control} name="wwcExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
                 <FormControl><Input type="date" {...field} /></FormControl>
@@ -77,7 +77,7 @@ export function OnboardingStep6() {
 
           <div className="space-y-3 p-4 bg-muted/50 rounded-md">
             <h3 className="font-semibold">Police Clearance</h3>
-            <FormField control={form.control} name="policeClearanceStatus" render={({ field }) => (
+            <FormField control={form.control} name="policeClearanceStatus" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Status *</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -91,7 +91,7 @@ export function OnboardingStep6() {
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="policeClearanceExpiryDate" render={({ field }) => (
+            <FormField control={form.control} name="policeClearanceExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
                 <FormControl><Input type="date" {...field} /></FormControl>
@@ -102,7 +102,7 @@ export function OnboardingStep6() {
 
           <div className="space-y-3 p-4 bg-muted/50 rounded-md">
             <h3 className="font-semibold">Food Handling Certification</h3>
-            <FormField control={form.control} name="foodHandlingStatus" render={({ field }) => (
+            <FormField control={form.control} name="foodHandlingStatus" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Status *</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
@@ -115,7 +115,7 @@ export function OnboardingStep6() {
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="foodHandlingExpiryDate" render={({ field }) => (
+            <FormField control={form.control} name="foodHandlingExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
                 <FormControl><Input type="date" {...field} /></FormControl>

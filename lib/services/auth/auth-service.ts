@@ -19,6 +19,7 @@ export class AuthService {
       email: (user as any).email,
       role: (user as any).role,
       location: Array.isArray((user as any).location) ? (user as any).location[0] ?? "" : ((user as any).location ?? ""),
+      tenantId: (user as any).tenantId ? String((user as any).tenantId) : undefined,
     });
     await setAuthCookie(token);
 
@@ -54,7 +55,7 @@ export class AuthService {
         ? [String((user as any).location)]
         : [];
 
-    const role = (user as any).role ?? auth.role ?? ((user as any).username === "admin" ? "admin" : "user");
+    const role = (user as any).role ?? auth.role ?? "user";
 
     return {
       status: 200,
@@ -62,7 +63,7 @@ export class AuthService {
         user: {
           id: String((user as any)._id),
           name: (user as any).name ?? "",
-          username: (user as any).username,
+          email: (user as any).email ?? "",
           role,
           location,
           rights: (((user as any).rights ?? []) as any[]).map((right) => String(right)),

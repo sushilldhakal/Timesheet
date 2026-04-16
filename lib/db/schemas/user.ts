@@ -144,6 +144,7 @@ const userSchema = new mongoose.Schema<IUserDocument>(
 )
 
 userSchema.index({ tenantId: 1, email: 1 }, { unique: true })
+userSchema.index({ role: 1 })
 
 // Normalize legacy location string to array
 userSchema.pre("save", async function (next) {

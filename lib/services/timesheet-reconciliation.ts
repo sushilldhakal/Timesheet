@@ -31,10 +31,14 @@ export type ReconciledShift = {
     dailyShiftId: string
     startTimeUtc: string | null
     endTimeUtc: string | null
+    breakInTimeUtc?: string | null
+    breakOutTimeUtc?: string | null
     status: string
     source: string
     totalBreakMinutes?: number | null
     totalWorkingHours?: number | null
+    awardTags?: string[]
+    computedTotalCost?: number | null
   } | null
   varianceMinutes: {
     start: number | null

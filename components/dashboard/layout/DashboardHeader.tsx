@@ -161,7 +161,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                 <Avatar className="h-10 w-10">
                                     <AvatarFallback>
-                                        {user?.username?.charAt(0).toUpperCase() || userEmail?.charAt(0).toUpperCase() || 'U'}
+                                        {user?.name?.charAt(0).toUpperCase() || userEmail?.charAt(0).toUpperCase() || 'U'}
                                     </AvatarFallback>
                                 </Avatar>
                             </Button>
@@ -170,7 +170,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                             <DropdownMenuLabel className="font-normal">
                                 <div className="flex flex-col space-y-1">
                                     <p className="text-sm font-medium leading-none">
-                                        {user?.username || 'User'}
+                                        {user?.name || 'User'}
                                     </p>
                                     <p className="text-xs leading-none text-muted-foreground">
                                         {userEmail || '—'}

@@ -51,7 +51,7 @@ export function OnboardingStep2() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField control={form.control} name="legalFirstName" render={({ field }) => (
+          <FormField control={form.control} name="legalFirstName" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Legal First Name *</FormLabel>
               <FormControl><Input placeholder="As it appears on legal documents" {...field} /></FormControl>
@@ -59,7 +59,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="legalMiddleNames" render={({ field }) => (
+          <FormField control={form.control} name="legalMiddleNames" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Middle Names (Optional)</FormLabel>
               <FormControl><Input placeholder="Middle names if any" {...field} /></FormControl>
@@ -67,7 +67,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="legalLastName" render={({ field }) => (
+          <FormField control={form.control} name="legalLastName" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Legal Last Name *</FormLabel>
               <FormControl><Input placeholder="As it appears on legal documents" {...field} /></FormControl>
@@ -75,7 +75,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="preferredName" render={({ field }) => (
+          <FormField control={form.control} name="preferredName" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Preferred Name (Optional)</FormLabel>
               <FormControl><Input placeholder="Name to use at work (if different)" {...field} /></FormControl>
@@ -83,7 +83,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="nationality" render={({ field }) => (
+          <FormField control={form.control} name="nationality" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Nationality *</FormLabel>
               <FormControl><Input placeholder="Australian, British, etc." {...field} /></FormControl>
@@ -91,7 +91,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="timeZone" render={({ field }) => (
+          <FormField control={form.control} name="timeZone" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Time Zone</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>
@@ -108,7 +108,7 @@ export function OnboardingStep2() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="locale" render={({ field }) => (
+          <FormField control={form.control} name="locale" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Locale/Language</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>

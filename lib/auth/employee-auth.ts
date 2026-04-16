@@ -13,12 +13,16 @@ export type EmployeeAuthPayload = {
   type: "employee"
 }
 
-function getSecret() {
+// Cache the encoded secret at module load time so we don't re-encode on every middleware call
+let _cachedSecret: Uint8Array | null = null
+function getSecret(): Uint8Array {
+  if (_cachedSecret) return _cachedSecret
   const secret = process.env.JWT_SECRET?.trim()
   if (!secret || secret.length < 32) {
     throw new Error("JWT_SECRET required for employee auth")
   }
-  return new TextEncoder().encode(secret)
+  _cachedSecret = new TextEncoder().encode(secret)
+  return _cachedSecret
 }
 
 export async function createEmployeeToken(payload: Omit<EmployeeAuthPayload, "type">): Promise<string> {

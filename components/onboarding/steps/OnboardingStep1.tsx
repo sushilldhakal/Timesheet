@@ -48,7 +48,7 @@ export function OnboardingStep1() {
             <FormField
               control={form.control}
               name="firstName"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>First Name *</FormLabel>
                   <FormControl><Input placeholder="John" {...field} /></FormControl>
@@ -59,7 +59,7 @@ export function OnboardingStep1() {
             <FormField
               control={form.control}
               name="lastName"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Last Name *</FormLabel>
                   <FormControl><Input placeholder="Smith" {...field} /></FormControl>
@@ -72,7 +72,7 @@ export function OnboardingStep1() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field }) => (
+            render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Email *</FormLabel>
                 <FormControl><Input placeholder="john.smith@example.com" type="email" {...field} /></FormControl>
@@ -84,7 +84,7 @@ export function OnboardingStep1() {
           <FormField
             control={form.control}
             name="phone"
-            render={({ field }) => (
+            render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Phone Number *</FormLabel>
                 <FormControl><Input placeholder="+61 2 1234 5678" {...field} /></FormControl>

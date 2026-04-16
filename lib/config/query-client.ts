@@ -48,7 +48,7 @@ export const queryClient = new QueryClient({
         return failureCount < 3
       },
       // Enable background refetch when online
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
       refetchOnReconnect: true,
     },
     mutations: {

@@ -10,6 +10,8 @@ import { sendEmail } from '@/lib/mail/sendEmail';
 import { generateOnboardingEmail } from '@/lib/mail/templates/employee-onboarding';
 import { generateOnboardingWithPasswordEmail } from '@/lib/mail/templates/employee-onboarding-with-password';
 import { generateOnboardingSetupLinkEmail } from '@/lib/mail/templates/employee-onboarding-setup-link';
+import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
+import { Team, Location, Employer } from '@/lib/db';
 
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== '' ? [String(v).trim()] : [];
@@ -48,8 +50,6 @@ export class EmployeeService {
     if (employerFilters.length > 0) andConditions.push({ employer: { $in: employerFilters } });
 
     // roleFilters -> map role names to ids and then to employeeIds via assignments
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
-    const { Team, Location, Employer } = await import('@/lib/db');
 
     if (roleFilters.length > 0) {
       const roleCategories = await Team.find({ name: { $in: roleFilters } }).lean();
@@ -314,8 +314,6 @@ export class EmployeeService {
 
     const employee = await EmployeeDbQueries.createEmployee(employeeData);
 
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
-    const { Team, Location } = await import('@/lib/db');
 
     if (body.role?.length > 0 && body.location?.length > 0) {
       const roleCategories = await Team.find({ name: { $in: body.role } }).lean();
@@ -407,7 +405,6 @@ export class EmployeeService {
     const employee = await EmployeeDbQueries.findEmployeeLean(empFilter);
     if (!employee) throw apiErrors.notFound('Employee not found');
 
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
     const roleAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true })
       .populate('roleId', 'name color type')
       .populate('locationId', 'name type')
@@ -493,8 +490,6 @@ export class EmployeeService {
 
     // Sync role assignments if role/location changed (legacy behavior preserved)
     if (body.role !== undefined || body.location !== undefined) {
-      const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
-      const { Team, Location } = await import('@/lib/db');
 
       const roleNames = body.role !== undefined ? arr(body.role) : [];
       const locationNames = body.location !== undefined ? arr(body.location) : [];
@@ -540,7 +535,6 @@ export class EmployeeService {
           }
         }
       } else {
-        const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
         const now = new Date();
         await EmployeeRoleAssignment.updateMany({ employeeId: id, isActive: true }, { $set: { validTo: now, isActive: false } });
       }
@@ -552,7 +546,6 @@ export class EmployeeService {
         ? await EmployeeDbQueries.updateEmployeeById(id, updates)
         : await EmployeeDbQueries.findEmployeeLean({ _id: id });
 
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
     const roleAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true })
       .populate('roleId', 'name color type')
       .populate('locationId', 'name type')
@@ -584,7 +577,6 @@ export class EmployeeService {
   }
 
   private async toEmployeeRow(e: any, roleAssignments: any[] = []) {
-    const { Location, Employer } = await import('@/lib/db');
     const Award = (await import('@/lib/db/schemas/award')).default;
 
     const locationIds = Array.from(new Set(roleAssignments.map((ra: any) => ra.locationId.toString())));

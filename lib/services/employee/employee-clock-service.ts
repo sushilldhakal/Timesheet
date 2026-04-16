@@ -176,14 +176,20 @@ export class EmployeeClockService {
       const shift = await EmployeeClockDbQueries.findShiftByPinAndDate(employee.pin, dateObj);
       if (!shift) throw apiErrors.badRequest('No clock-in found for today. Please clock in first.');
       const computed = updateComputedFields((shift as any).clockIn, clockEvent, (shift as any).breakIn, (shift as any).breakOut);
-      await EmployeeClockDbQueries.updateClockOut(employee.pin, dateObj, clockEvent, computed);
+      await EmployeeClockDbQueries.updateClockOut(employee.pin, dateObj, clockEvent, {
+        totalBreakMinutes: computed.totalBreakMinutes,
+        totalWorkingHours: computed.totalWorkingHours ?? 0,
+      });
     } else if (type === 'break') {
       await EmployeeClockDbQueries.updateBreakIn(employee.pin, dateObj, clockEvent);
     } else if (type === 'endBreak') {
       const shift = await EmployeeClockDbQueries.findShiftByPinAndDate(employee.pin, dateObj);
       if (!shift || !(shift as any).breakIn) throw apiErrors.badRequest('No active break found.');
       const computed = updateComputedFields((shift as any).clockIn, (shift as any).clockOut, (shift as any).breakIn, clockEvent);
-      await EmployeeClockDbQueries.updateBreakOut(employee.pin, dateObj, clockEvent, computed);
+      await EmployeeClockDbQueries.updateBreakOut(employee.pin, dateObj, clockEvent, {
+        totalBreakMinutes: computed.totalBreakMinutes,
+        totalWorkingHours: computed.totalWorkingHours ?? 0,
+      });
     }
 
     if (faceDescriptor && imageUrl && detectedLocationId) {

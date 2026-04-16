@@ -166,7 +166,7 @@ export default function StaffProfilePage() {
               </TabsList>
 
               <TabsContent value="overview" className="p-6 space-y-6">
-                {employeeId && <StaffOverviewTab employee={employee} />}
+                {employeeId && employee && <StaffOverviewTab employee={employee} />}
               </TabsContent>
 
               <TabsContent value="payroll" className="p-6 space-y-6">

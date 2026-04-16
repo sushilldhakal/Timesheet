@@ -49,7 +49,7 @@ export function OnboardingStep3() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField control={form.control} name="tfn" render={({ field }) => (
+          <FormField control={form.control} name="tfn" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Tax File Number (TFN) - Optional</FormLabel>
               <FormControl><Input placeholder="11 digits" {...field} maxLength={11} className="font-mono" /></FormControl>
@@ -58,7 +58,7 @@ export function OnboardingStep3() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="abn" render={({ field }) => (
+          <FormField control={form.control} name="abn" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Australian Business Number (ABN) - Optional</FormLabel>
               <FormControl><Input placeholder="11 digits" {...field} maxLength={11} className="font-mono" /></FormControl>
@@ -66,7 +66,7 @@ export function OnboardingStep3() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="superannuationFund" render={({ field }) => (
+          <FormField control={form.control} name="superannuationFund" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Superannuation Fund Name - Optional</FormLabel>
               <FormControl><Input placeholder="e.g., AustralianSuper" {...field} /></FormControl>
@@ -74,7 +74,7 @@ export function OnboardingStep3() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="superannuationMemberNumber" render={({ field }) => (
+          <FormField control={form.control} name="superannuationMemberNumber" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Superannuation Member Number - Optional</FormLabel>
               <FormControl><Input placeholder="Member ID" {...field} className="font-mono" /></FormControl>
@@ -82,7 +82,7 @@ export function OnboardingStep3() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="taxWithholdingPercentage" render={({ field }) => (
+          <FormField control={form.control} name="taxWithholdingPercentage" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Tax Withholding Percentage</FormLabel>
               <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export function OnboardingStep3() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="hasHelpDebt" render={({ field }) => (
+          <FormField control={form.control} name="hasHelpDebt" render={({ field }: any) => (
             <FormItem className="flex items-center space-x-3">
               <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               <div className="flex-1">

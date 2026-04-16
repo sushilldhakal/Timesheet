@@ -145,7 +145,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="wwcStatus"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>WWC Status</FormLabel>
                     <Select value={field.value ?? ''} onValueChange={field.onChange}>
@@ -164,7 +164,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="wwcNumber"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>WWC Number</FormLabel>
                     <FormControl><Input placeholder="e.g., WWC1234567" {...field} /></FormControl>
@@ -175,7 +175,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="wwcExpiryDate"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>WWC Expiry Date</FormLabel>
                     <FormControl><Input type="date" {...field} /></FormControl>
@@ -191,7 +191,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="policeClearanceStatus"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Police Clearance Status</FormLabel>
                     <Select value={field.value ?? ''} onValueChange={field.onChange}>
@@ -209,7 +209,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="policeClearanceNumber"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Police Clearance Number</FormLabel>
                     <FormControl><Input placeholder="e.g., PC-2024-12345" {...field} /></FormControl>
@@ -220,7 +220,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="policeClearanceExpiryDate"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Police Clearance Expiry Date</FormLabel>
                     <FormControl><Input type="date" {...field} /></FormControl>
@@ -236,7 +236,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="foodHandlingStatus"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Food Handling Status</FormLabel>
                     <Select value={field.value ?? ''} onValueChange={field.onChange}>
@@ -253,7 +253,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="foodHandlingExpiryDate"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Food Handling Expiry Date</FormLabel>
                     <FormControl><Input type="date" {...field} /></FormControl>
@@ -269,7 +269,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="inductionCompleted"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem className="flex items-center space-x-3">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
@@ -285,7 +285,7 @@ export function ComplianceForm({
                 <FormField
                   control={form.control}
                   name="inductionDate"
-                  render={({ field }) => (
+                  render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Induction Completed Date</FormLabel>
                       <FormControl><Input type="date" {...field} /></FormControl>
@@ -298,7 +298,7 @@ export function ComplianceForm({
               <FormField
                 control={form.control}
                 name="codeOfConductSigned"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem className="flex items-center space-x-3">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
@@ -314,7 +314,7 @@ export function ComplianceForm({
                 <FormField
                   control={form.control}
                   name="codeOfConductDate"
-                  render={({ field }) => (
+                  render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Code of Conduct Signed Date</FormLabel>
                       <FormControl><Input type="date" {...field} /></FormControl>

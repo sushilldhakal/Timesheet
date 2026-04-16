@@ -22,7 +22,6 @@ import { toast } from "sonner"
 
 function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
-  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -46,12 +45,6 @@ function ProfilePage() {
     })
   }
 
-  useEffect(() => {
-    if (user) {
-      setUsername(user.username ?? "")
-    }
-  }, [user])
-
   if (!isHydrated || !user) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
@@ -66,9 +59,7 @@ function ProfilePage() {
     setSuccess(false)
 
     try {
-      const body: { username: string; password?: string } = {
-        username: username.trim().toLowerCase(),
-      }
+      const body: { password?: string } = {}
       if (password) body.password = password
 
       await updateUserMutation.mutateAsync({ id: user.id, data: body })
@@ -107,7 +98,7 @@ function ProfilePage() {
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
-              Edit your username and password.
+              Update your password.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -118,13 +109,8 @@ function ProfilePage() {
                   <Input value={user.name || "—"} disabled className="bg-muted" />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="profile-username">Username *</FieldLabel>
-                  <Input
-                    id="profile-username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
+                  <FieldLabel>Email</FieldLabel>
+                  <Input value={user.email || "—"} disabled className="bg-muted" />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="profile-password">New Password</FieldLabel>

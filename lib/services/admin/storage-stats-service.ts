@@ -173,8 +173,8 @@ export class StorageStatsService {
           folderCount: folders.size,
           folders: [...folders].slice(0, 20),
           topExtensions,
-          oldestFile: oldestDate?.toISOString() || null,
-          newestFile: newestDate?.toISOString() || null,
+          oldestFile: oldestDate ? (oldestDate as Date).toISOString() : null,
+          newestFile: newestDate ? (newestDate as Date).toISOString() : null,
           bucketName: r2.bucketName,
           lastSync: new Date(),
         };

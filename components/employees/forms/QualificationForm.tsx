@@ -111,7 +111,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="qualificationName"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Qualification Name *</FormLabel>
                   <FormControl>
@@ -128,7 +128,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="issuingBody"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Issuing Body *</FormLabel>
                   <FormControl>
@@ -146,7 +146,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="issueDate"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Issue Date *</FormLabel>
                   <FormControl>
@@ -160,7 +160,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="expiryDate"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Expiry Date (optional)</FormLabel>
                   <FormControl>
@@ -175,7 +175,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="licenseNumber"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>License/Certificate Number (optional)</FormLabel>
                   <FormControl>
@@ -193,7 +193,7 @@ export function QualificationForm({
             <FormField
               control={form.control}
               name="documentUrl"
-              render={({ field }) => (
+              render={({ field }: any) => (
                 <FormItem>
                   <FormLabel>Document URL (optional)</FormLabel>
                   <FormControl>
