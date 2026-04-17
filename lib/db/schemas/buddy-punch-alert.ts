@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose"
 
 export interface IBuddyPunchAlert extends Document {
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   punchType: "in" | "break" | "endBreak" | "out"
   punchTime: Date
@@ -18,6 +19,12 @@ export interface IBuddyPunchAlert extends Document {
 
 const BuddyPunchAlertSchema = new Schema<IBuddyPunchAlert>(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Employer",
+      required: true,
+      index: true,
+    },
     employeeId: {
       type: Schema.Types.ObjectId,
       ref: "Employee",
@@ -81,6 +88,8 @@ const BuddyPunchAlertSchema = new Schema<IBuddyPunchAlert>(
 )
 
 // Fast dashboard queries - compound indexes
+BuddyPunchAlertSchema.index({ tenantId: 1, createdAt: -1 })
+BuddyPunchAlertSchema.index({ tenantId: 1, locationId: 1, status: 1, punchTime: -1 })
 BuddyPunchAlertSchema.index({ locationId: 1, status: 1, punchTime: -1 })
 BuddyPunchAlertSchema.index({ employeeId: 1, punchTime: -1 })
 BuddyPunchAlertSchema.index({ status: 1, punchTime: -1 })

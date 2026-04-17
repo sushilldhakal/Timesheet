@@ -23,6 +23,14 @@
     {
       "path": "/api/cron/cleanup-cloudinary",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/retry-events",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/retry-exports",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

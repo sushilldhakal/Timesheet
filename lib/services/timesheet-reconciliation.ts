@@ -31,6 +31,8 @@ export type ReconciledShift = {
     dailyShiftId: string
     startTimeUtc: string | null
     endTimeUtc: string | null
+    locationId?: string | null
+    roleId?: string | null
     breakInTimeUtc?: string | null
     breakOutTimeUtc?: string | null
     status: string
@@ -361,6 +363,8 @@ export function compareRosterVsActual(input: {
             dailyShiftId: String(match._id),
             startTimeUtc: actualStart ? actualStart.toISOString() : null,
             endTimeUtc: actualEnd ? actualEnd.toISOString() : null,
+            locationId: match?.locationId ? String(match.locationId) : null,
+            roleId: match?.roleId ? String(match.roleId) : null,
             breakInTimeUtc: Array.isArray(match.breaks) && match.breaks.length > 0 && match.breaks[0]?.startTime
               ? new Date(match.breaks[0].startTime).toISOString()
               : null,
@@ -394,6 +398,8 @@ export function compareRosterVsActual(input: {
         dailyShiftId: String(a._id),
         startTimeUtc: start ? start.toISOString() : null,
         endTimeUtc: end ? end.toISOString() : null,
+        locationId: a?.locationId ? String(a.locationId) : null,
+        roleId: a?.roleId ? String(a.roleId) : null,
         breakInTimeUtc: Array.isArray(a.breaks) && a.breaks.length > 0 && a.breaks[0]?.startTime
           ? new Date(a.breaks[0].startTime).toISOString()
           : null,

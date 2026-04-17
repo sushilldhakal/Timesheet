@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 
 export interface IEmployeeBankDetails {
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   accountNumber: string
   bsbCode: string
@@ -13,11 +14,16 @@ export interface IEmployeeBankDetails {
 
 const employeeBankDetailsSchema = new mongoose.Schema<IEmployeeBankDetails>(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employer',
+      required: true,
+      index: true,
+    },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Employee',
       required: true,
-      unique: true,
       index: true,
     },
     accountNumber: {
@@ -45,6 +51,9 @@ const employeeBankDetailsSchema = new mongoose.Schema<IEmployeeBankDetails>(
     collection: 'employee_bank_details',
   }
 )
+
+// One bank details record per employee per tenant
+employeeBankDetailsSchema.index({ tenantId: 1, employeeId: 1 }, { unique: true })
 
 export const EmployeeBankDetails =
   (mongoose.models.EmployeeBankDetails as mongoose.Model<IEmployeeBankDetails>) ??

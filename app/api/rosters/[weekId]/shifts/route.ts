@@ -8,6 +8,7 @@ import { errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { apiErrors } from "@/lib/api/api-error"
 import { rosterService } from "@/lib/services/roster/roster-service"
+import { shiftAuditService } from "@/lib/services/audit/shift-audit-service"
 
 export const POST = createApiRoute({
   method: 'POST',
@@ -35,6 +36,28 @@ export const POST = createApiRoute({
     const shiftData = body!
 
     const data = await rosterService.addShift({ weekId, ...(shiftData as any) })
+
+    // Fire-and-forget audit log
+    const shift = (data as any)?.shift
+    if (shift?._id && shift?.employeeId) {
+      shiftAuditService.log({
+        tenantId: ctx.tenantId,
+        shiftId: shift._id.toString(),
+        employeeId: shift.employeeId.toString(),
+        action: 'created',
+        changedFields: [],
+        actorId: ctx.auth.sub,
+        actorType: 'user',
+        after: {
+          employeeId: shift.employeeId,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          locationId: shift.locationId,
+          roleId: shift.roleId,
+        },
+      }).catch(() => {})
+    }
+
     return { status: 201, data }
   }
 })

@@ -7,6 +7,7 @@ import { Plus, UserCircle } from "lucide-react"
 import { useTeams, useUpdateTeam } from "@/lib/queries/teams"
 import { useTeamGroups } from "@/lib/queries/team-groups"
 import { TeamsTable } from "@/components/dashboard/tables/TeamsTable"
+import { TeamGroupsTable } from "@/components/dashboard/tables/TeamGroupsTable"
 import { AddMasterDataDialog } from "@/components/dashboard/master-data/AddMasterDataDialog"
 import { EditMasterDataDialog } from "@/components/dashboard/master-data/EditMasterDataDialog"
 import { DeleteMasterDataDialog } from "@/components/dashboard/master-data/DeleteMasterDataDialog"
@@ -14,6 +15,7 @@ import type { CategoryRow } from "@/components/dashboard/master-data/types"
 
 export default function TeamsPage() {
   const [addOpen, setAddOpen] = useState(false)
+  const [addTeamGroupOpen, setAddTeamGroupOpen] = useState(false)
   const [editRow, setEditRow] = useState<CategoryRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<CategoryRow | null>(null)
   const [hydrated, setHydrated] = useState(false)
@@ -25,24 +27,33 @@ export default function TeamsPage() {
   }, [])
 
   const teamsQuery = useTeams({ listMode: true })
-  const teamGroupsQuery = useTeamGroups()
+  const teamGroupsQuery = useTeamGroups({ listMode: true })
   const updateTeamMutation = useUpdateTeam()
-
-  const teamGroupsMap = useMemo(() => {
-    const map = new Map<string, string>()
-    ;(teamGroupsQuery.data?.teamGroups ?? []).forEach((g) => {
-      map.set(g.id, g.name)
-    })
-    return map
-  }, [teamGroupsQuery.data?.teamGroups])
 
   const rows: CategoryRow[] = useMemo(
     () => (teamsQuery.data?.teams ?? []).map((t) => ({
       ...t,
       type: "team" as const,
-      teamGroup: t.groupId ? teamGroupsMap.get(t.groupId) : undefined,
+      // Backend is source of truth for Team → TeamGroup join.
+      teamGroup: t.groupName ?? t.groupSnapshot?.name ?? undefined,
     })),
-    [teamsQuery.data?.teams, teamGroupsMap]
+    [teamsQuery.data?.teams]
+  )
+
+  const teamGroupRows: CategoryRow[] = useMemo(
+    () =>
+      (teamGroupsQuery.data?.teamGroups ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        color: g.color,
+        order: g.order,
+        isActive: g.isActive,
+        type: "teamGroup" as const,
+        createdAt: g.createdAt ?? undefined,
+        updatedAt: g.updatedAt ?? undefined,
+      })),
+    [teamGroupsQuery.data?.teamGroups]
   )
 
   const total = rows.length
@@ -50,7 +61,8 @@ export default function TeamsPage() {
 
   const refetch = useCallback(() => {
     teamsQuery.refetch()
-  }, [teamsQuery])
+    teamGroupsQuery.refetch()
+  }, [teamsQuery, teamGroupsQuery])
 
   const handleActivateSelected = async () => {
     const toActivate = selectedRows.filter((r) => r.isActive === false)
@@ -114,10 +126,16 @@ export default function TeamsPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddOpen(true)} size="lg">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Team
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setAddTeamGroupOpen(true)} size="lg">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Team Group
+            </Button>
+            <Button onClick={() => setAddOpen(true)} size="lg">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Team
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -198,6 +216,28 @@ export default function TeamsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Team groups</CardTitle>
+            <CardDescription>Create and manage the team groups used to organize teams.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!hydrated || teamGroupsQuery.isLoading ? (
+              <p className="py-8 text-center text-muted-foreground">Loading...</p>
+            ) : (teamGroupsQuery.error as Error | null)?.message ? (
+              <p className="py-8 text-center text-destructive">
+                {((teamGroupsQuery.error as Error | null) ?? new Error("Failed to load team groups")).message}
+              </p>
+            ) : (
+              <TeamGroupsTable
+                teamGroups={teamGroupRows}
+                onEdit={(row) => setEditRow(row)}
+                onDelete={(row) => setDeleteRow(row)}
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <AddMasterDataDialog
@@ -207,6 +247,14 @@ export default function TeamsPage() {
         onSuccess={() => {
           setAddOpen(false)
           refetch()
+        }}
+      />
+      <AddMasterDataDialog
+        type="teamGroup"
+        open={addTeamGroupOpen}
+        onOpenChange={setAddTeamGroupOpen}
+        onSuccess={() => {
+          setAddTeamGroupOpen(false)
         }}
       />
 

@@ -16,6 +16,8 @@ export type AuthUser = {
   email: string
   role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin"
   location?: string[]
+  tenantId?: string
+  tenantName?: string
   /** @deprecated Use role-based permissions instead */
   rights?: string[]
   managedRoles?: string[]

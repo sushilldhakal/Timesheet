@@ -1,6 +1,10 @@
+import { registerAllListeners } from "@/lib/events/register-listeners"
 import { meResponseSchema, errorResponseSchema } from "@/lib/validations/auth"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { authService } from "@/lib/services/auth/auth-service"
+
+// Register domain event listeners once per worker process
+registerAllListeners()
 
 export const GET = createApiRoute({
   method: 'GET',

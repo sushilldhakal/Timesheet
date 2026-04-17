@@ -168,7 +168,8 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
   }
 )
 
-employeeSchema.index({ pin: 1 })
+// Compound unique index — pins must be unique per tenant, not globally
+employeeSchema.index({ tenantId: 1, pin: 1 }, { unique: true })
 employeeSchema.index({ awardId: 1 })
 employeeSchema.index({ locationIds: 1 })
 employeeSchema.index({ employerIds: 1 })

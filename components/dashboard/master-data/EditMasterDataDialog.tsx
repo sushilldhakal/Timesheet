@@ -22,6 +22,7 @@ import {
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/format/colors"
 import { MultiSelect } from "@/components/ui/MultiSelect"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   useUpdateLocation,
   useLocationTeams,
@@ -32,10 +33,12 @@ import { useTeams, useUpdateTeam } from "@/lib/queries/teams"
 import { useUpdateEmployer } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { useTeamGroups } from "@/lib/queries/team-groups"
+import { useUpdateTeamGroup } from "@/lib/queries/team-groups"
 import type { CategoryRow } from "./types"
 
-const TYPE_LABELS: Record<"team" | "employer" | "location", string> = {
+const TYPE_LABELS: Record<"team" | "teamGroup" | "employer" | "location", string> = {
   team: "Team",
+  teamGroup: "Team Group",
   employer: "Employer",
   location: "Location",
 }
@@ -54,6 +57,7 @@ function isValidEmail(value: string): boolean {
 
 export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }: Props) {
   const [name, setName] = useState(category.name)
+  const [description, setDescription] = useState(category.description ?? "")
   const [mapLink, setMapLink] = useState("")
   const [lat, setLat] = useState<number | undefined>(category.lat)
   const [lng, setLng] = useState<number | undefined>(category.lng)
@@ -62,6 +66,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
   const [openingHour, setOpeningHour] = useState<number>(category.openingHour ?? 8)
   const [closingHour, setClosingHour] = useState<number>(category.closingHour ?? 18)
   const [color, setColor] = useState<string>(category.color ?? "#3b82f6")
+  const [isActive, setIsActive] = useState<boolean>(category.isActive !== false)
   const [standardHours, setStandardHours] = useState<number>(
     category.defaultScheduleTemplate?.standardHoursPerWeek ?? 38
   )
@@ -90,7 +95,9 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
   const updateLocationMutation = useUpdateLocation()
   const updateTeamMutation = useUpdateTeam()
   const updateEmployerMutation = useUpdateEmployer()
-  const locationTeamsQuery = useLocationTeams(category.id)
+  const updateTeamGroupMutation = useUpdateTeamGroup()
+  // Important: only query location teams when editing a location.
+  const locationTeamsQuery = useLocationTeams(category.type === "location" ? category.id : null)
   const enableLocationTeamMutation = useEnableLocationTeam()
   const disableLocationTeamMutation = useDisableLocationTeam()
 
@@ -100,6 +107,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
   useEffect(() => {
     if (open && category) {
       setName(category.name)
+      setDescription(category.description ?? "")
       setMapLink("")
       setLat(category.lat)
       setLng(category.lng)
@@ -108,6 +116,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
       setOpeningHour(category.openingHour ?? 8)
       setClosingHour(category.closingHour ?? 18)
       setColor(category.color ?? "#3b82f6")
+      setIsActive(category.isActive !== false)
       setStandardHours(category.defaultScheduleTemplate?.standardHoursPerWeek ?? 38)
       setShiftDays(category.defaultScheduleTemplate?.shiftPattern?.dayOfWeek ?? [1, 2, 3, 4, 5])
       setShiftStartHour(category.defaultScheduleTemplate?.shiftPattern?.startHour ?? 9)
@@ -173,6 +182,16 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
             },
           },
         })
+      } else if (category.type === "teamGroup") {
+        await updateTeamGroupMutation.mutateAsync({
+          id: category.id,
+          data: {
+            name: name.trim(),
+            description: description.trim() || undefined,
+            color,
+            isActive,
+          },
+        })
       } else {
         await updateEmployerMutation.mutateAsync({
           id: category.id,
@@ -227,6 +246,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
     updateLocationMutation.isPending ||
     updateTeamMutation.isPending ||
     updateEmployerMutation.isPending ||
+    updateTeamGroupMutation.isPending ||
     enableLocationTeamMutation.isPending ||
     disableLocationTeamMutation.isPending
 
@@ -250,6 +270,60 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
                 required
               />
             </Field>
+            {category.type === "teamGroup" && (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="edit-team-group-description">Description</FieldLabel>
+                  <Input
+                    id="edit-team-group-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="edit-color">Color</FieldLabel>
+                  <Select value={color} onValueChange={setColor}>
+                    <SelectTrigger id="edit-color" className="w-full">
+                      <SelectValue>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-5 w-5 rounded border-2 border-gray-300"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span>
+                            {TAILWIND_COLORS.find((c) => c.value === color)?.name || "Select color"}
+                          </span>
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAILWIND_COLORS.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-5 w-5 rounded border-2 border-gray-300"
+                              style={{ backgroundColor: c.value }}
+                            />
+                            <span>{c.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="edit-team-group-active"
+                      checked={isActive}
+                      onCheckedChange={(checked) => setIsActive(checked === true)}
+                    />
+                    <FieldLabel htmlFor="edit-team-group-active" className="mb-0">Active</FieldLabel>
+                  </div>
+                </Field>
+              </>
+            )}
             {(category.type === "team" || category.type === "employer") && (
               <>
                 <Field>

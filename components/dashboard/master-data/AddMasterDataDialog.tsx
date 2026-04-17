@@ -32,6 +32,7 @@ import type { EntityType } from "./types"
 
 const TYPE_LABELS: Record<EntityType, string> = {
   team: "Team",
+  teamGroup: "Team Group",
   employer: "Employer",
   location: "Location",
 }
@@ -50,6 +51,7 @@ function isValidEmail(value: string): boolean {
 
 export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Props) {
   const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
   const [mapLink, setMapLink] = useState("")
   const [lat, setLat] = useState<number | undefined>()
   const [lng, setLng] = useState<number | undefined>()
@@ -88,6 +90,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
 
   const reset = () => {
     setName("")
+    setDescription("")
     setMapLink("")
     setLat(undefined)
     setLng(undefined)
@@ -158,6 +161,13 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
             )
           )
         }
+      } else if (type === "teamGroup") {
+        await createTeamGroupMutation.mutateAsync({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+          isActive,
+        })
       } else if (type === "team") {
         // Create new group if needed
         let finalGroupId = groupId
@@ -230,6 +240,17 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
                 required
               />
             </Field>
+            {type === "teamGroup" && (
+              <Field>
+                <FieldLabel htmlFor="add-team-group-description">Description</FieldLabel>
+                <Input
+                  id="add-team-group-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Optional"
+                />
+              </Field>
+            )}
             {(type === "team" || type === "employer") && (
               <>
                 <Field>
@@ -557,6 +578,51 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
                     </Field>
                   </>
                 )}
+              </>
+            )}
+            {type === "teamGroup" && (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="add-color">Color</FieldLabel>
+                  <Select value={color} onValueChange={setColor}>
+                    <SelectTrigger id="add-color" className="w-full">
+                      <SelectValue>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-5 w-5 rounded border-2 border-gray-300"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span>
+                            {TAILWIND_COLORS.find((c) => c.value === color)?.name || "Select color"}
+                          </span>
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAILWIND_COLORS.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-5 w-5 rounded border-2 border-gray-300"
+                              style={{ backgroundColor: c.value }}
+                            />
+                            <span>{c.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="add-team-group-active"
+                      checked={isActive}
+                      onCheckedChange={(checked) => setIsActive(checked === true)}
+                    />
+                    <FieldLabel htmlFor="add-team-group-active" className="mb-0">Active</FieldLabel>
+                  </div>
+                </Field>
               </>
             )}
             {type === "location" && (

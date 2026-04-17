@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import { ChangePasswordCard } from "@/components/profile/change-password-card"
 import { useMutation } from "@tanstack/react-query"
 import { changePassword } from "@/lib/api/auth"
 import { toast } from "sonner"
-
+import { NotificationPreferencesCard } from "@/components/notifications/NotificationPreferencesCard"
 function ProfilePage() {
   const { user, isHydrated, refetch } = useAuth()
   const [password, setPassword] = useState("")
@@ -238,6 +238,10 @@ function ProfilePage() {
         onSubmit={handlePasswordChange}
         isLoading={changePasswordMutation.isPending}
       />
+
+      <div id="notification-preferences">
+        <NotificationPreferencesCard />
+      </div>
 
       <Card className="max-w-2xl">
         <CardHeader>

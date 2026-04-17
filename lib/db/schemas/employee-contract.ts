@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 
 export interface IEmployeeContract {
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   startDate: Date
   endDate?: Date | null
@@ -17,6 +18,12 @@ export interface IEmployeeContract {
 
 const employeeContractSchema = new mongoose.Schema<IEmployeeContract>(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employer',
+      required: true,
+      index: true,
+    },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Employee',
@@ -60,6 +67,8 @@ const employeeContractSchema = new mongoose.Schema<IEmployeeContract>(
 )
 
 employeeContractSchema.index({ isActive: 1, startDate: 1 })
+// Contracts are scoped per tenant
+employeeContractSchema.index({ tenantId: 1, employeeId: 1 })
 
 export const EmployeeContract =
   (mongoose.models.EmployeeContract as mongoose.Model<IEmployeeContract>) ??

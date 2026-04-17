@@ -207,6 +207,9 @@ export class TeamService {
         groupId: payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId) ? new mongoose.Types.ObjectId(payload.groupId) : undefined,
       }),
       ...(payload.order !== undefined && { order: payload.order }),
+      ...(payload.defaultScheduleTemplate !== undefined && {
+        defaultScheduleTemplate: payload.defaultScheduleTemplate || undefined,
+      }),
       ...(payload.isActive !== undefined && { isActive: payload.isActive }),
     });
     if (!updated) throw apiErrors.notFound('Failed to update team');
@@ -231,6 +234,7 @@ export class TeamService {
         order: (updated as any).order ?? 0,
         groupName,
         groupColor,
+        defaultScheduleTemplate: (updated as any).defaultScheduleTemplate,
         isActive: (updated as any).isActive ?? true,
         createdAt: (updated as any).createdAt ? new Date((updated as any).createdAt).toISOString() : null,
         updatedAt: (updated as any).updatedAt ? new Date((updated as any).updatedAt).toISOString() : null,

@@ -30,6 +30,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { isAdminOrSuperAdmin } from '@/lib/config/roles';
 import { baseNavigationItems, getFlatNavigationForSearch } from './dashboardNavigation';
 import type { DashboardHeaderProps } from '@/lib/types/dashboard';
+import { OrgSwitcher } from '@/components/org-switcher/OrgSwitcher';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 
 export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderProps) {
@@ -135,7 +137,12 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                                 <Search className="h-4 w-4" aria-hidden="true" />
                             </Button>
 
-                            
+                            <NotificationBell userId={user.id} />
+
+                            <OrgSwitcher
+                                currentTenantId={user?.tenantId}
+                                currentOrgName={user?.tenantName}
+                            />
 
                             <ModeToggle />
                             {isMounted && showLayoutToggle && (

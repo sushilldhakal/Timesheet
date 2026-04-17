@@ -4,12 +4,25 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { teamService } from "@/lib/services/team/team-service"
 
+const shiftPatternSchema = z.object({
+  dayOfWeek: z.array(z.number()).optional(),
+  startHour: z.number().optional(),
+  endHour: z.number().optional(),
+  description: z.string().optional(),
+})
+
+const defaultScheduleTemplateSchema = z.object({
+  standardHoursPerWeek: z.number().optional(),
+  shiftPattern: shiftPatternSchema.optional(),
+})
+
 const teamUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   code: z.string().optional(),
   color: z.string().optional(),
   groupId: z.string().optional(),
   order: z.number().optional(),
+  defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -22,6 +35,7 @@ const teamResponseSchema = z.object({
   order: z.number().optional(),
   groupName: z.string().optional(),
   groupColor: z.string().optional(),
+  defaultScheduleTemplate: defaultScheduleTemplateSchema.optional(),
   isActive: z.boolean(),
   createdAt: z.string().datetime().nullable().optional(),
   updatedAt: z.string().datetime().nullable().optional(),

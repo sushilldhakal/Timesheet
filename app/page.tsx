@@ -42,6 +42,11 @@ export default function LoginPage() {
             return
           }
 
+          if ((data as any).requiresOrgSelection) {
+            router.push("/select-org")
+            return
+          }
+
           toast.success(`Welcome back!`)
           if (data.userType === "employee") {
             router.push("/staff/dashboard")

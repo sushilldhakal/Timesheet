@@ -5,6 +5,7 @@ import mongoose from "mongoose"
  * Junction table between Location and Team (scheduling capacity)
  */
 export interface ILocationRoleEnablement {
+  tenantId: mongoose.Types.ObjectId   // ref: Employer
   locationId: mongoose.Types.ObjectId  // ref: Location
   roleId: mongoose.Types.ObjectId      // ref: Team
   effectiveFrom: Date                  // When this enablement starts
@@ -19,6 +20,12 @@ export interface ILocationRoleEnablementDocument extends ILocationRoleEnablement
 
 const locationRoleEnablementSchema = new mongoose.Schema<ILocationRoleEnablementDocument>(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employer",
+      required: true,
+      index: true,
+    },
     locationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
@@ -54,17 +61,17 @@ const locationRoleEnablementSchema = new mongoose.Schema<ILocationRoleEnablement
 )
 
 // Compound indexes for query performance
-// Unique index to prevent duplicate enablements for the same role at the same location with the same start date
+// Unique index scoped per tenant — prevents duplicate enablements for the same role/location/date within a tenant
 locationRoleEnablementSchema.index(
-  { locationId: 1, roleId: 1, effectiveFrom: 1 },
+  { tenantId: 1, locationId: 1, roleId: 1, effectiveFrom: 1 },
   { unique: true }
 )
 
 // Index for getting active roles for a location
-locationRoleEnablementSchema.index({ locationId: 1, isActive: 1 })
+locationRoleEnablementSchema.index({ tenantId: 1, locationId: 1, isActive: 1 })
 
 // Index for getting locations where a role is enabled
-locationRoleEnablementSchema.index({ roleId: 1, isActive: 1 })
+locationRoleEnablementSchema.index({ tenantId: 1, roleId: 1, isActive: 1 })
 
 // Pre-save hook to compute isActive field
 locationRoleEnablementSchema.pre("save", function (next) {

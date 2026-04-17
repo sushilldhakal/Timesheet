@@ -1,4 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getApiKeyContext } from "@/lib/auth/api-key-middleware"
 import { rosterService } from "@/lib/services/roster/roster-service"
 import { 
   createRosterSchema,
@@ -24,13 +25,12 @@ export const POST = createApiRoute({
     401: errorResponseSchema,
     500: errorResponseSchema,
   },
-  handler: async ({ body }) => {
-    const ctx = await getAuthWithUserLocations()
+  handler: async ({ body, req }) => {
+    let ctx = await getAuthWithUserLocations()
     if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      }
+      const apiCtx = await getApiKeyContext(req)
+      if (!apiCtx) return { status: 401, data: { error: "Unauthorized" } }
+      ctx = { auth: { sub: apiCtx.keyId, role: "api_key" as any, email: "", tenantId: apiCtx.tenantId, locations: [], managedRoles: [] }, tenantId: apiCtx.tenantId, userLocations: null, managedRoles: null }
     }
 
     const { weekId, autoPopulate = true } = body!

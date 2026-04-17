@@ -8,6 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ShiftAuditHistory } from "@/components/shifts/ShiftAuditHistory"
 
 const LBL = "mb-1 block text-[11px] font-semibold text-muted-foreground"
 const SEL =
@@ -172,201 +174,214 @@ export function ShiftModal({
         </div>
       )}
 
-      {hasConflict && (
-        <div className="my-2.5 rounded-lg border border-destructive p-2.5 text-xs text-destructive">
-          ⚠ Overlaps with {overlaps.length} other shift{overlaps.length !== 1 ? "s" : ""}
-        </div>
-      )}
+      <Tabs defaultValue="edit">
+        <TabsList className="mb-4 w-full">
+          <TabsTrigger value="edit" className="flex-1">Edit</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1">History</TabsTrigger>
+        </TabsList>
 
-      <div className="mt-3.5 flex flex-col gap-3">
-
-        {/* Date — popover picker, not inline calendar */}
-        <div>
-          <label className={LBL}>Date</label>
-          <Popover open={dateOpen} onOpenChange={setDateOpen}>
-            <PopoverTrigger asChild>
-              <button className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2.5 py-[7px] text-left text-[13px] text-foreground">
-                <CalendarIcon size={14} className="shrink-0 text-muted-foreground" />
-                {fmtDate(parseBlockDate({ date: draft.date }))}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={parseBlockDate({ date: draft.date })}
-                onSelect={(d) => {
-                  if (!d) return
-                  const next = { ...draft, date: toDateISO(d) }
-                  setDraft(next); validate(next); setDateOpen(false)
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-          {errors.date && <div className="mt-1 text-[11px] text-destructive">{errors.date}</div>}
-        </div>
-
-        {/* Category — moved here so order is: Date → Category → Time → Break */}
-        <div>
-          <label className={LBL}>Category</label>
-          <select value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })} className={SEL}>
-            {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-          </select>
-        </div>
-
-        {/* Start / End time */}
-        <div>
-          <label className={LBL}>Time</label>
-          <div className="flex items-center gap-2">
-            <select
-              value={draft.startH}
-              onChange={(e) => {
-                const v = Number(e.target.value)
-                const next = { ...draft, startH: v, endH: Math.max(v + SNAP, draft.endH) }
-                setDraft(next); validate(next)
-              }}
-              className={cn(SEL, "min-w-0 flex-1")}
-            >
-              {hourOptions.map((h) => <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>)}
-            </select>
-            <span className="shrink-0 text-xs text-muted-foreground">to</span>
-            <select
-              value={draft.endH}
-              onChange={(e) => {
-                const v = Number(e.target.value)
-                setDraft({ ...draft, endH: v }); validate({ ...draft, endH: v })
-              }}
-              className={cn(SEL, "min-w-0 flex-1")}
-            >
-              {hourOptions.filter((h) => h > draft.startH).map((h) => (
-                <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
-              ))}
-            </select>
-          </div>
-          {(errors.startH || errors.endH) && (
-            <div className="mt-1 text-[11px] text-destructive">{errors.startH || errors.endH}</div>
+        <TabsContent value="edit">
+          {hasConflict && (
+            <div className="my-2.5 rounded-lg border border-destructive p-2.5 text-xs text-destructive">
+              ⚠ Overlaps with {overlaps.length} other shift{overlaps.length !== 1 ? "s" : ""}
+            </div>
           )}
-        </div>
 
-        {/* Break section */}
-        <div className="border-t border-border pt-3">
-          <label className="mb-0 flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-foreground">
-            <input
-              type="checkbox" checked={hasBreak}
-              onChange={(e) => setHasBreak(e.target.checked)}
-                  className="size-3.5 cursor-pointer accent-(--cat-bg)"
-            />
-            Add break
-          </label>
+          <div className="mt-3.5 flex flex-col gap-3">
 
-          {hasBreak && (
-            <div className="mt-2.5 flex flex-col gap-2.5">
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            {/* Date — popover picker, not inline calendar */}
+            <div>
+              <label className={LBL}>Date</label>
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                <PopoverTrigger asChild>
+                  <button className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2.5 py-[7px] text-left text-[13px] text-foreground">
+                    <CalendarIcon size={14} className="shrink-0 text-muted-foreground" />
+                    {fmtDate(parseBlockDate({ date: draft.date }))}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseBlockDate({ date: draft.date })}
+                    onSelect={(d) => {
+                      if (!d) return
+                      const next = { ...draft, date: toDateISO(d) }
+                      setDraft(next); validate(next); setDateOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+              {errors.date && <div className="mt-1 text-[11px] text-destructive">{errors.date}</div>}
+            </div>
+
+            {/* Category — moved here so order is: Date → Category → Time → Break */}
+            <div>
+              <label className={LBL}>Category</label>
+              <select value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })} className={SEL}>
+                {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
+            </div>
+
+            {/* Start / End time */}
+            <div>
+              <label className={LBL}>Time</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={draft.startH}
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    const next = { ...draft, startH: v, endH: Math.max(v + SNAP, draft.endH) }
+                    setDraft(next); validate(next)
+                  }}
+                  className={cn(SEL, "min-w-0 flex-1")}
+                >
+                  {hourOptions.map((h) => <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>)}
+                </select>
+                <span className="shrink-0 text-xs text-muted-foreground">to</span>
+                <select
+                  value={draft.endH}
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    setDraft({ ...draft, endH: v }); validate({ ...draft, endH: v })
+                  }}
+                  className={cn(SEL, "min-w-0 flex-1")}
+                >
+                  {hourOptions.filter((h) => h > draft.startH).map((h) => (
+                    <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
+                  ))}
+                </select>
+              </div>
+              {(errors.startH || errors.endH) && (
+                <div className="mt-1 text-[11px] text-destructive">{errors.startH || errors.endH}</div>
+              )}
+            </div>
+
+            {/* Break section */}
+            <div className="border-t border-border pt-3">
+              <label className="mb-0 flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-foreground">
                 <input
-                  type="checkbox" checked={splitShift}
-                  onChange={(e) => setSplitShift(e.target.checked)}
-                  className="size-3 cursor-pointer accent-(--cat-bg)"
+                  type="checkbox" checked={hasBreak}
+                  onChange={(e) => setHasBreak(e.target.checked)}
+                      className="size-3.5 cursor-pointer accent-(--cat-bg)"
                 />
-                Split shift — set exact break times
+                Add break
               </label>
 
-              {splitShift ? (
-                <div className="flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <label className={LBL}>Break start</label>
-                    <select value={breakStartH} onChange={(e) => setBreakStartH(Number(e.target.value))} className={SEL}>
-                      {hourOptions.filter((h) => h > draft.startH && h < draft.endH).map((h) => (
-                        <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <label className={LBL}>Break end</label>
-                    <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} className={SEL}>
-                      {hourOptions.filter((h) => h > breakStartH && h < draft.endH).map((h) => (
-                        <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <label className={cn(LBL, "mb-0")}>Break duration</label>
-                    <span className="text-xs font-bold text-(--cat-bg)">
-                      {breakDurMin >= 60 ? `${(breakDurMin / 60).toFixed(breakDurMin % 60 === 0 ? 0 : 1)}h` : `${breakDurMin}m`}
-                    </span>
-                  </div>
-                  <input
-                    type="range" min={15} max={120} step={15} value={breakDurMin}
-                    onChange={(e) => setBreakDurMin(Number(e.target.value))}
-                    className="w-full cursor-pointer accent-(--cat-bg)"
-                  />
-                  <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
-                    {["15m", "30m", "45m", "1h", "1.5h", "2h"].map((l) => <span key={l}>{l}</span>)}
-                  </div>
+              {hasBreak && (
+                <div className="mt-2.5 flex flex-col gap-2.5">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox" checked={splitShift}
+                      onChange={(e) => setSplitShift(e.target.checked)}
+                      className="size-3 cursor-pointer accent-(--cat-bg)"
+                    />
+                    Split shift — set exact break times
+                  </label>
+
+                  {splitShift ? (
+                    <div className="flex gap-2">
+                      <div className="min-w-0 flex-1">
+                        <label className={LBL}>Break start</label>
+                        <select value={breakStartH} onChange={(e) => setBreakStartH(Number(e.target.value))} className={SEL}>
+                          {hourOptions.filter((h) => h > draft.startH && h < draft.endH).map((h) => (
+                            <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <label className={LBL}>Break end</label>
+                        <select value={breakEndH} onChange={(e) => setBreakEndH(Number(e.target.value))} className={SEL}>
+                          {hourOptions.filter((h) => h > breakStartH && h < draft.endH).map((h) => (
+                            <option key={h} value={h}>{getTimeLabel(draft.date, h)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <label className={cn(LBL, "mb-0")}>Break duration</label>
+                        <span className="text-xs font-bold text-(--cat-bg)">
+                          {breakDurMin >= 60 ? `${(breakDurMin / 60).toFixed(breakDurMin % 60 === 0 ? 0 : 1)}h` : `${breakDurMin}m`}
+                        </span>
+                      </div>
+                      <input
+                        type="range" min={15} max={120} step={15} value={breakDurMin}
+                        onChange={(e) => setBreakDurMin(Number(e.target.value))}
+                        className="w-full cursor-pointer accent-(--cat-bg)"
+                      />
+                      <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+                        {["15m", "30m", "45m", "1h", "1.5h", "2h"].map((l) => <span key={l}>{l}</span>)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Summary badges */}
-        <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full px-2 py-[3px] text-[11px] font-bold text-(--cat-bg) [background:color-mix(in_srgb,var(--cat-bg)_14%,transparent)]">
-            {getTimeLabel(draft.date, draft.startH)} – {getTimeLabel(draft.date, draft.endH)}
-          </span>
-          <span className="rounded-full bg-muted px-2 py-[3px] text-[11px] font-semibold text-muted-foreground">
-            {workedHours.toFixed(1)}h worked
-          </span>
-          {hasBreak && (
-            <span className="rounded-full bg-muted px-2 py-[3px] text-[11px] font-semibold text-muted-foreground">
-              {splitShift
-                ? `Break ${getTimeLabel(draft.date, breakStartH)}–${getTimeLabel(draft.date, breakEndH)}`
-                : `${breakDurMin}m break`}
-            </span>
-          )}
-        </div>
+            {/* Summary badges */}
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full px-2 py-[3px] text-[11px] font-bold text-(--cat-bg) [background:color-mix(in_srgb,var(--cat-bg)_14%,transparent)]">
+                {getTimeLabel(draft.date, draft.startH)} – {getTimeLabel(draft.date, draft.endH)}
+              </span>
+              <span className="rounded-full bg-muted px-2 py-[3px] text-[11px] font-semibold text-muted-foreground">
+                {workedHours.toFixed(1)}h worked
+              </span>
+              {hasBreak && (
+                <span className="rounded-full bg-muted px-2 py-[3px] text-[11px] font-semibold text-muted-foreground">
+                  {splitShift
+                    ? `Break ${getTimeLabel(draft.date, breakStartH)}–${getTimeLabel(draft.date, breakEndH)}`
+                    : `${breakDurMin}m break`}
+                </span>
+              )}
+            </div>
 
-      </div>
+          </div>
 
-      {/* Buttons */}
-      <div className="mt-4.5 flex flex-wrap gap-2">
-        {isDraft ? (
-          <button
-            onClick={() => { if (!hasConflict) { onPublish(draft.id); onClose() } }}
-            disabled={hasConflict}
-            className={cn(
-              "min-w-20 flex-1 rounded-[9px] px-3 py-2.5 text-[13px] font-bold",
-              hasConflict
-                ? "cursor-not-allowed bg-muted text-muted-foreground"
-                : "cursor-pointer bg-primary text-primary-foreground",
+          {/* Buttons */}
+          <div className="mt-4.5 flex flex-wrap gap-2">
+            {isDraft ? (
+              <button
+                onClick={() => { if (!hasConflict) { onPublish(draft.id); onClose() } }}
+                disabled={hasConflict}
+                className={cn(
+                  "min-w-20 flex-1 rounded-[9px] px-3 py-2.5 text-[13px] font-bold",
+                  hasConflict
+                    ? "cursor-not-allowed bg-muted text-muted-foreground"
+                    : "cursor-pointer bg-primary text-primary-foreground",
+                )}
+              >
+                ✓ {labels.publish}
+              </button>
+            ) : (
+              <button
+                onClick={() => { onUnpublish(draft.id); onClose() }}
+                className="min-w-20 flex-1 cursor-pointer rounded-[9px] bg-muted px-3 py-2.5 text-[13px] font-semibold text-foreground"
+              >
+                Revert to {labels.draft}
+              </button>
             )}
-          >
-            ✓ {labels.publish}
-          </button>
-        ) : (
-          <button
-            onClick={() => { onUnpublish(draft.id); onClose() }}
-            className="min-w-20 flex-1 cursor-pointer rounded-[9px] bg-muted px-3 py-2.5 text-[13px] font-semibold text-foreground"
-          >
-            Revert to {labels.draft}
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={() => { onDelete(shift.id); onClose() }}
-            className="flex cursor-pointer items-center gap-1.5 rounded-[9px] bg-destructive px-3 py-2.5 text-[13px] font-semibold text-destructive-foreground"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
-        <button
-          onClick={handleSave}
-          className="cursor-pointer rounded-[9px] border border-border bg-background px-4 py-2.5 text-[13px] font-semibold text-foreground"
-        >
-          Save
-        </button>
-      </div>
+            {onDelete && (
+              <button
+                onClick={() => { onDelete(shift.id); onClose() }}
+                className="flex cursor-pointer items-center gap-1.5 rounded-[9px] bg-destructive px-3 py-2.5 text-[13px] font-semibold text-destructive-foreground"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              className="cursor-pointer rounded-[9px] border border-border bg-background px-4 py-2.5 text-[13px] font-semibold text-foreground"
+            >
+              Save
+            </button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <ShiftAuditHistory shiftId={shift.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 

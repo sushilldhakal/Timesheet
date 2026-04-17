@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 
 export interface IEmployeeCompliance {
+  tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   wwcStatus?: 'not_required' | 'pending' | 'active' | 'expired'
   wwcNumber?: string
@@ -24,11 +25,16 @@ export interface IEmployeeCompliance {
 
 const employeeComplianceSchema = new mongoose.Schema<IEmployeeCompliance>(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employer',
+      required: true,
+      index: true,
+    },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Employee',
       required: true,
-      unique: true,
       index: true,
     },
     wwcStatus: {
@@ -73,6 +79,8 @@ const employeeComplianceSchema = new mongoose.Schema<IEmployeeCompliance>(
 employeeComplianceSchema.index({ wwcStatus: 1 })
 employeeComplianceSchema.index({ wwcExpiryDate: 1 }, { sparse: true })
 employeeComplianceSchema.index({ policeClearanceExpiryDate: 1 }, { sparse: true })
+// One compliance record per employee per tenant
+employeeComplianceSchema.index({ tenantId: 1, employeeId: 1 }, { unique: true })
 
 export const EmployeeCompliance =
   (mongoose.models.EmployeeCompliance as mongoose.Model<IEmployeeCompliance>) ??

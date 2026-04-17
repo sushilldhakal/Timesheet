@@ -19,6 +19,13 @@ import {
   Briefcase,
   MapPin,
   ClipboardCheck,
+  Bell,
+  Key,
+  BarChart3,
+  TrendingUp,
+  Sparkles,
+  Activity,
+  ShieldCheck,
 } from 'lucide-react';
 import type { NavigationItem, FlatNavItem } from '@/lib/types/dashboard';
 
@@ -72,15 +79,13 @@ export const baseNavigationItems: NavigationItem[] = [
         label: 'Teams',
         icon: UserCircle,
       },
-      {
-        href: '/dashboard/employers',
-        label: 'Employers',
-        icon: Briefcase,
-      },
+      // Employers is shown only when org has enableExternalHire turned on (handled in sidebar via org settings)
+      // Locations is admin-only — managers are location managers but cannot create/delete locations
       {
         href: '/dashboard/locations',
         label: 'Locations',
         icon: MapPin,
+        adminOnly: true,
       },
     ],
   },
@@ -90,11 +95,25 @@ export const baseNavigationItems: NavigationItem[] = [
     icon: UserCog,
   },
   {
+    href: '/dashboard/notifications',
+    label: 'Notifications',
+    icon: Bell,
+  },
+  {
+    label: 'Analytics',
+    icon: BarChart3,
+    managerOnly: true,
+    children: [
+      { href: '/dashboard/analytics/labour-cost', label: 'Labour Cost', icon: TrendingUp, managerOnly: true },
+      { href: '/dashboard/demand-forecast', label: 'Demand Forecast', icon: Sparkles, managerOnly: true },
+    ],
+  },
+  {
     label: 'Users',
     icon: UserCog,
-    adminOnly: true,
+    managerOnly: true,
     children: [
-      { href: '/dashboard/users', label: 'All Users', icon: List, adminOnly: true },
+      { href: '/dashboard/users', label: 'All Users', icon: List, managerOnly: true },
     ],
   },
   {
@@ -111,11 +130,22 @@ export const baseNavigationItems: NavigationItem[] = [
   {
     label: 'Settings',
     icon: Settings,
-    adminOnly: true,
+    managerOnly: true,
     children: [
-      { href: '/dashboard/devices', label: 'Device Management', icon: Tablet, adminOnly: true },
+      { href: '/dashboard/devices', label: 'Device Management', icon: Tablet, managerOnly: true },
       { href: '/dashboard/setting/image', label: 'Image Storage', icon: Cloud, adminOnly: true },
       { href: '/dashboard/setting/mail', label: 'Mail Settings', icon: Mail, adminOnly: true },
+      { href: '/dashboard/setting/api-keys', label: 'API Keys', icon: Key, adminOnly: true },
+      { href: '/dashboard/setting/compliance', label: 'Compliance Config', icon: ShieldCheck, adminOnly: true },
+      // Employers shown conditionally when org has enableExternalHire — injected by sidebar
+    ],
+  },
+  {
+    label: 'System',
+    icon: Activity,
+    adminOnly: true,
+    children: [
+      { href: '/dashboard/admin/event-health', label: 'Event Bus Health', icon: Activity, adminOnly: true },
     ],
   },
   {
@@ -126,17 +156,20 @@ export const baseNavigationItems: NavigationItem[] = [
 ];
 
 /**
- * Flattens navigation tree and filters by admin. Used for command palette search.
+ * Flattens navigation tree and filters by role. Used for command palette search.
  */
 export function getFlatNavigationForSearch(
   items: NavigationItem[],
   isAdminUser: boolean,
-  _userId?: string
+  _userId?: string,
+  isManagerUser?: boolean
 ): FlatNavItem[] {
   const result: FlatNavItem[] = [];
+  const canSeeManagerItems = isAdminUser || (isManagerUser ?? false);
 
   for (const item of items) {
     if (item.adminOnly && !isAdminUser) continue;
+    if (item.managerOnly && !canSeeManagerItems) continue;
 
     if (item.href) {
       result.push({
@@ -150,6 +183,7 @@ export function getFlatNavigationForSearch(
     if (item.children) {
       for (const child of item.children) {
         if (child.adminOnly && !isAdminUser) continue;
+        if (child.managerOnly && !canSeeManagerItems) continue;
         if (!child.href) continue;
         result.push({
           href: child.href,

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     Package2, ChevronDown, ChevronRight,
-    PanelLeftClose, PanelLeft,
+    PanelLeftClose, PanelLeft, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useState, useMemo, useEffect } from 'react';
@@ -20,10 +20,11 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { useAuth } from '@/lib/hooks/use-auth';
-import { isAdminOrSuperAdmin } from '@/lib/config/roles';
+import { isAdminOrSuperAdmin, isManager } from '@/lib/config/roles';
 import { baseNavigationItems } from './dashboardNavigation';
 import type { NavigationItem } from '@/lib/types/dashboard';
 import type { DashboardSidebarProps } from '@/lib/types/dashboard';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Dashboard Sidebar Component
@@ -36,30 +37,59 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
     const [collapsedPopoverOpen, setCollapsedPopoverOpen] = useState<string | null>(null);
     const { userRole, isHydrated } = useAuth();
     const isUserAdmin = isAdminOrSuperAdmin(userRole);
+    const isUserManager = isManager(userRole);
+    // Manager and above can see managerOnly items
+    const canSeeManagerItems = isUserAdmin || isUserManager;
+
+    // Fetch org settings to determine if Employers nav item should show
+    const { data: orgSettings } = useQuery({
+        queryKey: ['org-settings'],
+        queryFn: async () => {
+            const res = await fetch('/api/employers/settings');
+            if (!res.ok) return null;
+            return res.json();
+        },
+        enabled: isUserAdmin, // only admins need this
+        staleTime: 5 * 60 * 1000,
+    });
+    const enableExternalHire = orgSettings?.enableExternalHire ?? false;
 
     // Filter navigation items based on user role (do not mutate shared baseNavigationItems)
     const navigationItems = useMemo(() => {
         if (!isHydrated) return baseNavigationItems;
 
-        return baseNavigationItems
+        const canSee = (item: NavigationItem) => {
+            if (item.adminOnly && !isUserAdmin) return false;
+            if (item.managerOnly && !canSeeManagerItems) return false;
+            return true;
+        };
+
+        const filtered = baseNavigationItems
             .filter((item) => {
-                if (item.adminOnly && !isUserAdmin) return false;
+                if (!canSee(item)) return false;
                 if (item.children) {
-                    const filteredChildren = item.children.filter(
-                        (child) => !child.adminOnly || isUserAdmin
-                    );
-                    if (filteredChildren.length === 0) return false;
+                    const visibleChildren = item.children.filter(canSee);
+                    if (visibleChildren.length === 0) return false;
                 }
                 return true;
             })
             .map((item) => {
                 if (!item.children) return { ...item };
-                const filteredChildren = item.children.filter(
-                    (child) => !child.adminOnly || isUserAdmin
-                );
-                return { ...item, children: filteredChildren };
+                let children = item.children.filter(canSee);
+
+                // Inject Employers under Settings when org has external hire enabled
+                if (item.label === 'Settings' && isUserAdmin && enableExternalHire) {
+                    children = [
+                        ...children,
+                        { href: '/dashboard/employers', label: 'Employers', icon: Briefcase, adminOnly: true as const },
+                    ];
+                }
+
+                return { ...item, children };
             });
-    }, [isHydrated, isUserAdmin]);
+
+        return filtered;
+    }, [isHydrated, isUserAdmin, canSeeManagerItems, enableExternalHire]);
 
     // Auto-expand parent menu if child is active
     useEffect(() => {

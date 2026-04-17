@@ -70,6 +70,12 @@ export class PayRunService {
       return { accepted: true, payRunId: (payRun as any)._id.toString(), jobId: String((job as any).id ?? `payrun-${(payRun as any)._id.toString()}`) };
     } catch (queueErr: any) {
       const msg = typeof queueErr?.message === 'string' ? queueErr.message : 'Failed to queue job';
+      
+      // If Redis is not configured, return a helpful error
+      if (msg.includes('REDIS_URL not configured')) {
+        throw apiErrors.internal('Pay run calculation requires Redis to be configured', 'Set REDIS_URL in your environment variables');
+      }
+      
       const isDuplicate = msg.toLowerCase().includes('job') && msg.toLowerCase().includes('exists');
       if (isDuplicate) throw apiErrors.conflict('Pay run calculation is already queued or running', msg);
       throw apiErrors.internal('Failed to start pay run calculation', msg);

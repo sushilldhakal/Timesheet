@@ -5,6 +5,14 @@ import { format, getISOWeek, getISOWeekYear } from "date-fns"
 import { Edit2, User, CheckCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { Button } from "@/components/ui/button"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from "@/components/ui/combobox"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   Popover,
@@ -71,6 +79,8 @@ type ReconciledShift = {
     dailyShiftId: string
     startTimeUtc: string | null
     endTimeUtc: string | null
+    locationId?: string | null
+    roleId?: string | null
     status?: string | null
     totalBreakMinutes?: number | null
     breakInTimeUtc?: string | null
@@ -352,37 +362,60 @@ function TimesheetShiftCard({
             <div className="space-y-2">
               {(() => {
                 const locId = shift.roster?.locationId ? String(shift.roster.locationId) : ""
-                const teams = locId && teamsByLocationId ? teamsByLocationId.get(locId) ?? [] : []
+                const fallbackLocId = (shift as any)?.actual?.locationId ? String((shift as any).actual.locationId) : ""
+                const effectiveLocId = locId || fallbackLocId
+                const teams = effectiveLocId && teamsByLocationId ? teamsByLocationId.get(effectiveLocId) ?? [] : []
+                const selectedLabel =
+                  teams.find((t) => t.id === selectedTeamId)?.name ??
+                  (selectedTeamId ? selectedTeamId : "")
+                const canPersistTeamChange =
+                  editMode && canEditTeam && (Boolean(shift.rosterShiftId) || Boolean(shift.actual?.dailyShiftId))
                 return (
-                  <select
-                    className="w-full px-2.5 py-1.5 bg-secondary text-foreground text-xs rounded border border-border hover:border-accent/50 transition-colors"
+                  <Combobox
                     value={selectedTeamId}
-                    disabled={!editMode || !canEditTeam || !shift.rosterShiftId || teams.length === 0}
-                    onChange={async (e) => {
-                      const next = e.target.value
-                      setSelectedTeamId(next)
+                    onValueChange={async (next) => {
+                      setSelectedTeamId(String(next ?? ""))
                       const rosterShiftId = shift.rosterShiftId
                       const weekId = weekIdFromYmd(dayDate)
-                      if (!rosterShiftId || !weekId) return
                       if (!next) return
+                      if (!canPersistTeamChange) return
                       try {
-                        await apiJson(`/api/rosters/${encodeURIComponent(weekId)}/shifts/${encodeURIComponent(rosterShiftId)}`, {
-                          method: "PUT",
-                          body: JSON.stringify({ roleId: next }),
-                        })
-                      } catch (err) {
-                        // Revert on failure
-                        setSelectedTeamId(shift.roster?.roleId || "")
+                        if (rosterShiftId && weekId) {
+                          await apiJson(
+                            `/api/rosters/${encodeURIComponent(weekId)}/shifts/${encodeURIComponent(rosterShiftId)}`,
+                            { method: "PUT", body: JSON.stringify({ roleId: next }) },
+                          )
+                        } else if (shift.actual?.dailyShiftId) {
+                          await apiJson(`/api/daily-shifts/${encodeURIComponent(shift.actual.dailyShiftId)}`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ roleId: next }),
+                          })
+                        }
+                      } catch {
+                        setSelectedTeamId(String(shift.roster?.roleId ?? shift.actual?.roleId ?? ""))
                       }
                     }}
                   >
-                    <option value="">Select Team</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                    <ComboboxTrigger
+                      disabled={false}
+                      className={cn(
+                        "w-full justify-between px-2.5 py-1.5 text-xs bg-secondary hover:bg-secondary border border-border rounded",
+                        !canPersistTeamChange ? "opacity-80" : "",
+                      )}
+                    >
+                      <span className="truncate text-left">{selectedLabel || "Select Team"}</span>
+                    </ComboboxTrigger>
+                    <ComboboxContent className="w-[--anchor-width]">
+                      <ComboboxEmpty>No teams found.</ComboboxEmpty>
+                      <ComboboxList>
+                        {teams.map((t) => (
+                          <ComboboxItem key={t.id} value={t.id}>
+                            {t.name}
+                          </ComboboxItem>
+                        ))}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
                 )
               })()}
 

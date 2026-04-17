@@ -11,6 +11,7 @@ function mapEmployer(e: any) {
     color: e.color,
     defaultAwardId: e.defaultAwardId?.toString(),
     isActive: e.isActive ?? true,
+    payPeriodConfig: e.payPeriodConfig ?? null,
     createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
     updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
   };
@@ -64,6 +65,7 @@ export class EmployerService {
       (employer as any).defaultAwardId = body.defaultAwardId ? new mongoose.Types.ObjectId(body.defaultAwardId) : undefined;
     }
     if (body.isActive !== undefined) (employer as any).isActive = body.isActive;
+    if (body.payPeriodConfig !== undefined) (employer as any).payPeriodConfig = body.payPeriodConfig;
 
     await (employer as any).save();
     return { status: 200, data: { employer: mapEmployer(employer) } };

@@ -10,6 +10,7 @@ export interface ITemplateShift {
 
 export interface IRosterTemplate {
   _id: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId
   name: string
   createdBy: mongoose.Types.ObjectId
   locationId: mongoose.Types.ObjectId
@@ -35,6 +36,7 @@ const TemplateShiftSchema = new mongoose.Schema<ITemplateShift>(
 
 const rosterTemplateSchema = new mongoose.Schema<IRosterTemplateDocument>(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     name: { type: String, required: true, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true },
@@ -48,7 +50,8 @@ const rosterTemplateSchema = new mongoose.Schema<IRosterTemplateDocument>(
   }
 )
 
-rosterTemplateSchema.index({ createdBy: 1, locationId: 1 })
+rosterTemplateSchema.index({ tenantId: 1, createdBy: 1, locationId: 1 })
+rosterTemplateSchema.index({ tenantId: 1, name: 1 }, { unique: true })
 rosterTemplateSchema.index({ isGlobal: 1 })
 
 export const RosterTemplate =

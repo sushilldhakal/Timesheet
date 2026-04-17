@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Download, RefreshCw } from 'lucide-react'
+import { Download, RefreshCw, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react'
 import { getEmployees } from '@/lib/api/employees'
 import {
   calculateComplianceStats,
@@ -24,8 +24,11 @@ import { ComplianceOverviewCard } from '@/components/admin/compliance/Compliance
 import { ComplianceBreakdownCard } from '@/components/admin/compliance/ComplianceBreakdownCard'
 import { ComplianceIssuesTable } from '@/components/admin/compliance/ComplianceIssuesTable'
 import { ComplianceExpiryCalendar } from '@/components/admin/compliance/ComplianceExpiryCalendar'
+import { ViolationsTable } from '@/components/admin/compliance/ViolationsTable'
+import { useComplianceViolations } from '@/lib/hooks/use-compliance-violations'
 import { toast } from 'sonner'
 import type { EmployeeComplianceRecord } from '@/lib/api/employees'
+import { subDays } from 'date-fns'
 
 export default function AdminComplianceDashboardPage() {
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all')
@@ -44,6 +47,19 @@ export default function AdminComplianceDashboardPage() {
       return []
     },
   })
+
+  // Real violation data from the ComplianceViolation collection
+  const { data: violations = [], refetch: refetchViolations } = useComplianceViolations()
+  const openViolations = violations.filter((v) => v.isActive)
+  const resolvedThisWeek = violations.filter(
+    (v) => !v.isActive && v.resolvedAt && new Date(v.resolvedAt) >= subDays(new Date(), 7)
+  )
+  const mostCommonRuleType = (() => {
+    if (openViolations.length === 0) return null
+    const counts: Record<string, number> = {}
+    for (const v of openViolations) counts[v.ruleType] = (counts[v.ruleType] ?? 0) + 1
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  })()
 
   const employees = employeesResponse?.employees ?? []
 
@@ -85,6 +101,7 @@ export default function AdminComplianceDashboardPage() {
   const handleRefresh = () => {
     refetchEmployees()
     refetchCompliance()
+    refetchViolations()
     toast.info('Refreshing compliance data...')
   }
 
@@ -137,8 +154,7 @@ export default function AdminComplianceDashboardPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Filter Issues</CardTitle></CardHeader>
-        <CardContent className="flex gap-4 flex-wrap">
+        <CardContent className="pt-6 flex gap-4 flex-wrap">
           <div className="flex-1 min-w-48">
             <label className="text-sm font-medium">Severity</label>
             <Select value={severityFilter} onValueChange={(v) => setSeverityFilter(v as 'all' | 'critical' | 'warning')}>
@@ -166,6 +182,65 @@ export default function AdminComplianceDashboardPage() {
       </Card>
 
       <ComplianceIssuesTable issues={filteredIssues} showAll />
+
+      {/* Shift-level Compliance Violations (from ComplianceEngine) */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Shift Compliance Violations</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Real-time violations detected by the compliance engine during roster saves and clock events
+          </p>
+        </div>
+
+        {/* Violation summary cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="border-red-200 dark:border-red-900">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-red-100 dark:bg-red-900/40 p-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{openViolations.length}</p>
+                  <p className="text-sm text-muted-foreground">Open Violations</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-green-200 dark:border-green-900">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-green-100 dark:bg-green-900/40 p-2">
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{resolvedThisWeek.length}</p>
+                  <p className="text-sm text-muted-foreground">Resolved This Week</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-blue-100 dark:bg-blue-900/40 p-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold truncate">
+                    {mostCommonRuleType
+                      ? mostCommonRuleType.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+                      : '—'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Most Common Breach</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <ViolationsTable />
+      </div>
     </div>
   )
 }

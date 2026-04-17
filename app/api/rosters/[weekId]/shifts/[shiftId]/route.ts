@@ -3,6 +3,10 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
 import { apiErrors } from "@/lib/api/api-error"
 import { rosterService } from "@/lib/services/roster/roster-service"
+import { shiftAuditService } from "@/lib/services/audit/shift-audit-service"
+import { connectDB } from "@/lib/db"
+import { scope } from "@/lib/db/tenant-model"
+import { Roster } from "@/lib/db/schemas/roster"
 
 // Validation schemas
 const shiftParamsSchema = z.object({
@@ -60,7 +64,50 @@ export const PUT = createApiRoute({
     const weekId = params!.weekId
     const shiftId = params!.shiftId
     if (!ctx) throw apiErrors.unauthorized()
+
+    // Capture before-snapshot for audit diff
+    let beforeSnapshot: Record<string, unknown> | undefined
+    try {
+      await connectDB()
+      const roster = await scope(Roster, ctx.tenantId).findOne({ weekId }).lean()
+      const shift = roster?.shifts.find((s: any) => s._id.toString() === shiftId)
+      if (shift) {
+        beforeSnapshot = {
+          employeeId: (shift as any).employeeId,
+          startTime: (shift as any).startTime,
+          endTime: (shift as any).endTime,
+          locationId: (shift as any).locationId,
+          roleId: (shift as any).roleId,
+          notes: (shift as any).notes,
+        }
+      }
+    } catch { /* non-critical */ }
+
     const data = await rosterService.updateShift({ weekId, shiftId, update: body! as any })
+
+    // Fire-and-forget audit log with auto-diff
+    const updatedShift = (data as any)?.shift
+    if (updatedShift && beforeSnapshot) {
+      const afterSnapshot: Record<string, unknown> = {
+        employeeId: updatedShift.employeeId,
+        startTime: updatedShift.startTime,
+        endTime: updatedShift.endTime,
+        locationId: updatedShift.locationId,
+        roleId: updatedShift.roleId,
+        notes: updatedShift.notes,
+      }
+      shiftAuditService.log({
+        tenantId: ctx.tenantId,
+        shiftId,
+        employeeId: (updatedShift.employeeId ?? beforeSnapshot.employeeId ?? '').toString(),
+        actorId: ctx.auth.sub,
+        actorType: 'user',
+        before: beforeSnapshot,
+        after: afterSnapshot,
+        // action and changedFields are auto-derived from before/after diff
+      }).catch(() => {})
+    }
+
     return { status: 200, data }
   }
 });
@@ -87,7 +134,37 @@ export const DELETE = createApiRoute({
     const weekId = params!.weekId
     const shiftId = params!.shiftId
     if (!ctx) throw apiErrors.unauthorized()
+
+    // Capture shift before deletion for audit
+    let deletedShift: any
+    try {
+      await connectDB()
+      const roster = await scope(Roster, ctx.tenantId).findOne({ weekId }).lean()
+      deletedShift = roster?.shifts.find((s: any) => s._id.toString() === shiftId)
+    } catch { /* non-critical */ }
+
     const data = await rosterService.deleteShift({ weekId, shiftId })
+
+    // Fire-and-forget audit log
+    if (deletedShift) {
+      shiftAuditService.log({
+        tenantId: ctx.tenantId,
+        shiftId,
+        employeeId: deletedShift.employeeId?.toString() ?? 'unknown',
+        action: 'deleted',
+        changedFields: [],
+        actorId: ctx.auth.sub,
+        actorType: 'user',
+        before: {
+          employeeId: deletedShift.employeeId,
+          startTime: deletedShift.startTime,
+          endTime: deletedShift.endTime,
+          locationId: deletedShift.locationId,
+          roleId: deletedShift.roleId,
+        },
+      }).catch(() => {})
+    }
+
     return { status: 200, data }
   }
 });

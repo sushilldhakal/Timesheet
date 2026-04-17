@@ -42,10 +42,12 @@ export const meUserSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
-  role: z.enum(["admin", "user", "super_admin"]),
+  role: z.enum(["admin", "manager", "supervisor", "accounts", "user", "super_admin"]),
   location: z.array(z.string()),
   rights: z.array(z.string()),
-  managedRoles: z.array(z.string())
+  managedRoles: z.array(z.string()),
+  tenantId: z.string().optional(),
+  tenantName: z.string().optional(),
 })
 
 export const loginResponseSchema = z.object({

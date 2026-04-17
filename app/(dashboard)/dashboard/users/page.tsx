@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdmin, UserRole } from "@/lib/config/roles"
+import { isAdmin, isManager, UserRole } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { UserPlus } from "lucide-react"
@@ -30,6 +30,8 @@ export default function UsersPage() {
   const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
 
   const userIsAdmin = isAdmin(user?.role ?? null)
+  const userIsManager = isManager(user?.role ?? null)
+  const canAccessUsers = userIsAdmin || userIsManager
 
   // TanStack Query hooks
   const usersQuery = useUsers()
@@ -53,7 +55,7 @@ export default function UsersPage() {
     )
   }
 
-  if (!userIsAdmin) {
+  if (!canAccessUsers) {
     return (
       <Card>
         <CardHeader>
@@ -83,7 +85,9 @@ export default function UsersPage() {
         <CardHeader>
           <CardTitle>All Users</CardTitle>
           <CardDescription>
-            Complete list of all system users across all roles and departments.
+            {userIsAdmin
+              ? "Complete list of all system users across all roles and departments."
+              : "Supervisors under your managed locations."}
           </CardDescription>
         </CardHeader>
         <CardContent>

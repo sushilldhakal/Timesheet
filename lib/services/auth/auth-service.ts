@@ -128,6 +128,14 @@ export class AuthService {
 
     const role = (user as any).role ?? auth.role ?? "user";
 
+    // Fetch tenantName from Employer — tenantId comes from JWT (no extra User query needed)
+    const tenantId = auth.tenantId ?? null
+    let tenantName: string | null = null
+    if (tenantId) {
+      const employer = await Employer.findById(tenantId).select("name").lean()
+      tenantName = (employer as any)?.name ?? null
+    }
+
     return {
       status: 200,
       data: {
@@ -139,6 +147,8 @@ export class AuthService {
           location,
           rights: (((user as any).rights ?? []) as any[]).map((right) => String(right)),
           managedRoles: (((user as any).managedRoles ?? []) as any[]).map((r) => String(r)),
+          tenantId: tenantId ?? undefined,
+          tenantName: tenantName ?? undefined,
         },
       },
     };

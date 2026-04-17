@@ -46,7 +46,7 @@ import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { useAuth } from '@/lib/hooks/use-auth'
-import { isAdminOrSuperAdmin } from '@/lib/config/roles'
+import { isAdminOrSuperAdmin, isManager } from '@/lib/config/roles'
 import { useManagedDevices, useCreateManagedDevice, useUpdateManagedDevice, useDeleteManagedDevice } from '@/lib/queries/devices'
 import type { ManagedDevice } from '@/lib/types/devices'
 import QRCode from 'qrcode'
@@ -102,8 +102,8 @@ export function DeviceManagement() {
 
   const devices = devicesData?.devices || []
 
-  // Check admin permissions
-  const isAdmin = isAdminOrSuperAdmin(userRole)
+  // Check permissions — admin and manager can access device management
+  const isAdmin = isAdminOrSuperAdmin(userRole) || isManager(userRole)
 
   // Get device status with more details - MUST BE BEFORE FILTER LOGIC
   const getDeviceStatusInfo = (device: ManagedDevice) => {

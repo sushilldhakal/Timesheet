@@ -19,6 +19,8 @@ export interface NavigationItem {
   label: string
   icon: LucideIcon
   adminOnly?: boolean
+  /** Visible to manager, admin, super_admin */
+  managerOnly?: boolean
   children?: NavigationItem[]
 }
 

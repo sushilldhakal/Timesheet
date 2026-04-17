@@ -1,5 +1,7 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
+import { connectDB } from "@/lib/db"
+import { Employer } from "@/lib/db/schemas/employer"
 import { z } from "zod"
 
 export const GET = createApiRoute({
@@ -15,6 +17,11 @@ export const GET = createApiRoute({
         id: z.string(),
         email: z.string(),
         name: z.string().optional(),
+        role: z.string().optional(),
+        tenantId: z.string().optional(),
+        tenantName: z.string().optional(),
+        location: z.array(z.string()).optional(),
+        managedRoles: z.array(z.string()).optional(),
       }),
       tenantId: z.string(),
       locations: z.array(z.string()).optional(),
@@ -30,6 +37,16 @@ export const GET = createApiRoute({
       }
     }
 
+    // Fetch the tenant name so the OrgSwitcher can display it
+    let tenantName: string | undefined
+    try {
+      await connectDB()
+      const employer = await Employer.findById(ctx.tenantId).select("name").lean()
+      tenantName = (employer as any)?.name ?? undefined
+    } catch {
+      // Non-fatal — OrgSwitcher falls back to a generic label
+    }
+
     return {
       status: 200,
       data: {
@@ -37,6 +54,11 @@ export const GET = createApiRoute({
           id: String(ctx.auth.sub),
           email: ctx.auth.email || "",
           name: ctx.auth.name,
+          role: ctx.auth.role,
+          tenantId: ctx.tenantId?.toString() || "",
+          tenantName,
+          location: ctx.userLocations ?? [],
+          managedRoles: ctx.auth.managedRoles ?? [],
         },
         tenantId: ctx.tenantId?.toString() || "",
         locations: ctx.userLocations ?? [],

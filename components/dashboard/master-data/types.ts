@@ -1,4 +1,4 @@
-export type EntityType = "team" | "employer" | "location"
+export type EntityType = "team" | "teamGroup" | "employer" | "location"
 
 export type CategoryRow = {
   id: string
@@ -15,9 +15,14 @@ export type CategoryRow = {
   abn?: string
   contactEmail?: string
   defaultAwardId?: string
+  description?: string
   isActive?: boolean
   /** Team group id (API uses `groupId` in some endpoints). */
   groupId?: string | null
+  /** Team group display name (populated by API on team list/get). */
+  groupName?: string | null
+  /** Historical snapshot for display if group is deleted/renamed. */
+  groupSnapshot?: { name?: string } | null
   /** Workforce team group (not wired yet — reserved for a follow-up) */
   teamGroup?: string | null
   /** Display sort; lower first. */

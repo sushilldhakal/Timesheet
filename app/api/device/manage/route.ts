@@ -1,6 +1,7 @@
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { apiErrors } from "@/lib/api/api-error"
+import { isAdminOrSuperAdmin, isManager } from "@/lib/config/roles"
 import { deviceService } from "@/lib/services/device/device-service"
 import { 
   deviceCreateSchema, 
@@ -12,6 +13,8 @@ import {
   deviceDeleteResponseSchema
 } from "@/lib/validations/device-manage"
 import { errorResponseSchema } from "@/lib/validations/auth"
+
+const canManageDevices = (role: string | null) => isAdminOrSuperAdmin(role) || isManager(role)
 
 /**
  * POST /api/device/manage
@@ -36,7 +39,7 @@ export const POST = createApiRoute({
   },
   handler: async ({ body }) => {
     const auth = await getAuthFromCookie()
-    if (!auth || auth.role !== "admin") throw apiErrors.unauthorized()
+    if (!auth || !canManageDevices(auth.role)) throw apiErrors.unauthorized()
     if (!body) throw apiErrors.badRequest("Request body is required")
     const data = await deviceService.createDevice({
       authSub: auth.sub,
@@ -67,7 +70,7 @@ export const GET = createApiRoute({
   },
   handler: async () => {
     const auth = await getAuthFromCookie()
-    if (!auth || auth.role !== "admin") throw apiErrors.unauthorized()
+    if (!auth || !canManageDevices(auth.role)) throw apiErrors.unauthorized()
     const data = await deviceService.listDevicesWithPunchCounts()
     return { status: 200, data }
   }
@@ -97,7 +100,7 @@ export const PATCH = createApiRoute({
   },
   handler: async ({ body }) => {
     const auth = await getAuthFromCookie()
-    if (!auth || auth.role !== "admin") throw apiErrors.unauthorized()
+    if (!auth || !canManageDevices(auth.role)) throw apiErrors.unauthorized()
     if (!body) throw apiErrors.badRequest("Request body is required")
     const data = await deviceService.updateDeviceStatus({
       authSub: auth.sub,
@@ -132,7 +135,7 @@ export const DELETE = createApiRoute({
   },
   handler: async ({ body }) => {
     const auth = await getAuthFromCookie()
-    if (!auth || auth.role !== "admin") throw apiErrors.unauthorized()
+    if (!auth || !canManageDevices(auth.role)) throw apiErrors.unauthorized()
     if (!body) throw apiErrors.badRequest("Request body is required")
     const data = await deviceService.deleteDevice(body.deviceId)
     return { status: 200, data }

@@ -23,6 +23,12 @@ const employerUpdateSchema = z.object({
   color: z.string().optional(),
   defaultAwardId: z.string().optional(),
   isActive: z.boolean().optional(),
+  payPeriodConfig: z.object({
+    windowType: z.enum(["weekly", "fortnightly", "roster_cycle", "rolling_days"]),
+    periodStartDayOfWeek: z.number().int().min(0).max(6).optional(),
+    rosterCycleDays: z.number().int().min(7).max(84).optional(),
+    rollingDays: z.number().int().min(7).max(84).optional(),
+  }).optional(),
 })
 
 export const GET = createApiRoute({

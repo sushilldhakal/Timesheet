@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getApiKeyContext } from "@/lib/auth/api-key-middleware"
 import { payrollExportService } from "@/lib/services/payroll/payroll-export-service"
 
 export async function POST(req: NextRequest) {
-  const ctx = await getAuthWithUserLocations()
+  let ctx = await getAuthWithUserLocations()
   if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const apiCtx = await getApiKeyContext(req)
+    if (!apiCtx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    ctx = { auth: { sub: apiCtx.keyId, role: "api_key" as any, email: "", tenantId: apiCtx.tenantId, locations: [], managedRoles: [] }, tenantId: apiCtx.tenantId, userLocations: null, managedRoles: null }
   }
 
   try {
@@ -43,9 +46,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const ctx = await getAuthWithUserLocations()
+  let ctx = await getAuthWithUserLocations()
   if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const apiCtx = await getApiKeyContext(req)
+    if (!apiCtx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    ctx = { auth: { sub: apiCtx.keyId, role: "api_key" as any, email: "", tenantId: apiCtx.tenantId, locations: [], managedRoles: [] }, tenantId: apiCtx.tenantId, userLocations: null, managedRoles: null }
   }
 
   try {

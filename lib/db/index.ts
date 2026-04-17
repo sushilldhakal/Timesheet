@@ -23,14 +23,23 @@ if (process.env.NODE_ENV == "production") globalThis.__mongooseCache = cached
  */
 export async function connectDB(): Promise<MongooseInstance> {
   if (cached.conn) return cached.conn
+  const isNewConnection = !cached.promise
   if (!cached.promise) {
     cached.promise = mongoose.connect(MONGODB_URI!, {
       bufferCommands: true,
-      socketTimeoutMS: 5000, // Fail fast if DB is unresponsive
-      serverSelectionTimeoutMS: 10000, // Server selection timeout after 10 seconds
+      socketTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000,
     })
   }
   cached.conn = await cached.promise
+
+  // Fire-and-forget startup sweep for unprocessed events (first connection only)
+  if (isNewConnection) {
+    import('@/lib/events/event-replay-service').then(({ eventReplayService }) => {
+      eventReplayService.retryFailedListeners({ limit: 200 }).catch(() => {})
+    }).catch(() => {})
+  }
+
   return cached.conn
 }
 

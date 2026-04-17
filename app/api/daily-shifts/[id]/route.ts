@@ -15,6 +15,7 @@ const breakSchema = z.object({
 const patchSchema = z.object({
   clockInUtc: z.string().nullable().optional(),
   clockOutUtc: z.string().nullable().optional(),
+  roleId: z.string().regex(/^[0-9a-fA-F]{24}$/).nullable().optional(),
   breaks: z.array(breakSchema).nullable().optional(),
   awardTags: z.array(z.string().trim()).nullable().optional(),
 })

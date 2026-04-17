@@ -14,10 +14,12 @@ import {
 import { useDeleteLocation } from "@/lib/queries/locations"
 import { useDeleteTeam } from "@/lib/queries/teams"
 import { useDeleteEmployer } from "@/lib/queries/employers"
+import { useDeleteTeamGroup } from "@/lib/queries/team-groups"
 import type { CategoryRow } from "./types"
 
-const TYPE_LABELS: Record<"team" | "employer" | "location", string> = {
+const TYPE_LABELS: Record<"team" | "teamGroup" | "employer" | "location", string> = {
   team: "Team",
+  teamGroup: "Team Group",
   employer: "Employer",
   location: "Location",
 }
@@ -40,6 +42,7 @@ export function DeleteMasterDataDialog({
   const deleteLocationMutation = useDeleteLocation()
   const deleteTeamMutation = useDeleteTeam()
   const deleteEmployerMutation = useDeleteEmployer()
+  const deleteTeamGroupMutation = useDeleteTeamGroup()
 
   const typeLabel = TYPE_LABELS[category.type]
 
@@ -48,6 +51,7 @@ export function DeleteMasterDataDialog({
     try {
       if (category.type === "location") await deleteLocationMutation.mutateAsync(category.id)
       else if (category.type === "team") await deleteTeamMutation.mutateAsync(category.id)
+      else if (category.type === "teamGroup") await deleteTeamGroupMutation.mutateAsync(category.id)
       else await deleteEmployerMutation.mutateAsync(category.id)
       onOpenChange(false)
       onSuccess()
@@ -57,7 +61,10 @@ export function DeleteMasterDataDialog({
   }
 
   const loading =
-    deleteLocationMutation.isPending || deleteTeamMutation.isPending || deleteEmployerMutation.isPending
+    deleteLocationMutation.isPending ||
+    deleteTeamMutation.isPending ||
+    deleteTeamGroupMutation.isPending ||
+    deleteEmployerMutation.isPending
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

@@ -1,4 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getApiKeyContext } from "@/lib/auth/api-key-middleware"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
 import mongoose from "mongoose"
@@ -46,13 +47,12 @@ export const POST = createApiRoute({
     401: z.object({ error: z.string() }),
     500: z.object({ error: z.string() })
   },
-  handler: async ({ body }) => {
-    const ctx = await getAuthWithUserLocations()
+  handler: async ({ body, req }) => {
+    let ctx = await getAuthWithUserLocations()
     if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      }
+      const apiCtx = await getApiKeyContext(req)
+      if (!apiCtx) return { status: 401, data: { error: "Unauthorized" } }
+      ctx = { auth: { sub: apiCtx.keyId, role: "api_key" as any, email: "", tenantId: apiCtx.tenantId, locations: [], managedRoles: [] }, tenantId: apiCtx.tenantId, userLocations: null, managedRoles: null }
     }
 
     try {
@@ -109,13 +109,12 @@ export const GET = createApiRoute({
     401: z.object({ error: z.string() }),
     500: z.object({ error: z.string() })
   },
-  handler: async ({ query }) => {
-    const ctx = await getAuthWithUserLocations()
+  handler: async ({ query, req }) => {
+    let ctx = await getAuthWithUserLocations()
     if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      }
+      const apiCtx = await getApiKeyContext(req)
+      if (!apiCtx) return { status: 401, data: { error: "Unauthorized" } }
+      ctx = { auth: { sub: apiCtx.keyId, role: "api_key" as any, email: "", tenantId: apiCtx.tenantId, locations: [], managedRoles: [] }, tenantId: apiCtx.tenantId, userLocations: null, managedRoles: null }
     }
 
     try {

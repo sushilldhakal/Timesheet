@@ -2,20 +2,28 @@ import mongoose from "mongoose"
 
 export type EmployerPlan = "free" | "starter" | "pro" | "enterprise"
 
+export interface IPayPeriodConfig {
+  windowType: 'weekly' | 'fortnightly' | 'roster_cycle' | 'rolling_days'
+  periodStartDayOfWeek?: number
+  rosterCycleDays?: number
+  rollingDays?: number
+}
+
 export interface IEmployer {
   name: string
   abn?: string
   contactEmail?: string
   color?: string
   defaultAwardId?: mongoose.Types.ObjectId
-  /** URL-safe unique identifier (backfilled via migration). */
   slug?: string
   plan?: EmployerPlan
   timezone?: string
   logoUrl?: string
-  /** Optional invite code for onboarding. */
   inviteCode?: string
   isActive: boolean
+  payPeriodConfig?: IPayPeriodConfig
+  /** When true, the Employers section is shown in nav for managing external/agency staff */
+  enableExternalHire?: boolean
   createdAt?: Date
   updatedAt?: Date
 }
@@ -39,6 +47,17 @@ const employerSchema = new mongoose.Schema<IEmployerDocument>(
     logoUrl: { type: String, default: undefined },
     inviteCode: { type: String, trim: true, default: undefined },
     isActive: { type: Boolean, default: true },
+    enableExternalHire: { type: Boolean, default: false },
+    payPeriodConfig: {
+      windowType: {
+        type: String,
+        enum: ['weekly', 'fortnightly', 'roster_cycle', 'rolling_days'],
+        default: 'weekly',
+      },
+      periodStartDayOfWeek: { type: Number, default: 1 },
+      rosterCycleDays: { type: Number },
+      rollingDays: { type: Number },
+    },
   },
   {
     timestamps: true,

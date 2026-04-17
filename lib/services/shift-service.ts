@@ -319,6 +319,11 @@ export async function editShift(
     computedTotalCost: (shift as any).computed?.totalCost ?? null,
     status: (shift as any).status,
     approvedAt: (shift as any).approvedAt ?? null,
+    roleId: (shift as any).roleId ? String((shift as any).roleId) : null,
+  }
+
+  if (changes.roleId !== undefined) {
+    ;(shift as any).roleId = changes.roleId ? new mongoose.Types.ObjectId(String(changes.roleId)) : null
   }
 
   if (changes.clockInUtc !== undefined) {
@@ -419,6 +424,7 @@ export async function editShift(
     computedTotalCost: (shift as any).computed?.totalCost ?? null,
     status: (shift as any).status,
     approvedAt: (shift as any).approvedAt ?? null,
+    roleId: (shift as any).roleId ? String((shift as any).roleId) : null,
   }
 
   await logShiftEdit({

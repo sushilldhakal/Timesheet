@@ -61,7 +61,7 @@
 <p class="subtitle">
   MongoDB collections derived from <code style="color:#79c0ff">lib/db/schemas/*.ts</code> Mongoose models.
   Most tenant-scoped collections carry a <code style="color:#79c0ff">tenantId</code> referencing <code style="color:#79c0ff">Employer</code> (the business/tenant entity).
-  38 schema modules &middot; 37 top-level collections &middot; 2 embedded sub-schemas.
+  47 schema modules &middot; 45 top-level collections &middot; 2 embedded sub-schemas.
 </p>
 
 <div class="legend">
@@ -239,6 +239,20 @@
         <div class="field"><span class="field-name">passwordResetToken / Expiry</span><span class="field-type">String? / Date?</span></div>
         <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Unix seconds</span></div>
         <div class="rel-tag">Unique on <span>(tenantId, email)</span>. Hierarchy: super_admin → admin → manager → supervisor / accounts.</div>
+      </div>
+    </div>
+
+    <div class="card g-people w300">
+      <div class="card-header">UserTenant <span class="collection-name">userTenants</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">role</span><span class="field-type">admin | manager | supervisor | accounts | user | super_admin</span></div>
+        <div class="field"><span class="field-name">location[]</span><span class="field-type">String[] (legacy names)</span></div>
+        <div class="field"><span class="field-name">managedRoles[]</span><span class="field-type">String[] (legacy names)</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">invitedBy / invitedAt / joinedAt</span><span class="field-type">Ref? / Date? / Date?</span></div>
+        <div class="rel-tag">Membership join table for multi-tenant users. Unique on <span>(userId, tenantId)</span>.</div>
       </div>
     </div>
 
@@ -441,6 +455,33 @@
     </div>
 
     <div class="card g-sched w300">
+      <div class="card-header">CustomEvent <span class="collection-name">custom_events</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
+        <div class="field"><span class="field-name">title / name</span><span class="field-type">String (alias)</span></div>
+        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">startAt / startDate</span><span class="field-type">Date (alias)</span></div>
+        <div class="field"><span class="field-name">endAt / endDate</span><span class="field-type">Date (alias)</span></div>
+        <div class="field"><span class="field-name">discourageTimeOff / isAllDay</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location?</span></div>
+        <div class="field"><span class="field-name">color / isActive</span><span class="field-type">String? / Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Tenant calendar events (closures, promotions, etc.). Indexed on <span>(tenantId, startAt, endAt)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-junc w300">
+      <div class="card-header">CustomEventTeam <span class="collection-name">custom_event_teams</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">customEventId</span><span class="field-ref">→ CustomEvent</span></div>
+        <div class="field"><span class="field-name">teamId</span><span class="field-ref">→ Team</span></div>
+        <div class="rel-tag">Assigns which teams a custom event applies to. Unique on <span>(tenantId, customEventId, teamId)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-sched w300">
       <div class="card-header">AvailabilityConstraint <span class="collection-name">availability_constraints</span></div>
       <div class="card-body">
         <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
@@ -535,6 +576,20 @@
       </div>
     </div>
 
+    <div class="card g-time w300">
+      <div class="card-header">TimeclockQuestion <span class="collection-name">timeclock_questions</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">question / questionText</span><span class="field-type">String (alias)</span></div>
+        <div class="field"><span class="field-name">triggerOn</span><span class="field-type">String (clock_in, clock_out, …)</span></div>
+        <div class="field"><span class="field-name">type</span><span class="field-type">text | yesno | multiselect | boolean | multiple_choice</span></div>
+        <div class="field"><span class="field-name">options[]</span><span class="field-type">String[]?</span></div>
+        <div class="field"><span class="field-name">order / isActive</span><span class="field-type">Number / Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Configurable clock-in/out questions. Indexed on <span>(tenantId, triggerOn, isActive, order)</span>.</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -553,6 +608,21 @@
         <div class="field"><span class="field-name">availableTags[]</span><span class="field-type">AwardTag[] { name }</span></div>
         <div class="field"><span class="field-name">levelRates[]</span><span class="field-type">{ level, employmentType, hourlyRate, effectiveFrom/To }</span></div>
         <div class="rel-tag">Used by <span>Employee.awardId</span>, <span>Employer.defaultAwardId</span>, and pay calculation. Has <code>evaluateRules</code> method.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w300">
+      <div class="card-header">AwardVersionHistory <span class="collection-name">award_version_history</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">baseAwardId</span><span class="field-ref">→ Award</span></div>
+        <div class="field"><span class="field-name">name / description</span><span class="field-type">String / String?</span></div>
+        <div class="field"><span class="field-name">rules / levelRates / availableTags</span><span class="field-type">Mixed[]</span></div>
+        <div class="field"><span class="field-name">version</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date / Date?</span></div>
+        <div class="field"><span class="field-name">changelog</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
+        <div class="rel-tag">Immutable award snapshots for versioning / history. Unique on <span>(baseAwardId, version)</span>.</div>
       </div>
     </div>
 
@@ -653,6 +723,97 @@
       </div>
     </div>
 
+    <div class="card g-pay w280">
+      <div class="card-header">AwardTag <span class="collection-name">award_tags</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">description / color</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Tenant-managed master list of award tags. Unique on <span>(tenantId, name)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w300">
+      <div class="card-header">AwardTemplate <span class="collection-name">award_templates</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">awardId</span><span class="field-ref">→ Award?</span></div>
+        <div class="field"><span class="field-name">baseRules[]</span><span class="field-type">Mixed[]</span></div>
+        <div class="field"><span class="field-name">isDefault / isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Reusable award setup templates (Tanda parity). Unique on <span>(tenantId, name)</span>.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ TARGETS & QUALIFICATIONS ═══════════════════ -->
+<div class="section">
+  <div class="section-label">Targets &amp; qualifications (extensions)</div>
+  <div class="cards-row">
+
+    <div class="card g-work w280">
+      <div class="card-header">Qualification <span class="collection-name">qualifications</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">maxHours</span><span class="field-type">Number?</span></div>
+        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Tenant-managed qualifications/certification types. Unique on <span>(tenantId, name)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w280">
+      <div class="card-header">SalesTarget <span class="collection-name">sales_targets</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
+        <div class="field"><span class="field-name">userEntered</span><span class="field-type">Boolean</span></div>
+        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Tenant daily sales targets. Unique on <span>(tenantId, date)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w300">
+      <div class="card-header">LocationSalesTarget <span class="collection-name">location_sales_targets</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
+        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
+        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Per-location sales targets. Unique on <span>(tenantId, locationId, date)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-pay w300">
+      <div class="card-header">TeamSalesTarget <span class="collection-name">team_sales_targets</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">teamId</span><span class="field-ref">→ Team</span></div>
+        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
+        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
+        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
+        <div class="rel-tag">Per-team sales targets. Unique on <span>(tenantId, teamId, date)</span>.</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -736,7 +897,7 @@
   </div>
 </div>
 
-<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Derived from <code>lib/db/schemas/*.ts</code> · 35 modules · Timesheet · MongoDB</p>
+<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Derived from <code>lib/db/schemas/*.ts</code> · 47 modules · Timesheet · MongoDB</p>
 
 </body>
 </html>

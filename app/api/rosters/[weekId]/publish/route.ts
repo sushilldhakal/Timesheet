@@ -4,6 +4,13 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
 import { apiErrors } from "@/lib/api/api-error"
 import { rosterService } from "@/lib/services/roster/roster-service"
+import { notificationService } from "@/lib/services/notifications/notification-service"
+import { getTenantContext } from "@/lib/auth/tenant-context"
+import { connectDB } from "@/lib/db"
+import { scope } from "@/lib/db/tenant-model"
+import { Roster } from "@/lib/db/schemas/roster"
+import { eventBus } from "@/lib/events/event-bus"
+import { DOMAIN_EVENTS, makeEventId } from "@/lib/events/domain-events"
 
 // Validation schemas
 const weekIdParamSchema = z.object({
@@ -49,6 +56,52 @@ export const PUT = createApiRoute({
     const weekId = params!.weekId
     if (!ctx) throw apiErrors.unauthorized()
     const data = await rosterService.publishRoster(weekId)
+
+    // Fire-and-forget: emit event (new path) + direct notify (DUAL_WRITE_DEPRECATED: remove after 2025-07-01)
+    const tenantCtx = await getTenantContext()
+    if (tenantCtx && tenantCtx.type === "full") {
+      try {
+        await connectDB()
+        const roster = await scope(Roster, tenantCtx.tenantId).findOne({ weekId }).lean()
+        if (roster) {
+          const rawIds: string[] = roster.shifts
+            .filter((s: any) => s.employeeId)
+            .map((s: any) => String(s.employeeId))
+          const employeeIds: string[] = Array.from(new Set(rawIds))
+          const locationId = roster.shifts[0]?.locationId?.toString() ?? ""
+
+          // NEW: emit domain event (listeners handle notifications)
+          eventBus.emit({
+            eventType: DOMAIN_EVENTS.ROSTER_PUBLISHED,
+            tenantId: tenantCtx.tenantId,
+            entityId: roster._id.toString(),
+            entityType: 'roster',
+            actorId: ctx.auth.sub,
+            occurredAt: new Date(),
+            eventId: makeEventId(DOMAIN_EVENTS.ROSTER_PUBLISHED, weekId, true),
+            payload: { weekId, locationId, employeeIds, shiftCount: roster.shifts.length },
+          }).catch(() => {})
+
+          // DUAL_WRITE_DEPRECATED: direct notify — remove after 2025-07-01
+          for (const employeeId of employeeIds) {
+            notificationService
+              .send(tenantCtx, {
+                targetType: "employee",
+                targetId: employeeId as string,
+                category: "roster_published",
+                title: "Roster Published",
+                message: `Your roster for week ${weekId} has been published.`,
+                relatedEntity: { type: "roster", id: roster._id.toString() },
+                channels: ["in_app"],
+              })
+              .catch(() => {})
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+
     return { status: 200, data }
   }
 })

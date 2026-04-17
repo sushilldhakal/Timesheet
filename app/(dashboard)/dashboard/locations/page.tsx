@@ -45,6 +45,20 @@ export default function LocationsPage() {
     return m
   }, [locations, teamCountQueries])
 
+  const teamsByLocationId = useMemo(() => {
+    const m: Record<string, locationsApi.LocationTeam[] | undefined> = {}
+    locations.forEach((loc, i) => {
+      const q = teamCountQueries[i]
+      if (!q) return
+      if (q.isPending) {
+        m[loc.id] = undefined
+        return
+      }
+      m[loc.id] = q.data?.teams ?? []
+    })
+    return m
+  }, [locations, teamCountQueries])
+
   const rows: CategoryRow[] = useMemo(
     () => locations.map((l) => ({ ...l, type: "location" as const })),
     [locations]
@@ -121,6 +135,7 @@ export default function LocationsPage() {
               <LocationsTable
                 locations={rows}
                 teamsAssignedByLocationId={teamsAssignedByLocationId}
+                teamsByLocationId={teamsByLocationId}
                 onEdit={(row) => {
                   const latest = rows.find((r) => r.id === row.id)
                   setEditRow(latest ?? row)

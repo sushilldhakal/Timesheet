@@ -140,7 +140,7 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
     for (const day of filteredDays ?? []) {
       const shifts = (day as any)?.reconciledShifts ?? []
       for (const s of shifts) {
-        const loc = s?.roster?.locationId
+        const loc = s?.roster?.locationId ?? s?.actual?.locationId
         if (loc) ids.add(String(loc))
       }
     }

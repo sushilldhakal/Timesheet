@@ -67,3 +67,42 @@ export * from "./custom-event"
 export * from "./custom-event-team"
 export * from "./award-tag"
 export * from "./award-template"
+
+// Execution layer — Phase 1: Compliance Engine
+export * from "./compliance-violation"
+
+// Execution layer — Phase 2: Clock-in Validation
+export * from "./clock-session"
+export * from "./clock-audit"
+
+// Execution layer — Phase 4: Payroll Export
+export * from "./payroll-export"
+
+// Execution layer — Phase 5: Break Rule Enforcement
+export * from "./break-violation"
+
+// Execution layer — Phase 6: Labour Cost Analysis
+export * from "./labour-cost-analysis"
+
+// Execution layer — Phase 7: Notifications
+export * from "./notification"
+
+// Execution layer — Phase 8: API Keys
+export * from "./api-key"
+
+// Execution layer — Phase 9: Multi-Award Assignment
+export * from "./employee-award-assignment"
+
+// Execution layer — Phase 10: Demand Forecasting
+export * from "./demand-forecast"
+export * from "./auto-roster-suggestion"
+
+// Execution layer — Phase 11: Push Tokens
+export * from "./push-token"
+
+// Architecture hardening — event system + audit
+export * from "./domain-event-log"
+export * from "./shift-event-log"
+
+// Architecture hardening — notification preferences
+export * from "./notification-preference"

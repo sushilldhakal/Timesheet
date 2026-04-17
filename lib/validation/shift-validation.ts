@@ -14,6 +14,8 @@ export type ShiftActor = {
 export type EditableShiftChanges = {
   clockInUtc?: string | null
   clockOutUtc?: string | null
+  /** Team/role override for shifts without a roster link */
+  roleId?: string | null
   breaks?: Array<{
     startTimeUtc: string
     endTimeUtc: string
