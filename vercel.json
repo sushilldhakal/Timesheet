@@ -26,11 +26,11 @@
     },
     {
       "path": "/api/cron/retry-events",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 1 * * *"
     },
     {
       "path": "/api/cron/retry-exports",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }
