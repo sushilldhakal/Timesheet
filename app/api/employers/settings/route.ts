@@ -73,6 +73,8 @@ export const PATCH = createApiRoute({
 
     await connectDB()
 
+    if (!body) return { status: 400, data: { error: "Request body is required" } }
+
     let employer
     if (auth.tenantId && mongoose.Types.ObjectId.isValid(auth.tenantId)) {
       employer = await Employer.findByIdAndUpdate(
