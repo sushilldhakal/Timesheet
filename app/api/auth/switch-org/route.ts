@@ -32,7 +32,7 @@ export const POST = createApiRoute({
   summary: "Switch organisation mid-session",
   description: "Issues a new full JWT for a different organisation the user belongs to",
   tags: ["Auth"],
-  security: "jwt",
+  security: "adminAuth",
   request: { body: requestSchema },
   responses: {
     200: responseSchema,
