@@ -8,16 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-
-const bsbRegex = /^\d{3}-\d{3}$/
-
-const step4Schema = z.object({
-  bankName: z.string().min(1, 'Bank name is required'),
-  accountNumber: z.string().min(6, 'Account number must be at least 6 digits'),
-  bsbCode: z.string().regex(bsbRegex, 'BSB must be in format XXX-XXX'),
-  accountHolderName: z.string().min(1, 'Account holder name is required'),
-  accountType: z.enum(['savings', 'cheque']),
-})
+import { step4Schema } from '@/lib/validations/onboarding'
 
 type Step4Data = z.infer<typeof step4Schema>
 

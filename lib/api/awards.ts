@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
 
 const BASE_URL = '/api/awards'
 
@@ -37,49 +37,125 @@ export interface UpdateAwardRequest {
   levels?: any[]
 }
 
+export interface AwardVersion {
+  _id: string
+  name: string
+  description?: string
+  version: string
+  effectiveFrom: string
+  effectiveTo: string | null
+  changelog: string | null
+  isCurrent: boolean
+  rules: any[]
+  levelRates: any[]
+  availableTags: any[]
+  createdAt?: string
+  createdBy?: string
+}
+
+export interface EvaluateRulesRequest {
+  awardId: string
+  shiftDate: string
+  startTime: string
+  endTime: string
+  employmentType: string
+  awardTags?: string[]
+  isPublicHoliday?: boolean
+  dailyHoursWorked?: number
+  weeklyHoursWorked?: number
+}
+
 // Get all awards
 export async function getAwards(): Promise<{ awards: Award[] }> {
-  const response = await fetch(BASE_URL, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<{ awards: Award[] }>(BASE_URL)
 }
 
 // Get award by ID
-export async function getAward(id: string): Promise<ApiResponse<Award>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
-    credentials: 'include',
-  })
-  return response.json()
+export async function getAward(id: string): Promise<{ award: Award }> {
+  return apiFetch<{ award: Award }>(`${BASE_URL}/${encodeURIComponent(id)}`)
 }
 
 // Create award
-export async function createAward(data: CreateAwardRequest): Promise<ApiResponse<Award>> {
-  const response = await fetch(BASE_URL, {
+export async function createAward(data: CreateAwardRequest): Promise<{ award: Award }> {
+  return apiFetch<{ award: Award }>(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Update award
-export async function updateAward(id: string, data: UpdateAwardRequest): Promise<ApiResponse<Award>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
+export async function updateAward(id: string, data: UpdateAwardRequest): Promise<{ award: Award }> {
+  return apiFetch<{ award: Award }>(`${BASE_URL}/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Delete award
-export async function deleteAward(id: string): Promise<ApiResponse<void>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
+export async function deleteAward(id: string): Promise<void> {
+  return apiFetch<void>(`${BASE_URL}/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    credentials: 'include',
   })
-  return response.json()
+}
+
+// Get award versions
+export async function getAwardVersions(awardId: string): Promise<{ versions: AwardVersion[] }> {
+  return apiFetch<{ versions: AwardVersion[] }>(`${BASE_URL}/${encodeURIComponent(awardId)}/versions`)
+}
+
+// Create a new award version
+export async function createAwardVersion(
+  awardId: string,
+  data: { changelog: string; effectiveFrom: string; versionBump: 'major' | 'minor' | 'patch' },
+): Promise<{ version: AwardVersion }> {
+  return apiFetch<{ version: AwardVersion }>(`${BASE_URL}/${encodeURIComponent(awardId)}/versions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// Evaluate award rules for a shift scenario
+export async function evaluateAwardRules(data: EvaluateRulesRequest): Promise<any> {
+  return apiFetch<any>(`${BASE_URL}/evaluate-rules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// Get rule templates
+export async function getRuleTemplates(params?: { search?: string; category?: string }): Promise<{ templates: any[] }> {
+  const searchParams = new URLSearchParams()
+  if (params?.search) searchParams.set('search', params.search)
+  if (params?.category) searchParams.set('category', params.category)
+  const qs = searchParams.toString()
+  return apiFetch<{ templates: any[] }>(`/api/rule-templates${qs ? `?${qs}` : ''}`)
+}
+
+// Create rule template
+export async function createRuleTemplate(data: any): Promise<any> {
+  return apiFetch<any>('/api/rule-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// Update rule template
+export async function updateRuleTemplate(id: string, data: any): Promise<any> {
+  return apiFetch<any>(`/api/rule-templates/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// Delete rule template
+export async function deleteRuleTemplate(id: string): Promise<void> {
+  return apiFetch<void>(`/api/rule-templates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
 }

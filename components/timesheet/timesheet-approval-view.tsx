@@ -44,62 +44,17 @@ import {
   Coffee,
 } from "lucide-react"
 import { format } from "date-fns"
+import {
+  getTimesheet,
+  submitTimesheet,
+  approveTimesheet,
+  rejectTimesheet,
+  lockTimesheet,
+  type TimesheetDetail,
+  type ShiftDetail,
+} from "@/lib/api/timesheets"
 
-interface ShiftDetail {
-  _id: string
-  date: string
-  clockIn?: { time: string; deviceLocation?: string }
-  clockOut?: { time: string; deviceLocation?: string }
-  totalWorkingHours?: number
-  totalBreakMinutes?: number
-  status: string
-  computed?: {
-    totalCost: number
-    totalHours: number
-    payLines?: Array<{
-      name: string
-      exportName: string
-      units: number
-      cost: number
-      multiplier?: number
-    }>
-  }
-  awardTags?: string[]
-}
 
-interface TimesheetDetail {
-  _id: string
-  tenantId: string
-  employeeId: {
-    _id: string
-    name: string
-    pin: string
-    email?: string
-  }
-  payPeriodStart: string
-  payPeriodEnd: string
-  shiftIds: string[]
-  shifts: ShiftDetail[]
-  totalShifts: number
-  totalHours: number
-  totalCost: number
-  totalBreakMinutes: number
-  status: "draft" | "submitted" | "approved" | "rejected" | "locked"
-  submittedBy?: { email: string } | null
-  submittedAt?: string | null
-  submissionNotes?: string
-  approvedBy?: { email: string } | null
-  approvedAt?: string | null
-  rejectedBy?: { email: string } | null
-  rejectedAt?: string | null
-  rejectionReason?: string
-  lockedBy?: { email: string } | null
-  lockedAt?: string | null
-  payRunId?: string | null
-  notes?: string
-  createdAt: string
-  updatedAt: string
-}
 
 interface TimesheetApprovalViewProps {
   timesheetId: string
@@ -135,10 +90,8 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
   const fetchTimesheet = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/timesheets/${timesheetId}`)
-      if (res.ok) {
-        const json = await res.json()
-        const data = json.data || json
+      const data = await getTimesheet(timesheetId)
+      if (data.timesheet) {
         setTimesheet(data.timesheet)
       }
     } catch (err) {
@@ -163,24 +116,29 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
         body.submissionNotes = submissionNotes.trim()
       }
 
-      const res = await fetch(`/api/timesheets/${timesheetId}/${action}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
+      switch (action) {
+        case "submit":
+          await submitTimesheet(timesheetId, body)
+          break
+        case "approve":
+          await approveTimesheet(timesheetId, body)
+          break
+        case "reject":
+          await rejectTimesheet(timesheetId, body)
+          break
+        case "lock":
+          await lockTimesheet(timesheetId, body)
+          break
+      }
 
-      if (res.ok) {
-        fetchTimesheet()
-        if (action === "reject") {
-          setRejectDialogOpen(false)
-          setRejectionReason("")
-        }
-      } else {
-        const err = await res.json()
-        alert(err.data?.error || err.error || `Failed to ${action} timesheet`)
+      fetchTimesheet()
+      if (action === "reject") {
+        setRejectDialogOpen(false)
+        setRejectionReason("")
       }
     } catch (err) {
-      console.error(`Failed to ${action} timesheet:`, err)
+      const errorMessage = err instanceof Error ? err.message : `Failed to ${action} timesheet`
+      alert(errorMessage)
     } finally {
       setActionLoading(false)
     }
@@ -298,7 +256,7 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
             <div>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                {ts.employeeId?.name ?? "Unknown Employee"}
+                {typeof ts.employeeId === 'object' ? ts.employeeId?.name : "Unknown Employee"}
               </CardTitle>
               <CardDescription className="mt-1 flex items-center gap-2">
                 <CalendarDays className="h-3.5 w-3.5" />

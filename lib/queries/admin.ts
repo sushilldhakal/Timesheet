@@ -3,42 +3,28 @@ import * as adminApi from '@/lib/api/admin'
 
 // Query keys
 export const adminKeys = {
-  all: ['admin'] as const,
-  activityLogs: (params?: { 
-    userId?: string
-    action?: string
-    resource?: string
-    startDate?: string
-    endDate?: string
-    limit?: number
-    offset?: number 
-  }) => [...adminKeys.all, 'activity-logs', params] as const,
-  storageStats: () => [...adminKeys.all, 'storage-stats'] as const,
-  storageSettings: () => [...adminKeys.all, 'storage-settings'] as const,
-  mailSettings: () => [...adminKeys.all, 'mail-settings'] as const,
+  activityLogs: (params?: Parameters<typeof adminApi.getActivityLogs>[0]) => 
+    ['admin', 'activity-logs', params] as const,
+  storageStats: ['admin', 'storage-stats'] as const,
+  storageSettings: ['admin', 'storage-settings'] as const,
+  mailSettings: ['admin', 'mail-settings'] as const,
+  eventHealth: ['admin', 'event-health'] as const,
+  apiKeys: ['admin', 'api-keys'] as const,
 }
 
 // Get activity logs
-export function useActivityLogs(params?: {
-  userId?: string
-  action?: string
-  resource?: string
-  startDate?: string
-  endDate?: string
-  limit?: number
-  offset?: number
-}) {
+export function useActivityLogs(params?: Parameters<typeof adminApi.getActivityLogs>[0]) {
   return useQuery({
     queryKey: adminKeys.activityLogs(params),
     queryFn: () => adminApi.getActivityLogs(params),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 1 * 60 * 1000, // 1 minute
   })
 }
 
 // Get storage statistics
 export function useStorageStats() {
   return useQuery({
-    queryKey: adminKeys.storageStats(),
+    queryKey: adminKeys.storageStats,
     queryFn: adminApi.getStorageStats,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
@@ -47,17 +33,8 @@ export function useStorageStats() {
 // Get storage settings
 export function useStorageSettings() {
   return useQuery({
-    queryKey: adminKeys.storageSettings(),
+    queryKey: adminKeys.storageSettings,
     queryFn: adminApi.getStorageSettings,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-  })
-}
-
-// Get mail settings
-export function useMailSettings() {
-  return useQuery({
-    queryKey: adminKeys.mailSettings(),
-    queryFn: adminApi.getMailSettings,
     staleTime: 10 * 60 * 1000, // 10 minutes
   })
 }
@@ -69,8 +46,17 @@ export function useUpdateStorageSettings() {
   return useMutation({
     mutationFn: adminApi.updateStorageSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.storageSettings() })
+      queryClient.invalidateQueries({ queryKey: adminKeys.storageSettings })
     },
+  })
+}
+
+// Get mail settings
+export function useMailSettings() {
+  return useQuery({
+    queryKey: adminKeys.mailSettings,
+    queryFn: adminApi.getMailSettings,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   })
 }
 
@@ -81,7 +67,7 @@ export function useUpdateMailSettings() {
   return useMutation({
     mutationFn: adminApi.updateMailSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.mailSettings() })
+      queryClient.invalidateQueries({ queryKey: adminKeys.mailSettings })
     },
   })
 }
@@ -100,20 +86,69 @@ export function useRunCleanup() {
   return useMutation({
     mutationFn: adminApi.runCleanup,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.storageStats() })
+      queryClient.invalidateQueries({ queryKey: adminKeys.storageStats })
     },
   })
 }
 
 // Create test data
 export function useCreateTestData() {
+  return useMutation({
+    mutationFn: adminApi.createTestData,
+  })
+}
+
+// Get event health data
+export function useEventHealth() {
+  return useQuery({
+    queryKey: adminKeys.eventHealth,
+    queryFn: adminApi.getEventHealth,
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 60 * 1000, // Refetch every minute
+  })
+}
+
+// Trigger event retry sweep
+export function useTriggerRetry() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: adminApi.createTestData,
+    mutationFn: adminApi.triggerRetry,
     onSuccess: () => {
-      // Invalidate all data since test data affects everything
-      queryClient.invalidateQueries()
+      queryClient.invalidateQueries({ queryKey: adminKeys.eventHealth })
+    },
+  })
+}
+
+// API Keys management
+export function useApiKeys() {
+  return useQuery({
+    queryKey: adminKeys.apiKeys,
+    queryFn: () => adminApi.getApiKeys(),
+    select: (data) => data.keys ?? [],
+    staleTime: 60 * 1000, // 1 minute
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useCreateApiKey() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: adminApi.createApiKey,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.apiKeys })
+    },
+  })
+}
+
+export function useRevokeApiKey() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: adminApi.revokeApiKey,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.apiKeys })
     },
   })
 }

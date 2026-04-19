@@ -45,39 +45,19 @@ import {
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { format } from "date-fns"
+import {
+  getTimesheetApprovals,
+  createTimesheet,
+  submitTimesheet,
+  approveTimesheet,
+  rejectTimesheet,
+  lockTimesheet,
+  type TimesheetRow,
+} from "@/lib/api/timesheets"
+import { getMe } from "@/lib/api/auth"
+import { getEmployees } from "@/lib/api/employees"
 
-interface TimesheetRow {
-  _id: string
-  tenantId: string
-  employeeId: {
-    _id: string
-    name: string
-    pin: string
-    email?: string
-  } | string
-  payPeriodStart: string
-  payPeriodEnd: string
-  shiftIds: string[]
-  totalShifts: number
-  totalHours: number
-  totalCost: number
-  totalBreakMinutes: number
-  status: "draft" | "submitted" | "approved" | "rejected" | "locked"
-  submittedBy?: { email: string } | null
-  submittedAt?: string | null
-  approvedBy?: { email: string } | null
-  approvedAt?: string | null
-  rejectedBy?: { email: string } | null
-  rejectedAt?: string | null
-  rejectionReason?: string
-  lockedBy?: { email: string } | null
-  lockedAt?: string | null
-  payRunId?: string | null
-  notes?: string
-  submissionNotes?: string
-  createdAt: string
-  updatedAt: string
-}
+
 
 interface TimesheetApprovalListProps {
   onViewTimesheet?: (id: string) => void
@@ -114,12 +94,8 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
   useEffect(() => {
     const fetchTenant = async () => {
       try {
-        const res = await fetch("/api/me")
-        if (res.ok) {
-          const json = await res.json()
-          const data = json.data || json
-          setTenantId(data.tenantId || "")
-        }
+        const data = await getMe()
+        setTenantId(data.user?.tenantId || "")
       } catch (err) {
         console.error("Failed to fetch tenant:", err)
       }
@@ -131,14 +107,11 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
     if (!tenantId) return
     setLoading(true)
     try {
-      const params = new URLSearchParams({ tenantId })
-      if (statusFilter !== "all") params.set("status", statusFilter)
-
-      const res = await fetch(`/api/timesheets/approvals?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setTimesheets(data.data?.timesheets || data.timesheets || [])
-      }
+      const data = await getTimesheetApprovals({
+        tenantId,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+      })
+      setTimesheets(data.timesheets || [])
     } catch (err) {
       console.error("Failed to fetch timesheet approvals:", err)
       setTimesheets([])
@@ -149,18 +122,14 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await fetch("/api/employees?limit=500")
-      if (res.ok) {
-        const json = await res.json()
-        const data = json.data || json
-        setEmployees(
-          (data.employees || []).map((e: any) => ({
-            _id: e._id || e.id,
-            name: e.name,
-            pin: e.pin,
-          }))
-        )
-      }
+      const data = await getEmployees({ limit: 500 })
+      setEmployees(
+        (data.employees || []).map((e: any) => ({
+          _id: e._id || e.id,
+          name: e.name,
+          pin: e.pin,
+        }))
+      )
     } catch (err) {
       console.error("Failed to fetch employees:", err)
     }
@@ -177,28 +146,20 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
     if (!selectedEmployeeId || !periodStart || !periodEnd || !tenantId) return
     setCreating(true)
     try {
-      const res = await fetch("/api/timesheets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId,
-          employeeId: selectedEmployeeId,
-          payPeriodStart: periodStart,
-          payPeriodEnd: periodEnd,
-        }),
+      await createTimesheet({
+        tenantId,
+        employeeId: selectedEmployeeId,
+        payPeriodStart: periodStart,
+        payPeriodEnd: periodEnd,
       })
-      if (res.ok) {
-        setCreateDialogOpen(false)
-        setSelectedEmployeeId("")
-        setPeriodStart("")
-        setPeriodEnd("")
-        fetchTimesheetApprovals()
-      } else {
-        const err = await res.json()
-        alert(err.data?.error || err.error || "Failed to create timesheet")
-      }
+      setCreateDialogOpen(false)
+      setSelectedEmployeeId("")
+      setPeriodStart("")
+      setPeriodEnd("")
+      fetchTimesheetApprovals()
     } catch (err) {
-      console.error("Failed to create timesheet:", err)
+      const errorMessage = err instanceof Error ? err.message : "Failed to create timesheet"
+      alert(errorMessage)
     } finally {
       setCreating(false)
     }
@@ -211,19 +172,24 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
   ) => {
     setActionLoading(timesheetId)
     try {
-      const res = await fetch(`/api/timesheets/${timesheetId}/${action}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(extraBody || {}),
-      })
-      if (res.ok) {
-        fetchTimesheetApprovals()
-      } else {
-        const err = await res.json()
-        alert(err.data?.error || err.error || `Failed to ${action} timesheet`)
+      switch (action) {
+        case "submit":
+          await submitTimesheet(timesheetId, extraBody)
+          break
+        case "approve":
+          await approveTimesheet(timesheetId, extraBody)
+          break
+        case "reject":
+          await rejectTimesheet(timesheetId, extraBody || {})
+          break
+        case "lock":
+          await lockTimesheet(timesheetId, extraBody || {})
+          break
       }
+      fetchTimesheetApprovals()
     } catch (err) {
-      console.error(`Failed to ${action} timesheet:`, err)
+      const errorMessage = err instanceof Error ? err.message : `Failed to ${action} timesheet`
+      alert(errorMessage)
     } finally {
       setActionLoading(null)
     }

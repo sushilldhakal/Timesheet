@@ -81,9 +81,9 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     }, []);
 
     return (
-        <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b backdrop-blur-sm px-4 lg:px-6">
-            {/* Left section: sidebar toggle + breadcrumbs */}
-            <div className="flex items-center gap-4 flex-1 overflow-hidden">
+        <div className="flex h-16 items-center justify-between w-full px-4 lg:px-6">
+            {/* Left Section: Menu + Breadcrumbs */}
+            <div className="flex items-center gap-4 flex-1 min-w-0">
                 <Button
                     variant="ghost"
                     size="icon"
@@ -104,70 +104,82 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                     <span className="sr-only">Toggle sidebar</span>
                 </Button>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                     <Breadcrumbs />
                 </div>
             </div>
 
+            {/* Center Section: Search */}
+            {isHydrated && user && (
+                <div className="flex items-center justify-center px-2 lg:px-4">
+                    <button
+                        onClick={() => setSearchOpen(true)}
+                        className="relative hidden md:flex h-9 w-48 lg:w-64 items-center gap-2 rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        title="Search (⌘K)"
+                        aria-label="Search (⌘K)"
+                    >
+                        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span className="flex-1 text-left">Search...</span>
+                        <kbd className="pointer-events-none hidden shrink-0 items-center gap-1 rounded border bg-background/80 px-1.5 py-0.5 font-mono text-xs font-medium opacity-70 lg:inline-flex">
+                            ⌘K
+                        </kbd>
+                    </button>
+
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSearchOpen(true)}
+                        className="h-9 w-9 shrink-0 md:hidden"
+                        title="Search (⌘K)"
+                        aria-label="Search (⌘K)"
+                    >
+                        <Search className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Right Section: Actions + Profile */}
             {isHydrated && (
-                <>
+                <div className="flex items-center gap-1 lg:gap-2">
                     {user && (
                         <>
-                            <button
-                                onClick={() => setSearchOpen(true)}
-                                className="relative hidden lg:flex h-8 w-40 max-w-[180px] min-w-0 items-center gap-1.5 rounded-lg border border-input bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                title="Search (⌘K)"
-                                aria-label="Search (⌘K)"
-                            >
-                                <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                                <span className="flex-1 truncate text-left">Search...</span>
-                                <kbd className="pointer-events-none hidden shrink-0 items-center rounded border bg-background/80 px-1 font-mono text-[10px] font-medium opacity-70 lg:inline-flex">
-                                    ⌘K
-                                </kbd>
-                            </button>
-
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setSearchOpen(true)}
-                                className="h-9 w-9 shrink-0 lg:hidden gap-1"
-                                title="Search (⌘K)"
-                                aria-label="Search (⌘K)"
-                            >
-                                <Search className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-
                             <NotificationBell userId={user.id} />
 
-                            <OrgSwitcher
-                                currentTenantId={user?.tenantId}
-                                currentOrgName={user?.tenantName}
-                            />
+                            <div className="hidden sm:block">
+                                <OrgSwitcher
+                                    currentTenantId={user?.tenantId}
+                                    currentOrgName={user?.tenantName}
+                                />
+                            </div>
 
-                            <ModeToggle />
-                            {isMounted && showLayoutToggle && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={toggleLayout}
-                                    className="h-7 w-7 hover:bg-secondary-foreground/10 gap-1"
-                                    title={isFullWidth ? 'Switch to Boxed Layout' : 'Switch to Full Width Layout'}
-                                    aria-label={isFullWidth ? 'Switch to boxed layout' : 'Switch to full width layout'}
-                                >
-                                    {isFullWidth ? (
-                                        <Minimize2 size={16} className="text-secondary-foreground" aria-hidden="true" />
-                                    ) : (
-                                        <Maximize2 size={16} className="text-secondary-foreground" aria-hidden="true" />
-                                    )}
-                                </Button>
-                            )}
+                            <div className="hidden md:flex items-center gap-1">
+                                <ModeToggle />
+                                
+                                {isMounted && showLayoutToggle && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={toggleLayout}
+                                        className="h-9 w-9"
+                                        title={isFullWidth ? 'Switch to Boxed Layout' : 'Switch to Full Width Layout'}
+                                        aria-label={isFullWidth ? 'Switch to boxed layout' : 'Switch to full width layout'}
+                                    >
+                                        {isFullWidth ? (
+                                            <Minimize2 className="h-4 w-4" aria-hidden="true" />
+                                        ) : (
+                                            <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
                         </>
                     )}
+
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarFallback>
+                            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="text-sm">
                                         {user?.name?.charAt(0).toUpperCase() || userEmail?.charAt(0).toUpperCase() || 'U'}
                                     </AvatarFallback>
                                 </Avatar>
@@ -205,7 +217,7 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </>
+                </div>
             )}
 
             <CommandDialog className='max-w-3xl' open={searchOpen} onOpenChange={setSearchOpen}>
@@ -246,6 +258,6 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                     </CommandList>
                 </Command>
             </CommandDialog>
-        </header>
+        </div>
     );
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useLocations } from "@/lib/queries/locations"
 import {
   useDemandForecasts,
   useGenerateForecast,
@@ -204,16 +204,8 @@ export default function DemandForecastPage() {
   const [mounted, setMounted] = useState(false)
 
   // Only fetch locations list for admins (for the selector)
-  const { data: locationsResponse } = useQuery({
-    queryKey: ["locations"],
-    queryFn: async () => {
-      const res = await fetch("/api/locations")
-      if (!res.ok) return { locations: [] }
-      return res.json()
-    },
-    enabled: isAdmin,
-  })
-  const locations = locationsResponse?.locations ?? []
+  const locationsQuery = useLocations({ enabled: isAdmin })
+  const locations = locationsQuery.data?.locations ?? []
 
   useEffect(() => { setMounted(true) }, [])
 

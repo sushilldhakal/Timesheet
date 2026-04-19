@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Plus, Briefcase } from "lucide-react"
 import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
@@ -10,6 +9,7 @@ import { EmployersTable } from "@/components/dashboard/tables/EmployersTable"
 import { AddMasterDataDialog } from "@/components/dashboard/master-data/AddMasterDataDialog"
 import { EditMasterDataDialog } from "@/components/dashboard/master-data/EditMasterDataDialog"
 import { DeleteMasterDataDialog } from "@/components/dashboard/master-data/DeleteMasterDataDialog"
+import { TablePageToolbar, InfoGrid, InfoCard } from "@/components/shared"
 import type { CategoryRow } from "@/components/dashboard/master-data/types"
 
 export default function EmployersPage() {
@@ -50,47 +50,34 @@ export default function EmployersPage() {
 
   return (
     <>
-      <div className="flex flex-col space-y-4 p-4 lg:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Briefcase className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Employers</h1>
-              <p className="text-sm text-muted-foreground">
-                Companies and payroll entities you can assign to staff.
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setAddOpen(true)} size="lg">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Employer
-          </Button>
-        </div>
+      <div className="flex flex-col space-y-6 p-4 lg:p-8">
+        {/* Page Toolbar */}
+        <TablePageToolbar
+          title="Employers"
+          description="Companies and payroll entities you can assign to staff."
+          onAdd={() => setAddOpen(true)}
+          addLabel="Add Employer"
+          onRefresh={refetch}
+          loading={loading}
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total employers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? total : "—"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">With award assigned</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? withAward : "—"}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Metrics Grid */}
+        <InfoGrid columns={2}>
+          <InfoCard title="Total employers">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? total : "—"}
+            </div>
+          </InfoCard>
+          
+          <InfoCard title="With default award">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? withAward : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Have a default award configured
+            </p>
+          </InfoCard>
+        </InfoGrid>
 
         <Card>
           <CardHeader>

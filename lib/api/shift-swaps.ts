@@ -1,4 +1,5 @@
 import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
 
 const BASE_URL = '/api/shift-swaps'
 
@@ -61,29 +62,21 @@ export async function getShiftSwaps(params?: {
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   
   const url = searchParams.toString() ? `${BASE_URL}?${searchParams}` : BASE_URL
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<ApiResponse<ShiftSwap[]>>(url)
 }
 
 // Get a specific shift swap request
 export async function getShiftSwap(id: string): Promise<ApiResponse<ShiftSwap>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<ApiResponse<ShiftSwap>>(`${BASE_URL}/${id}`)
 }
 
 // Create a new shift swap request
 export async function createShiftSwap(data: CreateShiftSwapRequest): Promise<ApiResponse<ShiftSwap>> {
-  const response = await fetch(BASE_URL, {
+  return apiFetch<ApiResponse<ShiftSwap>>(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Respond to a shift swap request (approve/reject)
@@ -91,30 +84,24 @@ export async function respondToShiftSwap(
   id: string, 
   data: RespondToShiftSwapRequest
 ): Promise<ApiResponse<ShiftSwap>> {
-  const response = await fetch(`${BASE_URL}/${id}/respond`, {
+  return apiFetch<ApiResponse<ShiftSwap>>(`${BASE_URL}/${id}/respond`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Cancel a shift swap request
 export async function cancelShiftSwap(id: string): Promise<ApiResponse<ShiftSwap>> {
-  const response = await fetch(`${BASE_URL}/${id}/cancel`, {
+  return apiFetch<ApiResponse<ShiftSwap>>(`${BASE_URL}/${id}/cancel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
   })
-  return response.json()
 }
 
 // Delete a shift swap request
 export async function deleteShiftSwap(id: string): Promise<ApiResponse<void>> {
-  const response = await fetch(`${BASE_URL}/${id}`, {
+  return apiFetch<ApiResponse<void>>(`${BASE_URL}/${id}`, {
     method: 'DELETE',
-    credentials: 'include',
   })
-  return response.json()
 }

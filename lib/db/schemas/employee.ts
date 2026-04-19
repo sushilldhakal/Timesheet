@@ -69,6 +69,10 @@ export interface IEmployee {
   passwordResetToken?: string | null
   passwordResetExpiry?: Date | null
 
+  // Onboarding status
+  onboardingCompleted?: boolean
+  onboardingCompletedAt?: Date | null
+
   // Award and employment
   awardId?: mongoose.Types.ObjectId | null
   awardLevel?: string | null
@@ -154,6 +158,10 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     // Password reset
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpiry: { type: Date, default: null, select: false },
+    
+    // Onboarding status
+    onboardingCompleted: { type: Boolean, default: false },
+    onboardingCompletedAt: { type: Date, default: null },
     // Award and employment
     awardId: { type: mongoose.Schema.Types.ObjectId, ref: "Award", default: null },
     awardLevel: { type: String, default: null },

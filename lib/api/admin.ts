@@ -1,11 +1,12 @@
-import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
+import type { ApiResponse } from '@/lib/utils/api/api-response'
 
 const BASE_URL = '/api/admin'
 
 export interface ActivityLog {
   id: string
   userId: string
-  userName: string
+  email: string
   action: string
   resource: string
   resourceId?: string
@@ -52,6 +53,32 @@ export interface CleanupResult {
   errors: string[]
 }
 
+export interface EventHealthData {
+  unprocessed: number
+  retryExceeded: number
+  total24h: number
+  processed24h: number
+  failureRate: number
+  recentFailures: Array<{
+    _id: string
+    eventId: string
+    eventType: string
+    entityId: string
+    entityType: string
+    actorId?: string
+    payload: Record<string, unknown>
+    failedListeners: string[]
+    retryCount: number
+    occurredAt: string
+    nextRetryAt?: string
+  }>
+}
+
+export interface TriggerRetryResult {
+  retried: number
+  resolved: number
+}
+
 // Get activity logs
 export async function getActivityLogs(params?: {
   userId?: string
@@ -61,7 +88,7 @@ export async function getActivityLogs(params?: {
   endDate?: string
   limit?: number
   offset?: number
-}): Promise<ApiResponse<{ logs: ActivityLog[]; total: number }>> {
+}): Promise<{ logs: ActivityLog[]; total: number }> {
   const searchParams = new URLSearchParams()
   if (params?.userId) searchParams.set('userId', params.userId)
   if (params?.action) searchParams.set('action', params.action)
@@ -70,86 +97,64 @@ export async function getActivityLogs(params?: {
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.limit) searchParams.set('limit', params.limit.toString())
   if (params?.offset) searchParams.set('offset', params.offset.toString())
-  
-  const url = searchParams.toString() ? `${BASE_URL}/activity-logs?${searchParams}` : `${BASE_URL}/activity-logs`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<{ logs: ActivityLog[]; total: number }>(`${BASE_URL}/activity-logs${qs ? `?${qs}` : ''}`)
 }
 
 // Get storage statistics
-export async function getStorageStats(): Promise<ApiResponse<StorageStats>> {
-  const response = await fetch(`${BASE_URL}/storage-stats`, {
-    credentials: 'include',
-  })
-  return response.json()
+export async function getStorageStats(): Promise<StorageStats> {
+  return apiFetch<StorageStats>(`${BASE_URL}/storage-stats`)
 }
 
 // Get storage settings
-export async function getStorageSettings(): Promise<ApiResponse<StorageSettings>> {
-  const response = await fetch(`${BASE_URL}/storage-settings`, {
-    credentials: 'include',
-  })
-  return response.json()
+export async function getStorageSettings(): Promise<StorageSettings> {
+  return apiFetch<StorageSettings>(`${BASE_URL}/storage-settings`)
 }
 
 // Update storage settings
-export async function updateStorageSettings(data: Partial<StorageSettings>): Promise<ApiResponse<StorageSettings>> {
-  const response = await fetch(`${BASE_URL}/storage-settings`, {
+export async function updateStorageSettings(data: Partial<StorageSettings>): Promise<StorageSettings> {
+  return apiFetch<StorageSettings>(`${BASE_URL}/storage-settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Get mail settings
-export async function getMailSettings(): Promise<ApiResponse<MailSettings>> {
-  const response = await fetch(`${BASE_URL}/mail-settings`, {
-    credentials: 'include',
-  })
-  return response.json()
+export async function getMailSettings(): Promise<MailSettings> {
+  return apiFetch<MailSettings>(`${BASE_URL}/mail-settings`)
 }
 
 // Update mail settings
-export async function updateMailSettings(data: Partial<MailSettings>): Promise<ApiResponse<MailSettings>> {
-  const response = await fetch(`${BASE_URL}/mail-settings`, {
+export async function updateMailSettings(data: Partial<MailSettings>): Promise<MailSettings> {
+  return apiFetch<MailSettings>(`${BASE_URL}/mail-settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Test mail settings
-export async function testMailSettings(testEmail: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
-  const response = await fetch(`${BASE_URL}/mail-settings/test`, {
+export async function testMailSettings(testEmail: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`${BASE_URL}/mail-settings/test`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ testEmail }),
   })
-  return response.json()
 }
 
 // Run cleanup
 export async function runCleanup(params?: {
   olderThanDays?: number
   dryRun?: boolean
-}): Promise<ApiResponse<CleanupResult>> {
+}): Promise<CleanupResult> {
   const searchParams = new URLSearchParams()
   if (params?.olderThanDays) searchParams.set('olderThanDays', params.olderThanDays.toString())
   if (params?.dryRun) searchParams.set('dryRun', 'true')
-  
-  const url = searchParams.toString() ? `${BASE_URL}/cleanup?${searchParams}` : `${BASE_URL}/cleanup`
-  const response = await fetch(url, {
+  const qs = searchParams.toString()
+  return apiFetch<CleanupResult>(`${BASE_URL}/cleanup${qs ? `?${qs}` : ''}`, {
     method: 'POST',
-    credentials: 'include',
   })
-  return response.json()
 }
 
 // Create test data
@@ -157,12 +162,60 @@ export async function createTestData(params?: {
   employeeCount?: number
   locationCount?: number
   shiftCount?: number
-}): Promise<ApiResponse<{ message: string; created: Record<string, number> }>> {
-  const response = await fetch(`${BASE_URL}/create-test-data`, {
+}): Promise<{ message: string; created: Record<string, number> }> {
+  return apiFetch<{ message: string; created: Record<string, number> }>(`${BASE_URL}/create-test-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(params || {}),
   })
-  return response.json()
+}
+
+// Get event health data
+export async function getEventHealth(): Promise<EventHealthData> {
+  return apiFetch<EventHealthData>(`${BASE_URL}/event-health`)
+}
+
+// Trigger event retry sweep
+export async function triggerRetry(): Promise<TriggerRetryResult> {
+  return apiFetch<TriggerRetryResult>(`${BASE_URL}/trigger-retry`, {
+    method: 'POST',
+  })
+}
+
+// API Keys management
+export interface ApiKeyRecord {
+  _id: string
+  name: string
+  keyPrefix: string
+  scopes: string[]
+  isActive: boolean
+  createdAt: string
+  lastUsedAt?: string
+  expiresAt?: string
+  rateLimit: number
+}
+
+// Get API keys
+export async function getApiKeys(): Promise<{ keys: ApiKeyRecord[] }> {
+  return apiFetch<{ keys: ApiKeyRecord[] }>(`${BASE_URL}/api-keys`)
+}
+
+// Create API key
+export async function createApiKey(params: {
+  name: string
+  scopes: string[]
+  expiresAt?: string
+}): Promise<{ key: string; record: ApiKeyRecord }> {
+  return apiFetch<{ key: string; record: ApiKeyRecord }>(`${BASE_URL}/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+}
+
+// Revoke API key
+export async function revokeApiKey(keyId: string): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`${BASE_URL}/api-keys/${keyId}`, {
+    method: 'DELETE',
+  })
 }

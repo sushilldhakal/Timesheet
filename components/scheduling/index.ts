@@ -73,14 +73,14 @@ export { formatInTimezone, formatTimeInTimezone } from './core/timezone'
 export { exportToCSV, exportToImage, exportToPDF, exportToICS } from './core/export'
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
-export { useFlatRows, buildFlatRowTops, employeesForCategory } from './hooks/useFlatRows'
-export { useLongPress } from './hooks/useLongPress'
-export type { LongPressOptions } from './hooks/useLongPress'
-export { useMediaQuery, useIsMobile, useIsTablet, useIsDesktop } from './hooks/useMediaQuery'
-export { useAuditTrail } from './hooks/useAuditTrail'
-export type { AuditEntry, AuditAction, UseAuditTrailReturn } from './hooks/useAuditTrail'
-export { useDragEngine } from './hooks/useDragEngine'
-export { useScrollToNow } from './hooks/useScrollToNow'
+export { useFlatRows, buildFlatRowTops, employeesForCategory } from '../../lib/hooks/use-flat-rows'
+export { useLongPress } from '../../lib/hooks/use-long-press'
+export type { LongPressOptions } from '../../lib/hooks/use-long-press'
+export { useMediaQuery, useIsMobile, useIsTablet, useIsDesktop } from '../../lib/hooks/use-media-query'
+export { useAuditTrail } from '../../lib/hooks/use-audit-trail'
+export type { AuditEntry, AuditAction, UseAuditTrailReturn } from '../../lib/hooks/use-audit-trail'
+export { useDragEngine } from '../../lib/hooks/use-drag-engine'
+export { useScrollToNow } from '../../lib/hooks/use-scroll-to-now'
 
 // ─── Grid Engine ──────────────────────────────────────────────────────────────
 export { GridView } from './grid/GridView'

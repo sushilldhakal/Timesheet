@@ -305,3 +305,15 @@ export type PayRule = z.infer<typeof payRuleSchema>;
 export type PenaltyRule = z.infer<typeof penaltyRuleSchema>;
 export type LeaveEntitlement = z.infer<typeof leaveEntitlementSchema>;
 export type TOILConfig = z.infer<typeof toilConfigSchema>;
+
+// ─── Form Schemas (for dialog components) ─────────────────
+export const employmentTypeFormSchema = z.object({
+  employmentType: z.string().min(1, "Employment type is required"),
+});
+
+export const levelFormSchema = z.object({
+  label: z.string().min(1, "Level label is required"),
+});
+
+export type EmploymentTypeFormData = z.infer<typeof employmentTypeFormSchema>;
+export type LevelFormData = z.infer<typeof levelFormSchema>;

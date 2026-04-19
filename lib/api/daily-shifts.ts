@@ -63,3 +63,50 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
 
   return apiFetch<TimesheetResponse>(`${BASE_URL}?${params.toString()}`)
 }
+
+// Update a daily shift
+export async function updateDailyShift(id: string, data: Partial<TimesheetRow> & { roleId?: string }): Promise<{ success: boolean; shift: TimesheetRow }> {
+  return apiFetch<{ success: boolean; shift: TimesheetRow }>(`/api/daily-shifts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// Bulk approve shifts
+export async function bulkApproveShifts(ids: string[]): Promise<{ success: boolean; approvedCount: number }> {
+  return apiFetch<{ success: boolean; approvedCount: number }>('/api/daily-shifts/bulk-approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+}
+
+// Bulk reject shifts
+export async function bulkRejectShifts(ids: string[], reason: string): Promise<{ success: boolean; rejectedCount: number }> {
+  return apiFetch<{ success: boolean; rejectedCount: number }>('/api/daily-shifts/bulk-reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, reason }),
+  })
+}
+
+// Get shifts for approval
+export async function getShiftsForApproval(params?: {
+  startDate?: string
+  endDate?: string
+  locationId?: string
+  status?: string
+  limit?: number
+  offset?: number
+}): Promise<{ shifts: TimesheetRow[]; total: number }> {
+  const searchParams = new URLSearchParams()
+  if (params?.startDate) searchParams.set('startDate', params.startDate)
+  if (params?.endDate) searchParams.set('endDate', params.endDate)
+  if (params?.locationId) searchParams.set('locationId', params.locationId)
+  if (params?.status) searchParams.set('status', params.status)
+  if (params?.limit) searchParams.set('limit', params.limit.toString())
+  if (params?.offset) searchParams.set('offset', params.offset.toString())
+  const qs = searchParams.toString()
+  return apiFetch<{ shifts: TimesheetRow[]; total: number }>(`/api/daily-shifts/approval${qs ? `?${qs}` : ''}`)
+}

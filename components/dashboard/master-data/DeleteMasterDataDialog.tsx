@@ -1,16 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialogShell } from "@/components/shared/forms"
 import { useDeleteLocation } from "@/lib/queries/locations"
 import { useDeleteTeam } from "@/lib/queries/teams"
 import { useDeleteEmployer } from "@/lib/queries/employers"
@@ -67,30 +58,21 @@ export function DeleteMasterDataDialog({
     deleteEmployerMutation.isPending
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {typeLabel}</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to delete <strong>{category.name}</strong>?
-            This may affect employees assigned to this {typeLabel.toLowerCase()}.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {error && <p className="text-destructive text-sm">{error}</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(e) => {
-              e.preventDefault()
-              handleDelete()
-            }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            disabled={loading}
-          >
-            {loading ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Delete ${typeLabel}`}
+      description={
+        <>
+          Are you sure you want to delete <strong>{category.name}</strong>?
+          This may affect employees assigned to this {typeLabel.toLowerCase()}.
+        </>
+      }
+      onConfirm={handleDelete}
+      confirmLabel={loading ? "Deleting..." : "Delete"}
+      loading={loading}
+      error={error}
+      variant="destructive"
+    />
   )
 }

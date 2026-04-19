@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,8 +9,10 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, X, Save, DollarSign, Loader2 } from "lucide-react"
+import { Plus, X, DollarSign } from "lucide-react"
 import { Award, AwardRule, AwardTag, AwardLevelRate } from "@/lib/validations/awards"
+import { createAward } from "@/lib/api/awards"
+import { FormDialogShell } from "@/components/shared/forms"
 
 interface CreateAwardDialogProps {
   open: boolean
@@ -59,11 +60,11 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
     setError(null)
   }, [])
 
-  const handleSave = async () => {
-    if (!formData.name) return
+  const handleSubmit = async () => {
+    if (!formData.name) throw new Error("Award name is required")
     
     const award: Award = {
-      name: formData.name,
+      name: formData.name!,
       description: formData.description || "",
       levelRates: formData.levelRates || [],
       rules: formData.rules || [],
@@ -74,30 +75,24 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
 
     if (onSave) {
       onSave(award)
-      onOpenChange(false)
       resetForm()
       return
     }
 
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/awards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(award),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to create award")
-      }
-      onOpenChange(false)
-      resetForm()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
+    // Convert dates to strings for API
+    const apiPayload = {
+      ...award,
+      levelRates: award.levelRates.map(lr => ({
+        level: lr.level,
+        employmentType: lr.employmentType,
+        hourlyRate: lr.hourlyRate,
+        effectiveFrom: lr.effectiveFrom instanceof Date ? lr.effectiveFrom.toISOString() : lr.effectiveFrom,
+        effectiveTo: lr.effectiveTo instanceof Date ? lr.effectiveTo.toISOString() : lr.effectiveTo,
+      })),
     }
+
+    await createAward(apiPayload as any)
+    resetForm()
   }
 
   const addLevelRate = () => {
@@ -159,14 +154,16 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Award</DialogTitle>
-          <DialogDescription>
-            Create a new award with rules, tags, and penalty rates
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create New Award"
+      description="Create a new award with rules, tags, and penalty rates"
+      onSubmit={handleSubmit}
+      submitLabel="Create Award"
+      size="xl"
+      disabled={!formData.name}
+    >
 
         <div className="space-y-6">
           {/* Basic Information */}
@@ -426,25 +423,7 @@ export function CreateAwardDialog({ open, onOpenChange, onSave }: CreateAwardDia
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          {error && (
-            <div className="text-sm text-destructive mr-auto">{error}</div>
-          )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={!formData.name || saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            {saving ? "Creating..." : "Create Award"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </FormDialogShell>
   )
 }

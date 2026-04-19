@@ -31,6 +31,8 @@ import {
   Trash2,
   Copy,
 } from "lucide-react"
+import { useAwards, useDeleteAward, useCreateAward } from "@/lib/queries/awards"
+import { toast } from "sonner"
 import { CreateAwardDialog } from "@/components/awards/create-award-dialog"
 import { EditAwardDialog } from "@/components/awards/edit-award-dialog"
 import { TestAwardDialog } from "@/components/awards/test-award-dialog"
@@ -66,8 +68,13 @@ export default function AwardsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [testDialogOpen, setTestDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
-  const [awards, setAwards] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+
+  const awardsQuery = useAwards()
+  const deleteAwardMutation = useDeleteAward()
+  const createAwardMutation = useCreateAward()
+
+  const awards = awardsQuery.data?.awards ?? []
+  const loading = awardsQuery.isLoading
 
   // ─── Hash-based navigation ──────────────────────────
   useEffect(() => {
@@ -88,26 +95,6 @@ export default function AwardsPage() {
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
-
-  // ─── Fetch awards ──────────────────────────────────
-  useEffect(() => {
-    fetchAwards()
-  }, [])
-
-  const fetchAwards = async () => {
-    try {
-      setLoading(true)
-      const res = await fetch("/api/awards")
-      if (!res.ok) throw new Error("Failed to fetch awards")
-      const data = await res.json()
-      setAwards(data.awards || [])
-    } catch (err) {
-      console.error("Error fetching awards:", err)
-      setAwards([])
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filteredAwards = awards.filter(award =>
     award.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,44 +125,30 @@ export default function AwardsPage() {
     }
   }
 
-  const handleDelete = async (award: any) => {
+  const handleDelete = (award: any) => {
     if (!confirm(`Delete "${award.name}"? This cannot be undone.`)) return
-    try {
-      const res = await fetch(`/api/awards/${award._id}`, { method: "DELETE" })
-      if (!res.ok) {
-        const data = await res.json()
-        alert(data.error || "Failed to delete award")
-        return
-      }
-      fetchAwards()
-    } catch {
-      alert("Failed to delete award")
-    }
+    deleteAwardMutation.mutate(award._id, {
+      onError: (error: any) => {
+        toast.error(error?.error || error?.message || "Failed to delete award")
+      },
+    })
   }
 
-  const handleDuplicate = async (award: any) => {
-    try {
-      const { _id, createdAt, updatedAt, ...awardData } = award
-      const res = await fetch("/api/awards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...awardData, name: `${award.name} (Copy)` }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        alert(data.error || "Failed to duplicate award")
-        return
+  const handleDuplicate = (award: any) => {
+    const { _id, createdAt, updatedAt, ...awardData } = award
+    createAwardMutation.mutate(
+      { ...awardData, name: `${award.name} (Copy)` },
+      {
+        onError: (error: any) => {
+          toast.error(error?.error || error?.message || "Failed to duplicate award")
+        },
       }
-      fetchAwards()
-    } catch {
-      alert("Failed to duplicate award")
-    }
+    )
   }
 
   const handleCreateClose = (open: boolean) => {
     if (!open) {
       setCreateDialogOpen(false)
-      fetchAwards()
     }
   }
 
@@ -183,7 +156,6 @@ export default function AwardsPage() {
     if (!open) {
       setEditDialogOpen(false)
       setSelectedAward(null)
-      fetchAwards()
     }
   }
 
@@ -280,7 +252,7 @@ export default function AwardsPage() {
                     <div className="flex items-center justify-center text-muted-foreground">
                       <Scale className="h-3.5 w-3.5" />
                     </div>
-                    <p className="mt-1 text-lg font-semibold">{award.rules?.length || 0}</p>
+                    <p className="mt-1 text-lg font-semibold">{(award as any).rules?.length || 0}</p>
                     <p className="text-xs text-muted-foreground">Rules</p>
                   </div>
                   <div>
@@ -294,7 +266,7 @@ export default function AwardsPage() {
                     <div className="flex items-center justify-center text-muted-foreground">
                       <Tag className="h-3.5 w-3.5" />
                     </div>
-                    <p className="mt-1 text-lg font-semibold">{award.availableTags?.length || 0}</p>
+                    <p className="mt-1 text-lg font-semibold">{(award as any).availableTags?.length || 0}</p>
                     <p className="text-xs text-muted-foreground">Tags</p>
                   </div>
                 </div>
@@ -302,7 +274,7 @@ export default function AwardsPage() {
                 <Separator className="my-3" />
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>v{award.version || "1.0.0"}</span>
+                  <span>v{(award as any).version || "1.0.0"}</span>
                   {award.updatedAt && (
                     <span>Updated {new Date(award.updatedAt).toLocaleDateString()}</span>
                   )}

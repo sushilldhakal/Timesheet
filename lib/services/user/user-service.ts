@@ -25,7 +25,7 @@ export class UserService {
           : [];
       query = { ...query, role: 'supervisor', location: { $in: authLocations } };
     } else {
-      return { users: [] };
+      return { data: { users: [] } };
     }
 
     const users = await UsersDbQueries.listUsersLean(query);
@@ -40,7 +40,7 @@ export class UserService {
       teamIds: Array.isArray(u.teamIds) ? u.teamIds.map((x: unknown) => String(x)) : [],
       createdAt: u.createdAt,
     }));
-    return { users: normalized };
+    return { data: { users: normalized } };
   }
 
   async createUser(args: { ctx: any; body: any }) {
@@ -97,18 +97,20 @@ export class UserService {
     });
 
     return {
-      user: {
-        id: (user as any)._id.toString(),
-        name: (user as any).name,
-        email: (user as any).email,
-        role: (user as any).role,
-        location: (user as any).location ?? [],
-        rights: (user as any).rights ?? [],
-        managedRoles: (user as any).managedRoles ?? [],
-        teamIds: Array.isArray((user as any).teamIds) ? (user as any).teamIds.map((x: unknown) => String(x)) : [],
-        createdBy: (user as any).createdBy,
-        createdAt: (user as any).createdAt,
-      },
+      data: {
+        user: {
+          id: (user as any)._id.toString(),
+          name: (user as any).name,
+          email: (user as any).email,
+          role: (user as any).role,
+          location: (user as any).location ?? [],
+          rights: (user as any).rights ?? [],
+          managedRoles: (user as any).managedRoles ?? [],
+          teamIds: Array.isArray((user as any).teamIds) ? (user as any).teamIds.map((x: unknown) => String(x)) : [],
+          createdBy: (user as any).createdBy,
+          createdAt: (user as any).createdAt,
+        },
+      }
     };
   }
 
@@ -125,17 +127,19 @@ export class UserService {
 
     const location = Array.isArray((user as any).location) ? (user as any).location : (user as any).location ? [String((user as any).location)] : [];
     return {
-      user: {
-        id: (user as any)._id,
-        name: (user as any).name ?? '',
-        email: (user as any).email ?? '',
-        role: (user as any).role,
-        location,
-        rights: (user as any).rights ?? [],
-        managedRoles: (user as any).managedRoles ?? [],
-        teamIds: Array.isArray((user as any).teamIds) ? (user as any).teamIds.map((x: unknown) => String(x)) : [],
-        createdAt: (user as any).createdAt,
-      },
+      data: {
+        user: {
+          id: (user as any)._id,
+          name: (user as any).name ?? '',
+          email: (user as any).email ?? '',
+          role: (user as any).role,
+          location,
+          rights: (user as any).rights ?? [],
+          managedRoles: (user as any).managedRoles ?? [],
+          teamIds: Array.isArray((user as any).teamIds) ? (user as any).teamIds.map((x: unknown) => String(x)) : [],
+          createdAt: (user as any).createdAt,
+        },
+      }
     };
   }
 
@@ -174,16 +178,18 @@ export class UserService {
       const loc = (u as any)?.location;
       const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : [];
       return {
-        user: {
-          id: (u as any)?._id,
-          name: (u as any)?.name ?? '',
-          email: (u as any)?.email ?? '',
-          role: (u as any)?.role,
-          location: locArr,
-          rights: (u as any)?.rights ?? [],
-          managedRoles: (u as any)?.managedRoles ?? [],
-          teamIds: Array.isArray((u as any)?.teamIds) ? (u as any).teamIds.map((x: unknown) => String(x)) : [],
-        },
+        data: {
+          user: {
+            id: (u as any)?._id,
+            name: (u as any)?.name ?? '',
+            email: (u as any)?.email ?? '',
+            role: (u as any)?.role,
+            location: locArr,
+            rights: (u as any)?.rights ?? [],
+            managedRoles: (u as any)?.managedRoles ?? [],
+            teamIds: Array.isArray((u as any)?.teamIds) ? (u as any).teamIds.map((x: unknown) => String(x)) : [],
+          },
+        }
       };
     }
 
@@ -202,14 +208,16 @@ export class UserService {
     const loc = (u as any)?.location;
     const locArr = Array.isArray(loc) ? loc : loc ? [String(loc)] : [];
     return {
-      user: {
-        id: (u as any)?._id,
-        name: (u as any)?.name ?? '',
-        email: (u as any)?.email ?? '',
-        role: (u as any)?.role,
-        location: locArr,
-        rights: (u as any)?.rights ?? [],
-      },
+      data: {
+        user: {
+          id: (u as any)?._id,
+          name: (u as any)?.name ?? '',
+          email: (u as any)?.email ?? '',
+          role: (u as any)?.role,
+          location: locArr,
+          rights: (u as any)?.rights ?? [],
+        },
+      }
     };
   }
 
@@ -226,7 +234,7 @@ export class UserService {
     if ((target as any).role === 'super_admin' && !isSuperAdmin(auth.role)) throw apiErrors.forbidden('Forbidden');
 
     await UsersDbQueries.deleteUserById(id);
-    return { success: true };
+    return { data: { success: true } };
   }
 }
 

@@ -15,6 +15,7 @@ export const dashboardKeys = {
   roleStats: (params?: { startDate?: string; endDate?: string }) => 
     [...dashboardKeys.all, 'role-stats', params] as const,
   userStats: () => [...dashboardKeys.all, 'user-stats'] as const,
+  notificationCount: () => [...dashboardKeys.all, 'notification-count'] as const,
 }
 
 // Get dashboard stats
@@ -83,6 +84,16 @@ export function useUserStats() {
     queryKey: dashboardKeys.userStats(),
     queryFn: dashboardApi.getUserStats,
     staleTime: 10 * 60 * 1000, // 10 minutes
+  })
+}
+
+// Get notification count
+export function useNotificationCount() {
+  return useQuery({
+    queryKey: dashboardKeys.notificationCount(),
+    queryFn: dashboardApi.getNotificationCount,
+    staleTime: 1 * 60 * 1000, // 1 minute
+    refetchInterval: 2 * 60 * 1000, // Refetch every 2 minutes
   })
 }
 

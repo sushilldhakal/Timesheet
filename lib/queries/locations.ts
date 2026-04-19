@@ -8,13 +8,15 @@ export const locationKeys = {
   teams: (locationId: string) => [...locationKeys.all, locationId, 'teams'] as const,
 }
 
-type UseLocationsOpts = { listMode?: boolean }
+type UseLocationsOpts = { listMode?: boolean; enabled?: boolean }
 
 export function useLocations(opts?: UseLocationsOpts) {
   const listMode = opts?.listMode === true
+  const enabled = opts?.enabled !== undefined ? opts.enabled : true
   return useQuery({
     queryKey: locationKeys.all,
     queryFn: () => locationsApi.getAll(),
+    enabled,
     staleTime: listMode ? 0 : 5 * 60 * 1000,
     refetchOnMount: listMode ? 'always' : true,
   })

@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, User, DollarSign, Award, Shield, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEmployeeProfile, useChangeEmployeePassword } from '@/lib/queries/employee-clock'
-import { getEmployeeTaxInfo, getEmployeeBankDetails, getEmployeeQualifications, getEmployeeCompliance } from '@/lib/api/employees'
+import { useEmployeeTaxInfo, useEmployeeBankDetails, useEmployeeQualifications, useEmployeeCompliance } from '@/lib/queries/employees'
 import { EmployeeInfoSidebarCard } from '@/components/employees/employee-info-sidebar-card'
 import { ChangePasswordCard } from '@/components/profile/change-password-card'
 import { StaffOverviewTab } from '@/components/staff/profile-tabs/staff-overview-tab'
@@ -27,26 +26,10 @@ export default function StaffProfilePage() {
   const employeeId = employeeProfileQuery.data?.data?.employee?.id || ''
 
   // Prefetch all tab data in parallel so tabs render instantly when clicked
-  useQuery({
-    queryKey: ['employeeTaxInfo', employeeId],
-    queryFn: () => getEmployeeTaxInfo(employeeId),
-    enabled: !!employeeId,
-  })
-  useQuery({
-    queryKey: ['employeeBankDetails', employeeId],
-    queryFn: () => getEmployeeBankDetails(employeeId),
-    enabled: !!employeeId,
-  })
-  useQuery({
-    queryKey: ['employeeQualifications', employeeId],
-    queryFn: () => getEmployeeQualifications(employeeId),
-    enabled: !!employeeId,
-  })
-  useQuery({
-    queryKey: ['employeeCompliance', employeeId],
-    queryFn: () => getEmployeeCompliance(employeeId),
-    enabled: !!employeeId,
-  })
+  useEmployeeTaxInfo(employeeId)
+  useEmployeeBankDetails(employeeId)
+  useEmployeeQualifications(employeeId)
+  useEmployeeCompliance(employeeId)
 
   useEffect(() => {
     if (employeeProfileQuery.isError) {

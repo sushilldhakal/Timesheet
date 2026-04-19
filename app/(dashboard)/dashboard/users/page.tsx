@@ -5,29 +5,21 @@ import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdmin, isManager, UserRole } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserPlus } from "lucide-react"
+import { Plus, Users, UserCheck, UserX } from "lucide-react"
+import { ResourcePageShell } from "@/components/shared/primitives/ResourcePageShell"
+import { ContentState } from "@/components/shared/primitives/ContentState"
 import { UsersTable } from "./UsersTable"
 import { AddUserDialog } from "./AddUserDialog"
 import { EditUserDialog } from "./EditUserDialog"
 import { DeleteUserDialog } from "./DeleteUserDialog"
 import { useUsers } from "@/lib/queries/users"
-
-export type UserRow = {
-  id: string
-  name: string
-  email: string
-  role: "admin" | "manager" | "supervisor" | "accounts" | "user" | "super_admin" | "employee"
-  location: string[]
-  rights: string[]
-  managedRoles?: string[]
-  createdAt?: string
-}
+import type { User } from "@/lib/types/user"
 
 export default function UsersPage() {
   const { user, isHydrated } = useAuth()
   const [addOpen, setAddOpen] = useState(false)
-  const [editUser, setEditUser] = useState<UserRow | null>(null)
-  const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
+  const [editUser, setEditUser] = useState<User | null>(null)
+  const [deleteUser, setDeleteUser] = useState<User | null>(null)
 
   const userIsAdmin = isAdmin(user?.role ?? null)
   const userIsManager = isManager(user?.role ?? null)
@@ -36,12 +28,43 @@ export default function UsersPage() {
   // TanStack Query hooks
   const usersQuery = useUsers()
 
-  const allUsers = usersQuery.data?.users || []
+  const allUsers = usersQuery.data || []
   const loading = usersQuery.isLoading
+  const error = usersQuery.error
 
   const allUsersFiltered = useMemo(() => {
     return allUsers.filter(u => u.role !== UserRole.SUPER_ADMIN)
   }, [allUsers])
+
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const adminUsers = allUsersFiltered.filter(u => u.role === UserRole.ADMIN).length
+    const managerUsers = allUsersFiltered.filter(u => u.role === UserRole.MANAGER).length
+    const supervisorUsers = allUsersFiltered.filter(u => u.role === UserRole.SUPERVISOR).length
+    
+    return [
+      {
+        label: "Total Users",
+        value: allUsersFiltered.length,
+        icon: <Users className="h-4 w-4" />
+      },
+      {
+        label: "Administrators",
+        value: adminUsers,
+        icon: <UserCheck className="h-4 w-4" />
+      },
+      {
+        label: "Managers", 
+        value: managerUsers,
+        icon: <Users className="h-4 w-4" />
+      },
+      {
+        label: "Supervisors",
+        value: supervisorUsers,
+        icon: <UserX className="h-4 w-4" />
+      }
+    ]
+  }, [allUsersFiltered])
 
   const fetchUsers = () => {
     usersQuery.refetch()
@@ -49,9 +72,7 @@ export default function UsersPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
+      <ContentState state="loading" loadingText="Loading user management..." />
     )
   }
 
@@ -68,43 +89,51 @@ export default function UsersPage() {
     )
   }
 
+  const contentState = loading ? 'loading' : error ? 'error' : allUsersFiltered.length === 0 ? 'empty' : 'ready'
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">User Management</h1>
-          <p className="text-muted-foreground mt-1">Manage all system users and their permissions.</p>
-        </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
-      </div>
+    <>
+      <ResourcePageShell
+        title="User Management"
+        description="Manage all system users and their permissions."
+        actions={
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+        }
+        metrics={metrics}
+      >
+        <ContentState
+          state={contentState}
+          emptyTitle="No users found"
+          emptyDescription="Get started by adding your first user to the system."
+          emptyAction={
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          }
+          errorTitle="Failed to load users"
+          errorDescription="There was an error loading the user list. Please try again."
+          errorAction={
+            <Button onClick={fetchUsers} variant="outline">
+              Try Again
+            </Button>
+          }
+          loadingText="Loading users..."
+        >
+          <UsersTable
+            users={allUsersFiltered}
+            currentUserId={user?.id}
+            onEdit={setEditUser}
+            onDelete={setDeleteUser}
+            onRefresh={fetchUsers}
+          />
+        </ContentState>
+      </ResourcePageShell>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            {userIsAdmin
-              ? "Complete list of all system users across all roles and departments."
-              : "Supervisors under your managed locations."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-muted-foreground py-8 text-center">Loading users...</p>
-          ) : (
-            <UsersTable
-              users={allUsersFiltered}
-              currentUserId={user?.id}
-              onEdit={setEditUser}
-              onDelete={setDeleteUser}
-              onRefresh={fetchUsers}
-            />
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Dialogs */}
       <AddUserDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -140,6 +169,6 @@ export default function UsersPage() {
           }}
         />
       )}
-    </div>
+    </>
   )
 }

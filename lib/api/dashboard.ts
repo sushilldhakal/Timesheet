@@ -1,3 +1,5 @@
+import { apiFetch } from './fetch-client'
+
 const BASE_URL = '/api/dashboard'
 
 export interface DashboardStats {
@@ -84,7 +86,6 @@ export interface RoleStats {
 
 export interface UserStats {
   userId: string
-  userName: string
   email: string
   role: string
   lastLogin: string | null
@@ -96,15 +97,11 @@ export interface UserStats {
 // Get dashboard stats
 export async function getDashboardStats(params?: {
   timelineDate?: string
-}) {
+}): Promise<DashboardStats> {
   const searchParams = new URLSearchParams()
   if (params?.timelineDate) searchParams.set('timelineDate', params.timelineDate)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/stats?${searchParams}` : `${BASE_URL}/stats`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<DashboardStats>(`${BASE_URL}/stats${qs ? `?${qs}` : ''}`)
 }
 
 // Get hours summary
@@ -112,71 +109,57 @@ export async function getHoursSummary(params?: {
   startDate?: string
   endDate?: string
   locationId?: string
-}) {
+}): Promise<HoursSummary> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/hours-summary?${searchParams}` : `${BASE_URL}/hours-summary`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<HoursSummary>(`${BASE_URL}/hours-summary${qs ? `?${qs}` : ''}`)
 }
 
 // Get inactive employees
 export async function getInactiveEmployees(params?: {
   days?: number
   locationId?: string
-}) {
+}): Promise<InactiveEmployee[]> {
   const searchParams = new URLSearchParams()
   if (params?.days) searchParams.set('days', params.days.toString())
   if (params?.locationId) searchParams.set('locationId', params.locationId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/inactive-employees?${searchParams}` : `${BASE_URL}/inactive-employees`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<InactiveEmployee[]>(`${BASE_URL}/inactive-employees${qs ? `?${qs}` : ''}`)
 }
 
 // Get location stats
 export async function getLocationStats(params?: {
   startDate?: string
   endDate?: string
-}) {
+}): Promise<LocationStats[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/location?${searchParams}` : `${BASE_URL}/location`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<LocationStats[]>(`${BASE_URL}/location${qs ? `?${qs}` : ''}`)
 }
 
 // Get role stats
 export async function getRoleStats(params?: {
   startDate?: string
   endDate?: string
-}) {
+}): Promise<RoleStats[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/role?${searchParams}` : `${BASE_URL}/role`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<RoleStats[]>(`${BASE_URL}/role${qs ? `?${qs}` : ''}`)
 }
 
 // Get user stats
-export async function getUserStats() {
-  const response = await fetch(`${BASE_URL}/user`, {
-    credentials: 'include',
-  })
-  return response.json()
+export async function getUserStats(): Promise<UserStats[]> {
+  return apiFetch<UserStats[]>(`${BASE_URL}/user`)
+}
+
+// Get notification count
+export async function getNotificationCount(): Promise<{ count: number; unread: number }> {
+  return apiFetch<{ count: number; unread: number }>('/api/notifications/count')
 }

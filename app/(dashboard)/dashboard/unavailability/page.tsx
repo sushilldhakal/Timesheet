@@ -1,8 +1,10 @@
 "use client"
 
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
+import { isAdminOrSuperAdmin, isManager, isSupervisor } from "@/lib/config/roles"
 import { useEmployees } from "@/lib/queries/employees"
+import { getBulkEmployeeAvailability, deleteEmployeeAvailability } from "@/lib/api/availability"
+import { AvailabilityConstraintLike } from "@/lib/types/unavailability"
 import {
   format,
   endOfMonth,
@@ -29,22 +31,6 @@ import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { AlignJustify, Columns, LayoutGrid, RefreshCw, Search } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
-
-type AvailabilityConstraintLike = {
-  _id?: string
-  id?: string
-  employeeId?: string
-  unavailableDays?: number[]
-  unavailableTimeRanges?: Array<{ start: string; end: string }>
-  preferredShiftTypes?: string[]
-  maxConsecutiveDays?: number | null
-  minRestHours?: number | null
-  temporaryStartDate?: string | null
-  temporaryEndDate?: string | null
-  reason?: string
-  createdAt?: string
-  updatedAt?: string
-}
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
 
@@ -81,7 +67,8 @@ function constraintKey(c: AvailabilityConstraintLike): string {
 
 export default function UnavailabilityPage() {
   const { userRole, isHydrated } = useAuth()
-  const isAdmin = isHydrated && isAdminOrSuperAdmin(userRole)
+  const isAdmin = isAdminOrSuperAdmin(userRole)
+  const canManageUnavailability = isHydrated && (isAdminOrSuperAdmin(userRole) || isManager(userRole) || isSupervisor(userRole))
 
   const employeesQuery = useEmployees(500)
   const employees = employeesQuery.data?.employees ?? []
@@ -145,7 +132,7 @@ export default function UnavailabilityPage() {
   }, [employees])
 
   useEffect(() => {
-    if (!isHydrated || !isAdmin) return
+    if (!isHydrated || !canManageUnavailability) return
     if (!employeeIdsToQuery.length) {
       setConstraints([])
       setSelectedConstraintId(null)
@@ -162,21 +149,14 @@ export default function UnavailabilityPage() {
         for (let i = 0; i < employeeIdsToQuery.length; i += FETCH_CHUNK) {
           if (controller.signal.aborted) return
           const chunk = employeeIdsToQuery.slice(i, i + FETCH_CHUNK)
-          const chunkResults = await Promise.all(
-            chunk.map(async (employeeId) => {
-              const res = await fetch(`/api/employees/${employeeId}/availability`, {
-                credentials: "include",
-                signal: controller.signal,
-              })
-              const json = await res.json().catch(() => ({} as Record<string, unknown>))
-              if (!res.ok) {
-                throw new Error((json as { error?: string }).error || "Failed to load unavailability constraints")
-              }
-              const list = ((json as { constraints?: AvailabilityConstraintLike[] }).constraints ?? []) as AvailabilityConstraintLike[]
-              return list.map((c) => ({ ...c, employeeId }))
-            }),
-          )
-          for (const arr of chunkResults) merged.push(...arr)
+          const bulkResults = await getBulkEmployeeAvailability(chunk)
+          
+          for (const employeeId of chunk) {
+            const list = bulkResults[employeeId] || []
+            for (const c of list) {
+              merged.push({ ...c, employeeId })
+            }
+          }
         }
         setConstraints(merged)
         setSelectedConstraintId((prev) => {
@@ -196,7 +176,7 @@ export default function UnavailabilityPage() {
 
     void run()
     return () => controller.abort()
-  }, [employeeIdsToQuery, refreshNonce, isAdmin, isHydrated])
+  }, [employeeIdsToQuery, refreshNonce, canManageUnavailability, isHydrated])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -243,14 +223,7 @@ export default function UnavailabilityPage() {
     setError(null)
 
     try {
-      const res = await fetch(
-        `/api/employees/${employeeId}/availability?constraintId=${encodeURIComponent(String(constraintId))}`,
-        { method: "DELETE", credentials: "include" },
-      )
-      const json = await res.json().catch(() => ({} as Record<string, unknown>))
-      if (!res.ok) throw new Error((json as { error?: string }).error || "Failed to delete constraint")
-      if (!(json as { success?: boolean }).success) throw new Error("Delete failed")
-
+      await deleteEmployeeAvailability(employeeId, String(constraintId))
       setRefreshNonce((n) => n + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete constraint")
@@ -341,7 +314,7 @@ export default function UnavailabilityPage() {
       actions={
         isLoading
           ? null
-          : isAdmin
+          : canManageUnavailability
             ? (
                 <Button
                   type="button"
@@ -383,11 +356,11 @@ export default function UnavailabilityPage() {
       toolbar={<Header isLoading={false} />}
     >
       <div className="space-y-4 py-4">
-        {!isAdmin && (
+        {!canManageUnavailability && (
           <Card>
             <CardHeader>
-              <CardTitle>Admin access required</CardTitle>
-              <CardDescription>This page requires admin permissions.</CardDescription>
+              <CardTitle>Access required</CardTitle>
+              <CardDescription>This page requires manager or supervisor permissions.</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
@@ -397,7 +370,7 @@ export default function UnavailabilityPage() {
           </Card>
         )}
 
-        {isAdmin && (
+        {canManageUnavailability && (
           <>
             <Card className="print:hidden">
               <CardHeader className="pb-2">

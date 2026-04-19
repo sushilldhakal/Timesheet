@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { getAwards, evaluateAwardRules } from "@/lib/api/awards"
 import {
   Play,
   Clock,
@@ -285,9 +286,7 @@ export function TestScenariosTab() {
   const fetchAwards = async () => {
     try {
       setLoading(true)
-      const res = await fetch("/api/awards")
-      if (!res.ok) throw new Error("Failed to fetch")
-      const data = await res.json()
+      const data = await getAwards()
       setAwards(data.awards || [])
     } catch {
       setAwards([])

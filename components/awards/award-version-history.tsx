@@ -21,6 +21,7 @@ import {
   CalendarDays,
 } from "lucide-react"
 import { VersionComparison } from "./version-comparison"
+import { getAwardVersions, createAwardVersion } from "@/lib/api/awards"
 
 interface AwardVersion {
   _id: string
@@ -75,12 +76,10 @@ export function AwardVersionHistory({ awardId, awardName, open, onOpenChange }: 
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/awards/${awardId}/versions`)
-      if (!res.ok) throw new Error("Failed to fetch versions")
-      const data = await res.json()
+      const data = await getAwardVersions(awardId)
       setVersions(data.versions ?? [])
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || "Failed to fetch versions")
     } finally {
       setLoading(false)
     }
@@ -92,24 +91,16 @@ export function AwardVersionHistory({ awardId, awardName, open, onOpenChange }: 
     setCreating(true)
     setCreateError(null)
     try {
-      const res = await fetch(`/api/awards/${awardId}/versions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          changelog: newVersion.changelog,
-          effectiveFrom: new Date(newVersion.effectiveFrom).toISOString(),
-          versionBump: newVersion.versionBump,
-        }),
+      await createAwardVersion(awardId, {
+        changelog: newVersion.changelog,
+        effectiveFrom: new Date(newVersion.effectiveFrom).toISOString(),
+        versionBump: newVersion.versionBump,
       })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to create version")
-      }
       setCreateOpen(false)
       setNewVersion({ changelog: "", effectiveFrom: "", versionBump: "minor" })
       await fetchVersions()
     } catch (err: any) {
-      setCreateError(err.message)
+      setCreateError(err.message || "Failed to create version")
     } finally {
       setCreating(false)
     }

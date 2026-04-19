@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { useLabourCost, useGenerateLabourCostAnalysis } from "@/lib/hooks/use-labour-cost"
+import { useLabourCostAnalytics, useGenerateLabourCostAnalysis } from "@/lib/queries/analytics"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { Button } from "@/components/ui/button"
@@ -117,20 +117,18 @@ export default function LabourCostAnalyticsPage() {
   // Only fetch locations list for admins (for the selector)
   const { data: locationsResponse } = useQuery({
     queryKey: ["locations"],
-    queryFn: async () => {
-      const res = await fetch("/api/locations")
-      if (!res.ok) return { locations: [] }
-      return res.json()
-    },
+    queryFn: () => import('@/lib/api/locations').then(m => m.getAll()),
     enabled: isAdmin,
   })
   const locations = locationsResponse?.locations ?? []
 
-  const { data: breakdown = [], isLoading } = useLabourCost(
-    locationId || undefined,
-    dateRange.from,
-    dateRange.to
-  )
+  const { data: labourCostData, isLoading } = useLabourCostAnalytics({
+    locationId: locationId || undefined,
+    from: dateRange.from,
+    to: dateRange.to,
+  })
+
+  const breakdown = labourCostData?.breakdown ?? []
 
   const generateAnalysis = useGenerateLabourCostAnalysis()
 

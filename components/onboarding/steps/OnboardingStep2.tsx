@@ -8,16 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-
-const step2Schema = z.object({
-  legalFirstName: z.string().min(1, 'Legal first name is required'),
-  legalMiddleNames: z.string().optional().or(z.literal('')),
-  legalLastName: z.string().min(1, 'Legal last name is required'),
-  preferredName: z.string().optional().or(z.literal('')),
-  nationality: z.string().min(1, 'Nationality is required'),
-  timeZone: z.string(),
-  locale: z.string(),
-})
+import { step2Schema } from '@/lib/validations/onboarding'
 
 type Step2Data = z.infer<typeof step2Schema>
 

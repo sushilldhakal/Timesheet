@@ -1,3 +1,4 @@
+import { apiFetch } from './fetch-client'
 import { ApiResponse } from '@/lib/utils/api/api-response'
 
 const BASE_URL = '/api/rosters'
@@ -63,32 +64,25 @@ export interface GenerateRosterRequest {
 
 // Get roster for a specific week
 export async function getRoster(weekId: string): Promise<ApiResponse<RosterWeek>> {
-  const response = await fetch(`${BASE_URL}/${weekId}`, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<ApiResponse<RosterWeek>>(`${BASE_URL}/${weekId}`)
 }
 
 // Create a new roster for a week
 export async function createRoster(data: CreateRosterRequest): Promise<ApiResponse<RosterWeek>> {
-  const response = await fetch(BASE_URL, {
+  return apiFetch<ApiResponse<RosterWeek>>(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Add a shift to a roster
 export async function addShift(weekId: string, data: AddShiftRequest): Promise<ApiResponse<RosterShift>> {
-  const response = await fetch(`${BASE_URL}/${weekId}/shifts`, {
+  return apiFetch<ApiResponse<RosterShift>>(`${BASE_URL}/${weekId}/shifts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Update a shift in a roster
@@ -97,22 +91,18 @@ export async function updateShift(
   shiftId: string, 
   data: UpdateShiftRequest
 ): Promise<ApiResponse<RosterShift>> {
-  const response = await fetch(`${BASE_URL}/${weekId}/shifts/${shiftId}`, {
+  return apiFetch<ApiResponse<RosterShift>>(`${BASE_URL}/${weekId}/shifts/${shiftId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Delete a shift from a roster
 export async function deleteShift(weekId: string, shiftId: string): Promise<ApiResponse<void>> {
-  const response = await fetch(`${BASE_URL}/${weekId}/shifts/${shiftId}`, {
+  return apiFetch<ApiResponse<void>>(`${BASE_URL}/${weekId}/shifts/${shiftId}`, {
     method: 'DELETE',
-    credentials: 'include',
   })
-  return response.json()
 }
 
 /** Publish only shifts matching location + roles (shift-level status). */
@@ -120,22 +110,23 @@ export async function publishRosterScoped(
   weekId: string,
   body: { locationId: string; roleIds: string[] }
 ): Promise<ApiResponse<RosterWeek & { publishedCount?: number }>> {
-  const response = await fetch(`${BASE_URL}/${weekId}/publish`, {
+  return apiFetch<ApiResponse<RosterWeek & { publishedCount?: number }>>(`${BASE_URL}/${weekId}/publish`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(body),
   })
-  return response.json()
 }
 
 /** Legacy: publish entire roster document status (PUT). */
 export async function publishRosterAll(weekId: string): Promise<ApiResponse<RosterWeek>> {
-  const response = await fetch(`${BASE_URL}/${weekId}/publish`, {
+  return apiFetch<ApiResponse<RosterWeek>>(`${BASE_URL}/${weekId}/publish`, {
     method: 'PUT',
-    credentials: 'include',
   })
-  return response.json()
+}
+
+// Publish roster (wrapper for publishRosterAll)
+export async function publishRoster(weekId: string): Promise<ApiResponse<RosterWeek>> {
+  return publishRosterAll(weekId)
 }
 
 export async function autoFillRoster(
@@ -155,22 +146,47 @@ export async function autoFillRoster(
     skippedEmployees?: Array<{ employeeId: string; employeeName: string; reason: string }>
   }>
 > {
-  const response = await fetch(`${BASE_URL}/${weekId}/auto-fill`, {
+  return apiFetch<ApiResponse<{
+    successCount: number
+    failureCount: number
+    skippedCount: number
+    violations: unknown[]
+    skippedEmployees?: Array<{ employeeId: string; employeeName: string; reason: string }>
+  }>>(`${BASE_URL}/${weekId}/auto-fill`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(body),
   })
-  return response.json()
+}
+
+// Optimize roster
+export async function optimizeRoster(weekId: string): Promise<ApiResponse<{ message: string; optimizedCount: number }>> {
+  return apiFetch<ApiResponse<{ message: string; optimizedCount: number }>>(`${BASE_URL}/${weekId}/optimize`, {
+    method: 'POST',
+  })
+}
+
+// Copy roster week
+export async function copyRosterWeek(fromWeekId: string, toWeekId: string): Promise<ApiResponse<{ message: string; copiedCount: number }>> {
+  return apiFetch<ApiResponse<{ message: string; copiedCount: number }>>(`${BASE_URL}/${toWeekId}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromWeekId }),
+  })
+}
+
+// Clear roster week
+export async function clearRosterWeek(weekId: string): Promise<ApiResponse<{ message: string; deletedCount: number }>> {
+  return apiFetch<ApiResponse<{ message: string; deletedCount: number }>>(`${BASE_URL}/${weekId}/clear`, {
+    method: 'DELETE',
+  })
 }
 
 // Generate roster from schedules or copy from previous week
 export async function generateRoster(data: GenerateRosterRequest): Promise<ApiResponse<{ weekId: string; shiftsCreated: number }>> {
-  const response = await fetch(`${BASE_URL}/${data.weekId}/generate`, {
+  return apiFetch<ApiResponse<{ weekId: string; shiftsCreated: number }>>(`${BASE_URL}/${data.weekId}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }

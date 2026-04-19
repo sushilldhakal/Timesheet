@@ -15,6 +15,7 @@ import { Plus, X, Save, Trash2, Clock, DollarSign, Coffee, Calendar, Loader2, Al
 import { Award, AwardTag, AwardLevelRate, AwardRule } from "@/lib/validations/awards"
 import { EditRuleForm } from "./edit-rule-form"
 import { AwardVersionHistory } from "./award-version-history"
+import { updateAward } from "@/lib/api/awards"
 
 interface EditAwardDialogProps {
   award: any
@@ -65,7 +66,7 @@ export function EditAwardDialog({ award, open, onOpenChange, onSave }: EditAward
     if (!formData.name) return
 
     const updatedAward: Award = {
-      name: formData.name,
+      name: formData.name!,
       description: formData.description || "",
       levelRates: formData.levelRates || [],
       rules: formData.rules || [],
@@ -80,21 +81,25 @@ export function EditAwardDialog({ award, open, onOpenChange, onSave }: EditAward
       return
     }
 
+    // Convert dates to strings for API
+    const apiPayload = {
+      ...updatedAward,
+      levelRates: updatedAward.levelRates.map(lr => ({
+        level: lr.level,
+        employmentType: lr.employmentType,
+        hourlyRate: lr.hourlyRate,
+        effectiveFrom: lr.effectiveFrom instanceof Date ? lr.effectiveFrom.toISOString() : lr.effectiveFrom,
+        effectiveTo: lr.effectiveTo instanceof Date ? lr.effectiveTo.toISOString() : lr.effectiveTo,
+      })),
+    }
+
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/awards/${award._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedAward),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to update award")
-      }
+      await updateAward(award._id, apiPayload as any)
       onOpenChange(false)
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || "Failed to update award")
     } finally {
       setSaving(false)
     }

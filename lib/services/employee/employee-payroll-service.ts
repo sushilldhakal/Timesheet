@@ -261,7 +261,10 @@ export class EmployeePayrollService {
     if (!employee) throw apiErrors.notFound('Employee not found');
     let compliance = await EmployeePayrollDbQueries.findComplianceLean(employeeId);
     if (!compliance) {
-      const created = await EmployeePayrollDbQueries.createCompliance({ employeeId });
+      const created = await EmployeePayrollDbQueries.createCompliance({
+        employeeId,
+        tenantId: (employee as any).tenantId,
+      });
       compliance = (created as any).toObject();
     }
     return { compliance: formatCompliance(compliance) };

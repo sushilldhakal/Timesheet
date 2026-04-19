@@ -18,6 +18,12 @@ import {
 import { Plus, Edit, Trash2, Search, AlertCircle, Loader2, Lock } from "lucide-react"
 import { EditRuleForm } from "./edit-rule-form"
 import { AwardRule } from "@/lib/validations/awards"
+import {
+  getRuleTemplates,
+  createRuleTemplate,
+  updateRuleTemplate,
+  deleteRuleTemplate,
+} from "@/lib/api/awards"
 
 interface RuleTemplate extends AwardRule {
   _id: string
@@ -46,17 +52,13 @@ export function RuleEngineTab() {
       setLoading(true)
       setError(null)
 
-      const params = new URLSearchParams()
-      if (searchTerm) params.append("search", searchTerm)
-      if (categoryFilter) params.append("category", categoryFilter)
-
-      const res = await fetch(`/api/rule-templates?${params}`)
-      if (!res.ok) throw new Error("Failed to fetch templates")
-
-      const data = await res.json()
+      const data = await getRuleTemplates({
+        search: searchTerm || undefined,
+        category: categoryFilter || undefined,
+      })
       setTemplates(data.templates || [])
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || "Failed to fetch templates")
       setTemplates([])
     } finally {
       setLoading(false)
@@ -72,11 +74,10 @@ export function RuleEngineTab() {
     if (!confirm("Delete this template?")) return
 
     try {
-      const res = await fetch(`/api/rule-templates/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Failed to delete template")
+      await deleteRuleTemplate(id)
       fetchTemplates()
     } catch (err: any) {
-      alert(err.message)
+      alert(err.message || "Failed to delete template")
     }
   }
 
@@ -84,20 +85,10 @@ export function RuleEngineTab() {
     try {
       if (isCreating) {
         // Create new template
-        const res = await fetch("/api/rule-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rule),
-        })
-        if (!res.ok) throw new Error("Failed to create template")
+        await createRuleTemplate(rule)
       } else if (selectedRule?._id) {
         // Update existing template
-        const res = await fetch(`/api/rule-templates/${selectedRule._id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rule),
-        })
-        if (!res.ok) throw new Error("Failed to update template")
+        await updateRuleTemplate(selectedRule._id, rule)
       }
 
       setRuleFormOpen(false)
@@ -105,7 +96,7 @@ export function RuleEngineTab() {
       setIsCreating(false)
       fetchTemplates()
     } catch (err: any) {
-      alert(err.message)
+      alert(err.message || "Failed to save template")
     }
   }
 

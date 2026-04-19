@@ -15,8 +15,12 @@ declare global {
     | undefined
 }
 
-const cached = globalThis.__mongooseCache ?? { conn: null, promise: null }
-if (process.env.NODE_ENV == "production") globalThis.__mongooseCache = cached
+// Always use globalThis cache — in dev, hot reloads re-execute this module but
+// globalThis persists across reloads, preventing a new connection on every HMR cycle.
+if (!globalThis.__mongooseCache) {
+  globalThis.__mongooseCache = { conn: null, promise: null }
+}
+const cached = globalThis.__mongooseCache
 
 /**
  * Connect to MongoDB Atlas. Reuses the same connection in serverless (e.g. Next.js API routes).
@@ -29,6 +33,8 @@ export async function connectDB(): Promise<MongooseInstance> {
       bufferCommands: true,
       socketTimeoutMS: 5000,
       serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 5,      // keep pool small on M0 (max 500 connections shared across all clients)
+      minPoolSize: 1,
     })
   }
   cached.conn = await cached.promise

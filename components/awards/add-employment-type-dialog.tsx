@@ -3,8 +3,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -14,10 +12,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-
-const employmentTypeFormSchema = z.object({
-  employmentType: z.string().min(1, "Employment type is required"),
-});
+import { FormDialogShell } from "@/components/shared/forms";
+import { employmentTypeFormSchema } from "@/lib/validations/awards";
 
 interface AddEmploymentTypeDialogProps {
   open: boolean;
@@ -44,47 +40,32 @@ export default function AddEmploymentTypeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Employment Type</DialogTitle>
-          <DialogDescription>
-            Add a new employment type to this level. You can configure pay rules, breaks, penalties, and leave entitlements after adding.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control as any}
-              name="employmentType"
-              render={({ field }: any) => (
-                <FormItem>
-                  <FormLabel>Employment Type</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., full_time, part_time, casual"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                Add Employment Type
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add Employment Type"
+      description="Add a new employment type to this level. You can configure pay rules, breaks, penalties, and leave entitlements after adding."
+      onSubmit={form.handleSubmit(onSubmit)}
+      submitLabel="Add Employment Type"
+    >
+      <Form {...form}>
+        <FormField
+          control={form.control as any}
+          name="employmentType"
+          render={({ field }: any) => (
+            <FormItem>
+              <FormLabel>Employment Type</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="e.g., full_time, part_time, casual"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </Form>
+    </FormDialogShell>
   );
 }

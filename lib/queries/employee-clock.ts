@@ -3,49 +3,28 @@ import * as employeeClockApi from '@/lib/api/employee-clock'
 
 // Query keys
 export const employeeClockKeys = {
-  all: ['employee-clock'] as const,
-  profile: () => [...employeeClockKeys.all, 'profile'] as const,
-  timesheet: (params?: { 
-    startDate?: string
-    endDate?: string
-    limit?: number
-    offset?: number 
-  }) => [...employeeClockKeys.all, 'timesheet', params] as const,
+  profile: ['employee', 'profile'] as const,
+  timesheet: (params?: Parameters<typeof employeeClockApi.getEmployeeTimesheet>[0]) => 
+    ['employee', 'timesheet', params] as const,
 }
 
-// Get current employee profile
+// Get employee profile
 export function useEmployeeProfile() {
   return useQuery({
-    queryKey: employeeClockKeys.profile(),
+    queryKey: employeeClockKeys.profile,
     queryFn: employeeClockApi.getEmployeeProfile,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: false, // Don't retry on auth failures
-    refetchOnMount: "always",
   })
 }
 
-// Get employee timesheet
-export function useEmployeeTimesheet(params?: {
-  startDate?: string
-  endDate?: string
-  limit?: number
-  offset?: number
-}) {
-  return useQuery({
-    queryKey: employeeClockKeys.timesheet(params),
-    queryFn: () => employeeClockApi.getEmployeeTimesheet(params),
-    staleTime: 30 * 1000, // 30 seconds
-  })
-}
-
-// Employee login with PIN
+// Employee login
 export function useEmployeeLogin() {
   const queryClient = useQueryClient()
   
   return useMutation({
     mutationFn: employeeClockApi.employeeLogin,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile() })
+      queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile })
     },
   })
 }
@@ -57,28 +36,37 @@ export function useEmployeeLogout() {
   return useMutation({
     mutationFn: employeeClockApi.employeeLogout,
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: employeeClockKeys.all })
+      queryClient.removeQueries({ queryKey: employeeClockKeys.profile })
     },
   })
 }
 
-// Clock in/out/break
+// Clock action (in/out/break)
 export function useClockAction() {
   const queryClient = useQueryClient()
   
   return useMutation({
     mutationFn: employeeClockApi.clockAction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile() })
+      queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile })
       queryClient.invalidateQueries({ queryKey: employeeClockKeys.timesheet() })
     },
   })
 }
 
-// Change password
+// Change employee password
 export function useChangeEmployeePassword() {
   return useMutation({
     mutationFn: employeeClockApi.changeEmployeePassword,
+  })
+}
+
+// Get employee timesheet
+export function useEmployeeTimesheet(params?: Parameters<typeof employeeClockApi.getEmployeeTimesheet>[0]) {
+  return useQuery({
+    queryKey: employeeClockKeys.timesheet(params),
+    queryFn: () => employeeClockApi.getEmployeeTimesheet(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
   })
 }
 
@@ -93,5 +81,18 @@ export function useUploadFile() {
 export function useCreateOfflineSession() {
   return useMutation({
     mutationFn: employeeClockApi.createOfflineSession,
+  })
+}
+
+// Sync offline clock events
+export function useSyncOfflineClockEvents() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: employeeClockApi.syncOfflineClockEvents,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile })
+      queryClient.invalidateQueries({ queryKey: employeeClockKeys.timesheet() })
+    },
   })
 }

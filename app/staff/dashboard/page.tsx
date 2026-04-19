@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Calendar, Clock, User, Settings } from "lucide-react"
@@ -12,6 +13,18 @@ export default function StaffDashboardPage() {
   
   const employeeProfileQuery = useEmployeeProfile()
   const employeeLogoutMutation = useEmployeeLogout()
+
+  // Check if onboarding is completed
+  useEffect(() => {
+    if (employeeProfileQuery.data?.data?.employee) {
+      const employee = employeeProfileQuery.data.data.employee
+      // Check if onboarding is completed - if not, redirect to onboarding
+      if (!employee.onboardingCompleted) {
+        router.push("/staff/onboarding")
+        return
+      }
+    }
+  }, [employeeProfileQuery.data, router])
 
   const handleLogout = () => {
     employeeLogoutMutation.mutate(undefined, {
@@ -40,6 +53,15 @@ export default function StaffDashboardPage() {
   }
 
   const employee = employeeProfileQuery.data?.data?.employee
+
+  // If onboarding not completed, don't render dashboard (redirect will happen in useEffect)
+  if (!employee?.onboardingCompleted) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">

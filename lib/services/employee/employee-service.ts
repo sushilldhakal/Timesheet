@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { apiErrors } from '@/lib/api/api-error';
-import { employeeLocationFilter, getFilteredEmployeeIdsByRole, type AuthWithLocations } from '@/lib/auth/auth-api';
+import { employeeLocationFilter, getFilteredEmployeeIdsByRole, type AuthWithLocations, SUPER_ADMIN_SENTINEL } from '@/lib/auth/auth-api';
 import { EmployeeDbQueries } from '@/lib/db/queries/employees';
 import { connectDB } from '@/lib/db';
 import { syncEmployeePhotoFromPunches } from '@/lib/utils/employees/employee-photo-sync';
@@ -274,15 +274,21 @@ export class EmployeeService {
     await connectDB();
     if (!body) throw apiErrors.badRequest('Request body is required');
 
+    // Handle super admin case - they need to specify a tenantId or use a default
+    if (ctx.tenantId === SUPER_ADMIN_SENTINEL) {
+      throw apiErrors.badRequest('Super admin must specify a tenantId when creating employees');
+    }
+
     if (body.email) {
       const emailCheck = await checkEmailExists(body.email);
       if (emailCheck.exists) throw apiErrors.conflict('Email already in use');
     }
 
-    const existing = await EmployeeDbQueries.findEmployeeByPin(body.pin.trim());
+    const existing = await EmployeeDbQueries.findEmployeeByPin(body.pin.trim(), ctx.tenantId !== SUPER_ADMIN_SENTINEL ? ctx.tenantId : undefined);
     if (existing) throw apiErrors.conflict('PIN already in use');
 
     const employeeData: any = {
+      tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
       name: body.name.trim(),
       pin: body.pin.trim(),
       employer: body.employer ?? [],
@@ -438,7 +444,7 @@ export class EmployeeService {
 
     if (body.name !== undefined) updates.name = body.name.trim();
     if (body.pin !== undefined) {
-      const dup = await EmployeeDbQueries.findDuplicatePin(body.pin.trim(), id);
+      const dup = await EmployeeDbQueries.findDuplicatePin(body.pin.trim(), id, ctx.tenantId !== SUPER_ADMIN_SENTINEL ? ctx.tenantId : undefined);
       if (dup) throw apiErrors.conflict('PIN already in use');
       updates.pin = body.pin.trim();
     }

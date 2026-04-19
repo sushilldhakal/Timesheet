@@ -8,15 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-
-const step6Schema = z.object({
-  wwcStatus: z.enum(['not_required', 'pending', 'active', 'expired']),
-  wwcExpiryDate: z.string().optional().or(z.literal('')),
-  policeClearanceStatus: z.enum(['pending', 'active', 'expired']),
-  policeClearanceExpiryDate: z.string().optional().or(z.literal('')),
-  foodHandlingStatus: z.enum(['current', 'expired']),
-  foodHandlingExpiryDate: z.string().optional().or(z.literal('')),
-})
+import { step6Schema } from '@/lib/validations/onboarding'
 
 type Step6Data = z.infer<typeof step6Schema>
 

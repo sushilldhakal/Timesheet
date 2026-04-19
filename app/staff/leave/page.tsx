@@ -11,6 +11,8 @@ import { Loader2, Plus, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { toast } from "sonner"
 import { useEmployeeProfile } from "@/lib/queries/employee-clock"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { getEmployeeAbsences, createEmployeeAbsence } from "@/lib/api/absences"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -65,14 +68,11 @@ function statusBadge(statusRaw: string | undefined): { label: string; className:
 
 export default function StaffLeavePage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const employeeProfileQuery = useEmployeeProfile()
   const employee = employeeProfileQuery.data?.data?.employee
   const employeeId = employee?.id
 
-  const [refreshNonce, setRefreshNonce] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [absences, setAbsences] = useState<LeaveRecordLike[]>([])
   const [selectedAbsenceId, setSelectedAbsenceId] = useState<string | null>(null)
 
   const [addLeaveOpen, setAddLeaveOpen] = useState(false)
@@ -80,7 +80,39 @@ export default function StaffLeavePage() {
   const [addEnd, setAddEnd] = useState("")
   const [addType, setAddType] = useState<(typeof LEAVE_TYPE_OPTIONS)[number]>("ANNUAL")
   const [addNotes, setAddNotes] = useState("")
-  const [addSubmitting, setAddSubmitting] = useState(false)
+
+  // Use query hook for fetching absences
+  const absencesQuery = useQuery({
+    queryKey: ['employee-absences', employeeId],
+    queryFn: () => getEmployeeAbsences(employeeId!),
+    enabled: !!employeeId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  })
+
+  // Use mutation hook for creating absence
+  const createAbsenceMutation = useMutation({
+    mutationFn: (data: { startDate: string; endDate: string; leaveType: string; notes?: string }) =>
+      createEmployeeAbsence(employeeId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-absences', employeeId] })
+      setAddLeaveOpen(false)
+      toast.success("Leave request created")
+    },
+    onError: (error: any) => {
+      const msg = error?.error || error?.message || "Failed to create leave"
+      toast.error(msg)
+    },
+  })
+
+  const absences = useMemo(() => {
+    const rows = absencesQuery.data?.absences ?? []
+    const merged = rows.map((a) => {
+      const oid = (a.id ?? a._id) as string | undefined
+      return { ...a, _id: oid, id: oid }
+    })
+    merged.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
+    return merged
+  }, [absencesQuery.data])
 
   useEffect(() => {
     if (employeeProfileQuery.isError) {
@@ -90,46 +122,10 @@ export default function StaffLeavePage() {
   }, [employeeProfileQuery.isError, router])
 
   useEffect(() => {
-    if (!employeeId) return
-
-    const controller = new AbortController()
-
-    const run = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/employees/${employeeId}/absences`, {
-          credentials: "include",
-          signal: controller.signal,
-        })
-        const json = await res.json().catch(() => ({} as Record<string, unknown>))
-        if (!res.ok) {
-          throw new Error((json as { error?: string }).error || "Failed to load leave records")
-        }
-        const rows = ((json as { absences?: LeaveRecordLike[] }).absences ?? []) as LeaveRecordLike[]
-        const merged = rows.map((a) => {
-          const oid = (a.id ?? a._id) as string | undefined
-          return { ...a, _id: oid, id: oid }
-        })
-        merged.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
-        setAbsences(merged)
-        setSelectedAbsenceId((prev) => {
-          if (prev && merged.some((x) => (x._id ?? x.id) === prev)) return prev
-          return merged[0]?._id ?? merged[0]?.id ?? null
-        })
-      } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return
-        setError(e instanceof Error ? e.message : "Failed to load leave records")
-        setAbsences([])
-        setSelectedAbsenceId(null)
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
+    if (absences.length > 0 && !selectedAbsenceId) {
+      setSelectedAbsenceId(absences[0]?._id ?? absences[0]?.id ?? null)
     }
-
-    void run()
-    return () => controller.abort()
-  }, [employeeId, refreshNonce])
+  }, [absences, selectedAbsenceId])
 
   const submitAddLeave = async () => {
     if (!employeeId) {
@@ -145,37 +141,12 @@ export default function StaffLeavePage() {
       return
     }
 
-    setAddSubmitting(true)
-    setError(null)
-
-    try {
-      const res = await fetch(`/api/employees/${employeeId}/absences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          startDate: addStart,
-          endDate: addEnd,
-          leaveType: addType,
-          notes: addNotes.trim() || undefined,
-        }),
-      })
-
-      const json = await res.json().catch(() => ({} as Record<string, unknown>))
-      if (!res.ok) {
-        const msg = (json as { error?: string }).error || "Failed to create leave"
-        toast.error(msg)
-        throw new Error(msg)
-      }
-
-      setAddLeaveOpen(false)
-      setRefreshNonce((n) => n + 1)
-      toast.success("Leave request created")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create leave")
-    } finally {
-      setAddSubmitting(false)
-    }
+    createAbsenceMutation.mutate({
+      startDate: addStart,
+      endDate: addEnd,
+      leaveType: addType,
+      notes: addNotes.trim() || undefined,
+    })
   }
 
   const openAddLeave = () => {
@@ -229,8 +200,8 @@ export default function StaffLeavePage() {
             type="button"
             variant="outline"
             size="sm"
-            disabled={loading}
-            onClick={() => setRefreshNonce((n) => n + 1)}
+            disabled={absencesQuery.isLoading}
+            onClick={() => absencesQuery.refetch()}
           >
             <RefreshCw className="size-4" />
             Refresh
@@ -238,14 +209,14 @@ export default function StaffLeavePage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {absencesQuery.error && <p className="text-sm text-destructive">{absencesQuery.error instanceof Error ? absencesQuery.error.message : 'Failed to load leave records'}</p>}
 
       <div className="grid min-h-[520px] gap-4 lg:grid-cols-[360px_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">All Requests</CardTitle>
             <CardDescription>
-              {loading ? "Loading..." : absences.length ? `${absences.length} request(s)` : "No requests found."}
+              {absencesQuery.isLoading ? "Loading..." : absences.length ? `${absences.length} request(s)` : "No requests found."}
             </CardDescription>
           </CardHeader>
           <Separator />
@@ -369,79 +340,69 @@ export default function StaffLeavePage() {
         </Card>
       </div>
 
-      <Dialog open={addLeaveOpen} onOpenChange={setAddLeaveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request Leave</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="leave-type">Leave Type</Label>
-              <Select value={addType} onValueChange={(v) => setAddType(v as typeof addType)}>
-                <SelectTrigger id="leave-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LEAVE_TYPE_OPTIONS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <FormDialogShell
+        open={addLeaveOpen}
+        onOpenChange={setAddLeaveOpen}
+        title="Request Leave"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submitAddLeave();
+        }}
+        submitLabel={createAbsenceMutation.isPending ? "Submitting..." : "Submit Request"}
+        loading={createAbsenceMutation.isPending}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="leave-type">Leave Type</Label>
+            <Select value={addType} onValueChange={(v) => setAddType(v as typeof addType)}>
+              <SelectTrigger id="leave-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAVE_TYPE_OPTIONS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="start-date">Start Date</Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={addStart}
-                  onChange={(e) => setAddStart(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end-date">End Date</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={addEnd}
-                  onChange={(e) => setAddEnd(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea
-                id="notes"
-                value={addNotes}
-                onChange={(e) => setAddNotes(e.target.value)}
-                placeholder="Add any additional information..."
-                rows={3}
+              <Label htmlFor="start-date">Start Date</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={addStart}
+                onChange={(e) => setAddStart(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end-date">End Date</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={addEnd}
+                onChange={(e) => setAddEnd(e.target.value)}
+                required
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddLeaveOpen(false)} disabled={addSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={submitAddLeave} disabled={addSubmitting}>
-              {addSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit Request"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <Textarea
+              id="notes"
+              value={addNotes}
+              onChange={(e) => setAddNotes(e.target.value)}
+              placeholder="Add any additional information..."
+              rows={3}
+            />
+          </div>
+        </div>
+      </FormDialogShell>
     </div>
   )
 }

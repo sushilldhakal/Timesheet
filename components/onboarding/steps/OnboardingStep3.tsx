@@ -8,15 +8,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-
-const step3Schema = z.object({
-  tfn: z.string().max(11).optional().or(z.literal('')),
-  abn: z.string().max(11).optional().or(z.literal('')),
-  superannuationFund: z.string().optional().or(z.literal('')),
-  superannuationMemberNumber: z.string().optional().or(z.literal('')),
-  taxWithholdingPercentage: z.number().min(0).max(100),
-  hasHelpDebt: z.boolean(),
-})
+import { step3Schema } from '@/lib/validations/onboarding'
 
 type Step3Data = z.infer<typeof step3Schema>
 

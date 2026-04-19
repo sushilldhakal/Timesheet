@@ -90,7 +90,7 @@ export class PasswordService {
 
     const authToken = await createEmployeeWebToken({ sub: String((employee as any)._id), pin: (employee as any).pin });
     await setEmployeeWebCookie(authToken);
-    return { status: 200, data: { message: "Password set successfully", redirect: "/staff/dashboard" } };
+    return { status: 200, data: { message: "Password set successfully", redirect: "/staff/onboarding" } };
   }
 
   async resetPasswordVerify(token: string) {

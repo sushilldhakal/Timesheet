@@ -4,20 +4,13 @@ import { useState, useEffect } from "react"
 import { format, isValid, parse } from "date-fns"
 import { enUS } from "date-fns/locale"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { FormDialogShell } from "@/components/shared/forms"
 import { useUpdateEmployeeTimesheet } from "@/lib/queries/employees"
 
 interface DailyTimesheetRow {
@@ -102,72 +95,58 @@ export function EditTimesheetDialog({ employeeId, timesheet, open, onOpenChange,
   const loading = updateTimesheetMutation.isPending
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit Timesheet</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {formatDateForTitle(timesheet.date)}
-          </p>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <FieldGroup className="gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="edit-clock-in">Clock In</FieldLabel>
-                <Input
-                  id="edit-clock-in"
-                  type="time"
-                  value={clockIn}
-                  onChange={(e) => setClockIn(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-clock-out">Clock Out</FieldLabel>
-                <Input
-                  id="edit-clock-out"
-                  type="time"
-                  value={clockOut}
-                  onChange={(e) => setClockOut(e.target.value)}
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="edit-break-in">Break Start</FieldLabel>
-                <Input
-                  id="edit-break-in"
-                  type="time"
-                  value={breakIn}
-                  onChange={(e) => setBreakIn(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-break-out">Break End</FieldLabel>
-                <Input
-                  id="edit-break-out"
-                  type="time"
-                  value={breakOut}
-                  onChange={(e) => setBreakOut(e.target.value)}
-                />
-              </Field>
-            </div>
-            {error && <FieldError>{error}</FieldError>}
-          </FieldGroup>
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit Timesheet"
+      description={formatDateForTitle(timesheet.date)}
+      onSubmit={handleSubmit}
+      submitLabel="Save Changes"
+      loading={loading}
+      error={error}
+    >
+      <FieldGroup className="gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="edit-clock-in">Clock In</FieldLabel>
+            <Input
+              id="edit-clock-in"
+              type="time"
+              value={clockIn}
+              onChange={(e) => setClockIn(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="edit-clock-out">Clock Out</FieldLabel>
+            <Input
+              id="edit-clock-out"
+              type="time"
+              value={clockOut}
+              onChange={(e) => setClockOut(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="edit-break-in">Break Start</FieldLabel>
+            <Input
+              id="edit-break-in"
+              type="time"
+              value={breakIn}
+              onChange={(e) => setBreakIn(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="edit-break-out">Break End</FieldLabel>
+            <Input
+              id="edit-break-out"
+              type="time"
+              value={breakOut}
+              onChange={(e) => setBreakOut(e.target.value)}
+            />
+          </Field>
+        </div>
+      </FieldGroup>
+    </FormDialogShell>
   )
 }

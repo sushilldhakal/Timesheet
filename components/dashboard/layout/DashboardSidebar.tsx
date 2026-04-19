@@ -25,6 +25,7 @@ import { baseNavigationItems } from './dashboardNavigation';
 import type { NavigationItem } from '@/lib/types/dashboard';
 import type { DashboardSidebarProps } from '@/lib/types/dashboard';
 import { useQuery } from '@tanstack/react-query';
+import { getEmployerSettings } from '@/lib/api/employers';
 
 /**
  * Dashboard Sidebar Component
@@ -44,11 +45,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
     // Fetch org settings to determine if Employers nav item should show
     const { data: orgSettings } = useQuery({
         queryKey: ['org-settings'],
-        queryFn: async () => {
-            const res = await fetch('/api/employers/settings');
-            if (!res.ok) return null;
-            return res.json();
-        },
+        queryFn: () => getEmployerSettings(),
         enabled: isUserAdmin, // only admins need this
         staleTime: 5 * 60 * 1000,
     });

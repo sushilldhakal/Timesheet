@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
+import { isAdminOrSuperAdmin, isManager, isSupervisor } from "@/lib/config/roles"
 import { useEmployees } from "@/lib/queries/employees"
 import {
   format,
@@ -44,37 +44,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import {
+  getAbsences,
+  approveAbsence,
+  denyAbsence,
+  createEmployeeAbsence,
+  type LeaveRecord,
+  type AffectedShift,
+} from "@/lib/api/absences"
 
 const LEAVE_TYPE_OPTIONS = ["ANNUAL", "SICK", "UNPAID", "PUBLIC_HOLIDAY"] as const
 
-type LeaveRecordLike = {
-  _id?: string
-  id?: string
-  employeeId?: string
-  employeeName?: string
-  employeePin?: string
-  startDate?: string
-  endDate?: string
-  leaveType?: string
-  status?: string
-  notes?: string
-  approvedBy?: string
-  approvedAt?: string
-  deniedBy?: string
-  deniedAt?: string
-  denialReason?: string
-  createdAt?: string
-  updatedAt?: string
-}
-
-type AffectedShift = {
-  shiftId: string
-  date: string
-  startTime: string
-  endTime: string
-}
+// LeaveRecord and AffectedShift imported from @/lib/api/absences
+type LeaveRecordLike = LeaveRecord
 
 function statusBadge(statusRaw: string | undefined): { label: string; className: string } {
   const s = (statusRaw || "").toLowerCase()
@@ -108,6 +93,7 @@ function isLeaveFinalStatus(status: string | undefined) {
 export default function LeavePage() {
   const { user, userRole, isHydrated } = useAuth()
   const isAdmin = isHydrated && isAdminOrSuperAdmin(userRole)
+  const canManageLeave = isHydrated && (isAdminOrSuperAdmin(userRole) || isManager(userRole) || isSupervisor(userRole))
 
   const employeesQuery = useEmployees(500)
   const employees = employeesQuery.data?.employees ?? []
@@ -189,7 +175,7 @@ export default function LeavePage() {
   }, [selectedAbsenceId])
 
   useEffect(() => {
-    if (!isHydrated || !isAdmin) return
+    if (!isHydrated || !canManageLeave) return
     if (!employees.length) {
       setAbsences([])
       setSelectedAbsenceId(null)
@@ -208,16 +194,12 @@ export default function LeavePage() {
         for (const id of selectedEmployeeIds) {
           sp.append("employeeId", id)
         }
-        const url = `/api/absences?${sp.toString()}`
-        const res = await fetch(url, {
-          credentials: "include",
-          signal: controller.signal,
+        const json = await getAbsences({
+          startDate,
+          endDate,
+          employeeIds: selectedEmployeeIds,
         })
-        const json = await res.json().catch(() => ({} as Record<string, unknown>))
-        if (!res.ok) {
-          throw new Error((json as { error?: string }).error || "Failed to load leave records")
-        }
-        const rows = ((json as { absences?: LeaveRecordLike[] }).absences ?? []) as LeaveRecordLike[]
+        const rows = (json.absences ?? []) as LeaveRecordLike[]
         const merged = rows.map((a) => {
           const oid = (a.id ?? a._id) as string | undefined
           return { ...a, _id: oid, id: oid }
@@ -240,7 +222,7 @@ export default function LeavePage() {
 
     void run()
     return () => controller.abort()
-  }, [employees.length, selectedEmployeeIds, startDate, endDate, refreshNonce, isAdmin, isHydrated])
+  }, [employees.length, selectedEmployeeIds, startDate, endDate, refreshNonce, canManageLeave, isHydrated])
 
   const approveLeave = async (absence: LeaveRecordLike) => {
     if (!user?.id) return
@@ -251,22 +233,9 @@ export default function LeavePage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`/api/absences/${absenceId}/approve`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ approverId: user.id }),
-      })
-
-      const json = await res.json().catch(() => ({} as Record<string, unknown>))
-      if (!res.ok) {
-        const msg = (json as { error?: string }).error || "Failed to approve leave"
-        toast.error(msg)
-        throw new Error(msg)
-      }
-
-      const updated = (json as { leaveRecord?: Record<string, unknown> }).leaveRecord
-      const affected = ((json as { affectedShifts?: AffectedShift[] }).affectedShifts ?? []) as AffectedShift[]
+      const json = await approveAbsence(absenceId, { approverId: user.id })
+      const updated = json.leaveRecord
+      const affected = (json.affectedShifts ?? []) as AffectedShift[]
 
       setAbsences((prev) => {
         const next = prev.filter((r) => (r._id ?? r.id) !== absenceId)
@@ -317,21 +286,8 @@ export default function LeavePage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`/api/absences/${absenceId}/deny`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ denierId: user.id, reason: denyReason.trim() }),
-      })
-
-      const json = await res.json().catch(() => ({} as Record<string, unknown>))
-      if (!res.ok) {
-        const msg = (json as { error?: string }).error || "Failed to deny leave"
-        toast.error(msg)
-        throw new Error(msg)
-      }
-
-      const updated = (json as { leaveRecord?: Record<string, unknown> }).leaveRecord
+      const json = await denyAbsence(absenceId, { denierId: user.id, reason: denyReason.trim() })
+      const updated = json.leaveRecord
       setAbsences((prev) => {
         const next = prev.filter((r) => (r._id ?? r.id) !== absenceId)
         if (!updated) return next
@@ -386,25 +342,12 @@ export default function LeavePage() {
     setError(null)
 
     try {
-      const res = await fetch(`/api/employees/${addEmployeeId}/absences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          startDate: addStart,
-          endDate: addEnd,
-          leaveType: addType,
-          notes: addNotes.trim() || undefined,
-        }),
+      await createEmployeeAbsence(addEmployeeId, {
+        startDate: addStart,
+        endDate: addEnd,
+        leaveType: addType,
+        notes: addNotes.trim() || undefined,
       })
-
-      const json = await res.json().catch(() => ({} as Record<string, unknown>))
-      if (!res.ok) {
-        const msg = (json as { error?: string }).error || "Failed to create leave"
-        toast.error(msg)
-        throw new Error(msg)
-      }
-
       setAddLeaveOpen(false)
       setRefreshNonce((n) => n + 1)
       toast.success("Leave request created")
@@ -559,7 +502,7 @@ export default function LeavePage() {
       actions={
         isLoading
           ? null
-          : isAdmin
+          : canManageLeave
             ? (
                 <div className="flex items-center gap-2">
                   <Button type="button" size="sm" disabled={!employees.length} onClick={openAddLeave}>
@@ -608,11 +551,11 @@ export default function LeavePage() {
     >
       <>
       <div className="space-y-4 py-4">
-        {!isAdmin && (
+        {!canManageLeave && (
           <Card>
             <CardHeader>
-              <CardTitle>Admin access required</CardTitle>
-              <CardDescription>This page requires admin permissions.</CardDescription>
+              <CardTitle>Access required</CardTitle>
+              <CardDescription>This page requires manager or supervisor permissions.</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
@@ -622,7 +565,7 @@ export default function LeavePage() {
           </Card>
         )}
 
-        {isAdmin && (
+        {canManageLeave && (
           <>
             <Card className="print:hidden">
               <CardHeader className="pb-2">
@@ -870,105 +813,109 @@ export default function LeavePage() {
         )}
       </div>
 
-      <Dialog open={addLeaveOpen} onOpenChange={setAddLeaveOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add leave</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
+      <FormDialogShell
+        open={addLeaveOpen}
+        onOpenChange={setAddLeaveOpen}
+        title="Add leave"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submitAddLeave();
+        }}
+        submitLabel={addSubmitting ? "Saving…" : "Create"}
+        loading={addSubmitting}
+      >
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="add-leave-employee">Employee</Label>
+            <Select value={addEmployeeId} onValueChange={setAddEmployeeId}>
+              <SelectTrigger id="add-leave-employee">
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name} ({e.pin})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="add-leave-employee">Employee</Label>
-              <Select value={addEmployeeId} onValueChange={setAddEmployeeId}>
-                <SelectTrigger id="add-leave-employee">
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name} ({e.pin})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="add-leave-start">Start date</Label>
-                <Input id="add-leave-start" type="date" value={addStart} onChange={(e) => setAddStart(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-leave-end">End date</Label>
-                <Input id="add-leave-end" type="date" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-leave-type">Leave type</Label>
-              <Select value={addType} onValueChange={(v) => setAddType(v as (typeof LEAVE_TYPE_OPTIONS)[number])}>
-                <SelectTrigger id="add-leave-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LEAVE_TYPE_OPTIONS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="add-leave-start">Start date</Label>
+              <Input id="add-leave-start" type="date" value={addStart} onChange={(e) => setAddStart(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-leave-notes">Notes (optional)</Label>
-              <Textarea
-                id="add-leave-notes"
-                value={addNotes}
-                onChange={(e) => setAddNotes(e.target.value)}
-                placeholder="Optional notes"
-                rows={3}
-              />
+              <Label htmlFor="add-leave-end">End date</Label>
+              <Input id="add-leave-end" type="date" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAddLeaveOpen(false)} disabled={addSubmitting}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void submitAddLeave()} disabled={addSubmitting}>
-              {addSubmitting ? "Saving…" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={denyOpen} onOpenChange={setDenyOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Deny leave</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="deny-reason">Denial reason</Label>
+          <div className="space-y-2">
+            <Label htmlFor="add-leave-type">Leave type</Label>
+            <Select value={addType} onValueChange={(v) => setAddType(v as (typeof LEAVE_TYPE_OPTIONS)[number])}>
+              <SelectTrigger id="add-leave-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAVE_TYPE_OPTIONS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="add-leave-notes">Notes (optional)</Label>
             <Textarea
-              id="deny-reason"
-              value={denyReason}
-              onChange={(e) => setDenyReason(e.target.value)}
-              placeholder="Explain why this request is denied"
-              rows={4}
-              minLength={1}
+              id="add-leave-notes"
+              value={addNotes}
+              onChange={(e) => setAddNotes(e.target.value)}
+              placeholder="Optional notes"
+              rows={3}
             />
           </div>
-          <DialogFooter>
+        </div>
+      </FormDialogShell>
+
+      <FormDialogShell
+        open={denyOpen}
+        onOpenChange={setDenyOpen}
+        title="Deny leave"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void denyLeave();
+        }}
+        submitLabel={denySubmitting ? "Denying…" : "Confirm deny"}
+        loading={denySubmitting}
+        disabled={!denyReason.trim()}
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={() => setDenyOpen(false)} disabled={denySubmitting}>
               Cancel
             </Button>
             <Button
-              type="button"
+              type="submit"
               variant="destructive"
               disabled={denySubmitting || !denyReason.trim()}
-              onClick={() => void denyLeave()}
             >
               {denySubmitting ? "Denying…" : "Confirm deny"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <Label htmlFor="deny-reason">Denial reason</Label>
+          <Textarea
+            id="deny-reason"
+            value={denyReason}
+            onChange={(e) => setDenyReason(e.target.value)}
+            placeholder="Explain why this request is denied"
+            rows={4}
+            minLength={1}
+          />
+        </div>
+      </FormDialogShell>
       </>
     </CalendarPageShell>
   )

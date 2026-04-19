@@ -14,31 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-
-interface Org {
-  id: string
-  name: string
-  slug: string
-}
-
-async function fetchOrgs(): Promise<Org[]> {
-  const res = await fetch("/api/auth/orgs")
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.orgs ?? []
-}
-
-async function switchOrg(tenantId: string): Promise<void> {
-  const res = await fetch("/api/auth/switch-org", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tenantId }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? "Failed to switch organisation")
-  }
-}
+import { getOrgs, switchOrg } from "@/lib/api/orgs"
 
 interface OrgSwitcherProps {
   /** The tenantId currently active in the session (from JWT / auth context) */
@@ -61,7 +37,7 @@ export function OrgSwitcher({ currentTenantId, currentOrgName }: OrgSwitcherProp
 
   const { data: orgs = [], isLoading } = useQuery({
     queryKey: ["auth", "orgs"],
-    queryFn: fetchOrgs,
+    queryFn: () => getOrgs().then((r) => r.orgs),
     // Fetch eagerly on mount so we know whether to render the switcher at all
     staleTime: 5 * 60 * 1000,
   })

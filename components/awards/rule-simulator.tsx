@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Info,
 } from "lucide-react"
+import { getAwards, evaluateAwardRules } from "@/lib/api/awards"
 
 interface AwardOption {
   _id: string
@@ -114,9 +115,7 @@ export function RuleSimulator() {
   const fetchAwards = async () => {
     try {
       setLoadingAwards(true)
-      const res = await fetch("/api/awards")
-      if (!res.ok) throw new Error("Failed to fetch awards")
-      const data = await res.json()
+      const data = await getAwards()
       setAwards(data.awards || [])
     } catch {
       setAwards([])
@@ -157,23 +156,18 @@ export function RuleSimulator() {
         endDateObj.setDate(endDateObj.getDate() + 1)
       }
 
-      const res = await fetch("/api/awards/evaluate-rules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          awardId,
-          shiftDate: dateObj.toISOString(),
-          startTime: dateObj.toISOString(),
-          endTime: endDateObj.toISOString(),
-          employmentType,
-          awardTags,
-          isPublicHoliday,
-          dailyHoursWorked,
-          weeklyHoursWorked,
-        }),
+      const data = await evaluateAwardRules({
+        awardId,
+        shiftDate: dateObj.toISOString(),
+        startTime: dateObj.toISOString(),
+        endTime: endDateObj.toISOString(),
+        employmentType,
+        awardTags,
+        isPublicHoliday,
+        dailyHoursWorked,
+        weeklyHoursWorked,
       })
 
-      const data = await res.json()
       if (data.error && !data.allRulesEvaluation) {
         setError(data.error)
       } else {

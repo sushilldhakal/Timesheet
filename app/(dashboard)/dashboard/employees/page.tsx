@@ -20,6 +20,7 @@ import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view
 import type { FilterConfig } from "@/components/ui/data-table/data-table-toolbar"
 import * as employeesApi from "@/lib/api/employees"
 import type { Employee } from "@/lib/api/employees"
+import { useDebounce } from "@/lib/hooks/use-debounce"
 import { AddEmployeeDialog } from "./AddEmployeeDialog"
 import { EditEmployeeDialog } from "./EditEmployeeDialog"
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog"
@@ -120,15 +121,6 @@ function CustomEmployeeToolbar({
       </div>
     </div>
   )
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
 }
 
 export default function EmployeesPage() {

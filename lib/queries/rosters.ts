@@ -106,3 +106,63 @@ export function useGenerateRoster() {
     },
   })
 }
+
+// Auto-fill roster
+export function useAutoFillRoster() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ 
+      weekId, 
+      body 
+    }: { 
+      weekId: string
+      body: Parameters<typeof rostersApi.autoFillRoster>[1]
+    }) => rostersApi.autoFillRoster(weekId, body),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: rosterKeys.week(variables.weekId) })
+    },
+  })
+}
+
+// Optimize roster
+export function useOptimizeRoster() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: rostersApi.optimizeRoster,
+    onSuccess: (data) => {
+      if (data.success && data.data) {
+        // Extract weekId from the response or mutation variables
+        queryClient.invalidateQueries({ queryKey: rosterKeys.all })
+      }
+    },
+  })
+}
+
+// Copy roster week
+export function useCopyRosterWeek() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ fromWeekId, toWeekId }: { fromWeekId: string; toWeekId: string }) =>
+      rostersApi.copyRosterWeek(fromWeekId, toWeekId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: rosterKeys.week(variables.toWeekId) })
+      queryClient.invalidateQueries({ queryKey: rosterKeys.all })
+    },
+  })
+}
+
+// Clear roster week
+export function useClearRosterWeek() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: rostersApi.clearRosterWeek,
+    onSuccess: (_, weekId) => {
+      queryClient.invalidateQueries({ queryKey: rosterKeys.week(weekId) })
+      queryClient.invalidateQueries({ queryKey: rosterKeys.all })
+    },
+  })
+}

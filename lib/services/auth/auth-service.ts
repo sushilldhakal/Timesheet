@@ -72,6 +72,33 @@ export class AuthService {
 
     await clearPreAuthCookie()
 
+    // Super admin with no memberships — issue sentinel token directly
+    if ((user as any).role === "super_admin" && effectiveMemberships.length === 0) {
+      const token = await createFullAuthToken({
+        sub: userId,
+        email: (user as any).email,
+        name: (user as any).name ?? "",
+        tenantId: "__super_admin__",
+        role: "super_admin",
+        locations: [],
+        managedRoles: [],
+      })
+      await setAuthCookie(token)
+      return {
+        status: 200,
+        data: {
+          user: {
+            id: userId,
+            name: (user as any).name ?? "",
+            email: (user as any).email,
+            role: "super_admin",
+            location: [],
+            rights: [],
+          },
+        },
+      }
+    }
+
     const membership = effectiveMemberships[0] as any | undefined
     const tenantId = membership?.tenantId ? String(membership.tenantId) : ((user as any).tenantId ? String((user as any).tenantId) : "")
     const role = String(membership?.role ?? (user as any).role ?? "user")

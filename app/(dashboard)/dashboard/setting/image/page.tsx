@@ -12,6 +12,7 @@ import { CalendarIcon, Trash2, Cloud, Save, ExternalLink, CheckCircle2, AlertTri
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { ConfirmDialogShell } from "@/components/shared/forms"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils/cn"
 import { toast } from "sonner"
@@ -1165,31 +1166,22 @@ export default function SettingPage() {
         </div>
       </div>
 
-      <AlertDialog open={confirmCloudinary} onOpenChange={setConfirmCloudinary}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete cloud images?</AlertDialogTitle>
-            <AlertDialogDescription>
-              All punch photos uploaded before{" "}
-              <strong>{cloudinaryDate ? format(cloudinaryDate, "d MMM yyyy") : ""}</strong>{" "}
-              will be permanently deleted. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cleanupCloudinaryMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                handleCloudinaryConfirm()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={cleanupCloudinaryMutation.isPending}
-            >
-              {cleanupCloudinaryMutation.isPending ? "Deleting..." : "Delete Images"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialogShell
+        open={confirmCloudinary}
+        onOpenChange={setConfirmCloudinary}
+        title="Delete cloud images?"
+        description={
+          <>
+            All punch photos uploaded before{" "}
+            <strong>{cloudinaryDate ? format(cloudinaryDate, "d MMM yyyy") : ""}</strong>{" "}
+            will be permanently deleted. This cannot be undone.
+          </>
+        }
+        onConfirm={handleCloudinaryConfirm}
+        confirmLabel={cleanupCloudinaryMutation.isPending ? "Deleting..." : "Delete Images"}
+        loading={cleanupCloudinaryMutation.isPending}
+        variant="destructive"
+      />
 
     </div>
   )

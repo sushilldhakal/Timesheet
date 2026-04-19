@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,37 +30,13 @@ import {
 } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import { Plus, Pencil, Trash2, Loader2, Save, AlertCircle } from "lucide-react"
-
-type PayrollSystemType = 'xero' | 'myob' | 'apa' | 'custom'
-
-interface RuleMapping {
-  exportName: string
-  payrollCode: string
-  description: string
-}
-
-interface PayItemMapping {
-  type: 'pay' | 'deduction' | 'leave_accrual'
-  exportName: string
-  payrollCode: string
-  description: string
-}
-
-interface BreakMapping {
-  breakType: string
-  exportName: string
-  payrollCode: string
-}
-
-interface PayrollMappingData {
-  _id: string
-  payrollSystemType: PayrollSystemType
-  ruleMapping: RuleMapping[]
-  payItemMapping: PayItemMapping[]
-  breakMapping: BreakMapping[]
-  isDefault: boolean
-  notes?: string
-}
+import {
+  getPayrollMappings,
+  createPayrollMapping,
+  updatePayrollMapping,
+  deletePayrollMapping,
+} from "@/lib/api/payroll"
+import type { PayrollSystemType, PayrollMappingData, RuleMapping, PayItemMapping, BreakMapping } from "@/lib/api/payroll"
 
 interface PayrollMappingConfigProps {
   tenantId: string
@@ -102,19 +76,16 @@ export function PayrollMappingConfig({ tenantId, onClose }: PayrollMappingConfig
   const fetchMappings = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/payroll/mappings?payrollSystemType=${systemType}`)
-      if (res.ok) {
-        const data = await res.json()
-        setMappings(data.mappings || [])
-        const defaultMapping = (data.mappings || []).find((m: PayrollMappingData) => m.isDefault)
-        if (defaultMapping) {
-          selectMapping(defaultMapping)
-        } else if (data.mappings?.length > 0) {
-          selectMapping(data.mappings[0])
-        } else {
-          setSelectedMapping(null)
-          resetForm()
-        }
+      const data = await getPayrollMappings(systemType)
+      setMappings(data.mappings || [])
+      const defaultMapping = (data.mappings || []).find((m: PayrollMappingData) => m.isDefault)
+      if (defaultMapping) {
+        selectMapping(defaultMapping)
+      } else if (data.mappings?.length > 0) {
+        selectMapping(data.mappings[0])
+      } else {
+        setSelectedMapping(null)
+        resetForm()
       }
     } catch {
       console.error("Failed to fetch mappings")
@@ -156,19 +127,13 @@ export function PayrollMappingConfig({ tenantId, onClose }: PayrollMappingConfig
         notes: notes || undefined
       }
 
-      const url = selectedMapping
-        ? `/api/payroll/mappings/${selectedMapping._id}`
-        : '/api/payroll/mappings'
-
-      const res = await fetch(url, {
-        method: selectedMapping ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-
-      if (res.ok) {
-        fetchMappings()
+      if (selectedMapping) {
+        await updatePayrollMapping(selectedMapping._id, body)
+      } else {
+        await createPayrollMapping(body)
       }
+      
+      fetchMappings()
     } catch {
       console.error("Failed to save mapping")
     } finally {
@@ -179,14 +144,10 @@ export function PayrollMappingConfig({ tenantId, onClose }: PayrollMappingConfig
   async function handleDelete() {
     if (!selectedMapping || selectedMapping.isDefault) return
     try {
-      const res = await fetch(`/api/payroll/mappings/${selectedMapping._id}`, {
-        method: 'DELETE'
-      })
-      if (res.ok) {
-        setSelectedMapping(null)
-        resetForm()
-        fetchMappings()
-      }
+      await deletePayrollMapping(selectedMapping._id)
+      setSelectedMapping(null)
+      resetForm()
+      fetchMappings()
     } catch {
       console.error("Failed to delete mapping")
     }

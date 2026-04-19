@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react"
 import type { Block, Resource, SchedulerMarker, ShiftDependency, EmployeeAvailability } from "@/components/scheduling/core/types-scheduler"
 import { getWeeksForBuffer, clamp, toDateISO } from "@/components/scheduling/core/constants-scheduler"
 import { useSchedulerContext } from "@/components/scheduling/shell/SchedulerProvider"
-import { useIsMobile } from "@/components/scheduling/hooks/useMediaQuery"
+import { useIsMobile } from "@/lib/hooks/use-media-query"
 import { GridView } from "@/components/scheduling/grid/GridView"
 
 export interface DayViewProps {

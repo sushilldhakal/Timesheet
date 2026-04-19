@@ -11,6 +11,7 @@ import { TeamGroupsTable } from "@/components/dashboard/tables/TeamGroupsTable"
 import { AddMasterDataDialog } from "@/components/dashboard/master-data/AddMasterDataDialog"
 import { EditMasterDataDialog } from "@/components/dashboard/master-data/EditMasterDataDialog"
 import { DeleteMasterDataDialog } from "@/components/dashboard/master-data/DeleteMasterDataDialog"
+import { TablePageToolbar, InfoGrid, InfoCard } from "@/components/shared"
 import type { CategoryRow } from "@/components/dashboard/master-data/types"
 
 export default function TeamsPage() {
@@ -113,58 +114,42 @@ export default function TeamsPage() {
 
   return (
     <>
-      <div className="flex flex-col space-y-4 p-4 lg:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <UserCircle className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Teams</h1>
-              <p className="text-sm text-muted-foreground">
-                Job capacities you can assign to employees (e.g. Driver, Supervisor).
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setAddTeamGroupOpen(true)} size="lg">
+      <div className="flex flex-col space-y-6 p-4 lg:p-8">
+        {/* Page Toolbar */}
+        <TablePageToolbar
+          title="Teams"
+          description="Job capacities you can assign to employees (e.g. Driver, Supervisor)."
+          onAdd={() => setAddOpen(true)}
+          addLabel="Add Team"
+          onRefresh={refetch}
+          loading={loading}
+          actions={
+            <Button variant="outline" onClick={() => setAddTeamGroupOpen(true)} size="sm">
               <Plus className="mr-2 h-4 w-4" />
               Add Team Group
             </Button>
-            <Button onClick={() => setAddOpen(true)} size="lg">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Team
-            </Button>
-          </div>
-        </div>
+          }
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total teams</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? total : "—"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active teams</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? activeCount : "—"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="sm:col-span-2 lg:col-span-1">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Bulk actions</CardTitle>
-              <CardDescription className="text-xs">Select rows in the table, then activate or deactivate them.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
+        {/* Metrics Grid */}
+        <InfoGrid columns={3}>
+          <InfoCard title="Total teams">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? total : "—"}
+            </div>
+          </InfoCard>
+          
+          <InfoCard title="Active teams">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? activeCount : "—"}
+            </div>
+          </InfoCard>
+          
+          <InfoCard 
+            title="Bulk actions"
+            description="Select rows in the table, then activate or deactivate them."
+          >
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -183,9 +168,9 @@ export default function TeamsPage() {
               >
                 Deactivate selected
               </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </InfoCard>
+        </InfoGrid>
 
         <Card>
           <CardHeader>

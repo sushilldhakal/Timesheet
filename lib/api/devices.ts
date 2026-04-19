@@ -111,8 +111,7 @@ export async function registerDeviceWithAuth(data: RegisterDeviceWithAuthRequest
 
 // Get public locations (no auth required)
 export async function getPublicLocations(): Promise<{ locations: DeviceLocation[]; count: number }> {
-  const response = await fetch(PUBLIC_LOCATIONS_URL, {
+  return apiFetch<{ locations: DeviceLocation[]; count: number }>(PUBLIC_LOCATIONS_URL, {
     cache: 'no-cache',
   })
-  return response.json()
 }

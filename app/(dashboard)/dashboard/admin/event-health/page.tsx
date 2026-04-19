@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { useEventHealth } from "@/lib/hooks/use-event-health"
-import { useQueryClient } from "@tanstack/react-query"
+import { useEventHealth, useTriggerRetry } from "@/lib/queries/admin"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -72,7 +71,7 @@ function StatCard({
 export default function EventHealthPage() {
   const router = useRouter()
   const { user, isHydrated } = useAuth()
-  const queryClient = useQueryClient()
+  const triggerRetryMutation = useTriggerRetry()
 
   useEffect(() => {
     if (isHydrated && user && user.role !== "admin" && user.role !== "super_admin") {
@@ -82,24 +81,19 @@ export default function EventHealthPage() {
 
   const { data, isLoading, refetch } = useEventHealth()
   const [selectedFailure, setSelectedFailure] = useState<NonNullable<typeof data>["recentFailures"][0] | null>(null)
-  const [retrying, setRetrying] = useState(false)
 
   if (!isHydrated || !user) return null
   if (user.role !== "admin" && user.role !== "super_admin") return null
 
-  const handleTriggerRetry = async () => {
-    setRetrying(true)
-    try {
-      const res = await fetch("/api/admin/trigger-retry", { method: "POST" })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error)
-      toast(`Retry sweep triggered — ${result.retried} events retried, ${result.resolved} resolved`)
-      queryClient.invalidateQueries({ queryKey: ["event-health"] })
-    } catch (err) {
-      toast.error("Trigger failed")
-    } finally {
-      setRetrying(false)
-    }
+  const handleTriggerRetry = () => {
+    triggerRetryMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        toast(`Retry sweep triggered — ${result.retried} events retried, ${result.resolved} resolved`)
+      },
+      onError: () => {
+        toast.error("Trigger failed")
+      },
+    })
   }
 
   const failureRateVariant =
@@ -234,8 +228,8 @@ export default function EventHealthPage() {
           </div>
         )}
 
-        <Button variant="outline" onClick={handleTriggerRetry} disabled={retrying}>
-          {retrying ? (
+        <Button variant="outline" onClick={handleTriggerRetry} disabled={triggerRetryMutation.isPending}>
+          {triggerRetryMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />

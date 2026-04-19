@@ -1,50 +1,24 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import * as analyticsApi from '@/lib/api/analytics'
 
 // Query keys
 export const analyticsKeys = {
-  all: ['analytics'] as const,
-  employeeReport: (params?: { 
-    startDate?: string
-    endDate?: string
-    employeeId?: string
-    locationId?: string
-    roleId?: string 
-  }) => [...analyticsKeys.all, 'employee-report', params] as const,
-  noShows: (params?: { 
-    startDate?: string
-    endDate?: string
-    locationId?: string
-    employeeId?: string 
-  }) => [...analyticsKeys.all, 'no-shows', params] as const,
-  punctuality: (params?: { 
-    startDate?: string
-    endDate?: string
-    locationId?: string
-    employeeId?: string 
-  }) => [...analyticsKeys.all, 'punctuality', params] as const,
-  variance: (params?: { 
-    startDate?: string
-    endDate?: string
-    locationId?: string
-    employeeId?: string
-    minVariance?: number 
-  }) => [...analyticsKeys.all, 'variance', params] as const,
-  weeklyReport: (params?: { 
-    startDate?: string
-    endDate?: string
-    locationId?: string 
-  }) => [...analyticsKeys.all, 'weekly-report', params] as const,
+  employeeReport: (params?: Parameters<typeof analyticsApi.getEmployeeReport>[0]) => 
+    ['analytics', 'employee-report', params] as const,
+  noShowsReport: (params?: Parameters<typeof analyticsApi.getNoShowsReport>[0]) => 
+    ['analytics', 'no-shows', params] as const,
+  punctualityReport: (params?: Parameters<typeof analyticsApi.getPunctualityReport>[0]) => 
+    ['analytics', 'punctuality', params] as const,
+  varianceReport: (params?: Parameters<typeof analyticsApi.getVarianceReport>[0]) => 
+    ['analytics', 'variance', params] as const,
+  weeklyReport: (params?: Parameters<typeof analyticsApi.getWeeklyReport>[0]) => 
+    ['analytics', 'weekly-report', params] as const,
+  labourCost: (params?: Parameters<typeof analyticsApi.getLabourCostAnalytics>[0]) => 
+    ['analytics', 'labour-cost', params] as const,
 }
 
 // Get employee report
-export function useEmployeeReport(params?: {
-  startDate?: string
-  endDate?: string
-  employeeId?: string
-  locationId?: string
-  roleId?: string
-}) {
+export function useEmployeeReport(params?: Parameters<typeof analyticsApi.getEmployeeReport>[0]) {
   return useQuery({
     queryKey: analyticsKeys.employeeReport(params),
     queryFn: () => analyticsApi.getEmployeeReport(params),
@@ -53,57 +27,53 @@ export function useEmployeeReport(params?: {
 }
 
 // Get no-shows report
-export function useNoShowsReport(params?: {
-  startDate?: string
-  endDate?: string
-  locationId?: string
-  employeeId?: string
-}) {
+export function useNoShowsReport(params?: Parameters<typeof analyticsApi.getNoShowsReport>[0]) {
   return useQuery({
-    queryKey: analyticsKeys.noShows(params),
+    queryKey: analyticsKeys.noShowsReport(params),
     queryFn: () => analyticsApi.getNoShowsReport(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
 // Get punctuality report
-export function usePunctualityReport(params?: {
-  startDate?: string
-  endDate?: string
-  locationId?: string
-  employeeId?: string
-}) {
+export function usePunctualityReport(params?: Parameters<typeof analyticsApi.getPunctualityReport>[0]) {
   return useQuery({
-    queryKey: analyticsKeys.punctuality(params),
+    queryKey: analyticsKeys.punctualityReport(params),
     queryFn: () => analyticsApi.getPunctualityReport(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
 // Get variance report
-export function useVarianceReport(params?: {
-  startDate?: string
-  endDate?: string
-  locationId?: string
-  employeeId?: string
-  minVariance?: number
-}) {
+export function useVarianceReport(params?: Parameters<typeof analyticsApi.getVarianceReport>[0]) {
   return useQuery({
-    queryKey: analyticsKeys.variance(params),
+    queryKey: analyticsKeys.varianceReport(params),
     queryFn: () => analyticsApi.getVarianceReport(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
 // Get weekly report
-export function useWeeklyReport(params?: {
-  startDate?: string
-  endDate?: string
-  locationId?: string
-}) {
+export function useWeeklyReport(params?: Parameters<typeof analyticsApi.getWeeklyReport>[0]) {
   return useQuery({
     queryKey: analyticsKeys.weeklyReport(params),
     queryFn: () => analyticsApi.getWeeklyReport(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Get labour cost analytics
+export function useLabourCostAnalytics(params?: Parameters<typeof analyticsApi.getLabourCostAnalytics>[0]) {
+  return useQuery({
+    queryKey: analyticsKeys.labourCost(params),
+    queryFn: () => analyticsApi.getLabourCostAnalytics(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Generate labour cost analysis
+export function useGenerateLabourCostAnalysis() {
+  return useMutation({
+    mutationFn: analyticsApi.generateLabourCostAnalysis,
   })
 }

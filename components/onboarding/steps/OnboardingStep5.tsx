@@ -8,16 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-
-const step5Schema = z.object({
-  contractType: z.enum(['permanent', 'fixed-term', 'casual', 'contractor']),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().optional().or(z.literal('')),
-  wageType: z.enum(['salary', 'hourly', 'piecework']),
-  salary: z.number().min(0, 'Salary must be 0 or greater'),
-  noticePeriod: z.number().min(0).max(365),
-  probationPeriodEnd: z.string().optional().or(z.literal('')),
-})
+import { step5Schema } from '@/lib/validations/onboarding'
 
 type Step5Data = z.infer<typeof step5Schema>
 

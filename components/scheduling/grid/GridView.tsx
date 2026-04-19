@@ -35,9 +35,9 @@ import {
   ZOOM_LEVELS,
 } from '@/components/scheduling/core/constants-scheduler'
 import { packShifts, getCategoryRowHeight, findConflicts, getConflictCount, wouldConflictAt, isUnavailable } from '@/components/scheduling/core/packing'
-import { useScrollToNow } from '@/components/scheduling/hooks/useScrollToNow'
-import { useMediaQuery, useIsTablet } from '@/components/scheduling/hooks/useMediaQuery'
-import { useFlatRows } from '@/components/scheduling/hooks/useFlatRows'
+import { useScrollToNow } from '@/lib/hooks/use-scroll-to-now'
+import { useMediaQuery, useIsTablet } from '@/lib/hooks/use-media-query'
+import { useFlatRows } from '@/lib/hooks/use-flat-rows'
 import { StaffPanel } from "./StaffPanel"
 import { RoleWarningModal } from "../modals/RoleWarningModal"
 import { AddShiftModal } from "../modals/AddShiftModal"

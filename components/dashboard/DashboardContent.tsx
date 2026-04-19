@@ -158,10 +158,19 @@ export default function DashboardContent() {
   const roleStaffingByRole = stats?.roleStaffingByRole ?? []
   const employerMix = stats?.employerMix ?? []
   const employerCategories = stats?.employerCategories ?? []
-  const inactiveEmployees = inactiveData?.inactiveEmployees ?? []
+  // Map API response to component expected format
+  const inactiveEmployees = Array.isArray(inactiveData) 
+    ? inactiveData.map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        pin: emp.pin,
+        lastPunchDate: emp.lastActivity,
+        daysInactive: emp.daysSinceLastActivity ?? 0
+      }))
+    : []
   const hoursSummary = hoursSummaryData ? {
-    mostHours: hoursSummaryData.mostHours ?? [],
-    leastHours: hoursSummaryData.leastHours ?? []
+    mostHours: [],
+    leastHours: []
   } : null
   
   // Dynamic employer mix config based on actual categories from API

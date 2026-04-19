@@ -2,6 +2,9 @@ import { connectDB, User } from "@/lib/db"
 import { getAuthFromCookie, type AuthPayload } from "./auth-helpers"
 import { NextRequest } from "next/server"
 
+/** Sentinel tenantId value used for super admin sessions without a real tenant binding */
+export const SUPER_ADMIN_SENTINEL = "__super_admin__"
+
 export type AuthWithLocations = {
   auth: AuthPayload
   /** Tenant (employer) ObjectId from the user's document — used for all scoped queries. */
@@ -10,6 +13,14 @@ export type AuthWithLocations = {
   userLocations: string[] | null
   /** null = admin, sees all. string[] = user's managed roles, filter employees to these. Empty array = see all roles at their locations. */
   managedRoles: string[] | null
+}
+
+/**
+ * Returns true if and only if the auth payload belongs to a platform super admin.
+ * Super admins have cross-tenant access and use the sentinel tenantId.
+ */
+export function isSuperAdminAuth(auth: AuthPayload | null | undefined): boolean {
+  return auth?.role === "super_admin" && auth?.tenantId === SUPER_ADMIN_SENTINEL
 }
 
 /**
@@ -48,6 +59,11 @@ export async function verifyAuth(_req: NextRequest) {
 export async function getAuthWithUserLocations(): Promise<AuthWithLocations | null> {
   const auth = await getAuthFromCookie()
   if (!auth) return null
+
+  // Super admin: bypass tenantId guard entirely
+  if (isSuperAdminAuth(auth)) {
+    return { auth, tenantId: SUPER_ADMIN_SENTINEL, userLocations: null, managedRoles: null }
+  }
 
   const tenantId = auth.tenantId ? String(auth.tenantId) : ""
   if (!tenantId) return null

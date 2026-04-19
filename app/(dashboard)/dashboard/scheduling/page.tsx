@@ -19,6 +19,7 @@ import { DayViewPanelChrome } from '@/components/scheduling/views/DayViewPanelCh
 import { SchedulingWeatherDayBadge } from '@/components/scheduling/weather/SchedulingWeatherDayBadge';
 import { UserSelect, AddShiftModal, ShiftModal } from '@/components/scheduling';
 import { UnifiedCalendarTopbar } from '@/components/dashboard/calendar/UnifiedCalendarTopbar';
+import { saveSchedulingTemplate, deleteSchedulingTemplate, applySchedulingTemplate } from '@/lib/api/scheduling-templates';
 import {
   Plus,
   ChevronDown,
@@ -1126,18 +1127,14 @@ export default function SchedulingPage() {
     setSaveTemplateDialog(false);
     try {
       const wid = weekIdFromDate(date);
-      const res = await fetch('/api/scheduling/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: templateNameInput.trim(),
-          weekId: wid,
+      await saveSchedulingTemplate({
+        weekId: wid,
+        name: templateNameInput.trim(),
+        data: {
           locationId: selectedLocationId,
           roleIds: [...roleIdsForScheduling],
-        }),
+        },
       });
-      if (!res.ok) throw new Error();
       toast.success('Template saved');
       await templatesQuery.refetch();
     } catch {
@@ -1162,11 +1159,7 @@ export default function SchedulingPage() {
     const { templateId } = deleteTemplateDialog;
     setDeleteTemplateDialog({ open: false, templateId: '' });
     try {
-      const res = await fetch(`/api/scheduling/templates/${templateId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error();
+      await deleteSchedulingTemplate(templateId);
       toast.success('Template deleted');
       await templatesQuery.refetch();
     } catch {
@@ -1184,21 +1177,15 @@ export default function SchedulingPage() {
     if (!date || !selectedLocationId) return;
     try {
       const wid = weekIdFromDate(date);
-      const res = await fetch(`/api/scheduling/templates/${templateId}/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          targetWeekId: wid,
+      await applySchedulingTemplate(templateId, {
+        weekId: wid,
+        data: {
           mode,
           locationId: selectedLocationId,
           roleIds: [...roleIdsForScheduling],
-        }),
+        },
       });
-      if (!res.ok) throw new Error();
-      const j = await res.json();
-      const n = j?.data?.shiftsCreated ?? 0;
-      toast.success(`Applied template (${n} shifts)`);
+      toast.success('Applied template');
       await refetchEvents();
     } catch {
       toast.error('Apply failed');
@@ -1209,21 +1196,15 @@ export default function SchedulingPage() {
     if (!date || !selectedLocationId) return;
     try {
       const wid = weekIdFromDate(date);
-      const res = await fetch(`/api/scheduling/templates/${templateId}/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          targetWeekId: wid,
+      await applySchedulingTemplate(templateId, {
+        weekId: wid,
+        data: {
           mode,
           locationId: selectedLocationId,
           roleIds: [...roleIdsForScheduling],
-        }),
+        },
       });
-      if (!res.ok) throw new Error();
-      const j = await res.json();
-      const n = j?.data?.shiftsCreated ?? 0;
-      toast.success(`Applied template (${n} shifts)`);
+      toast.success('Applied template');
       await refetchEvents();
     } catch {
       toast.error('Apply failed');
@@ -1232,11 +1213,7 @@ export default function SchedulingPage() {
 
   const deleteTemplateNow = useCallback(async (templateId: string) => {
     try {
-      const res = await fetch(`/api/scheduling/templates/${templateId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error();
+      await deleteSchedulingTemplate(templateId);
       toast.success('Template deleted');
       await templatesQuery.refetch();
     } catch {

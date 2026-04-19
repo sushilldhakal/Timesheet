@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueries } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Plus, MapPin } from "lucide-react"
+import { MapPin } from "lucide-react"
 import { useLocations, locationKeys } from "@/lib/queries/locations"
 import * as locationsApi from "@/lib/api/locations"
 import { LocationsTable } from "@/components/dashboard/tables/LocationsTable"
 import { AddMasterDataDialog } from "@/components/dashboard/master-data/AddMasterDataDialog"
 import { EditMasterDataDialog } from "@/components/dashboard/master-data/EditMasterDataDialog"
 import { DeleteMasterDataDialog } from "@/components/dashboard/master-data/DeleteMasterDataDialog"
+import { TablePageToolbar, InfoGrid, InfoCard } from "@/components/shared"
 import type { CategoryRow } from "@/components/dashboard/master-data/types"
 
 export default function LocationsPage() {
@@ -78,49 +78,36 @@ export default function LocationsPage() {
 
   return (
     <>
-      <div className="flex flex-col space-y-4 p-4 lg:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <MapPin className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Locations</h1>
-              <p className="text-sm text-muted-foreground">
-                Sites and offices with optional geofencing for clock-in.
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setAddOpen(true)} size="lg">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Location
-          </Button>
-        </div>
+      <div className="flex flex-col space-y-6 p-4 lg:p-8">
+        {/* Page Toolbar */}
+        <TablePageToolbar
+          title="Locations"
+          description="Sites and offices with optional geofencing for clock-in."
+          onAdd={() => setAddOpen(true)}
+          addLabel="Add Location"
+          onRefresh={refetch}
+          loading={loading}
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total locations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? total : "—"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">With geofencing set</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold tabular-nums">
-                {hydrated ? geofenceEnabled : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Has coordinates and a non-zero radius</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Metrics Grid */}
+        <InfoGrid columns={2}>
+          <InfoCard title="Total locations">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? total : "—"}
+            </div>
+          </InfoCard>
+          
+          <InfoCard title="With geofencing set">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? geofenceEnabled : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Has coordinates and a non-zero radius
+            </p>
+          </InfoCard>
+        </InfoGrid>
 
+        {/* Table */}
         <Card>
           <CardHeader>
             <CardTitle>All locations</CardTitle>

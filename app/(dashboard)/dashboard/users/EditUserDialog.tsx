@@ -1,13 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -30,11 +23,11 @@ import { useEmployees } from "@/lib/queries/employees"
 import { useUpdateUser } from "@/lib/queries/users"
 import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
 import { AlertCircle } from "lucide-react"
-import type { UpdateUserRequest } from "@/lib/api/users"
-import type { UserRow } from "./page"
+import type { UpdateUserRequest, User } from "@/lib/types/user"
+import { FormDialogShell } from "@/components/shared/forms"
 
 type Props = {
-  user: UserRow
+  user: User
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -57,7 +50,6 @@ export function EditUserDialog({
   const [location, setLocation] = useState<string[]>(user.location ?? [])
   const [managedRoles, setManagedRoles] = useState<string[]>(user.managedRoles ?? [])
   const [linkedEmployee, setLinkedEmployee] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
   const teamsQuery = useTeams()
@@ -112,7 +104,6 @@ export function EditUserDialog({
       setSelectedRole(user.role)
       setLocation(user.location ?? [])
       setManagedRoles(user.managedRoles ?? [])
-      setError(null)
     }
   }, [open, user])
 
@@ -149,51 +140,46 @@ export function EditUserDialog({
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
+  const handleSubmit = async () => {
     if (!isSelf && !canAssignRole) {
-      setError(`You don't have permission to assign the ${getRoleName(selectedRole ?? null)} role.`)
-      return
+      throw new Error(`You don't have permission to assign the ${getRoleName(selectedRole ?? null)} role.`)
     }
 
-    try {
-      const body: UpdateUserRequest = isSelf
-        ? {
-            email: email.trim().toLowerCase(),
-            ...(password ? { password } : {}),
-          }
-        : {
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            role: selectedRole,
-            ...(password ? { password } : {}),
-            location: showLocationField ? location : [],
-            rights: [],
-            managedRoles: showManagedRolesField ? managedRoles : [],
-          }
+    const body: UpdateUserRequest = isSelf
+      ? {
+          email: email.trim().toLowerCase(),
+          ...(password ? { password } : {}),
+        }
+      : {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          role: selectedRole,
+          ...(password ? { password } : {}),
+          location: showLocationField ? location : [],
+          managedRoles: showManagedRolesField ? managedRoles : [],
+        }
 
-      await updateUserMutation.mutateAsync({ id: user.id, data: body })
-      onOpenChange(false)
-      onSuccess()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error")
-    }
+    await updateUserMutation.mutateAsync({ id: user.id, data: body })
+    onSuccess()
   }
 
-  const loading = updateUserMutation.isPending
+  const isFormValid = useMemo(() => {
+    return name.trim() && 
+           email.trim() && 
+           (isSelf || canAssignRole) &&
+           (!password || password.length >= 6)
+  }, [name, email, isSelf, canAssignRole, password])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {isSelf ? "Edit My Profile" : "Edit User"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit}>
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isSelf ? "Edit My Profile" : "Edit User"}
+      onSubmit={handleSubmit}
+      submitLabel="Save Changes"
+      loading={updateUserMutation.isPending}
+      disabled={!isFormValid}
+    >
           <FieldGroup className="gap-4">
             {!isSelf && linkedEmployee && (
               <Field>
@@ -291,7 +277,7 @@ export function EditUserDialog({
                   onValueChange={setLocation}
                   defaultValue={location}
                   placeholder="Select locations..."
-                  disabled={loading}
+                  disabled={updateUserMutation.isPending}
                 />
               </Field>
             )}
@@ -304,7 +290,7 @@ export function EditUserDialog({
                   onValueChange={setManagedRoles}
                   defaultValue={managedRoles}
                   placeholder={location.length === 0 ? "Select locations first..." : "Select roles this supervisor manages..."}
-                  disabled={loading || location.length === 0}
+                  disabled={updateUserMutation.isPending || location.length === 0}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Roles this supervisor can manage
@@ -312,22 +298,7 @@ export function EditUserDialog({
               </Field>
             )}
 
-            {error && <FieldError>{error}</FieldError>}
           </FieldGroup>
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || (!isSelf && !canAssignRole)}>
-              {loading ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    </FormDialogShell>
   )
 }

@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { StaffSidebar } from "./StaffSidebar"
 import { StaffHeader } from "./StaffHeader"
-import { cn } from "@/lib/utils/cn"
+import { StaffShell } from "@/components/shared/shells/StaffShell"
+import { PageContent } from "@/components/shared/shells/PageContent"
+import { ContentState } from "@/components/shared/primitives/ContentState"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useEmployeeProfile, useEmployeeLogout } from "@/lib/queries/employee-clock"
@@ -88,43 +90,38 @@ export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // Mobile overlay component
+  const mobileOverlay = mobileMenuOpen ? (
+    <div
+      className="fixed inset-0 bg-black/50 z-40 md:hidden"
+      onClick={() => setMobileMenuOpen(false)}
+    />
+  ) : null;
+
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Mobile Overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
+    <StaffShell
+      sidebarCollapsed={sidebarCollapsed}
+      mobileMenuOpen={mobileMenuOpen}
+      mobileOverlay={mobileOverlay}
+      sidebar={
+        <StaffSidebar
+          isCollapsed={sidebarCollapsed}
+          mobileMenuOpen={mobileMenuOpen}
+          onToggle={toggleSidebar}
+          employee={employee}
         />
-      )}
-
-      {/* Sidebar */}
-      <StaffSidebar
-        isCollapsed={sidebarCollapsed}
-        mobileMenuOpen={mobileMenuOpen}
-        onToggle={toggleSidebar}
-        employee={employee}
-      />
-
-      {/* Main Content */}
-      <div
-        className={cn(
-          "flex flex-1 flex-col transition-all duration-300",
-          sidebarCollapsed ? "md:ml-[70px]" : "md:ml-[280px]"
-        )}
-      >
-        {/* Header */}
+      }
+      header={
         <StaffHeader
           employee={employee}
           onToggleSidebar={toggleSidebar}
           onLogout={handleLogout}
         />
-
-        {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+      }
+    >
+      <PageContent variant="default">
+        {children}
+      </PageContent>
+    </StaffShell>
   )
 }

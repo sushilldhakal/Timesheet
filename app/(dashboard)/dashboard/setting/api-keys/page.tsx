@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, type ApiKeyRecord } from "@/lib/hooks/use-api-keys"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ConfirmDialogShell } from "@/components/shared/forms"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Key, Plus, Copy, Check, Trash2, AlertTriangle } from "lucide-react"
 import { format } from "date-fns"
@@ -286,26 +287,21 @@ function KeyRow({ apiKey }: { apiKey: ApiKeyRecord }) {
         </td>
       </tr>
 
-      <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently revoke <strong>{apiKey.name}</strong>. Any integrations using
-              this key will stop working immediately.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={() => revokeKey.mutate(apiKey._id)}
-            >
-              Revoke Key
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialogShell
+        open={revokeOpen}
+        onOpenChange={setRevokeOpen}
+        title="Revoke API Key"
+        description={
+          <>
+            This will permanently revoke <strong>{apiKey.name}</strong>. Any integrations using
+            this key will stop working immediately.
+          </>
+        }
+        onConfirm={() => revokeKey.mutate(apiKey._id)}
+        confirmLabel="Revoke Key"
+        loading={revokeKey.isPending}
+        variant="destructive"
+      />
     </>
   )
 }
@@ -314,6 +310,12 @@ export default function ApiKeysPage() {
   const { data: keys = [], isLoading } = useApiKeys()
   const [createOpen, setCreateOpen] = useState(false)
   const [newKey, setNewKey] = useState("")
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -341,7 +343,7 @@ export default function ApiKeysPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {!isMounted || isLoading ? (
             <div className="space-y-3 p-6">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-14 w-full" />

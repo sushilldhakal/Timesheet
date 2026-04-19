@@ -12,7 +12,7 @@ export interface IUserSchedulingSettings {
 }
 
 export interface IUser {
-  tenantId: mongoose.Types.ObjectId
+  tenantId: mongoose.Types.ObjectId | null // null for super_admin
   name: string
   email: string
   password: string
@@ -65,7 +65,13 @@ export interface IUserDocument extends IUser, mongoose.Document {
  */
 const userSchema = new mongoose.Schema<IUserDocument>(
   {
-    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
+    tenantId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Employer", 
+      required: false, // Optional for super_admin
+      default: null,
+      index: true 
+    },
     name: {
       type: String,
       trim: true,
@@ -143,7 +149,8 @@ const userSchema = new mongoose.Schema<IUserDocument>(
   }
 )
 
-userSchema.index({ tenantId: 1, email: 1 }, { unique: true })
+userSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true })
+userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { tenantId: null } }) // Unique email for super_admin
 userSchema.index({ role: 1 })
 
 // Normalize legacy location string to array

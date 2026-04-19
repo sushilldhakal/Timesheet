@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
 
 const BASE_URL = '/api/analytics'
 
@@ -99,19 +99,15 @@ export async function getEmployeeReport(params?: {
   employeeId?: string
   locationId?: string
   roleId?: string
-}): Promise<ApiResponse<EmployeeReport[]>> {
+}): Promise<EmployeeReport[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.employeeId) searchParams.set('employeeId', params.employeeId)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
   if (params?.roleId) searchParams.set('roleId', params.roleId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/employee-report?${searchParams}` : `${BASE_URL}/employee-report`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<EmployeeReport[]>(`${BASE_URL}/employee-report${qs ? `?${qs}` : ''}`)
 }
 
 // Get no-shows report
@@ -120,18 +116,14 @@ export async function getNoShowsReport(params?: {
   endDate?: string
   locationId?: string
   employeeId?: string
-}): Promise<ApiResponse<NoShowReport[]>> {
+}): Promise<NoShowReport[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
   if (params?.employeeId) searchParams.set('employeeId', params.employeeId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/no-shows?${searchParams}` : `${BASE_URL}/no-shows`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<NoShowReport[]>(`${BASE_URL}/no-shows${qs ? `?${qs}` : ''}`)
 }
 
 // Get punctuality report
@@ -140,18 +132,14 @@ export async function getPunctualityReport(params?: {
   endDate?: string
   locationId?: string
   employeeId?: string
-}): Promise<ApiResponse<PunctualityReport[]>> {
+}): Promise<PunctualityReport[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
   if (params?.employeeId) searchParams.set('employeeId', params.employeeId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/punctuality?${searchParams}` : `${BASE_URL}/punctuality`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<PunctualityReport[]>(`${BASE_URL}/punctuality${qs ? `?${qs}` : ''}`)
 }
 
 // Get variance report
@@ -161,19 +149,15 @@ export async function getVarianceReport(params?: {
   locationId?: string
   employeeId?: string
   minVariance?: number
-}): Promise<ApiResponse<VarianceReport[]>> {
+}): Promise<VarianceReport[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
   if (params?.employeeId) searchParams.set('employeeId', params.employeeId)
   if (params?.minVariance) searchParams.set('minVariance', params.minVariance.toString())
-  
-  const url = searchParams.toString() ? `${BASE_URL}/variance?${searchParams}` : `${BASE_URL}/variance`
-  const response = await fetch(url, {
-    credentials: 'include',
-  })
-  return response.json()
+  const qs = searchParams.toString()
+  return apiFetch<VarianceReport[]>(`${BASE_URL}/variance${qs ? `?${qs}` : ''}`)
 }
 
 // Get weekly report
@@ -181,15 +165,41 @@ export async function getWeeklyReport(params?: {
   startDate?: string
   endDate?: string
   locationId?: string
-}): Promise<ApiResponse<WeeklyReport[]>> {
+}): Promise<WeeklyReport[]> {
   const searchParams = new URLSearchParams()
   if (params?.startDate) searchParams.set('startDate', params.startDate)
   if (params?.endDate) searchParams.set('endDate', params.endDate)
   if (params?.locationId) searchParams.set('locationId', params.locationId)
-  
-  const url = searchParams.toString() ? `${BASE_URL}/weekly-report?${searchParams}` : `${BASE_URL}/weekly-report`
-  const response = await fetch(url, {
-    credentials: 'include',
+  const qs = searchParams.toString()
+  return apiFetch<WeeklyReport[]>(`${BASE_URL}/weekly-report${qs ? `?${qs}` : ''}`)
+}
+
+// Get labour cost analytics
+export async function getLabourCostAnalytics(params?: {
+  locationId?: string
+  from?: string
+  to?: string
+}): Promise<{ breakdown: any[] }> {
+  const searchParams = new URLSearchParams()
+  if (params?.locationId) searchParams.set('locationId', params.locationId)
+  if (params?.from) searchParams.set('from', params.from)
+  if (params?.to) searchParams.set('to', params.to)
+  const qs = searchParams.toString()
+  return apiFetch<{ breakdown: any[] }>(`${BASE_URL}/labour-cost${qs ? `?${qs}` : ''}`)
+}
+
+// Generate labour cost analysis
+export async function generateLabourCostAnalysis(params: {
+  locationId: string
+  from: string
+  to: string
+}): Promise<any> {
+  const searchParams = new URLSearchParams({
+    locationId: params.locationId,
+    from: params.from,
+    to: params.to,
   })
-  return response.json()
+  return apiFetch<any>(`${BASE_URL}/labour-cost?${searchParams.toString()}`, {
+    method: 'POST',
+  })
 }

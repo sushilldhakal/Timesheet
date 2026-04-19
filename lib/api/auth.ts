@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/types/auth"
+import { apiFetch } from './fetch-client'
 
 export interface ChangePasswordRequest {
   currentPassword: string
@@ -34,30 +35,16 @@ export interface UnifiedLoginResponse {
 
 // Get current user
 export async function getMe(): Promise<MeResponse> {
-  const response = await fetch('/api/auth/me', {
+  return apiFetch<MeResponse>('/api/auth/me', {
     method: 'GET',
-    credentials: 'include',
   })
-  
-  if (!response.ok) {
-    throw new Error('Failed to get user info')
-  }
-  
-  return response.json()
 }
 
 // Logout
 export async function logout(): Promise<{ success: boolean }> {
-  const response = await fetch('/api/auth/logout', {
+  return apiFetch<{ success: boolean }>('/api/auth/logout', {
     method: 'POST',
-    credentials: 'include',
   })
-  
-  if (!response.ok) {
-    throw new Error('Failed to logout')
-  }
-  
-  return response.json()
 }
 
 // Unified login
@@ -80,7 +67,7 @@ export async function unifiedLogin(data: UnifiedLoginRequest): Promise<UnifiedLo
 }
 
 // Change password
-export async function changePassword(data: ChangePasswordRequest): Promise<{ success: boolean }> {
+export async function changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
   const response = await fetch('/api/auth/change-password', {
     method: 'POST',
     headers: {
@@ -117,13 +104,16 @@ export async function forgotPassword(data: { email: string }): Promise<{ success
 }
 
 // Reset password
-export async function resetPassword(data: { token: string; password: string }): Promise<{ success: boolean }> {
+export async function resetPassword(data: { token: string; password: string }): Promise<{ message: string; userType: "admin" | "employee" }> {
   const response = await fetch('/api/auth/reset-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      token: data.token,
+      newPassword: data.password // Map 'password' to 'newPassword' for API compatibility
+    }),
   })
   
   if (!response.ok) {
@@ -135,13 +125,16 @@ export async function resetPassword(data: { token: string; password: string }): 
 }
 
 // Setup password
-export async function setupPassword(data: { token: string; password: string }): Promise<{ success: boolean }> {
+export async function setupPassword(data: { token: string; password: string }): Promise<{ message: string; redirect: string }> {
   const response = await fetch('/api/auth/setup-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      token: data.token,
+      newPassword: data.password // Map 'password' to 'newPassword' for API compatibility
+    }),
   })
   
   if (!response.ok) {

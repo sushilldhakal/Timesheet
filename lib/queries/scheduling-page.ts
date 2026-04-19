@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { IUserSchedulingSettings } from "@/lib/db/schemas/user"
 import { autoFillRoster, publishRosterScoped } from "@/lib/api/rosters"
+import {
+  getLocationTeams,
+  getSchedulingTemplates,
+  getUserSchedulingSettings,
+  updateUserSchedulingSettings,
+} from "@/lib/api/scheduling"
 
 export const schedulingPageKeys = {
   locationTeams: (locationId: string) => ["scheduling", "locationTeams", locationId] as const,
@@ -11,11 +17,7 @@ export const schedulingPageKeys = {
 export function useLocationTeamsForScheduling(locationId: string | null) {
   return useQuery({
     queryKey: locationId ? schedulingPageKeys.locationTeams(locationId) : ["scheduling", "locationTeams", "none"],
-    queryFn: async () => {
-      const res = await fetch(`/api/locations/${locationId}/teams`, { credentials: "include" })
-      if (!res.ok) throw new Error("Failed to load location teams")
-      return res.json() as Promise<{ teams: Array<{ teamId: string; teamName: string }> }>
-    },
+    queryFn: () => getLocationTeams(locationId!),
     enabled: !!locationId,
     staleTime: 60_000,
   })
@@ -27,11 +29,7 @@ export const useLocationRolesForScheduling = useLocationTeamsForScheduling
 export function useSchedulingTemplates() {
   return useQuery({
     queryKey: schedulingPageKeys.templates,
-    queryFn: async () => {
-      const res = await fetch("/api/scheduling/templates", { credentials: "include" })
-      if (!res.ok) throw new Error("Failed to load templates")
-      return res.json() as Promise<{ templates: unknown[] }>
-    },
+    queryFn: () => getSchedulingTemplates(),
     staleTime: 60_000,
   })
 }
@@ -39,11 +37,7 @@ export function useSchedulingTemplates() {
 export function useUserSchedulingSettings() {
   return useQuery({
     queryKey: schedulingPageKeys.userSchedulingSettings,
-    queryFn: async () => {
-      const res = await fetch("/api/users/me/scheduling-settings", { credentials: "include" })
-      if (!res.ok) throw new Error("Failed to load scheduling settings")
-      return res.json() as Promise<{ schedulingSettings: IUserSchedulingSettings | null }>
-    },
+    queryFn: () => getUserSchedulingSettings(),
     staleTime: 60_000,
   })
 }
@@ -51,19 +45,7 @@ export function useUserSchedulingSettings() {
 export function usePatchSchedulingSettings() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: IUserSchedulingSettings) => {
-      const res = await fetch("/api/users/me/scheduling-settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        throw new Error((j as { error?: string }).error || "Save failed")
-      }
-      return res.json() as Promise<{ schedulingSettings: IUserSchedulingSettings }>
-    },
+    mutationFn: (body: IUserSchedulingSettings) => updateUserSchedulingSettings(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: schedulingPageKeys.userSchedulingSettings })
     },

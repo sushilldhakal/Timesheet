@@ -20,16 +20,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ConfirmDialogShell } from "@/components/shared/forms"
 import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react"
-
-type PublicHoliday = {
-  _id: string
-  date: string | Date
-  name: string
-  state: string
-  isRecurring: boolean
-  createdAt: string | Date
-}
+import {
+  getPublicHolidays,
+  createPublicHoliday,
+  deletePublicHoliday,
+  seedPublicHolidays,
+  type PublicHoliday,
+} from "@/lib/api/public-holidays"
 
 const STATE_OPTIONS = ['NAT', 'VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT'] as const
 type StateOption = (typeof STATE_OPTIONS)[number]
@@ -90,14 +89,8 @@ export default function PublicHolidaysPage() {
     setLoading(true)
     setSeedMessage(null)
     try {
-      const params = new URLSearchParams()
-      params.set('year', String(selectedYear))
-      if (selectedState !== 'All') params.set('state', selectedState)
-
-      const res = await fetch(`/api/public-holidays?${params.toString()}`)
-      if (!res.ok) throw new Error("Failed to fetch")
-      const data = await res.json()
-      setPublicHolidays((data?.publicHolidays ?? []) as PublicHoliday[])
+      const data = await getPublicHolidays({ year: selectedYear, state: selectedState })
+      setPublicHolidays(data.publicHolidays ?? [])
     } catch {
       setPublicHolidays([])
     } finally {
@@ -158,13 +151,7 @@ export default function PublicHolidaysPage() {
     setSeedLoading(true)
     setSeedMessage(null)
     try {
-      const res = await fetch('/api/public-holidays/seed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year: selectedYear }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || "Failed to seed")
+      const data = await seedPublicHolidays(selectedYear)
       setSeedMessage(`Seeded ${data?.upserted ?? 0} new holidays for ${selectedYear}`)
       await fetchHolidays()
     } catch (e: any) {
@@ -177,19 +164,12 @@ export default function PublicHolidaysPage() {
   const handleCreate = async () => {
     setCreateLoading(true)
     try {
-      const res = await fetch('/api/public-holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: createDate,
-          name: createName,
-          state: createState,
-          isRecurring: createRecurring,
-        }),
+      await createPublicHoliday({
+        date: createDate,
+        name: createName,
+        state: createState,
+        isRecurring: createRecurring,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || "Failed to create holiday")
-
       setAddOpen(false)
       setCreateDate("")
       setCreateName("")
@@ -207,9 +187,7 @@ export default function PublicHolidaysPage() {
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      const res = await fetch(`/api/public-holidays/${deleteTarget._id}`, { method: 'DELETE' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error || "Failed to delete holiday")
+      await deletePublicHoliday(deleteTarget._id)
       setDeleteTarget(null)
       await fetchHolidays()
     } catch (e: any) {
@@ -367,32 +345,26 @@ export default function PublicHolidaysPage() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete public holiday?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <ConfirmDialogShell
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete public holiday?"
+        description={
+          deleteTarget ? (
+            <>
               This will permanently delete{" "}
-              <span className="font-medium">{deleteTarget?.name}</span>{" "}
-              ({deleteTarget ? formatHolidayDate(deleteTarget.date) : ""}). This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                void handleDelete()
-              }}
-              disabled={deleteLoading}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <span className="font-medium">{deleteTarget.name}</span>{" "}
+              ({formatHolidayDate(deleteTarget.date)}). This action cannot be undone.
+            </>
+          ) : (
+            "This action cannot be undone."
+          )
+        }
+        onConfirm={handleDelete}
+        confirmLabel="Delete"
+        loading={deleteLoading}
+        variant="destructive"
+      />
     </div>
   )
 }

@@ -23,7 +23,7 @@ export class DeviceRegisterService {
     const normalizedInput = email.trim().toLowerCase();
     const bcrypt = await import('bcrypt');
 
-    const adminUser = await DeviceRegisterDbQueries.findAdminByEmailOrUsernameWithPasswordLean(normalizedInput);
+    const adminUser = await DeviceRegisterDbQueries.findAdminByEmailWithPasswordLean(normalizedInput);
 
     if (process.env.NODE_ENV === 'development') {
       console.log('[device/register] Looking for user:', normalizedInput);

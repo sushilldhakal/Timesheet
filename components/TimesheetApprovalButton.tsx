@@ -3,16 +3,7 @@
 import { useState } from "react"
 import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialogShell } from "@/components/shared/forms"
 
 export function TimesheetApprovalButton({
   approved,
@@ -39,7 +30,7 @@ export function TimesheetApprovalButton({
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <>
       <Button
         variant="default"
         size={size}
@@ -52,28 +43,19 @@ export function TimesheetApprovalButton({
         Approve
       </Button>
 
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Approve this shift?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This marks the shift as approved for payroll review.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={approving}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={approving}
-            onClick={(e) => {
-              e.preventDefault()
-              setOpen(false)
-              void onApprove()
-            }}
-          >
-            Approve
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <ConfirmDialogShell
+        open={open}
+        onOpenChange={setOpen}
+        title="Approve this shift?"
+        description="This marks the shift as approved for payroll review."
+        onConfirm={async () => {
+          setOpen(false)
+          await onApprove()
+        }}
+        confirmLabel="Approve"
+        loading={approving}
+      />
+    </>
   )
 }
 

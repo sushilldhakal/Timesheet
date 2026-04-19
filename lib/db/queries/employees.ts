@@ -29,12 +29,20 @@ export class EmployeeDbQueries {
     return Employee.findOne(filter);
   }
 
-  static async findEmployeeByPin(pin: string) {
-    return Employee.findOne({ pin });
+  static async findEmployeeByPin(pin: string, tenantId?: string) {
+    const filter: any = { pin };
+    if (tenantId) {
+      filter.tenantId = new mongoose.Types.ObjectId(tenantId);
+    }
+    return Employee.findOne(filter);
   }
 
-  static async findDuplicatePin(pin: string, excludeId: string) {
-    return Employee.findOne({ pin, _id: { $ne: excludeId } });
+  static async findDuplicatePin(pin: string, excludeId: string, tenantId?: string) {
+    const filter: any = { pin, _id: { $ne: excludeId } };
+    if (tenantId) {
+      filter.tenantId = new mongoose.Types.ObjectId(tenantId);
+    }
+    return Employee.findOne(filter);
   }
 
   static async deleteEmployee(filter: Record<string, unknown>) {

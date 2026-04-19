@@ -16,6 +16,7 @@ import { useFaceDetection } from "@/lib/hooks/use-face-detection"
 import { logger } from "@/lib/utils/logger"
 import { useEnhancedClock } from "@/lib/hooks/use-enhanced-clock"
 import { OfflineStatus } from "@/components/clock/offline-status"
+import { getEmployeeProfile, employeeLogout } from "@/lib/api/employee-clock"
 import dynamic from "next/dynamic"
 
 // Dynamically import Confetti to avoid SSR issues
@@ -364,20 +365,10 @@ function ClockPageContent() {
 
     // No cached session - check if user has valid cookie
     logger.log("[ClockPage] No cached session, checking employee cookie")
-    fetch("/api/employee/me")
+    getEmployeeProfile()
       .then(async (res) => {
-        logger.log("[ClockPage] Employee API response:", { status: res.status, ok: res.ok })
-        if (!res.ok) throw new Error("Unauthorized")
-        
-        // Check if response is JSON or HTML (redirect)
-        const contentType = res.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Not JSON - likely redirected")
-        }
-        
-        return res.json()
-      })
-      .then((data) => {
+        logger.log("[ClockPage] Employee API response:", { status: res.data?.employee ? "ok" : "error" })
+        if (!res.data?.employee) throw new Error("Unauthorized")
         // User has valid cookie but no session storage
         // This means they refreshed or lost session - redirect to PIN page for fresh location
         logger.warn("[ClockPage] ⚠️ Valid cookie but no session - redirecting to PIN page for location verification")
@@ -450,7 +441,7 @@ function ClockPageContent() {
       logger.error("[ClockPage] Error clearing session:", err)
     }
     
-    fetch("/api/employee/logout", { method: "POST" }).catch(() => {})
+    employeeLogout().catch(() => {})
     router.replace("/pin")
   }, [router])
 

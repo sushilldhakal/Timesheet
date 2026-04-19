@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useEmployerSettings, useUpdateEmployerSettings } from "@/lib/queries/employers"
 
 const WINDOW_TYPES: { value: WindowType; label: string; description: string }[] = [
   {
@@ -78,7 +78,6 @@ function getWeeklyPreview(periodStartDayOfWeek: number): string {
 export default function ComplianceConfigPage() {
   const router = useRouter()
   const { user, isHydrated } = useAuth()
-  const queryClient = useQueryClient()
 
   // Role guard
   useEffect(() => {
@@ -92,15 +91,8 @@ export default function ComplianceConfigPage() {
   const updateConfig = useUpdatePayPeriodConfig(employerId)
 
   // External hire org setting
-  const { data: orgSettings, isLoading: orgSettingsLoading } = useQuery({
-    queryKey: ["org-settings"],
-    queryFn: async () => {
-      const res = await fetch("/api/employers/settings")
-      if (!res.ok) return { enableExternalHire: false }
-      return res.json()
-    },
-    enabled: isHydrated,
-  })
+  const { data: orgSettings, isLoading: orgSettingsLoading } = useEmployerSettings(isHydrated)
+  const updateSettingsMutation = useUpdateEmployerSettings()
 
   const [externalHire, setExternalHire] = useState<boolean | null>(null)
   const [savingExternalHire, setSavingExternalHire] = useState(false)
@@ -108,7 +100,7 @@ export default function ComplianceConfigPage() {
   // Sync local state when query resolves
   useEffect(() => {
     if (orgSettings?.enableExternalHire !== undefined && externalHire === null) {
-      setExternalHire(orgSettings.enableExternalHire)
+      setExternalHire(Boolean(orgSettings.enableExternalHire))
     }
   }, [orgSettings, externalHire])
 
@@ -116,16 +108,7 @@ export default function ComplianceConfigPage() {
     setExternalHire(checked) // optimistic
     setSavingExternalHire(true)
     try {
-      const res = await fetch("/api/employers/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enableExternalHire: checked }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error ?? `Request failed (${res.status})`)
-      }
-      queryClient.invalidateQueries({ queryKey: ["org-settings"] })
+      await updateSettingsMutation.mutateAsync({ enableExternalHire: checked })
       toast.success(checked ? "External workforce enabled" : "External workforce disabled")
     } catch (err: any) {
       setExternalHire(!checked) // revert

@@ -4,14 +4,6 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { SingleDayPicker } from "@/components/ui/single-day-picker"
 import {
@@ -31,35 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { FormDialogShell } from "@/components/shared/forms"
 import { toast } from "@/lib/utils/toast"
 import { CheckCircle2, MapPin, Briefcase, Loader2 } from "lucide-react"
 import { useLocations } from "@/lib/queries/locations"
 import { useTeamsAvailability } from "@/lib/queries/teams"
 import { useCreateEmployeeRole } from "@/lib/queries/employees"
+import { roleAssignmentFormSchema } from "@/lib/validations/employee-roles"
 
-// Validation schema
-const assignmentSchema = z.object({
-  locationId: z.string().min(1, "Location is required"),
-  roleId: z.string().min(1, "Team is required"),
-  validFrom: z.date({
-    message: "Valid from date is required",
-  }),
-  validTo: z.date().nullable().optional(),
-  notes: z.string().max(500, "Notes must be 500 characters or less").optional(),
-}).refine(
-  (data) => {
-    if (data.validTo && data.validFrom) {
-      return data.validTo >= data.validFrom
-    }
-    return true
-  },
-  {
-    message: "Valid to date must be after or equal to valid from date",
-    path: ["validTo"],
-  }
-)
-
-type AssignmentFormData = z.infer<typeof assignmentSchema>
+// Import schema from validations
+type AssignmentFormData = z.infer<typeof roleAssignmentFormSchema>
 
 interface Location {
   _id: string
@@ -86,7 +59,7 @@ export function EmployeeRoleAssignmentDialog({
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const form = useForm<AssignmentFormData>({
-    resolver: zodResolver(assignmentSchema),
+    resolver: zodResolver(roleAssignmentFormSchema),
     defaultValues: {
       locationId: "",
       roleId: "",
@@ -193,268 +166,244 @@ export function EmployeeRoleAssignmentDialog({
   const selectedRole = teams.find((t: { teamId: string }) => t.teamId === selectedRoleId)
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[550px]">
-        {showSuccess ? (
-          // Success confirmation view
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-3">
-              <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="text-center space-y-2">
-              <h3 className="text-lg font-semibold">Team assigned successfully</h3>
-              <p className="text-sm text-muted-foreground">
-                {employeeName} can now work as {(selectedRole as { teamName?: string })?.teamName} at{" "}
-                {selectedLocation?.name}
-              </p>
-            </div>
-          </div>
-        ) : (
-          // Form view
-          <>
-            <DialogHeader>
-              <DialogTitle>Assign team to employee</DialogTitle>
-              <DialogDescription>
-                Assign <span className="font-medium text-foreground">{employeeName}</span> to
-                a team at a specific location
-              </DialogDescription>
-            </DialogHeader>
-
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="space-y-4">
-                  {/* Validation Error Display */}
-                  {validationError && (
-                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                      <p className="text-sm text-destructive">{validationError}</p>
-                    </div>
-                  )}
-
-                  {/* Location Dropdown */}
-                  <FormField
-                    control={form.control}
-                    name="locationId"
-                    render={({ field }: { field: any }) => (
-                      <FormItem>
-                        <FormLabel>Location *</FormLabel>
-                        <FormControl>
-                          <Select
-                            value={field.value}
-                            onValueChange={handleLocationChange}
-                            disabled={loadingLocations}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={
-                                loadingLocations
-                                  ? "Loading locations..."
-                                  : "Select a location"
-                              }>
-                                {field.value && selectedLocation && (
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                                    <span>{selectedLocation.name}</span>
-                                  </div>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {locations.length === 0 ? (
-                                <div className="p-2 text-sm text-muted-foreground text-center">
-                                  No locations available
-                                </div>
-                              ) : (
-                                locations.map((location: any) => (
-                                  <SelectItem
-                                    key={location._id || location.id}
-                                    value={location._id || location.id || ""}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                                      <span>{location.name}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormDescription>
-                          Select the location where the employee will work
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Team dropdown (filtered by location) */}
-                  <FormField
-                    control={form.control}
-                    name="roleId"
-                    render={({ field }: { field: any }) => (
-                      <FormItem>
-                        <FormLabel>Team *</FormLabel>
-                        <FormControl>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={!selectedLocationId || loadingRoles}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={
-                                !selectedLocationId
-                                  ? "Select a location first"
-                                  : loadingRoles
-                                  ? "Loading teams..."
-                                  : "Select a team"
-                              }>
-                                {field.value && selectedRole && (
-                                  <div className="flex items-center gap-2">
-                                    {(selectedRole as { teamColor?: string }).teamColor && (
-                                      <div
-                                        className="w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: (selectedRole as { teamColor?: string }).teamColor }}
-                                      />
-                                    )}
-                                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                                    <span>{(selectedRole as { teamName?: string }).teamName}</span>
-                                  </div>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {loadingRoles ? (
-                                <div className="p-2 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Loading teams...
-                                </div>
-                              ) : teams.length === 0 ? (
-                                <div className="p-2 text-sm text-muted-foreground text-center">
-                                  No teams enabled at this location
-                                </div>
-                              ) : (
-                                teams.map((team: { teamId: string; teamName: string; teamColor?: string; employeeCount?: number }) => (
-                                  <SelectItem key={team.teamId} value={team.teamId}>
-                                    <div className="flex items-center gap-2">
-                                      {team.teamColor && (
-                                        <div
-                                          className="w-3 h-3 rounded-full shrink-0"
-                                          style={{ backgroundColor: team.teamColor }}
-                                        />
-                                      )}
-                                      <span>{team.teamName}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        ({team.employeeCount} assigned)
-                                      </span>
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormDescription>
-                          Only teams enabled at the selected location are shown
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Valid From Date */}
-                  <FormField
-                    control={form.control}
-                    name="validFrom"
-                    render={({ field }: any) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Valid From *</FormLabel>
-                        <FormControl>
-                          <SingleDayPicker
-                            value={field.value}
-                            onSelect={field.onChange}
-                            placeholder="Select start date"
-                            labelVariant="PP"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          The date when this assignment becomes active
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Valid To Date */}
-                  <FormField
-                    control={form.control}
-                    name="validTo"
-                    render={({ field }: any) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Valid To (Optional)</FormLabel>
-                        <FormControl>
-                          <SingleDayPicker
-                            value={field.value || undefined}
-                            onSelect={field.onChange}
-                            placeholder="Select end date (leave empty for indefinite)"
-                            labelVariant="PP"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Leave empty for indefinite assignment
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Notes Field */}
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }: { field: any }) => (
-                      <FormItem>
-                        <FormLabel>Notes (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Add any notes about this assignment (e.g., training completed, certifications)"
-                            className="resize-none"
-                            rows={3}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {field.value?.length || 0} / 500 characters
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleClose}
-                    disabled={createRoleMutation.isPending}
+    <>
+      <FormDialogShell
+      open={open && !showSuccess}
+      onOpenChange={handleClose}
+      title="Assign team to employee"
+      description={`Assign ${employeeName} to a team at a specific location`}
+      onSubmit={form.handleSubmit(onSubmit)}
+      submitLabel={createRoleMutation.isPending ? "Assigning..." : "Assign team"}
+      loading={createRoleMutation.isPending}
+      error={validationError}
+      disabled={!selectedLocationId || !selectedRoleId}
+      size="lg"
+    >
+      <Form {...form}>
+        <div className="space-y-4">
+          {/* Location Dropdown */}
+          <FormField
+            control={form.control}
+            name="locationId"
+            render={({ field }: { field: any }) => (
+              <FormItem>
+                <FormLabel>Location *</FormLabel>
+                <FormControl>
+                  <Select
+                    value={field.value}
+                    onValueChange={handleLocationChange}
+                    disabled={loadingLocations}
                   >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createRoleMutation.isPending || !selectedLocationId || !selectedRoleId}>
-                    {createRoleMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Assigning...
-                      </>
-                    ) : (
-                      "Assign team"
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={
+                        loadingLocations
+                          ? "Loading locations..."
+                          : "Select a location"
+                      }>
+                        {field.value && selectedLocation && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>{selectedLocation.name}</span>
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No locations available
+                        </div>
+                      ) : (
+                        locations.map((location: any) => (
+                          <SelectItem
+                            key={location._id || location.id}
+                            value={location._id || location.id || ""}
+                          >
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span>{location.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  Select the location where the employee will work
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Team dropdown (filtered by location) */}
+          <FormField
+            control={form.control}
+            name="roleId"
+            render={({ field }: { field: any }) => (
+              <FormItem>
+                <FormLabel>Team *</FormLabel>
+                <FormControl>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!selectedLocationId || loadingRoles}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={
+                        !selectedLocationId
+                          ? "Select a location first"
+                          : loadingRoles
+                          ? "Loading teams..."
+                          : "Select a team"
+                      }>
+                        {field.value && selectedRole && (
+                          <div className="flex items-center gap-2">
+                            {(selectedRole as { teamColor?: string }).teamColor && (
+                              <div
+                                className="w-3 h-3 rounded-full shrink-0"
+                                style={{ backgroundColor: (selectedRole as { teamColor?: string }).teamColor }}
+                              />
+                            )}
+                            <Briefcase className="h-4 w-4 text-muted-foreground" />
+                            <span>{(selectedRole as { teamName?: string }).teamName}</span>
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {loadingRoles ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading teams...
+                        </div>
+                      ) : teams.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No teams enabled at this location
+                        </div>
+                      ) : (
+                        teams.map((team: { teamId: string; teamName: string; teamColor?: string; employeeCount?: number }) => (
+                          <SelectItem key={team.teamId} value={team.teamId}>
+                            <div className="flex items-center gap-2">
+                              {team.teamColor && (
+                                <div
+                                  className="w-3 h-3 rounded-full shrink-0"
+                                  style={{ backgroundColor: team.teamColor }}
+                                />
+                              )}
+                              <span>{team.teamName}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({team.employeeCount} assigned)
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  Only teams enabled at the selected location are shown
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Valid From Date */}
+          <FormField
+            control={form.control}
+            name="validFrom"
+            render={({ field }: any) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Valid From *</FormLabel>
+                <FormControl>
+                  <SingleDayPicker
+                    value={field.value}
+                    onSelect={field.onChange}
+                    placeholder="Select start date"
+                    labelVariant="PP"
+                  />
+                </FormControl>
+                <FormDescription>
+                  The date when this assignment becomes active
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Valid To Date */}
+          <FormField
+            control={form.control}
+            name="validTo"
+            render={({ field }: any) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Valid To (Optional)</FormLabel>
+                <FormControl>
+                  <SingleDayPicker
+                    value={field.value || undefined}
+                    onSelect={field.onChange}
+                    placeholder="Select end date (leave empty for indefinite)"
+                    labelVariant="PP"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Leave empty for indefinite assignment
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Notes Field */}
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }: { field: any }) => (
+              <FormItem>
+                <FormLabel>Notes (Optional)</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="Add any notes about this assignment (e.g., training completed, certifications)"
+                    className="resize-none"
+                    rows={3}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {field.value?.length || 0} / 500 characters
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </Form>
+    </FormDialogShell>
+
+    {/* Success Dialog */}
+    {showSuccess && (
+      <FormDialogShell
+        open={showSuccess}
+        onOpenChange={() => {}}
+        title="Team assigned successfully"
+        footer={null}
+      >
+        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+          <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-3">
+            <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+          </div>
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {employeeName} can now work as {(selectedRole as { teamName?: string })?.teamName} at{" "}
+              {selectedLocation?.name}
+            </p>
+          </div>
+        </div>
+      </FormDialogShell>
+    )}
+    </>
   )
 }

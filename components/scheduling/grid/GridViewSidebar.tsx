@@ -20,7 +20,7 @@ function categorySidebarMeta(cat: Resource): {
   };
 }
 import type { StaffPanelState, AddPromptState } from "./GridView";
-import { employeesForCategory } from "@/components/scheduling/hooks/useFlatRows";
+import { employeesForCategory } from "@/lib/hooks/use-flat-rows";
 
 export interface GridViewSidebarProps {
   sidebarCollapsed: boolean;

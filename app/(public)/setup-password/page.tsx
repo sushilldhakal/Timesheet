@@ -44,12 +44,12 @@ export default function SetupPasswordPage() {
       { token, password: newPassword },
       {
         onSuccess: (data) => {
-          if (data.success) {
+          if (data.message) {
             toast.success("Password set successfully! Redirecting...")
             
             // Auto-login and redirect to staff dashboard
             setTimeout(() => {
-              router.push("/staff/dashboard")
+              router.push(data.redirect || "/staff/dashboard")
             }, 1500)
           }
         },

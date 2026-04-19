@@ -63,3 +63,26 @@ export function useDeleteEmployer() {
   })
 }
 
+export const employerSettingsKeys = {
+  settings: ['employer-settings'] as const,
+}
+
+export function useEmployerSettings(enabled = true) {
+  return useQuery({
+    queryKey: employerSettingsKeys.settings,
+    queryFn: () => employersApi.getEmployerSettings(),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useUpdateEmployerSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: employersApi.updateEmployerSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: employerSettingsKeys.settings })
+    },
+  })
+}
+

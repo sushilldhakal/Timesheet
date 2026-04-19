@@ -6,74 +6,55 @@ import { Building2, Loader2, LogIn, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/ui/mode-toggle"
 import { toast } from "sonner"
-
-interface Org {
-  id: string
-  name: string
-  slug: string
-}
+import { useOrgs, useSelectOrg } from "@/lib/queries/orgs"
 
 export default function SelectOrgPage() {
   const router = useRouter()
-  const [orgs, setOrgs] = useState<Org[]>([])
-  const [loading, setLoading] = useState(true)
+  const orgsQuery = useOrgs()
+  const selectOrgMutation = useSelectOrg()
   const [selecting, setSelecting] = useState<string | null>(null)
 
-  // Fetch available orgs for the pre-auth'd user
+  const orgs = orgsQuery.data ?? []
+
+  // Handle query states
   useEffect(() => {
-    async function fetchOrgs() {
-      try {
-        const res = await fetch("/api/auth/orgs")
-        if (res.status === 401) {
-          // Pre-auth token missing or expired — send back to login
-          router.replace("/")
-          return
-        }
-        if (!res.ok) throw new Error("Failed to load organisations")
-        const data = await res.json()
-        const list: Org[] = data.orgs ?? []
-        if (list.length === 0) {
-          toast.error("No organisations found for your account")
-          router.replace("/")
-          return
-        }
-        // If only one org somehow ended up here, auto-select it
-        if (list.length === 1) {
-          await selectOrg(list[0].id)
-          return
-        }
-        setOrgs(list)
-      } catch {
-        toast.error("Could not load your organisations. Please try again.")
+    if (orgsQuery.isError) {
+      const err = orgsQuery.error as any
+      if (err?.message?.includes('401') || err?.message?.includes('Unauthorized')) {
+        // Pre-auth token missing or expired — send back to login
         router.replace("/")
-      } finally {
-        setLoading(false)
+        return
       }
+      toast.error("Could not load your organisations. Please try again.")
+      router.replace("/")
+      return
     }
 
-    fetchOrgs()
+    if (orgsQuery.isSuccess) {
+      if (orgs.length === 0) {
+        toast.error("No organisations found for your account")
+        router.replace("/")
+        return
+      }
+      // If only one org, auto-select it
+      if (orgs.length === 1) {
+        selectOrg(orgs[0].id)
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [orgsQuery.isError, orgsQuery.isSuccess, orgs.length])
 
   async function selectOrg(tenantId: string) {
     setSelecting(tenantId)
-    try {
-      const res = await fetch("/api/auth/select-org", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenantId }),
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? "Failed to select organisation")
-      }
-
-      router.push("/dashboard")
-    } catch (err: any) {
-      toast.error(err.message ?? "Something went wrong")
-      setSelecting(null)
-    }
+    selectOrgMutation.mutate(tenantId, {
+      onSuccess: () => {
+        router.push("/dashboard")
+      },
+      onError: (err: any) => {
+        toast.error(err.message ?? "Something went wrong")
+        setSelecting(null)
+      },
+    })
   }
 
   return (
@@ -99,7 +80,7 @@ export default function SelectOrgPage() {
             </p>
           </div>
 
-          {loading ? (
+          {orgsQuery.isLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>

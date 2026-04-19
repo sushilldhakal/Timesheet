@@ -14,66 +14,18 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ExportDialog } from "@/components/payroll/export-dialog"
 import { PayrollExportStatus } from "@/components/payroll/payroll-export-status"
-
-interface PayRun {
-  _id: string
-  tenantId: string
-  startDate: string
-  endDate: string
-  status: 'draft' | 'calculated' | 'approved' | 'exported'
-  totals: {
-    gross: number
-    tax: number
-    super: number
-    net: number
-    totalHours: number
-    employeeCount: number
-  }
-  notes?: string
-  exportedAt?: string
-  exportType?: string
-  exportReference?: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface PayItem {
-  type: string
-  name: string
-  exportName: string
-  from: string
-  to: string
-  hours: number
-  rate: number
-  multiplier: number
-  amount: number
-  awardLevel: string
-  baseRate: number
-}
-
-interface PayRunExport {
-  payRun: PayRun
-  employees: Array<{
-    employeeId: string
-    employeeName: string
-    totalHours: number
-    totalAmount: number
-    payItems: PayItem[]
-  }>
-}
-
-interface JobStatus {
-  status: string
-  progress?: number
-  result?: {
-    success: boolean
-    payRunId: string
-    totalEmployees: number
-    totalShifts: number
-    totals: PayRun['totals']
-  }
-  error?: string
-}
+import { apiFetch } from "@/lib/api/fetch-client"
+import {
+  getPayRuns,
+  getPayRunExport,
+  createPayRun,
+  calculatePayRun,
+  getPayRunJobStatus,
+  approvePayRun,
+  type PayRun,
+  type PayRunExport,
+  type JobStatus,
+} from "@/lib/api/pay-runs"
 
 export default function PayRunsPage() {
   const [view, setView] = useState<'list' | 'detail'>('list')
@@ -101,14 +53,9 @@ export default function PayRunsPage() {
   useEffect(() => {
     const fetchTenant = async () => {
       try {
-        const response = await fetch('/api/me')
-        if (response.ok) {
-          const json = await response.json()
-          const data = json.data || json
-          setTenantId(data.tenantId || "")
-        } else {
-          console.error('Failed to fetch tenant, status:', response.status)
-        }
+        const json = await apiFetch<{ data?: { tenantId?: string }; tenantId?: string }>('/api/me')
+        const data = (json as any).data || json
+        setTenantId(data.tenantId || "")
       } catch (error) {
         console.error('Failed to fetch tenant:', error)
       } finally {
@@ -122,11 +69,8 @@ export default function PayRunsPage() {
     if (!tenantId) return
     setLoading(true)
     try {
-      const response = await fetch(`/api/pay-runs?tenantId=${tenantId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setPayRuns(data.payRuns || [])
-      }
+      const data = await getPayRuns(tenantId)
+      setPayRuns(data.payRuns || [])
     } catch (error) {
       console.error('Failed to fetch pay runs:', error)
       setPayRuns([])
@@ -137,11 +81,8 @@ export default function PayRunsPage() {
 
   const fetchPayRunDetail = useCallback(async (payRunId: string) => {
     try {
-      const response = await fetch(`/api/pay-runs/${payRunId}/export`)
-      if (response.ok) {
-        const data = await response.json()
-        setPayRunDetail(data.data ?? data)
-      }
+      const data = await getPayRunExport(payRunId)
+      setPayRunDetail(data.data ?? null)
     } catch (error) {
       console.error('Failed to fetch pay run detail:', error)
       setPayRunDetail(null)
@@ -159,24 +100,12 @@ export default function PayRunsPage() {
 
     setCreating(true)
     try {
-      const response = await fetch('/api/pay-runs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId,
-          startDate,
-          endDate,
-          notes: notes || undefined
-        })
-      })
-      
-      if (response.ok) {
-        setCreateDialogOpen(false)
-        setStartDate("")
-        setEndDate("")
-        setNotes("")
-        fetchPayRuns()
-      }
+      await createPayRun({ tenantId, startDate, endDate, notes: notes || undefined })
+      setCreateDialogOpen(false)
+      setStartDate("")
+      setEndDate("")
+      setNotes("")
+      fetchPayRuns()
     } catch (error) {
       console.error('Failed to create pay run:', error)
     } finally {
@@ -193,16 +122,9 @@ export default function PayRunsPage() {
     })
 
     try {
-      const response = await fetch(`/api/pay-runs/${payRun._id}/calculate`, {
-        method: 'POST'
-      })
-      
-      if (response.ok) {
-        // Start polling for job status
-        pollJobStatus(payRun._id)
-      } else {
-        throw new Error('Failed to queue calculation')
-      }
+      await calculatePayRun(payRun._id)
+      // Start polling for job status
+      pollJobStatus(payRun._id)
     } catch (error) {
       console.error('Failed to calculate pay run:', error)
       setCalculatingJobs(prev => {
@@ -217,27 +139,24 @@ export default function PayRunsPage() {
   const pollJobStatus = (payRunId: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/pay-runs/${payRunId}/status`)
-        if (response.ok) {
-          const status: JobStatus = await response.json()
-          
-          if (status.status === 'completed') {
-            clearInterval(interval)
-            setCalculatingJobs(prev => {
-              const newSet = new Set(prev)
-              newSet.delete(payRunId)
-              return newSet
-            })
-            fetchPayRuns() // Refresh to show updated status
-          } else if (status.status === 'failed') {
-            clearInterval(interval)
-            setCalculatingJobs(prev => {
-              const newSet = new Set(prev)
-              newSet.delete(payRunId)
-              return newSet
-            })
-            setJobErrors(prev => new Map(prev).set(payRunId, status.error || 'Calculation failed'))
-          }
+        const status = await getPayRunJobStatus(payRunId)
+
+        if (status.status === 'completed') {
+          clearInterval(interval)
+          setCalculatingJobs(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(payRunId)
+            return newSet
+          })
+          fetchPayRuns() // Refresh to show updated status
+        } else if (status.status === 'failed') {
+          clearInterval(interval)
+          setCalculatingJobs(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(payRunId)
+            return newSet
+          })
+          setJobErrors(prev => new Map(prev).set(payRunId, status.error || 'Calculation failed'))
         }
       } catch (error) {
         console.error('Failed to poll job status:', error)
@@ -250,13 +169,8 @@ export default function PayRunsPage() {
 
   const handleApprove = async (payRun: PayRun) => {
     try {
-      const response = await fetch(`/api/pay-runs/${payRun._id}/approve`, {
-        method: 'POST'
-      })
-      
-      if (response.ok) {
-        fetchPayRuns()
-      }
+      await approvePayRun(payRun._id)
+      fetchPayRuns()
     } catch (error) {
       console.error('Failed to approve pay run:', error)
     }

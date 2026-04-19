@@ -1,4 +1,10 @@
 import type { CreateEmployerRequest, Employer, UpdateEmployerRequest } from '@/lib/types'
+import { apiFetch } from './fetch-client'
+
+export interface EmployerSettings {
+  enableExternalHire?: boolean
+  [key: string]: unknown
+}
 
 export interface EmployersResponse {
   employers: Employer[]
@@ -9,68 +15,51 @@ export interface EmployerResponse {
 }
 
 export async function getAll(): Promise<EmployersResponse> {
-  const response = await fetch('/api/employers', {
-    credentials: 'include',
+  return apiFetch<EmployersResponse>('/api/employers', {
     cache: 'no-store',
     headers: { 'Cache-Control': 'no-cache' },
   })
-
-  if (!response.ok) throw new Error('Failed to fetch employers')
-  return response.json()
 }
 
 export async function getOne(id: string): Promise<EmployerResponse> {
-  const response = await fetch(`/api/employers/${id}`, {
-    credentials: 'include',
-  })
-
-  if (!response.ok) throw new Error('Failed to fetch employer')
-  return response.json()
+  return apiFetch<EmployerResponse>(`/api/employers/${id}`)
 }
 
 export async function create(data: CreateEmployerRequest): Promise<EmployerResponse> {
-  const response = await fetch('/api/employers', {
+  return apiFetch<EmployerResponse>('/api/employers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || 'Failed to create employer')
-  }
-
-  return response.json()
 }
 
 export async function update(id: string, data: UpdateEmployerRequest): Promise<EmployerResponse> {
-  const response = await fetch(`/api/employers/${id}`, {
+  return apiFetch<EmployerResponse>(`/api/employers/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || 'Failed to update employer')
-  }
-
-  return response.json()
 }
 
 export async function remove(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/employers/${id}`, {
+  return apiFetch<{ success: boolean }>(`/api/employers/${id}`, {
     method: 'DELETE',
-    credentials: 'include',
   })
+}
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || 'Failed to delete employer')
-  }
+// Employer org-level settings
 
-  return response.json()
+export async function getEmployerSettings(): Promise<EmployerSettings> {
+  return apiFetch<EmployerSettings>('/api/employers/settings')
+}
+
+export async function updateEmployerSettings(
+  data: Partial<EmployerSettings>
+): Promise<EmployerSettings> {
+  return apiFetch<EmployerSettings>('/api/employers/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 

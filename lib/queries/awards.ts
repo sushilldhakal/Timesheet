@@ -5,6 +5,8 @@ import * as awardsApi from '@/lib/api/awards'
 export const awardKeys = {
   all: ['awards'] as const,
   detail: (id: string) => [...awardKeys.all, 'detail', id] as const,
+  versions: (id: string) => [...awardKeys.all, 'versions', id] as const,
+  ruleTemplates: ['rule-templates'] as const,
 }
 
 // Get all awards
@@ -60,6 +62,88 @@ export function useDeleteAward() {
     mutationFn: awardsApi.deleteAward,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: awardKeys.all })
+    },
+  })
+}
+
+// Get award version history
+export function useAwardVersionHistory(awardId: string) {
+  return useQuery({
+    queryKey: awardKeys.versions(awardId),
+    queryFn: () => awardsApi.getAwardVersions(awardId),
+    enabled: !!awardId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Create award version
+export function useCreateAwardVersion() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ 
+      awardId, 
+      data 
+    }: { 
+      awardId: string
+      data: { changelog: string; effectiveFrom: string; versionBump: 'major' | 'minor' | 'patch' }
+    }) => awardsApi.createAwardVersion(awardId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: awardKeys.versions(variables.awardId) })
+      queryClient.invalidateQueries({ queryKey: awardKeys.detail(variables.awardId) })
+    },
+  })
+}
+
+// Test/evaluate award rules
+export function useTestAwardRules() {
+  return useMutation({
+    mutationFn: awardsApi.evaluateAwardRules,
+  })
+}
+
+// Get rule templates
+export function useRuleTemplates(params?: { search?: string; category?: string }) {
+  return useQuery({
+    queryKey: [...awardKeys.ruleTemplates, params],
+    queryFn: () => awardsApi.getRuleTemplates(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Create rule template
+export function useCreateRuleTemplate() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: awardsApi.createRuleTemplate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: awardKeys.ruleTemplates })
+    },
+  })
+}
+
+// Update rule template
+export function useUpdateRuleTemplate() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      awardsApi.updateRuleTemplate(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: awardKeys.ruleTemplates })
+    },
+  })
+}
+
+// Delete rule template
+export function useDeleteRuleTemplate() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: awardsApi.deleteRuleTemplate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: awardKeys.ruleTemplates })
     },
   })
 }

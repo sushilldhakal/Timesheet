@@ -25,6 +25,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { updateShift } from "@/lib/api/rosters"
+import { updateDailyShift } from "@/lib/api/daily-shifts"
 
 function parseLocalDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number)
@@ -42,21 +44,6 @@ function weekIdFromYmd(dateStr: string): string | null {
   const weekYear = getISOWeekYear(dt)
   const week = getISOWeek(dt)
   return `${weekYear}-W${String(week).padStart(2, "0")}`
-}
-
-async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(text || `Request failed (${res.status})`)
-  }
-  return (await res.json()) as T
 }
 
 type Draft = {
@@ -381,15 +368,9 @@ function TimesheetShiftCard({
                       if (!canPersistTeamChange) return
                       try {
                         if (rosterShiftId && weekId) {
-                          await apiJson(
-                            `/api/rosters/${encodeURIComponent(weekId)}/shifts/${encodeURIComponent(rosterShiftId)}`,
-                            { method: "PUT", body: JSON.stringify({ roleId: next }) },
-                          )
+                          await updateShift(weekId, rosterShiftId, { roleId: next })
                         } else if (shift.actual?.dailyShiftId) {
-                          await apiJson(`/api/daily-shifts/${encodeURIComponent(shift.actual.dailyShiftId)}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ roleId: next }),
-                          })
+                          await updateDailyShift(shift.actual.dailyShiftId, { roleId: next })
                         }
                       } catch {
                         setSelectedTeamId(String(shift.roster?.roleId ?? shift.actual?.roleId ?? ""))

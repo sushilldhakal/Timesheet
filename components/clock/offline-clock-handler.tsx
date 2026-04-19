@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Wifi, WifiOff, Upload, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
+import { clockAction } from '@/lib/api/employee-clock'
 
 type OfflineClockHandlerProps = {
   employeeId: string
@@ -56,36 +57,17 @@ export function OfflineClockHandler({
     try {
       if (isOnline) {
         // Try online first
-        const response = await fetch('/api/employee/clock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: punchData.type,
-            imageUrl: punchData.imageUrl,
-            date: new Date().toLocaleDateString('en-GB'),
-            time: new Date().toLocaleString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric', 
-              hour: 'numeric', 
-              minute: '2-digit', 
-              second: '2-digit', 
-              hour12: true 
-            }),
-            lat: punchData.lat,
-            lng: punchData.lng,
-            noPhoto: punchData.noPhoto,
-          }),
+        await clockAction({
+          type: punchData.type === 'in' ? 'in' : 'out',
+          imageUrl: punchData.imageUrl,
+          lat: punchData.lat,
+          lng: punchData.lng,
+          noPhoto: punchData.noPhoto,
         })
 
-        if (response.ok) {
-          onPunchSuccess?.(punchData.type)
-          toast.success(`Successfully punched ${punchData.type}!`)
-          return
-        } else {
-          throw new Error('Server error')
-        }
+        onPunchSuccess?.(punchData.type)
+        toast.success(`Successfully punched ${punchData.type}!`)
+        return
       } else {
         throw new Error('Offline')
       }

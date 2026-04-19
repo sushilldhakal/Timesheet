@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils/cn'
 import type { WeatherDayPayload, WeatherForecastApiResponse } from '@/lib/weather/types'
 import { wmoCodeIconKind } from '@/lib/weather/wmo-weather'
 import { AmChartsWeatherIcon } from './AmChartsWeatherIcon'
+import { getWeatherForecast } from '@/lib/api/weather'
 
 function toDateISO(d: Date): string {
   const y = d.getFullYear()
@@ -87,36 +88,6 @@ export interface SchedulingWeatherDayBadgeProps {
   iconClassName?: string
 }
 
-async function fetchForecast(
-  lat: number,
-  lng: number,
-  start: string,
-  end: string,
-): Promise<WeatherForecastApiResponse> {
-  const u = new URL('/api/weather/forecast', window.location.origin)
-  u.searchParams.set('lat', String(lat))
-  u.searchParams.set('lng', String(lng))
-  u.searchParams.set('start', start)
-  u.searchParams.set('end', end)
-  const res = await fetch(u.toString(), { credentials: 'include' })
-  const json = (await res.json().catch(() => ({}))) as
-    | WeatherForecastApiResponse
-    | { error?: string }
-  if (!res.ok) {
-    const msg =
-      typeof json === 'object' &&
-      json &&
-      'error' in json &&
-      typeof (json as { error?: string }).error === 'string'
-        ? (json as { error: string }).error
-        : res.status === 401
-          ? 'Sign in to load weather'
-          : `Weather request failed (${res.status})`
-    throw new Error(msg)
-  }
-  return json as WeatherForecastApiResponse
-}
-
 export function SchedulingWeatherDayBadge({
   date,
   coords,
@@ -139,7 +110,7 @@ export function SchedulingWeatherDayBadge({
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['weather-forecast', lat, lng, startIso, endIso],
-    queryFn: () => fetchForecast(lat!, lng!, startIso, endIso),
+    queryFn: () => getWeatherForecast({ lat: lat!, lng: lng!, start: startIso, end: endIso }),
     enabled,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,

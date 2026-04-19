@@ -1,4 +1,5 @@
 import { ApiResponse } from '@/lib/utils/api/api-response'
+import { apiFetch } from './fetch-client'
 
 // Mail Settings
 export interface MailSettings {
@@ -106,94 +107,71 @@ export interface CleanupResponse {
 
 // Mail Settings API
 export async function getMailSettings(): Promise<{ settings: MailSettings }> {
-  const response = await fetch('/api/admin/mail-settings', {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<{ settings: MailSettings }>('/api/admin/mail-settings')
 }
 
 export async function updateMailSettings(data: UpdateMailSettingsRequest): Promise<ApiResponse<void>> {
-  const response = await fetch('/api/admin/mail-settings', {
+  return apiFetch<ApiResponse<void>>('/api/admin/mail-settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 export async function testMailSettings(data: TestMailRequest): Promise<ApiResponse<{ message: string }>> {
-  const response = await fetch('/api/admin/mail-settings/test', {
+  return apiFetch<ApiResponse<{ message: string }>>('/api/admin/mail-settings/test', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Storage Settings API
 export async function getStorageSettings(): Promise<{ settings: StorageSettings }> {
-  const response = await fetch('/api/admin/storage-settings', {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<{ settings: StorageSettings }>('/api/admin/storage-settings')
 }
 
 export async function updateStorageSettings(data: UpdateStorageSettingsRequest): Promise<ApiResponse<void>> {
-  const response = await fetch('/api/admin/storage-settings', {
+  return apiFetch<ApiResponse<void>>('/api/admin/storage-settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 export async function testStorageConnection(data: TestStorageConnectionRequest): Promise<ApiResponse<{ message: string }>> {
-  const response = await fetch('/api/admin/storage-settings/test-connection', {
+  return apiFetch<ApiResponse<{ message: string }>>('/api/admin/storage-settings/test-connection', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Storage Stats API
 export async function getStorageStats(): Promise<{ stats: StorageStats }> {
-  const response = await fetch(`/api/admin/storage-stats?t=${Date.now()}`, {
-    credentials: 'include',
+  return apiFetch<{ stats: StorageStats }>(`/api/admin/storage-stats?t=${Date.now()}`, {
     cache: 'no-store',
   })
-  return response.json()
 }
 
 // Activity Logs API
 export async function getActivityLogs(category: string, limit = 10, page = 1): Promise<ActivityLogsResponse> {
-  const response = await fetch(`/api/admin/activity-logs?category=${category}&limit=${limit}&page=${page}`, {
-    credentials: 'include',
-  })
-  return response.json()
+  return apiFetch<ActivityLogsResponse>(`/api/admin/activity-logs?category=${category}&limit=${limit}&page=${page}`)
 }
 
 export async function createActivityLog(data: { action: string; details: string; status: string; category: string }): Promise<ApiResponse<void>> {
-  const response = await fetch('/api/admin/activity-logs', {
+  return apiFetch<ApiResponse<void>>('/api/admin/activity-logs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }
 
 // Cleanup API
 export async function cleanupCloudinary(data: CleanupRequest): Promise<CleanupResponse> {
-  const response = await fetch('/api/admin/cleanup/cloudinary', {
+  return apiFetch<CleanupResponse>('/api/admin/cleanup/cloudinary', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(data),
   })
-  return response.json()
 }

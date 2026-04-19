@@ -11,6 +11,8 @@ import { Loader2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { toast } from "sonner"
 import { useEmployeeProfile } from "@/lib/queries/employee-clock"
+import { useQuery } from "@tanstack/react-query"
+import { getEmployeeAvailability } from "@/lib/api/availability"
 
 type AvailabilityConstraintLike = {
   _id?: string
@@ -55,11 +57,23 @@ export default function StaffUnavailabilityPage() {
   const employee = employeeProfileQuery.data?.data?.employee
   const employeeId = employee?.id
 
-  const [refreshNonce, setRefreshNonce] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [constraints, setConstraints] = useState<AvailabilityConstraintLike[]>([])
   const [selectedConstraintId, setSelectedConstraintId] = useState<string | null>(null)
+
+  // Use query hook for fetching availability constraints
+  const availabilityQuery = useQuery({
+    queryKey: ['employee-availability', employeeId],
+    queryFn: () => getEmployeeAvailability(employeeId!),
+    enabled: !!employeeId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  })
+
+  const constraints = useMemo(() => {
+    const list = availabilityQuery.data?.constraints ?? []
+    return list.map((c) => {
+      const oid = (c.id ?? c._id) as string | undefined
+      return { ...c, _id: oid, id: oid, employeeId }
+    })
+  }, [availabilityQuery.data, employeeId])
 
   useEffect(() => {
     if (employeeProfileQuery.isError) {
@@ -69,46 +83,11 @@ export default function StaffUnavailabilityPage() {
   }, [employeeProfileQuery.isError, router])
 
   useEffect(() => {
-    if (!employeeId) return
-
-    const controller = new AbortController()
-
-    const run = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/employees/${employeeId}/availability`, {
-          credentials: "include",
-          signal: controller.signal,
-        })
-        const json = await res.json().catch(() => ({} as Record<string, unknown>))
-        if (!res.ok) {
-          throw new Error((json as { error?: string }).error || "Failed to load unavailability constraints")
-        }
-        const list = ((json as { constraints?: AvailabilityConstraintLike[] }).constraints ?? []) as AvailabilityConstraintLike[]
-        const merged = list.map((c) => {
-          const oid = (c.id ?? c._id) as string | undefined
-          return { ...c, _id: oid, id: oid, employeeId }
-        })
-        setConstraints(merged)
-        setSelectedConstraintId((prev) => {
-          if (prev && merged.some((c) => constraintKey(c) === prev)) return prev
-          const first = merged[0]
-          return first ? constraintKey(first) : null
-        })
-      } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return
-        setError(e instanceof Error ? e.message : "Failed to load unavailability constraints")
-        setConstraints([])
-        setSelectedConstraintId(null)
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
+    if (constraints.length > 0 && !selectedConstraintId) {
+      const first = constraints[0]
+      setSelectedConstraintId(first ? constraintKey(first) : null)
     }
-
-    void run()
-    return () => controller.abort()
-  }, [employeeId, refreshNonce])
+  }, [constraints, selectedConstraintId])
 
   const selectedConstraint = useMemo(() => {
     if (!selectedConstraintId) return null
@@ -147,22 +126,22 @@ export default function StaffUnavailabilityPage() {
           type="button"
           variant="outline"
           size="sm"
-          disabled={loading}
-          onClick={() => setRefreshNonce((n) => n + 1)}
+          disabled={availabilityQuery.isLoading}
+          onClick={() => availabilityQuery.refetch()}
         >
           <RefreshCw className="size-4" />
           Refresh
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {availabilityQuery.error && <p className="text-sm text-destructive">{availabilityQuery.error instanceof Error ? availabilityQuery.error.message : 'Failed to load unavailability constraints'}</p>}
 
       <div className="grid min-h-[520px] gap-4 lg:grid-cols-[360px_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Constraints</CardTitle>
             <CardDescription>
-              {loading ? "Loading..." : constraints.length ? `${constraints.length} constraint(s)` : "No constraints found."}
+              {availabilityQuery.isLoading ? "Loading..." : constraints.length ? `${constraints.length} constraint(s)` : "No constraints found."}
             </CardDescription>
           </CardHeader>
           <Separator />

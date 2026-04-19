@@ -152,6 +152,7 @@ async function verifyTenantContextToken(token: string, expected: "full" | "preau
 
     // full
     const tenantId = typeof (payload as any).tenantId === "string" ? String((payload as any).tenantId) : ""
+    // Allow sentinel tenantId for super admin
     if (!tenantId) return null
     const locations = Array.isArray((payload as any).locations)
       ? ((payload as any).locations as any[]).map(String).filter(Boolean)

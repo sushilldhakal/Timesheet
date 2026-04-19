@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import type { UserRow } from "./page"
+import type { User } from "@/lib/types/user"
 
 type Props = {
-  users: UserRow[]
+  users: User[]
   currentUserId?: string
-  onEdit: (user: UserRow) => void
-  onDelete: (user: UserRow) => void
+  onEdit: (user: User) => void
+  onDelete: (user: User) => void
   onRefresh: () => void
 }
 
@@ -25,7 +25,7 @@ export function UsersTable({
 }: Props) {
   const [sortBy, setSortBy] = useState<string | null>("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
-  const columns = useMemo<ColumnDef<UserRow>[]>(
+  const columns = useMemo<ColumnDef<User>[]>(
     () => [
       {
         accessorKey: "name",

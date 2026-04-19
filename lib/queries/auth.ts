@@ -1,26 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as authApi from '@/lib/api/auth'
+
+// Query keys
+export const authKeys = {
+  me: ['auth', 'me'] as const,
+  verifyResetToken: (token: string) => ['auth', 'verify-reset-token', token] as const,
+  verifySetupToken: (token: string) => ['auth', 'verify-setup-token', token] as const,
+}
 
 // Get current user
 export function useMe() {
   return useQuery({
-    queryKey: ['auth', 'me'],
+    queryKey: authKeys.me,
     queryFn: authApi.getMe,
-    retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
-  })
-}
-
-// Logout
-export function useLogout() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: authApi.logout,
-    onSuccess: () => {
-      // Clear all queries on logout
-      queryClient.clear()
-    },
+    retry: false,
   })
 }
 
@@ -31,8 +25,20 @@ export function useUnifiedLogin() {
   return useMutation({
     mutationFn: authApi.unifiedLogin,
     onSuccess: () => {
-      // Invalidate auth queries on successful login
-      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+      queryClient.invalidateQueries({ queryKey: authKeys.me })
+    },
+  })
+}
+
+// Logout
+export function useLogout() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: authApi.logout,
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: authKeys.me })
+      queryClient.clear()
     },
   })
 }
@@ -66,21 +72,23 @@ export function useSetupPassword() {
 }
 
 // Verify reset token
-export function useVerifyResetToken(token: string) {
+export function useVerifyResetToken(token: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['auth', 'verify-reset-token', token],
+    queryKey: authKeys.verifyResetToken(token),
     queryFn: () => authApi.verifyResetToken(token),
-    enabled: !!token,
+    enabled: enabled && !!token,
     retry: false,
+    staleTime: 0, // Don't cache token verification
   })
 }
 
 // Verify setup token
-export function useVerifySetupToken(token: string) {
+export function useVerifySetupToken(token: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['auth', 'verify-setup-token', token],
+    queryKey: authKeys.verifySetupToken(token),
     queryFn: () => authApi.verifySetupToken(token),
-    enabled: !!token,
+    enabled: enabled && !!token,
     retry: false,
+    staleTime: 0, // Don't cache token verification
   })
 }

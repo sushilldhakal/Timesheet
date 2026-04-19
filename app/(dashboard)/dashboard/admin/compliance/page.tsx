@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Download, RefreshCw, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react'
-import { getEmployees } from '@/lib/api/employees'
+import { useEmployees } from '@/lib/queries/employees'
 import {
   calculateComplianceStats,
   getComplianceBreakdown,
@@ -34,10 +34,7 @@ export default function AdminComplianceDashboardPage() {
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all')
   const [issueTypeFilter, setIssueTypeFilter] = useState<string>('all')
 
-  const { data: employeesResponse, isLoading: employeesLoading, refetch: refetchEmployees } = useQuery({
-    queryKey: ['employees', 'admin-compliance'],
-    queryFn: () => getEmployees({ limit: 1000, offset: 0 }),
-  })
+  const { data: employeesResponse, isLoading: employeesLoading, refetch: refetchEmployees } = useEmployees(1000)
 
   const { data: complianceData = [], refetch: refetchCompliance } = useQuery<EmployeeComplianceRecord[]>({
     queryKey: ['compliance', 'all'],

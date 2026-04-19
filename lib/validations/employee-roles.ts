@@ -16,6 +16,28 @@ export const roleAssignmentQuerySchema = z.object({
   includeInactive: z.string().optional()
 });
 
+// Role assignment form schema (for dialog/form submission)
+export const roleAssignmentFormSchema = z.object({
+  locationId: z.string().min(1, "Location is required"),
+  roleId: z.string().min(1, "Team is required"),
+  validFrom: z.date({
+    message: "Valid from date is required",
+  }),
+  validTo: z.date().nullable().optional(),
+  notes: z.string().max(500, "Notes must be 500 characters or less").optional(),
+}).refine(
+  (data) => {
+    if (data.validTo && data.validFrom) {
+      return data.validTo >= data.validFrom
+    }
+    return true
+  },
+  {
+    message: "Valid to date must be after or equal to valid from date",
+    path: ["validTo"],
+  }
+)
+
 // Role assignment create schema
 export const roleAssignmentCreateSchema = z.object({
   roleId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format"),

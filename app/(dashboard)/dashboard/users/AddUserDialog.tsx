@@ -1,13 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -29,8 +22,9 @@ import { useTeams } from "@/lib/queries/teams"
 import { useEmployees } from "@/lib/queries/employees"
 import { useCreateUser } from "@/lib/queries/users"
 import { UserRole, canCreateUser, getRoleName } from "@/lib/config/roles"
-import type { CreateUserRequest } from "@/lib/api/users"
+import type { CreateUserRequest } from "@/lib/types/user"
 import { AlertCircle } from "lucide-react"
+import { FormDialogShell } from "@/components/shared/forms"
 
 type Props = {
   open: boolean
@@ -48,7 +42,6 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
   const [selectedRole, setSelectedRole] = useState<CreateUserRequest["role"] | "">("")
   const [location, setLocation] = useState<string[]>([])
   const [managedRoles, setManagedRoles] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
 
   const locationsQuery = useLocations()
   const teamsQuery = useTeams()
@@ -155,26 +148,15 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
     setSelectedRole("")
     setLocation([])
     setManagedRoles([])
-    setError(null)
   }
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next) reset()
-    onOpenChange(next)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
+  const handleSubmit = async () => {
     if (!selectedRole) {
-      setError("Please select a role")
-      return
+      throw new Error("Please select a role")
     }
 
     if (!canCreateSelectedRole) {
-      setError(`You don't have permission to create ${getRoleName(selectedRole)} users.`)
-      return
+      throw new Error(`You don't have permission to create ${getRoleName(selectedRole)} users.`)
     }
 
     const payload: CreateUserRequest = {
@@ -183,32 +165,40 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
       role: selectedRole || undefined,
       ...(creationType === "manual" ? { password } : {}), // Only include password for manual creation
       location: showLocationField ? location : [],
-      rights: [], // Deprecated, using role-based permissions
       managedRoles: showManagedRolesField ? managedRoles : [],
       ...(creationType === "from-staff" && selectedEmployee ? { employeeId: selectedEmployee } : {}),
     }
 
     console.log('[AddUserDialog] Submitting payload:', payload)
 
-    try {
-      await createUserMutation.mutateAsync(payload)
-      handleOpenChange(false)
-      onSuccess()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error")
-    }
+    await createUserMutation.mutateAsync(payload)
+    reset()
+    onSuccess()
   }
 
-  const loading = createUserMutation.isPending
+  const isFormValid = useMemo(() => {
+    return name.trim() && 
+           email.trim() && 
+           selectedRole && 
+           canCreateSelectedRole &&
+           (creationType === "manual" ? password.length >= 6 : true) &&
+           (creationType === "from-staff" ? selectedEmployee : true)
+  }, [name, email, selectedRole, canCreateSelectedRole, creationType, password, selectedEmployee])
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Add User</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit}>
+    <FormDialogShell
+      open={open}
+      onOpenChange={(open) => {
+        if (!open) reset()
+        onOpenChange(open)
+      }}
+      title="Add User"
+      onSubmit={handleSubmit}
+      submitLabel="Create User"
+      loading={createUserMutation.isPending}
+      disabled={!isFormValid}
+      size="lg"
+    >
           <FieldGroup className="gap-4">
             <Field>
               <FieldLabel>Creation Type</FieldLabel>
@@ -328,7 +318,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
                   onValueChange={setLocation}
                   defaultValue={location}
                   placeholder="Select locations..."
-                  disabled={loading}
+                  disabled={createUserMutation.isPending}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Assign locations this user can access
@@ -344,7 +334,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
                   onValueChange={setManagedRoles}
                   defaultValue={managedRoles}
                   placeholder={location.length === 0 ? "Select locations first..." : "Select roles..."}
-                  disabled={loading || location.length === 0}
+                  disabled={createUserMutation.isPending || location.length === 0}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Roles this supervisor can manage
@@ -352,22 +342,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
               </Field>
             )}
 
-            {error && <FieldError>{error}</FieldError>}
           </FieldGroup>
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !canCreateSelectedRole}>
-              {loading ? "Creating..." : "Create User"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    </FormDialogShell>
   )
 }

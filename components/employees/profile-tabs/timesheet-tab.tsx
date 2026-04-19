@@ -10,6 +10,7 @@ import { useTimesheetEdit } from "@/hooks/useTimesheetEdit"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { useQueries } from "@tanstack/react-query"
 import * as teamsApi from "@/lib/api/teams"
+import { getAwardTags } from "@/lib/api/award-tags"
 
 function makeWeekId(d: Date): string {
   const year = getISOWeekYear(d)
@@ -76,13 +77,12 @@ export function TimesheetTab({ employeeId, employeeName, employeeImage }: { empl
   const [awardTagOptions, setAwardTagOptions] = useState<Array<{ label: string; value: string }>>([])
   useEffect(() => {
     let cancelled = false
-    fetch("/api/award-tags", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load award tags"))))
+    getAwardTags()
       .then((data) => {
         if (cancelled) return
         const opts = Array.isArray(data?.awardTags)
           ? data.awardTags
-              .map((t: any) => String(t?.name ?? ""))
+              .map((t) => String(t?.name ?? ""))
               .filter((name: string) => Boolean(name.trim()))
               .map((name: string) => ({ label: name, value: name }))
           : []

@@ -14,14 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   Table,
   TableBody,
   TableCell,
@@ -38,8 +30,9 @@ import {
   FileDown,
   Eye,
 } from "lucide-react"
-
-type PayrollSystemType = 'xero' | 'myob' | 'apa' | 'custom'
+import { getPayrollExportPreview, exportPayrollData } from "@/lib/api/payroll"
+import type { PayrollSystemType } from "@/lib/api/payroll"
+import { FormDialogShell } from "@/components/shared/forms"
 
 interface ExportRow {
   employeeId: string
@@ -109,18 +102,10 @@ export function ExportDialog({
     setPreviewLoading(true)
     setPreviewError(null)
     try {
-      const res = await fetch(
-        `/api/payroll/export?payRunId=${payRunId}&payrollSystemType=${systemType}`
-      )
-      if (res.ok) {
-        const data = await res.json()
-        setPreview(data)
-      } else {
-        const data = await res.json()
-        setPreviewError(data.error || 'Failed to load preview')
-      }
-    } catch {
-      setPreviewError('Failed to load preview')
+      const data = await getPayrollExportPreview(payRunId, systemType)
+      setPreview(data)
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : 'Failed to load preview')
     } finally {
       setPreviewLoading(false)
     }
@@ -134,66 +119,71 @@ export function ExportDialog({
   }, [open, payRunId, systemType, fetchPreview])
 
   async function handleExport() {
-    setExporting(true)
-    try {
-      const res = await fetch('/api/payroll/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          payRunId,
-          payrollSystemType: systemType,
-          fileName: customFileName || undefined,
-          options: {
-            includeBreaks,
-            includeLeaveAccruals,
-          }
-        })
-      })
-
-      if (res.ok) {
-        const blob = await res.blob()
-        const disposition = res.headers.get('Content-Disposition')
-        const match = disposition?.match(/filename="(.+)"/)
-        const fileName = match?.[1] || `payroll-export-${payRunId}.csv`
-
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-
-        setExported(true)
-        onExportComplete?.()
-      } else {
-        const data = await res.json()
-        setPreviewError(data.error || 'Export failed')
+    const blob = await exportPayrollData({
+      payRunId,
+      payrollSystemType: systemType,
+      fileName: customFileName || undefined,
+      options: {
+        includeBreaks,
+        includeLeaveAccruals,
       }
-    } catch {
-      setPreviewError('Export failed')
-    } finally {
-      setExporting(false)
-    }
+    })
+
+    // Extract filename from response or use default
+    const fileName = customFileName || `payroll-export-${payRunId}.csv`
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    setExported(true)
+    onExportComplete?.()
   }
 
   const sampleRows = preview?.rows.slice(0, 10) || []
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileDown className="h-5 w-5" />
-            Export to Payroll System
-          </DialogTitle>
-          <DialogDescription>
-            Generate a CSV file to import into your payroll system
-          </DialogDescription>
-        </DialogHeader>
+  const customFooter = (
+    <div className="flex items-center justify-between w-full">
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {exported ? 'Close' : 'Cancel'}
+        </Button>
+        {onConfigureMappings && (
+          <Button variant="outline" onClick={onConfigureMappings}>
+            <Settings className="h-4 w-4 mr-1" />
+            Configure Mappings
+          </Button>
+        )}
+      </div>
+      <Button
+        onClick={handleExport}
+        disabled={exporting || !preview || preview.rowCount === 0}
+      >
+        {exporting ? (
+          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4 mr-1" />
+        )}
+        Export CSV
+      </Button>
+    </div>
+  )
 
-        <div className="space-y-6">
+  return (
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Export to Payroll System"
+      description="Generate a CSV file to import into your payroll system"
+      size="xl"
+      footer={customFooter}
+    >
+      <div className="space-y-6">
           {/* Configuration Section */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -350,32 +340,6 @@ export function ExportDialog({
             </div>
           )}
         </div>
-
-        <DialogFooter className="flex items-center justify-between sm:justify-between">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {exported ? 'Close' : 'Cancel'}
-            </Button>
-            {onConfigureMappings && (
-              <Button variant="outline" onClick={onConfigureMappings}>
-                <Settings className="h-4 w-4 mr-1" />
-                Configure Mappings
-              </Button>
-            )}
-          </div>
-          <Button
-            onClick={handleExport}
-            disabled={exporting || !preview || preview.rowCount === 0}
-          >
-            {exporting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-1" />
-            )}
-            Export CSV
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialogShell>
   )
 }
