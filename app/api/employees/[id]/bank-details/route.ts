@@ -1,4 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   employeeIdParamSchema,
@@ -9,6 +10,8 @@ import {
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { employeePayrollService } from "@/lib/services/employee/employee-payroll-service"
 
+/** GET /api/employees/[id]/bank-details
+ * Allowed: admin/manager/supervisor/super_admin OR the employee themselves */
 export const GET = createApiRoute({
   method: 'GET',
   path: '/api/employees/{id}/bank-details',
@@ -24,14 +27,26 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     if (!params) return { status: 400, data: { error: "Employee ID is required" } }
-    const result = await employeePayrollService.getBankDetails(params.id)
-    return { status: 200, data: result }
+
+    const ctx = await getAuthWithUserLocations()
+    if (ctx) {
+      const result = await employeePayrollService.getBankDetails(params.id)
+      return { status: 200, data: result }
+    }
+
+    const employee = await getEmployeeFromCookie()
+    if (employee && employee.sub === params.id) {
+      const result = await employeePayrollService.getBankDetails(params.id)
+      return { status: 200, data: result }
+    }
+
+    return { status: 401, data: { error: "Unauthorized" } }
   },
 })
 
+/** POST /api/employees/[id]/bank-details
+ * Allowed: admin OR the employee themselves (creating their own bank details) */
 export const POST = createApiRoute({
   method: 'POST',
   path: '/api/employees/{id}/bank-details',
@@ -49,14 +64,26 @@ export const POST = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     if (!params || !body) return { status: 400, data: { error: "Employee ID and body required" } }
-    const result = await employeePayrollService.createBankDetails(params.id, body)
-    return { status: 201 as any, data: result }
+
+    const ctx = await getAuthWithUserLocations()
+    if (ctx) {
+      const result = await employeePayrollService.createBankDetails(params.id, body)
+      return { status: 201 as any, data: result }
+    }
+
+    const employee = await getEmployeeFromCookie()
+    if (employee && employee.sub === params.id) {
+      const result = await employeePayrollService.createBankDetails(params.id, body)
+      return { status: 201 as any, data: result }
+    }
+
+    return { status: 401, data: { error: "Unauthorized" } }
   },
 })
 
+/** PATCH /api/employees/[id]/bank-details
+ * Allowed: admin OR the employee themselves (updating their own bank details) */
 export const PATCH = createApiRoute({
   method: 'PATCH',
   path: '/api/employees/{id}/bank-details',
@@ -72,10 +99,20 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params, body }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     if (!params || !body) return { status: 400, data: { error: "Employee ID and body required" } }
-    const result = await employeePayrollService.updateBankDetails(params.id, body)
-    return { status: 200, data: result }
+
+    const ctx = await getAuthWithUserLocations()
+    if (ctx) {
+      const result = await employeePayrollService.updateBankDetails(params.id, body)
+      return { status: 200, data: result }
+    }
+
+    const employee = await getEmployeeFromCookie()
+    if (employee && employee.sub === params.id) {
+      const result = await employeePayrollService.updateBankDetails(params.id, body)
+      return { status: 200, data: result }
+    }
+
+    return { status: 401, data: { error: "Unauthorized" } }
   },
 })

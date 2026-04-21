@@ -1,6 +1,24 @@
 import mongoose from "mongoose"
 import { ISchedule, ScheduleSchema } from "./schedule"
 
+// ─── Employee Certification ────────────────────────────────
+export interface IEmployeeCertification {
+  type: 'wwcc' | 'police_check' | 'food_safety' | 'rsa' | 'other'
+  label?: string          // for 'other'
+  required: boolean       // set by admin at hire time
+  provided: boolean       // updated when employee uploads proof
+  expiryDate?: Date
+  documentUrl?: string
+}
+
+// ─── Onboarding Status ────────────────────────────────
+export interface IOnboardingStatus {
+  personal: boolean
+  identity: boolean
+  tax: boolean
+  bank: boolean
+}
+
 // ─── Pay Condition History ────────────────────────────────
 export interface IPayConditionHistory {
   awardId: mongoose.Types.ObjectId;
@@ -27,10 +45,22 @@ export interface IEmployee {
   email?: string
   phone?: string
   homeAddress?: string
+  address?: {
+    line1?: string
+    line2?: string
+    city?: string
+    state?: string
+    postcode?: string
+    country?: string
+  }
   dob?: string
   gender?: string
   comment?: string
   img?: string
+  emergencyContact?: {
+    name?: string
+    phone?: string
+  }
 
   // Legal name (for payroll documents)
   legalFirstName?: string
@@ -57,7 +87,10 @@ export interface IEmployee {
 
   // Quick-reference tags
   skills?: string[]
-  certifications?: string[]
+  certifications?: IEmployeeCertification[]
+  
+  // Granular onboarding status
+  onboardingStatus?: IOnboardingStatus
 
   // Web login password fields
   password?: string | null
@@ -88,6 +121,32 @@ export interface IEmployeeDocument extends IEmployee, mongoose.Document {
   comparePassword(candidate: string): Promise<boolean>
 }
 
+const EmployeeCertificationSchema = new mongoose.Schema<IEmployeeCertification>(
+  {
+    type: { 
+      type: String, 
+      enum: ['wwcc', 'police_check', 'food_safety', 'rsa', 'other'], 
+      required: true 
+    },
+    label: { type: String },
+    required: { type: Boolean, required: true },
+    provided: { type: Boolean, default: false },
+    expiryDate: { type: Date },
+    documentUrl: { type: String },
+  },
+  { _id: false }
+);
+
+const OnboardingStatusSchema = new mongoose.Schema<IOnboardingStatus>(
+  {
+    personal: { type: Boolean, default: false },
+    identity: { type: Boolean, default: false },
+    tax: { type: Boolean, default: false },
+    bank: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const PayConditionHistorySchema = new mongoose.Schema<IPayConditionHistory>(
   {
     awardId: { type: mongoose.Schema.Types.ObjectId, ref: "Award", required: true },
@@ -115,10 +174,22 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     email: { type: String, default: "", trim: true, lowercase: true, sparse: true, index: true },
     phone: { type: String, default: "" },
     homeAddress: { type: String, default: "" },
+    address: {
+      line1: { type: String, default: "" },
+      line2: { type: String, default: "" },
+      city: { type: String, default: "" },
+      state: { type: String, default: "" },
+      postcode: { type: String, default: "" },
+      country: { type: String, default: "Australia" },
+    },
     dob: { type: String, default: "" },
     gender: { type: String, default: "" },
     comment: { type: String, default: "" },
     img: { type: String, default: "" },
+    emergencyContact: {
+      name: { type: String, default: "" },
+      phone: { type: String, default: "" },
+    },
 
     // Legal name
     legalFirstName: String,
@@ -145,7 +216,10 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
 
     // Quick-reference tags
     skills: [String],
-    certifications: [String],
+    certifications: { type: [EmployeeCertificationSchema], default: [] },
+    
+    // Granular onboarding status
+    onboardingStatus: { type: OnboardingStatusSchema, default: () => ({ personal: false, identity: false, tax: false, bank: false }) },
 
     // Web login password fields
     password: { type: String, default: null, select: false },

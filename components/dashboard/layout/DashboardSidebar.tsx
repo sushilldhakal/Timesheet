@@ -20,7 +20,7 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { useAuth } from '@/lib/hooks/use-auth';
-import { isAdminOrSuperAdmin, isManager } from '@/lib/config/roles';
+import { isAdminOrSuperAdmin, isManager, isSuperAdmin } from '@/lib/config/roles';
 import { baseNavigationItems } from './dashboardNavigation';
 import type { NavigationItem } from '@/lib/types/dashboard';
 import type { DashboardSidebarProps } from '@/lib/types/dashboard';
@@ -36,11 +36,40 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
     const pathname = usePathname();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
     const [collapsedPopoverOpen, setCollapsedPopoverOpen] = useState<string | null>(null);
-    const { userRole, isHydrated } = useAuth();
+    const { user, userRole, isHydrated } = useAuth();
     const isUserAdmin = isAdminOrSuperAdmin(userRole);
     const isUserManager = isManager(userRole);
+    const isSuperAdminUser = isSuperAdmin(userRole);
     // Manager and above can see managerOnly items
     const canSeeManagerItems = isUserAdmin || isUserManager;
+    // Super admin in platform mode (not bound to a specific org)
+    const isSuperAdminPlatformMode = isSuperAdminUser && (user?.tenantId === '__super_admin__' || !user?.tenantId);
+
+    // Fetch pending quota request count for superadmin badge
+    const { data: pendingQuotaCount = 0 } = useQuery<number>({
+        queryKey: ['quota-requests-pending-count'],
+        queryFn: async () => {
+            const res = await fetch('/api/superadmin/quota-requests?status=pending');
+            if (!res.ok) return 0;
+            const data = await res.json();
+            return Array.isArray(data.requests) ? data.requests.length : 0;
+        },
+        enabled: isSuperAdminUser,
+        staleTime: 60 * 1000,
+    });
+
+    // Fetch pending org signup request count for superadmin badge
+    const { data: pendingOrgRequestCount = 0 } = useQuery<number>({
+        queryKey: ['org-requests-pending-count'],
+        queryFn: async () => {
+            const res = await fetch('/api/superadmin/org-requests?status=pending');
+            if (!res.ok) return 0;
+            const data = await res.json();
+            return Array.isArray(data.requests) ? data.requests.length : 0;
+        },
+        enabled: isSuperAdminUser,
+        staleTime: 60 * 1000,
+    });
 
     // Fetch org settings to determine if Employers nav item should show
     const { data: orgSettings } = useQuery({
@@ -56,8 +85,11 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
         if (!isHydrated) return baseNavigationItems;
 
         const canSee = (item: NavigationItem) => {
+            if (item.superAdminOnly && !isSuperAdminUser) return false;
             if (item.adminOnly && !isUserAdmin) return false;
             if (item.managerOnly && !canSeeManagerItems) return false;
+            // Hide org-context items from super admin in platform mode
+            if (item.orgContextOnly && isSuperAdminPlatformMode) return false;
             return true;
         };
 
@@ -74,8 +106,8 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                 if (!item.children) return { ...item };
                 let children = item.children.filter(canSee);
 
-                // Inject Employers under Settings when org has external hire enabled
-                if (item.label === 'Settings' && isUserAdmin && enableExternalHire) {
+                // Inject Employers under Workforce when org has external hire enabled
+                if (item.label === 'Workforce' && isUserAdmin && enableExternalHire) {
                     children = [
                         ...children,
                         { href: '/dashboard/employers', label: 'Employers', icon: Briefcase, adminOnly: true as const },
@@ -86,7 +118,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
             });
 
         return filtered;
-    }, [isHydrated, isUserAdmin, canSeeManagerItems, enableExternalHire]);
+    }, [isHydrated, isUserAdmin, isSuperAdminUser, canSeeManagerItems, isSuperAdminPlatformMode, enableExternalHire]);
 
     // Auto-expand parent menu if child is active
     useEffect(() => {
@@ -134,11 +166,15 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                     onClick={() => (showLabels ? toggleExpand(item.label) : undefined)}
                     type="button"
                     className={cn(
-                        'w-full flex items-center gap-3 rounded-lg px-3 py-2 transition-all',
-                        'hover:bg-blue-100 dark:hover:bg-slate-800',
-                        'text-slate-700 dark:text-slate-300',
-                        !showLabels && 'justify-center'
+                        'sidebar-nav-item w-full respect-motion-preference',
+                        !showLabels && 'justify-center',
+                        isActive && 'data-[active=true]',
+                        !showLabels && 'data-[collapsed=true]'
                     )}
+                    data-active={isActive}
+                    data-collapsed={!showLabels}
+                    aria-expanded={showLabels ? isExpanded : undefined}
+                    aria-label={!showLabels ? `${item.label} menu` : undefined}
                 >
                     <Icon className="h-5 w-5 flex-shrink-0" />
                     {showLabels && (
@@ -176,10 +212,10 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                                 side="right"
                                 align="start"
                                 sideOffset={8}
-                                className="w-56 p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg"
+                                className="w-56 p-2 rounded-lg border bg-popover shadow-lg"
                                 onCloseAutoFocus={(e) => e.preventDefault()}
                             >
-                                <div className="px-2 py-1.5 mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                                <div className="px-2 py-1.5 mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b">
                                     {item.label}
                                 </div>
                                 <nav className="flex flex-col gap-0.5">
@@ -195,12 +231,10 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                                                         href={child.href}
                                                         onClick={() => setCollapsedPopoverOpen(null)}
                                                         className={cn(
-                                                            'flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors',
-                                                            'hover:bg-blue-100 dark:hover:bg-slate-800',
-                                                            isChildActive
-                                                                ? 'bg-blue-100 dark:bg-slate-800 text-blue-700 dark:text-blue-300 font-medium'
-                                                                : 'text-slate-700 dark:text-slate-300'
+                                                            'sidebar-nav-item text-sm gap-2',
+                                                            isChildActive && 'data-[active=true]'
                                                         )}
+                                                        data-active={isChildActive}
                                                     >
                                                         <ChildIcon className="h-4 w-4 shrink-0" />
                                                         <span className="truncate">{child.label}</span>
@@ -224,7 +258,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                 <div key={item.label} className="space-y-1">
                     {button}
                     {isExpanded && (
-                        <div className="ml-4 space-y-1 border-l-2 border-blue-200 dark:border-slate-700 pl-2">
+                        <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
                             {item.children!.map((child) => renderNavItem(child, true, forceExpand))}
                         </div>
                     )}
@@ -232,27 +266,36 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
             );
         }
 
+        const isQuotaRequests = item.href === '/dashboard/superadmin/quota-requests';
+        const isOrgRequests = item.href === '/dashboard/superadmin/org-requests';
+        const badgeCount = isQuotaRequests ? pendingQuotaCount : isOrgRequests ? pendingOrgRequestCount : 0;
+        const showBadge = badgeCount > 0;
+
         const link = (
             <Link
                 href={item.href!}
                 className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 transition-all',
-                    'hover:bg-success hover:text-white',
-                    isActive
-                        ? 'bg-success text-white'
-                        : 'text-primary',
-                    !showLabels && 'justify-center',
+                    'sidebar-nav-item focus-enhanced respect-motion-preference',
+                    isActive && 'data-[active=true]',
+                    !showLabels && 'data-[collapsed=true]',
                     isChild && 'text-sm'
                 )}
+                data-active={isActive}
+                data-collapsed={!showLabels}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => {
-                    // Close mobile menu when clicking a link on mobile
                     if (typeof window !== 'undefined' && window.innerWidth < 768) {
                         onToggle();
                     }
                 }}
             >
                 <Icon className="h-4 w-4 flex-shrink-0" />
-                {showLabels && <span>{item.label}</span>}
+                {showLabels && <span className="flex-1">{item.label}</span>}
+                {showBadge && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                        {badgeCount}
+                    </span>
+                )}
             </Link>
         );
 
@@ -297,10 +340,10 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                             </div>
                         </div>
                         <div>
-                            <span className="text-xl font-bold bg-clip-text text-transparent">
+                            <span className="text-xl font-bold bg-clip-text">
                                 TimeSheet
                             </span>
-                            <div className="text-xs text-slate-400 font-medium tracking-wide">Dashboard</div>
+                            <div className="text-xs text-muted-foreground font-medium tracking-wide">Dashboard</div>
                         </div>
                     </Link>
                 </div>
@@ -312,7 +355,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
 
                 {/* Mobile Footer */}
                 <div className="border-t backdrop-blur-xs p-4">
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                         <span>System Online</span>
                     </div>
@@ -358,7 +401,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                             <span className="text-xl font-bold bg-clip-text">
                                 TimeSheet
                             </span>
-                            <div className="text-xs text-slate-400 font-medium tracking-wide">Dashboard</div>
+                            <div className="text-xs text-muted-foreground font-medium tracking-wide">Dashboard</div>
                         </div>
                     </Link>
                 </div>
@@ -383,9 +426,9 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                                     onClick={onToggle}
                                     className={cn(
                                         'p-2 rounded-lg transition-all',
-                                        'hover:bg-blue-100 dark:hover:bg-slate-800',
-                                        'text-slate-600 dark:text-slate-400',
-                                        'hover:text-blue-600 dark:hover:text-blue-400'
+                                        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                                        'text-sidebar-foreground/60',
+                                        'hover:text-sidebar-accent-foreground'
                                     )}
                                     aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                                 >
@@ -405,7 +448,7 @@ export function DashboardSidebar({ isCollapsed, onToggle, mobileMenuOpen = false
                     {/* System Status */}
                     <div
                         className={cn(
-                            'flex items-center gap-3 text-xs text-slate-400',
+                            'flex items-center gap-3 text-xs text-muted-foreground',
                             isCollapsed ? 'justify-center' : 'justify-start'
                         )}
                     >

@@ -8,20 +8,14 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { ConfirmDialogShell } from "@/components/shared/forms"
-import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react"
+import { InfoGrid, InfoCard, TableEmptyState } from "@/components/shared"
+import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageShell"
+import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
+import { PublicHolidayYearNavigator } from "@/components/dashboard/public-holidays/PublicHolidayYearNavigator"
+import { CalendarDays, Loader2, Plus, Trash2, Sparkles, MapPin } from "lucide-react"
 import {
   getPublicHolidays,
   createPublicHoliday,
@@ -38,39 +32,45 @@ function formatHolidayDate(date: string | Date) {
 }
 
 function StateBadge({ state }: { state: string }) {
-  const variant =
-    state === 'NAT'
-      ? 'default'
-      : state === 'VIC'
-        ? 'secondary'
-        : 'outline'
-
-  const className =
-    state === 'NAT'
-      ? 'bg-blue-600 text-white hover:bg-blue-600'
-      : state === 'VIC'
-        ? 'bg-slate-900 text-white hover:bg-slate-900'
-        : 'text-muted-foreground'
-
+  if (state === 'NAT') {
+    return (
+      <Badge className="bg-primary text-primary-foreground hover:bg-primary/90">
+        {state}
+      </Badge>
+    )
+  }
+  
   return (
-    <Badge variant={variant as any} className={className}>
+    <Badge variant="outline" className="text-muted-foreground">
       {state}
+    </Badge>
+  )
+}
+
+function RecurringBadge({ isRecurring }: { isRecurring: boolean }) {
+  if (isRecurring) {
+    return (
+      <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+        Recurring
+      </Badge>
+    )
+  }
+  
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      One-off
     </Badge>
   )
 }
 
 export default function PublicHolidaysPage() {
   const currentYear = new Date().getFullYear()
-  const yearOptions = useMemo(() => {
-    const years: number[] = []
-    for (let y = currentYear - 2; y <= currentYear + 2; y++) years.push(y)
-    return years
-  }, [currentYear])
-
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedState, setSelectedState] = useState<string>('All')
   const [publicHolidays, setPublicHolidays] = useState<PublicHoliday[]>([])
   const [loading, setLoading] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const [seedLoading, setSeedLoading] = useState(false)
   const [seedMessage, setSeedMessage] = useState<string | null>(null)
@@ -84,6 +84,16 @@ export default function PublicHolidaysPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<PublicHoliday | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Summary calculations
+  const totalHolidays = publicHolidays.length
+  const nationalHolidays = publicHolidays.filter(h => h.state === 'NAT').length
+  const stateSpecificHolidays = publicHolidays.filter(h => h.state !== 'NAT').length
+
+  useEffect(() => {
+    setHydrated(true)
+    setMounted(true)
+  }, [])
 
   const fetchHolidays = async () => {
     setLoading(true)
@@ -108,12 +118,20 @@ export default function PublicHolidaysPage() {
       {
         accessorKey: "date",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-        cell: ({ row }) => <span className="font-medium">{formatHolidayDate(row.original.date)}</span>,
+        cell: ({ row }) => (
+          <span className="font-bold text-foreground">
+            {formatHolidayDate(row.original.date)}
+          </span>
+        ),
       },
       {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
-        cell: ({ row }) => row.original.name,
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {row.original.name}
+          </span>
+        ),
       },
       {
         accessorKey: "state",
@@ -123,7 +141,7 @@ export default function PublicHolidaysPage() {
       {
         accessorKey: "isRecurring",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Recurring" />,
-        cell: ({ row }) => (row.original.isRecurring ? "Yes" : "No"),
+        cell: ({ row }) => <RecurringBadge isRecurring={row.original.isRecurring} />,
       },
       {
         id: "actions",
@@ -197,153 +215,214 @@ export default function PublicHolidaysPage() {
     }
   }
 
+  const handleTodayClick = () => {
+    setSelectedYear(currentYear)
+  }
+
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year)
+  }
+
+  // State selector component
+  const stateSelector = (
+    <div className="flex items-center gap-2">
+      <MapPin className="h-4 w-4 text-muted-foreground" />
+      <select
+        value={selectedState}
+        onChange={(e) => setSelectedState(e.target.value)}
+        className="h-8 rounded-md border border-input bg-background px-2 text-sm min-w-[80px] focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <option value="All">All States</option>
+        {STATE_OPTIONS.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
+  // Prevent hydration mismatch
+  if (!mounted) return null
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Public Holidays</h1>
-          <p className="text-muted-foreground">
-            Manage Australian public holidays used for penalty rate calculations
-          </p>
-        </div>
-
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Holiday
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Public Holiday</DialogTitle>
-              <DialogDescription>
-                Create a public holiday entry that can be used by penalty rate calculations.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Date</label>
-                <input
-                  type="date"
-                  value={createDate}
-                  onChange={(e) => setCreateDate(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Name</label>
-                <Input value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="Christmas Day" />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">State</label>
-                <select
-                  value={createState}
-                  onChange={(e) => setCreateState(e.target.value as StateOption)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {STATE_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={createRecurring}
-                  onCheckedChange={(v) => setCreateRecurring(v === true)}
-                  id="recurring"
-                />
-                <label htmlFor="recurring" className="text-sm">
-                  Fixed date each year
-                </label>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                onClick={handleCreate}
-                disabled={createLoading || !createDate || !createName.trim()}
+    <CalendarPageShell
+      containerClassName="px-4 sm:px-6"
+      toolbar={
+        <UnifiedCalendarTopbar
+          onToday={handleTodayClick}
+          title="Public Holidays"
+          titleBadge={
+            hydrated && totalHolidays > 0 ? (
+              <Badge variant="secondary" className="ml-2">
+                {totalHolidays} holidays
+              </Badge>
+            ) : null
+          }
+          nav={
+            <PublicHolidayYearNavigator
+              selectedYear={selectedYear}
+              onYearChange={handleYearChange}
+            />
+          }
+          peopleSelect={stateSelector}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleSeed} 
+                disabled={seedLoading}
+                size="sm"
               >
-                {createLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Create
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Card className="border-none shadow-none ring-0">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4" />
-            Holidays
-          </CardTitle>
-          <CardDescription>
-            Filter by year and state, seed the minimum holiday set, and delete entries as needed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Year</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">State</span>
-                <select
-                  value={selectedState}
-                  onChange={(e) => setSelectedState(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="All">All</option>
-                  {STATE_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Button onClick={handleSeed} variant="secondary" disabled={seedLoading}>
-                {seedLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {seedLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Seed Year
               </Button>
+              <Button onClick={() => setAddOpen(true)} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Holiday
+              </Button>
             </div>
-
-            {seedMessage ? (
-              <div className="text-sm text-muted-foreground">
-                {seedMessage}
-              </div>
-            ) : null}
+          }
+        />
+      }
+    >
+      <div className="space-y-6">
+        {/* Feedback Message */}
+        {seedMessage && (
+          <div className="rounded-md bg-muted/50 px-4 py-3 text-sm text-muted-foreground border">
+            {seedMessage}
           </div>
+        )}
 
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
-          ) : null}
+        {/* Summary Cards */}
+        <InfoGrid columns={3}>
+          <InfoCard title="Total Holidays">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? totalHolidays : "—"}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              For {selectedYear}
+            </p>
+          </InfoCard>
+          
+          <InfoCard title="National">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? nationalHolidays : "—"}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Applies across all states
+            </p>
+          </InfoCard>
+          
+          <InfoCard title="State-specific">
+            <div className="text-2xl font-bold tabular-nums">
+              {hydrated ? stateSpecificHolidays : "—"}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {selectedState === 'All' ? 'Filtered by current selection' : `For ${selectedState} only`}
+            </p>
+          </InfoCard>
+        </InfoGrid>
 
-          <DataTable
-            columns={columns}
-            data={publicHolidays}
-            emptyMessage="No public holidays found for this filter."
-            initialPageSize={25}
-          />
-        </CardContent>
-      </Card>
+        {/* Main Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Holiday Register</CardTitle>
+            <CardDescription>
+              Browse, filter, and maintain holiday entries for payroll calculations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Table Area */}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading holidays...</span>
+                </div>
+              </div>
+            ) : publicHolidays.length === 0 ? (
+              <TableEmptyState
+                title="No holidays found"
+                description={`No holidays found for ${selectedYear}${selectedState !== 'All' ? ` in ${selectedState}` : ''}. Try seeding this year to add the standard holiday set.`}
+                action={{
+                  label: "Seed Year",
+                  onClick: handleSeed,
+                  icon: <Sparkles className="h-4 w-4" />
+                }}
+              />
+            ) : (
+              <DataTable
+                columns={columns}
+                data={publicHolidays}
+                initialPageSize={25}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dialogs */}
+      <FormDialogShell
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Add Public Holiday"
+        description="Create a public holiday entry that can be used by penalty rate calculations."
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleCreate();
+        }}
+        submitLabel="Add Holiday"
+        loading={createLoading}
+        disabled={!createDate || !createName.trim()}
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Name</label>
+            <Input 
+              value={createName} 
+              onChange={(e) => setCreateName(e.target.value)} 
+              placeholder="Christmas Day" 
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Date</label>
+            <input
+              type="date"
+              value={createDate}
+              onChange={(e) => setCreateDate(e.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">State</label>
+            <select
+              value={createState}
+              onChange={(e) => setCreateState(e.target.value as StateOption)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {STATE_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={createRecurring}
+              onCheckedChange={(v) => setCreateRecurring(v === true)}
+              id="recurring"
+            />
+            <label htmlFor="recurring" className="text-sm">
+              Fixed date each year
+            </label>
+            <p className="text-xs text-muted-foreground ml-2">
+              Use this for holidays that occur on the same calendar date each year.
+            </p>
+          </div>
+        </div>
+      </FormDialogShell>
 
       <ConfirmDialogShell
         open={!!deleteTarget}
@@ -351,11 +430,11 @@ export default function PublicHolidaysPage() {
         title="Delete public holiday?"
         description={
           deleteTarget ? (
-            <>
+            <span>
               This will permanently delete{" "}
               <span className="font-medium">{deleteTarget.name}</span>{" "}
               ({formatHolidayDate(deleteTarget.date)}). This action cannot be undone.
-            </>
+            </span>
           ) : (
             "This action cannot be undone."
           )
@@ -365,7 +444,7 @@ export default function PublicHolidaysPage() {
         loading={deleteLoading}
         variant="destructive"
       />
-    </div>
+    </CalendarPageShell>
   )
 }
 

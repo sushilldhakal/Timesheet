@@ -17,6 +17,7 @@ function buildMaskedResponse(taxInfo: any, countryConfig: any) {
     bankRoutingType: taxInfo.bank.routing.type,
     bankAccountName: taxInfo.bank.accountName,
     bankName: taxInfo.bank.bankName || null,
+    bankAccountType: taxInfo.bank.accountType || null,
     countryName: countryConfig.name,
     currency: countryConfig.currency,
   };
@@ -115,6 +116,7 @@ export class EmployeeTaxInfoService {
         },
         bankName: validatedBankData.bankName,
         swiftCode: validatedBankData.swiftCode,
+        accountType: validatedBankData.accountType,
       },
       accessLogs: [
         {
@@ -193,6 +195,7 @@ export class EmployeeTaxInfoService {
         },
         bankName: validatedBankData.bankName,
         swiftCode: validatedBankData.swiftCode,
+        accountType: validatedBankData.accountType,
       };
     }
 
@@ -205,4 +208,3 @@ export class EmployeeTaxInfoService {
 }
 
 export const employeeTaxInfoService = new EmployeeTaxInfoService();
-

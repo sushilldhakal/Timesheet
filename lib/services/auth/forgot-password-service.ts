@@ -33,11 +33,15 @@ export class ForgotPasswordService {
         resetUrl,
       });
 
+      // Get orgId from user's tenantId
+      const orgId = result.user.tenantId ? result.user.tenantId.toString() : "system";
+
       await sendEmail({
         to: email,
         subject: emailContent.subject,
         html: emailContent.html,
         plain: emailContent.plain,
+        orgId,
       });
     }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { StaffSidebar } from "./StaffSidebar"
 import { StaffHeader } from "./StaffHeader"
 import { StaffShell } from "@/components/shared/shells/StaffShell"
@@ -13,6 +13,7 @@ import { useEmployeeProfile, useEmployeeLogout } from "@/lib/queries/employee-cl
 
 export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -47,6 +48,18 @@ export function StaffLayoutClient({ children }: { children: React.ReactNode }) {
       router.push("/")
     }
   }, [error, isLoading, router])
+
+  useEffect(() => {
+    if (isLoading) return
+    if (!employee) return
+
+    const onboardingComplete = employee.onboardingCompleted === true
+    const isOnboardingRoute = pathname === "/staff/onboarding" || pathname?.startsWith("/staff/onboarding/")
+
+    if (!onboardingComplete && !isOnboardingRoute) {
+      router.replace("/staff/onboarding")
+    }
+  }, [employee, isLoading, pathname, router])
 
   const handleLogout = async () => {
     try {

@@ -24,5 +24,36 @@ export class PublicHolidaysDbQueries {
   static async bulkUpsert(ops: any[]) {
     return PublicHoliday.bulkWrite(ops, { ordered: false });
   }
+
+  /**
+   * Find existing holiday by date, state, and name to prevent duplicates
+   */
+  static async findExisting(date: Date, state: string, name: string) {
+    return PublicHoliday.findOne({ date, state, name }).lean();
+  }
+
+  /**
+   * Upsert a single holiday with proper duplicate prevention
+   */
+  static async upsertHoliday(holidayData: {
+    date: Date;
+    name: string;
+    state: string;
+    isRecurring: boolean;
+  }) {
+    return PublicHoliday.findOneAndUpdate(
+      { 
+        date: holidayData.date, 
+        state: holidayData.state, 
+        name: holidayData.name 
+      },
+      { $set: holidayData },
+      { 
+        upsert: true, 
+        new: true, 
+        runValidators: true 
+      }
+    );
+  }
 }
 

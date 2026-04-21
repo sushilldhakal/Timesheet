@@ -1,4 +1,6 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getEmployeeFromWebCookie } from "@/lib/auth/employee-auth"
+import { stripLockedFieldsForEmployee } from "@/lib/auth/employee-field-guard"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema, 
@@ -58,10 +60,34 @@ export const PATCH = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, body }) => {
+    // Check for both admin and employee auth
     const ctx = await getAuthWithUserLocations()
-    if (!ctx) throw apiErrors.unauthorized()
+    const employeeAuth = await getEmployeeFromWebCookie()
+    
+    if (!ctx && !employeeAuth) throw apiErrors.unauthorized()
     if (!params || !body) throw apiErrors.badRequest("Employee ID and request body are required")
-    const data = await employeeService.updateEmployee(ctx, params.id, body)
+    
+    // If employee is calling this endpoint, strip locked fields
+    let sanitizedBody = body
+    if (employeeAuth && !ctx) {
+      // Employee auth only (not admin)
+      sanitizedBody = stripLockedFieldsForEmployee(body) as typeof body
+      
+      // Ensure employee can only update their own record
+      if (params.id !== employeeAuth.sub) {
+        throw apiErrors.unauthorized("You can only update your own profile")
+      }
+    }
+    
+    // Use admin context if available, otherwise create minimal context for employee
+    const effectiveCtx = ctx || {
+      userId: employeeAuth!.sub,
+      tenantId: '', // Employee auth doesn't have tenantId in the token
+      userLocations: [],
+      isAdmin: false,
+    }
+    
+    const data = await employeeService.updateEmployee(effectiveCtx as any, params.id, sanitizedBody)
     return { status: 200, data }
   }
 });

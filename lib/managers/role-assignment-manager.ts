@@ -113,8 +113,15 @@ export class RoleAssignmentManager {
         )
       }
 
+      // Get tenantId from the employee
+      const employee = await EmployeeDbQueries.findEmployeeById(employeeId.toString())
+      if (!employee) {
+        throw new RoleAssignmentError("Employee not found", 404, "EMPLOYEE_NOT_FOUND")
+      }
+
       // Create the assignment record
       const assignment = EmployeeRoleAssignmentsDbQueries.createDoc({
+        tenantId: (employee as any).tenantId,
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
         roleId: new mongoose.Types.ObjectId(roleId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),

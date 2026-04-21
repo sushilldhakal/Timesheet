@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, LogOut, User, Settings, Minimize2, Maximize2, Search } from 'lucide-react';
+import { Menu, LogOut, User, Settings, Minimize2, Maximize2, Search, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -27,11 +27,13 @@ import {
     CommandItem,
 } from '@/components/ui/command';
 import { useEffect, useMemo, useState } from 'react';
-import { isAdminOrSuperAdmin } from '@/lib/config/roles';
+import { isAdminOrSuperAdmin, isSuperAdmin } from '@/lib/config/roles';
 import { baseNavigationItems, getFlatNavigationForSearch } from './dashboardNavigation';
 import type { DashboardHeaderProps } from '@/lib/types/dashboard';
 import { OrgSwitcher } from '@/components/org-switcher/OrgSwitcher';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MultiSelect } from '@/components/ui/MultiSelect';
+import { useDashboardLocationScope } from '@/components/providers/DashboardLocationScopeProvider';
 
 
 export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderProps) {
@@ -40,6 +42,13 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     const userEmail = getUserEmail(user);
     const displayRole = userRole ?? getUserRole(user);
     const { isFullWidth, toggleLayout } = useLayout();
+    const {
+        accessibleLocations,
+        selectedLocationIds,
+        setSelectedLocationIds,
+        canSelectMultiple,
+        isReady: isLocationScopeReady,
+    } = useDashboardLocationScope();
     const [searchOpen, setSearchOpen] = useState(false);
     const [showLayoutToggle, setShowLayoutToggle] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
@@ -64,8 +73,17 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     // Same navigation as sidebar, flattened for search; admin-only items filtered by role
     const searchItems = useMemo(() => {
         if (!isHydrated) return [];
-        return getFlatNavigationForSearch(baseNavigationItems, isUserAdmin, user?.id ?? undefined);
-    }, [isHydrated, isUserAdmin, user?.id]);
+        const isUserManager = userRole === 'manager';
+        const isSuperAdminUser = isSuperAdmin(userRole ?? displayRole);
+        return getFlatNavigationForSearch(
+            baseNavigationItems, 
+            isUserAdmin, 
+            user?.id ?? undefined,
+            isUserManager,
+            isSuperAdminUser,
+            user?.tenantId
+        );
+    }, [isHydrated, isUserAdmin, userRole, displayRole, user?.id, user?.tenantId]);
 
     // Command+K keyboard shortcut
     useEffect(() => {
@@ -81,26 +99,26 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
     }, []);
 
     return (
-        <div className="flex h-16 items-center justify-between w-full px-4 lg:px-6">
+        <div className="flex h-16 items-center justify-between w-full px-6 py-3 gap-4">
             {/* Left Section: Menu + Breadcrumbs */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon-sm"
                     className="md:hidden"
                     onClick={onToggleSidebar}
                 >
-                    <Menu className="h-5 w-5" aria-hidden="true" />
+                    <Menu className="h-4 w-4" aria-hidden="true" />
                     <span className="sr-only">Toggle menu</span>
                 </Button>
 
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon-sm"
                     className="hidden md:flex"
                     onClick={onToggleSidebar}
                 >
-                    <Menu className="h-5 w-5" aria-hidden="true" />
+                    <Menu className="h-4 w-4" aria-hidden="true" />
                     <span className="sr-only">Toggle sidebar</span>
                 </Button>
 
@@ -127,9 +145,9 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
 
                     <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         onClick={() => setSearchOpen(true)}
-                        className="h-9 w-9 shrink-0 md:hidden"
+                        className="shrink-0 md:hidden"
                         title="Search (⌘K)"
                         aria-label="Search (⌘K)"
                     >
@@ -140,27 +158,53 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
 
             {/* Right Section: Actions + Profile */}
             {isHydrated && (
-                <div className="flex items-center gap-1 lg:gap-2">
+                <div className="flex items-center gap-2">
                     {user && (
                         <>
+                            {isLocationScopeReady && accessibleLocations.length > 0 && (
+                                <div className="hidden lg:flex min-w-[200px] max-w-[280px] items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
+                                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                    <MultiSelect
+                                        options={accessibleLocations.map((location) => ({
+                                            label: location.name,
+                                            value: location.id,
+                                        }))}
+                                        defaultValue={selectedLocationIds}
+                                        onValueChange={setSelectedLocationIds}
+                                        placeholder="Select locations"
+                                        className="border-0 shadow-none"
+                                        minWidth="0px"
+                                        maxWidth="100%"
+                                        singleLine
+                                        autoSize={false}
+                                        responsive={{
+                                            desktop: { maxCount: 5, compactMode: true }
+                                        }}
+                                        maxCount={5}
+                                        searchable
+                                        avatarView={true}
+                                        closeOnSelect={!canSelectMultiple}
+                                        disabled={accessibleLocations.length === 1}
+                                    />
+                                </div>
+                            )}
+
                             <NotificationBell userId={user.id} />
 
-                            <div className="hidden sm:block">
-                                <OrgSwitcher
-                                    currentTenantId={user?.tenantId}
-                                    currentOrgName={user?.tenantName}
-                                />
-                            </div>
+                            <OrgSwitcher
+                                currentTenantId={user?.tenantId}
+                                currentOrgName={user?.tenantName}
+                                isSuperAdmin={isSuperAdmin(userRole ?? displayRole)}
+                            />
 
-                            <div className="hidden md:flex items-center gap-1">
+                            <div className="hidden md:flex items-center gap-2">
                                 <ModeToggle />
                                 
                                 {isMounted && showLayoutToggle && (
                                     <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="icon-sm"
                                         onClick={toggleLayout}
-                                        className="h-9 w-9"
                                         title={isFullWidth ? 'Switch to Boxed Layout' : 'Switch to Full Width Layout'}
                                         aria-label={isFullWidth ? 'Switch to boxed layout' : 'Switch to full width layout'}
                                     >
@@ -177,9 +221,9 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="text-sm">
+                            <Button variant="ghost" size="icon-sm" className="rounded-full">
+                                <Avatar className="h-7 w-7">
+                                    <AvatarFallback className="text-xs">
                                         {user?.name?.charAt(0).toUpperCase() || userEmail?.charAt(0).toUpperCase() || 'U'}
                                     </AvatarFallback>
                                 </Avatar>

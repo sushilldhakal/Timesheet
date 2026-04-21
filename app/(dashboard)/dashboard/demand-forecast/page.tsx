@@ -1,15 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useLocations } from "@/lib/queries/locations"
 import {
   useDemandForecasts,
   useGenerateForecast,
   useRosterSuggestions,
   useGenerateRosterSuggestions,
 } from "@/lib/hooks/use-demand-forecast"
-import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +26,7 @@ import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCa
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 function ForecastCard({ forecast }: { forecast: any }) {
   const confidence = forecast.recommendedStaffCount > 0 ? 0.75 : 0.4
@@ -185,13 +183,8 @@ function RosterSuggestionsTab({ locationId, startDate }: { locationId: string; s
 }
 
 export default function DemandForecastPage() {
-  const { user } = useAuth()
-  const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
-
-  // Admins pick a location; managers/supervisors use their own location automatically
-  const scopedLocationId = !isAdmin ? (user?.location?.[0] ?? "") : ""
-  const [adminLocationId, setAdminLocationId] = useState("")
-  const locationId = isAdmin ? adminLocationId : scopedLocationId
+  const { primaryLocationId } = useDashboardLocationScope()
+  const locationId = primaryLocationId ?? ""
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [view, setView] = useState<TimesheetView>("week")
@@ -202,10 +195,6 @@ export default function DemandForecastPage() {
   const [forecastDialogOpen, setForecastDialogOpen] = useState(false)
   const [suggestionsDialogOpen, setSuggestionsDialogOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-
-  // Only fetch locations list for admins (for the selector)
-  const locationsQuery = useLocations({ enabled: isAdmin })
-  const locations = locationsQuery.data?.locations ?? []
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -282,32 +271,40 @@ export default function DemandForecastPage() {
     </div>
   )
 
-  // Only admins see the location selector
-  const locationSelect = isAdmin ? (
-    <select
-      value={adminLocationId}
-      onChange={(e) => setAdminLocationId(e.target.value)}
-      className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm"
-    >
-      <option value="">All locations</option>
-      {mounted && locations.map((loc: any) => (
-        <option key={loc.id} value={loc.id}>
-          {loc.name}
-        </option>
-      ))}
-    </select>
-  ) : null
-
   const handleGenerateForecast = () => {
     if (!locationId) return
     setForecastDialogOpen(true)
-    generateForecast.mutate({ locationId, targetDate: dateRange.from, historicalWeeks: 8 })
+    generateForecast.mutate(
+      { locationId, targetDate: dateRange.from, historicalWeeks: 8 },
+      {
+        onSuccess: () => {
+          // Close dialog on success
+          setTimeout(() => setForecastDialogOpen(false), 500)
+        },
+        onError: () => {
+          // Close dialog on error
+          setForecastDialogOpen(false)
+        }
+      }
+    )
   }
 
   const handleGenerateSuggestions = () => {
     if (!locationId) return
     setSuggestionsDialogOpen(true)
-    generateSuggestions.mutate({ locationId, weekStartDate: dateRange.from })
+    generateSuggestions.mutate(
+      { locationId, weekStartDate: dateRange.from },
+      {
+        onSuccess: () => {
+          // Close dialog on success
+          setTimeout(() => setSuggestionsDialogOpen(false), 500)
+        },
+        onError: () => {
+          // Close dialog on error
+          setSuggestionsDialogOpen(false)
+        }
+      }
+    )
   }
 
   const actionButton = activeTab === "forecasts" ? (
@@ -364,7 +361,7 @@ export default function DemandForecastPage() {
             </div>
           }
           viewSwitcher={viewSwitcher}
-          peopleSelect={locationSelect}
+          peopleSelect={null}
           actions={actionButton}
         />
       }

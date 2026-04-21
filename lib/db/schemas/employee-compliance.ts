@@ -3,6 +3,14 @@ import mongoose from 'mongoose'
 export interface IEmployeeCompliance {
   tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
+  workRightsType?: 'au_citizen' | 'au_resident' | 'visa_holder' | 'unknown'
+  australianIdType?: 'drivers_licence' | 'medicare' | 'passport' | null
+  australianIdNumber?: string | null
+  visaType?: string | null
+  visaNumber?: string | null
+  maxHoursPerFortnight?: number | null  // for student visa rostering limits
+  workRightsStatus?: 'unverified' | 'verified' | 'failed'
+  workRightsLastCheckedAt?: Date | null
   wwcStatus?: 'not_required' | 'pending' | 'active' | 'expired'
   wwcNumber?: string
   wwcExpiryDate?: Date
@@ -37,6 +45,26 @@ const employeeComplianceSchema = new mongoose.Schema<IEmployeeCompliance>(
       required: true,
       index: true,
     },
+    workRightsType: {
+      type: String,
+      enum: ['au_citizen', 'au_resident', 'visa_holder', 'unknown'],
+      default: 'unknown',
+    },
+    australianIdType: {
+      type: String,
+      enum: ['drivers_licence', 'medicare', 'passport'],
+      default: null,
+    },
+    australianIdNumber: { type: String, default: null },
+    visaType: { type: String, default: null },
+    visaNumber: { type: String, default: null },
+    maxHoursPerFortnight: { type: Number, default: null },
+    workRightsStatus: {
+      type: String,
+      enum: ['unverified', 'verified', 'failed'],
+      default: 'unverified',
+    },
+    workRightsLastCheckedAt: { type: Date, default: null },
     wwcStatus: {
       type: String,
       enum: ['not_required', 'pending', 'active', 'expired'],

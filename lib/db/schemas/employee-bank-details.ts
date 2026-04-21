@@ -4,7 +4,9 @@ export interface IEmployeeBankDetails {
   tenantId: mongoose.Types.ObjectId
   employeeId: mongoose.Types.ObjectId
   accountNumber: string
+  accountNumberLast4?: string   // last 4 digits, stored at save time
   bsbCode: string
+  bsbLast3?: string             // last 3 digits of BSB
   accountHolderName: string
   bankName?: string
   accountType?: 'savings' | 'cheque'
@@ -30,10 +32,16 @@ const employeeBankDetailsSchema = new mongoose.Schema<IEmployeeBankDetails>(
       type: String,
       required: true,
     },
+    accountNumberLast4: {
+      type: String,
+    },
     bsbCode: {
       type: String,
       required: true,
       match: /^\d{3}-\d{3}$/,
+    },
+    bsbLast3: {
+      type: String,
     },
     accountHolderName: {
       type: String,

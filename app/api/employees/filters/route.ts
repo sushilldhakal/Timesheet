@@ -5,7 +5,7 @@ import { z } from "zod"
 import { employeeFiltersService } from "@/lib/services/employee/employee-filters-service"
 
 const employeeFiltersResponseSchema = z.object({
-  roles: z.array(z.object({
+  teams: z.array(z.object({
     name: z.string(),
     count: z.number()
   })),
@@ -24,7 +24,7 @@ export const GET = createApiRoute({
   method: 'GET',
   path: '/api/employees/filters',
   summary: 'Get employee filter options',
-  description: 'Get available filter options with employee counts for roles, employers, and locations',
+  description: 'Get available filter options with employee counts for teams, employers, and locations',
   tags: ['Employees'],
   security: 'adminAuth',
   responses: {

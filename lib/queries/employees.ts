@@ -7,8 +7,8 @@ export const employeeKeys = {
   detail: (id: string) => [...employeeKeys.all, 'detail', id] as const,
   timesheet: (id: string, params?: URLSearchParams) => [...employeeKeys.all, id, 'timesheet', params?.toString()] as const,
   awardHistory: (id: string) => [...employeeKeys.all, id, 'award-history'] as const,
-  roles: (id: string, params?: { locationId?: string; date?: string; includeInactive?: boolean }) => 
-    [...employeeKeys.all, id, 'roles', params] as const,
+  teams: (id: string, params?: { locationId?: string; date?: string; includeInactive?: boolean }) => 
+    [...employeeKeys.all, id, 'teams', params] as const,
 }
 
 // Get all employees
@@ -129,44 +129,44 @@ export function useAwardEmployee() {
   })
 }
 
-// Create employee role assignment
-export function useCreateEmployeeRole() {
+// Create employee team assignment
+export function useCreateEmployeeTeam() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ employeeId, data }: { employeeId: string; data: employeesApi.CreateEmployeeRoleRequest }) =>
-      employeesApi.createEmployeeRole(employeeId, data),
+    mutationFn: ({ employeeId, data }: { employeeId: string; data: employeesApi.CreateEmployeeTeamRequest }) =>
+      employeesApi.createEmployeeTeam(employeeId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: employeeKeys.detail(variables.employeeId) })
-      queryClient.invalidateQueries({ queryKey: [...employeeKeys.all, variables.employeeId, 'roles'] })
+      queryClient.invalidateQueries({ queryKey: [...employeeKeys.all, variables.employeeId, 'teams'] })
       queryClient.invalidateQueries({ queryKey: employeeKeys.all })
     },
   })
 }
 
-// Get employee role assignments
-export function useEmployeeRoles(
+// Get employee team assignments
+export function useEmployeeTeams(
   employeeId: string,
   params?: { locationId?: string; date?: string; includeInactive?: boolean }
 ) {
   return useQuery({
-    queryKey: employeeKeys.roles(employeeId, params),
-    queryFn: () => employeesApi.getEmployeeRoles(employeeId, params),
+    queryKey: employeeKeys.teams(employeeId, params),
+    queryFn: () => employeesApi.getEmployeeTeams(employeeId, params),
     enabled: !!employeeId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
-// Delete employee role assignment
-export function useDeleteEmployeeRole() {
+// Delete employee team assignment
+export function useDeleteEmployeeTeam() {
   const queryClient = useQueryClient()
   
   return useMutation({
     mutationFn: ({ employeeId, assignmentId }: { employeeId: string; assignmentId: string }) =>
-      employeesApi.deleteEmployeeRole(employeeId, assignmentId),
+      employeesApi.deleteEmployeeTeam(employeeId, assignmentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: employeeKeys.detail(variables.employeeId) })
-      queryClient.invalidateQueries({ queryKey: [...employeeKeys.all, variables.employeeId, 'roles'] })
+      queryClient.invalidateQueries({ queryKey: [...employeeKeys.all, variables.employeeId, 'teams'] })
       queryClient.invalidateQueries({ queryKey: employeeKeys.all })
     },
   })

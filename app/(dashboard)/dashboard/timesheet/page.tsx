@@ -26,6 +26,7 @@ import { useTeams } from "@/lib/queries/teams"
 import { useTimesheets } from "@/lib/queries/daily-shifts"
 import { getTimesheets } from "@/lib/api/daily-shifts"
 import { AwardEnhancedRow } from "@/components/timesheet/award-enhanced-row"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 // 🔥 Mock award data for demonstration
 const mockAwardData: Record<string, any> = {
@@ -163,7 +164,6 @@ export default function TimesheetPage() {
   const [customEndDate, setCustomEndDate] = useState("")
   const [useCustomRange, setUseCustomRange] = useState(false)
   const [selectedEmployers, setSelectedEmployers] = useState<string[]>([])
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [employers, setEmployers] = useState<Category[]>([])
@@ -174,9 +174,13 @@ export default function TimesheetPage() {
   const [error, setError] = useState<string | null>(null)
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(50)
+  const {
+    accessibleLocations: dashboardLocations,
+    selectedLocationNames,
+    setSelectedLocationIds,
+  } = useDashboardLocationScope()
 
   const assignedLocations = userPermissions?.locations ?? []
-  const isSingleLocationUser = assignedLocations.length === 1
 
   // Calculate date range first
   const { startDate, endDate } = useMemo(() => {
@@ -220,7 +224,7 @@ export default function TimesheetPage() {
       view: view as "day" | "week" | "month",
       employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
       employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
-      locations: selectedLocations.length > 0 ? selectedLocations : undefined,
+      locations: selectedLocationNames.length > 0 ? selectedLocationNames : undefined,
       roles: selectedRoles.length > 0 ? selectedRoles : undefined,
       limit: view === "day" ? pageSize : 5000,
       offset: view === "day" ? pageIndex * pageSize : 0,
@@ -231,7 +235,7 @@ export default function TimesheetPage() {
       view,
       selectedEmployeeIds,
       selectedEmployers,
-      selectedLocations,
+      selectedLocationNames,
       selectedRoles,
       pageSize,
       pageIndex,
@@ -365,24 +369,16 @@ export default function TimesheetPage() {
     }
   }, [userQuery.data, employeesQuery.data, locationsQuery.data, teamsQuery.data])
 
-  // If user is restricted to exactly one location, force-select it and keep it selected.
-  useEffect(() => {
-    if (!isSingleLocationUser) return
-    const only = assignedLocations[0]
-    if (!only) return
-    setSelectedLocations((prev) => (prev.length === 1 && prev[0] === only ? prev : [only]))
-  }, [isSingleLocationUser, assignedLocations])
-
   const filteredEmployees = useMemo(() => {
-    if (selectedEmployers.length === 0 && selectedLocations.length === 0 && selectedRoles.length === 0) return employees
+    if (selectedEmployers.length === 0 && selectedRoles.length === 0) return employees
     return employees.filter((e) => {
       const matchEmployer = selectedEmployers.length === 0 || e.employer.some((x) => selectedEmployers.includes(x))
-      const matchLocation = selectedLocations.length === 0 || e.location.some((x) => selectedLocations.includes(x))
+      const matchLocation = selectedLocationNames.length === 0 || e.location.some((x) => selectedLocationNames.includes(x))
       // For roles, we would need to check employee roles, but since the current data structure doesn't include roles in the employee data,
       // we'll skip role filtering for now and focus on the UI visibility logic
       return matchEmployer && matchLocation
     })
-  }, [employees, selectedEmployers, selectedLocations, selectedRoles])
+  }, [employees, selectedEmployers, selectedLocationNames, selectedRoles])
 
   const fetchTimesheets = useCallback(async () => {
     // This is now handled by the useTimesheets hook
@@ -423,7 +419,7 @@ export default function TimesheetPage() {
     customEndDate,
     selectedEmployeeIds,
     selectedEmployers,
-    selectedLocations,
+    selectedLocationNames,
     selectedRoles,
   ])
 
@@ -442,10 +438,10 @@ export default function TimesheetPage() {
       endDate,
       employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
       employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
-      locations: selectedLocations.length > 0 ? selectedLocations : undefined,
+      locations: selectedLocationNames.length > 0 ? selectedLocationNames : undefined,
       roles: selectedRoles.length > 0 ? selectedRoles : undefined,
     }),
-    [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocations, selectedRoles],
+    [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocationNames, selectedRoles],
   )
 
   const escapeCsvCell = (cell: unknown) => {
@@ -456,7 +452,7 @@ export default function TimesheetPage() {
   const handleExportCSV = async () => {
     const filterSuffix = [
       selectedEmployers.length > 0 ? `emp-${selectedEmployers.length}` : "",
-      selectedLocations.length > 0 ? `loc-${selectedLocations.length}` : "",
+      selectedLocationNames.length > 0 ? `loc-${selectedLocationNames.length}` : "",
       selectedRoles.length > 0 ? `role-${selectedRoles.length}` : "",
       selectedEmployeeIds.length > 0 ? `staff-${selectedEmployeeIds.length}` : "",
     ]
@@ -779,25 +775,6 @@ export default function TimesheetPage() {
                 </div>
               )}
 
-              {/* Location filter - show for admin users (if any exist) OR if regular user has multiple locations */}
-              {userPermissions &&
-                !isSingleLocationUser &&
-                ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
-                  ? locations.length > 0
-                  : userPermissions.locations.length > 1) && (
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-medium text-muted-foreground">Location</label>
-                    <MultiSelect
-                      options={locations.map((c) => ({ label: c.name, value: c.name }))}
-                      defaultValue={selectedLocations}
-                      onValueChange={setSelectedLocations}
-                      placeholder="All locations"
-                      searchable
-                      className="min-w-[180px] max-w-[220px]"
-                    />
-                  </div>
-                )}
-
               {/* Role filter - show for admin users (if any exist) OR if regular user has multiple managed roles */}
               {userPermissions &&
                 ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
@@ -877,7 +854,7 @@ export default function TimesheetPage() {
             <div className="text-xs print:mt-2 print:text-sm print:text-gray-600">
               <div className="flex flex-wrap gap-4">
                 {selectedEmployers.length > 0 && <span>Employers: {selectedEmployers.join(", ")}</span>}
-                {selectedLocations.length > 0 && <span>Locations: {selectedLocations.join(", ")}</span>}
+                {selectedLocationNames.length > 0 && <span>Locations: {selectedLocationNames.join(", ")}</span>}
                 {selectedRoles.length > 0 && <span>Roles: {selectedRoles.join(", ")}</span>}
                 {selectedEmployeeIds.length > 0 && <span>Employees: {selectedEmployeeIds.length} selected</span>}
               </div>

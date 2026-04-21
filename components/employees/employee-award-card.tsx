@@ -5,14 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Award, Pencil, History, ChevronDown, ChevronRight } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormDialogShell } from '@/components/shared/forms/FormDialogShell';
 import {
   Select,
   SelectContent,
@@ -201,191 +194,169 @@ export default function EmployeeAwardCard({
       </Card>
 
       {!readOnly ? (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Assign Award to Employee</DialogTitle>
-              <DialogDescription>
-                Select the award, level, and employment type for this employee. This will create a new
-                pay condition record effective from the specified date.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <FieldGroup className="gap-4">
-                <Field>
-                  <FieldLabel>Award *</FieldLabel>
-                  <Select
-                    value={selectedAwardId}
-                    onValueChange={(value) => {
-                      setSelectedAwardId(value);
-                      setSelectedLevel('');
-                      setSelectedEmploymentType('');
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an award" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {awards.map((award: any) => (
-                        <SelectItem key={award._id} value={award._id}>
-                          {award.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
+        <FormDialogShell
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          title="Assign Award to Employee"
+          description="Select the award, level, and employment type for this employee. This will create a new pay condition record effective from the specified date."
+          onSubmit={handleSubmit}
+          submitLabel={awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
+          loading={awardEmployeeMutation.isPending}
+          error={error}
+          size="lg"
+        >
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel>Award *</FieldLabel>
+              <Select
+                value={selectedAwardId}
+                onValueChange={(value) => {
+                  setSelectedAwardId(value);
+                  setSelectedLevel('');
+                  setSelectedEmploymentType('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an award" />
+                </SelectTrigger>
+                <SelectContent>
+                  {awards.map((award: any) => (
+                    <SelectItem key={award._id} value={award._id}>
+                      {award.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
-                {selectedAward && (
-                  <Field>
-                    <FieldLabel>Level *</FieldLabel>
-                    <Select
-                      value={selectedLevel}
-                      onValueChange={(value) => {
-                        setSelectedLevel(value);
-                        setSelectedEmploymentType('');
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedAward.levels.map((level: any) => (
-                          <SelectItem key={level.label} value={level.label}>
-                            {level.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-
-                {selectedLevelData && (
-                  <Field>
-                    <FieldLabel>Employment Type *</FieldLabel>
-                    <Select
-                      value={selectedEmploymentType}
-                      onValueChange={setSelectedEmploymentType}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select employment type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employmentTypes.map((type: any) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="effectiveFrom">Effective From *</FieldLabel>
-                    <Input
-                      id="effectiveFrom"
-                      type="date"
-                      value={effectiveFrom}
-                      onChange={(e) => setEffectiveFrom(e.target.value)}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      When this award assignment starts
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="overridingRate">Overriding Rate (Optional)</FieldLabel>
-                    <Input
-                      id="overridingRate"
-                      type="number"
-                      step="0.01"
-                      value={overridingRate}
-                      onChange={(e) => setOverridingRate(e.target.value)}
-                      placeholder="Leave empty to use award rate"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Custom rate for this employee
-                    </p>
-                  </Field>
-                </div>
-
-                {error && <FieldError>{error}</FieldError>}
-              </FieldGroup>
-
-              <DialogFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                  disabled={awardEmployeeMutation.isPending}
+            {selectedAward && (
+              <Field>
+                <FieldLabel>Level *</FieldLabel>
+                <Select
+                  value={selectedLevel}
+                  onValueChange={(value) => {
+                    setSelectedLevel(value);
+                    setSelectedEmploymentType('');
+                  }}
                 >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={awardEmployeeMutation.isPending}>
-                  {awardEmployeeMutation.isPending ? 'Assigning...' : 'Assign Award'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedAward.levels.map((level: any) => (
+                      <SelectItem key={level.label} value={level.label}>
+                        {level.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+
+            {selectedLevelData && (
+              <Field>
+                <FieldLabel>Employment Type *</FieldLabel>
+                <Select
+                  value={selectedEmploymentType}
+                  onValueChange={setSelectedEmploymentType}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employmentTypes.map((type: any) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="effectiveFrom">Effective From *</FieldLabel>
+                <Input
+                  id="effectiveFrom"
+                  type="date"
+                  value={effectiveFrom}
+                  onChange={(e) => setEffectiveFrom(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  When this award assignment starts
+                </p>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="overridingRate">Overriding Rate (Optional)</FieldLabel>
+                <Input
+                  id="overridingRate"
+                  type="number"
+                  step="0.01"
+                  value={overridingRate}
+                  onChange={(e) => setOverridingRate(e.target.value)}
+                  placeholder="Leave empty to use award rate"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Custom rate for this employee
+                </p>
+              </Field>
+            </div>
+          </FieldGroup>
+        </FormDialogShell>
       ) : null}
 
       {/* History Dialog */}
-      <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Award Assignment History
-            </DialogTitle>
-            <DialogDescription>
-              Complete history of award assignments for this employee
-            </DialogDescription>
-          </DialogHeader>
-          <div className="border rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left p-3 font-medium text-xs">Award</th>
-                    <th className="text-left p-3 font-medium text-xs">Level</th>
-                    <th className="text-left p-3 font-medium text-xs">Employment Type</th>
-                    <th className="text-left p-3 font-medium text-xs">Period</th>
-                    <th className="text-right p-3 font-medium text-xs">Override Rate</th>
+      <FormDialogShell
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        title="Award Assignment History"
+        description="Complete history of award assignments for this employee"
+        size="xl"
+      >
+        <div className="border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-3 font-medium text-xs">Award</th>
+                  <th className="text-left p-3 font-medium text-xs">Level</th>
+                  <th className="text-left p-3 font-medium text-xs">Employment Type</th>
+                  <th className="text-left p-3 font-medium text-xs">Period</th>
+                  <th className="text-right p-3 font-medium text-xs">Override Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((condition: any, index: number) => (
+                  <tr
+                    key={index}
+                    className={`border-t ${condition.isActive ? 'bg-primary/5' : ''}`}
+                  >
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        {condition.isActive && (
+                          <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                        )}
+                        <span className="text-sm">{condition.awardName}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-sm">{condition.awardLevel}</td>
+                    <td className="p-3 text-sm">{condition.employmentType}</td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {formatDate(condition.effectiveFrom)} → {formatDate(condition.effectiveTo)}
+                    </td>
+                    <td className="p-3 text-sm text-right">
+                      {condition.overridingRate ? `${condition.overridingRate.toFixed(2)}` : '—'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {history.map((condition: any, index: number) => (
-                    <tr
-                      key={index}
-                      className={`border-t ${condition.isActive ? 'bg-primary/5' : ''}`}
-                    >
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          {condition.isActive && (
-                            <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                          )}
-                          <span className="text-sm">{condition.awardName}</span>
-                        </div>
-                      </td>
-                      <td className="p-3 text-sm">{condition.awardLevel}</td>
-                      <td className="p-3 text-sm">{condition.employmentType}</td>
-                      <td className="p-3 text-sm text-muted-foreground">
-                        {formatDate(condition.effectiveFrom)} → {formatDate(condition.effectiveTo)}
-                      </td>
-                      <td className="p-3 text-sm text-right">
-                        {condition.overridingRate ? `${condition.overridingRate.toFixed(2)}` : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </FormDialogShell>
     </>
   );
 }

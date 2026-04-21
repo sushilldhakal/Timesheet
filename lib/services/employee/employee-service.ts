@@ -21,7 +21,7 @@ export class EmployeeService {
     await connectDB();
     const search = query?.search?.trim?.() ?? '';
     const locationFilter = query?.location?.trim?.() ?? '';
-    const roleFilter = query?.role?.trim?.() ?? '';
+    const teamFilter = query?.team?.trim?.() ?? '';
     const employerFilter = query?.employer?.trim?.() ?? '';
     const limit = query?.limit ?? 50;
     const offset = query?.offset ?? 0;
@@ -29,13 +29,13 @@ export class EmployeeService {
     const orderParam = query?.order ?? 'asc';
 
     const locationFilters = locationFilter ? locationFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-    const roleFilters = roleFilter ? roleFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+    const teamFilters = teamFilter ? teamFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
     const employerFilters = employerFilter ? employerFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
 
-    const validSortFields = ['name', 'pin', 'email', 'phone', 'createdAt', 'employer', 'location', 'role'];
+    const validSortFields = ['name', 'pin', 'email', 'phone', 'createdAt', 'employer', 'location', 'team'];
     const sortBy = validSortFields.includes(sortByParam) ? sortByParam : 'name';
     const order = orderParam === 'desc' ? -1 : 1;
-    const needsAggregation = sortBy === 'role' || sortBy === 'location';
+    const needsAggregation = sortBy === 'team' || sortBy === 'location';
 
     const andConditions: Record<string, unknown>[] = [];
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -49,18 +49,18 @@ export class EmployeeService {
     if (locationFilters.length > 0) andConditions.push({ location: { $in: locationFilters } });
     if (employerFilters.length > 0) andConditions.push({ employer: { $in: employerFilters } });
 
-    // roleFilters -> map role names to ids and then to employeeIds via assignments
+    // teamFilters -> map team names to ids and then to employeeIds via assignments
 
-    if (roleFilters.length > 0) {
-      const roleCategories = await Team.find({ name: { $in: roleFilters } }).lean();
-      if (roleCategories.length > 0) {
-        const roleIds = roleCategories.map((r: any) => r._id);
-        const roleAssignments = await EmployeeRoleAssignment.find({ roleId: { $in: roleIds }, isActive: true }).distinct(
+    if (teamFilters.length > 0) {
+      const teamCategories = await Team.find({ name: { $in: teamFilters } }).lean();
+      if (teamCategories.length > 0) {
+        const teamIds = teamCategories.map((r: any) => r._id);
+        const teamAssignments = await EmployeeRoleAssignment.find({ roleId: { $in: teamIds }, isActive: true }).distinct(
           'employeeId'
         );
-        const roleFilteredIds = roleAssignments.map((id: any) => id.toString());
-        if (roleFilteredIds.length > 0) {
-          andConditions.push({ _id: { $in: roleFilteredIds.map((id: string) => new mongoose.Types.ObjectId(id)) } });
+        const teamFilteredIds = teamAssignments.map((id: any) => id.toString());
+        if (teamFilteredIds.length > 0) {
+          andConditions.push({ _id: { $in: teamFilteredIds.map((id: string) => new mongoose.Types.ObjectId(id)) } });
         } else {
           return { employees: [], total: 0, limit, offset };
         }
@@ -112,7 +112,7 @@ export class EmployeeService {
         { $unwind: { path: '$_primaryAssignment', preserveNullAndEmptyArrays: true } },
       ];
 
-      if (sortBy === 'role') {
+      if (sortBy === 'team') {
         pipeline.push({
           $lookup: {
             from: roleCollection,
@@ -295,15 +295,18 @@ export class EmployeeService {
       location: body.location ?? [],
       email: body.email ?? '',
       phone: body.phone ?? '',
-      homeAddress: body.homeAddress ?? '',
-      dob: body.dob ?? '',
-      gender: body.gender ?? '',
       comment: body.comment ?? '',
-      img: body.img ?? '',
+      img: body.profileImage ?? body.img ?? '',
       employmentType: body.employmentType ?? null,
       standardHoursPerWeek: body.standardHoursPerWeek ?? null,
       awardId: body.awardId ? new mongoose.Types.ObjectId(body.awardId) : null,
       awardLevel: body.awardLevel ?? null,
+      certifications: body.certifications?.map((cert: any) => ({
+        type: cert.type,
+        label: cert.label,
+        required: cert.required,
+        provided: false, // Will be updated during onboarding
+      })) ?? [],
     };
 
     let setupToken: string | undefined;
@@ -320,17 +323,48 @@ export class EmployeeService {
 
     const employee = await EmployeeDbQueries.createEmployee(employeeData);
 
+    // Handle team assignments
+    const tenantFilter = ctx.tenantId !== SUPER_ADMIN_SENTINEL
+      ? { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
+      : {};
 
-    if (body.role?.length > 0 && body.location?.length > 0) {
-      const roleCategories = await Team.find({ name: { $in: body.role } }).lean();
-      const locationCategories = await Location.find({ name: { $in: body.location } }).lean();
+    if (body.locationTeamAssignments && Array.isArray(body.locationTeamAssignments) && body.locationTeamAssignments.length > 0) {
+      // Per-location team assignments (preferred for multi-location)
       const now = new Date();
-      for (const roleCategory of roleCategories as any[]) {
+      for (const assign of body.locationTeamAssignments) {
+        try {
+          const team = await Team.findOne({ name: assign.team, ...tenantFilter }).lean();
+          const location = await Location.findOne({ name: assign.location, ...tenantFilter }).lean();
+          if (team && location) {
+            await EmployeeRoleAssignment.create({
+              tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
+              employeeId: employee._id,
+              roleId: (team as any)._id,
+              locationId: (location as any)._id,
+              validFrom: now,
+              validTo: null,
+              isActive: true,
+              assignedBy: new mongoose.Types.ObjectId(ctx.auth.sub),
+              assignedAt: now,
+              notes: 'Assigned during employee creation',
+            });
+          }
+        } catch (err) {
+          console.error('[createEmployee] Failed to create team assignment:', err);
+        }
+      }
+    } else if (body.team?.length > 0 && body.location?.length > 0) {
+      // Legacy Cartesian product behavior
+      const teamCategories = await Team.find({ name: { $in: body.team }, ...tenantFilter }).lean();
+      const locationCategories = await Location.find({ name: { $in: body.location }, ...tenantFilter }).lean();
+      const now = new Date();
+      for (const teamCategory of teamCategories as any[]) {
         for (const locationCategory of locationCategories as any[]) {
           try {
             await EmployeeRoleAssignment.create({
+              tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
               employeeId: employee._id,
-              roleId: roleCategory._id,
+              roleId: teamCategory._id,
               locationId: locationCategory._id,
               validFrom: now,
               validTo: null,
@@ -339,8 +373,8 @@ export class EmployeeService {
               assignedAt: now,
               notes: 'Auto-assigned during employee creation',
             });
-          } catch {
-            /* ignore */
+          } catch (err) {
+            console.error('[createEmployee] Failed to create team assignment:', err);
           }
         }
       }
@@ -392,6 +426,7 @@ export class EmployeeService {
           subject: 'Welcome to Timesheet - Your Account Details',
           html: emailContent.html,
           plain: emailContent.plain,
+          orgId: ctx.tenantId,
         });
       } catch {
         /* ignore */
@@ -456,11 +491,20 @@ export class EmployeeService {
     if (body.dob !== undefined) updates.dob = (body.dob ?? '').toString().trim();
     if (body.gender !== undefined) updates.gender = (body.gender ?? '').toString().trim();
     if (body.comment !== undefined) updates.comment = (body.comment ?? '').toString().trim();
-    if (body.img !== undefined) updates.img = (body.img ?? '').toString().trim();
+    if (body.profileImage !== undefined) updates.img = (body.profileImage ?? '').toString().trim();
+    else if (body.img !== undefined) updates.img = (body.img ?? '').toString().trim();
     if (body.standardHoursPerWeek !== undefined) updates.standardHoursPerWeek = body.standardHoursPerWeek;
     if (body.employmentType !== undefined) updates.employmentType = body.employmentType || null;
     if (body.awardId !== undefined) updates.awardId = body.awardId ? new mongoose.Types.ObjectId(body.awardId) : null;
     if (body.awardLevel !== undefined) updates.awardLevel = body.awardLevel || null;
+    if (body.certifications !== undefined) {
+      updates.certifications = body.certifications.map((cert: any) => ({
+        type: cert.type,
+        label: cert.label,
+        required: cert.required,
+        provided: false,
+      }));
+    }
 
     if (body.password) {
       const bcrypt = await import('bcrypt');
@@ -488,25 +532,40 @@ export class EmployeeService {
           phone: (existing as any).phone || '',
           setupUrl,
         });
-        await sendEmail({ to: body.email, subject: emailContent.subject, html: emailContent.html });
+        await sendEmail({ 
+          to: body.email, 
+          subject: emailContent.subject, 
+          html: emailContent.html,
+          orgId: ctx.tenantId,
+        });
       } catch {
         /* ignore */
       }
     }
 
-    // Sync role assignments if role/location changed (legacy behavior preserved)
-    if (body.role !== undefined || body.location !== undefined) {
+    // Sync team assignments if team/location changed (legacy behavior preserved)
+    if (body.team !== undefined || body.location !== undefined) {
 
-      const roleNames = body.role !== undefined ? arr(body.role) : [];
+      const teamNames = body.team !== undefined ? arr(body.team) : [];
       const locationNames = body.location !== undefined ? arr(body.location) : [];
 
-      if (roleNames.length > 0 && locationNames.length > 0) {
-        const roleCategories = await Team.find({ name: { $in: roleNames } }).lean();
-        const locationCategories = await Location.find({ name: { $in: locationNames } }).lean();
+      if (teamNames.length > 0 && locationNames.length > 0) {
+        // Resolve tenant ID for assignments
+        const tenantIdForAssignment = ctx.tenantId !== SUPER_ADMIN_SENTINEL
+          ? new mongoose.Types.ObjectId(ctx.tenantId)
+          : (existing as any).tenantId;
+
+        // Add tenant filters to queries
+        const tenantFilter = ctx.tenantId !== SUPER_ADMIN_SENTINEL
+          ? { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
+          : {};
+
+        const teamCategories = await Team.find({ name: { $in: teamNames }, ...tenantFilter }).lean();
+        const locationCategories = await Location.find({ name: { $in: locationNames }, ...tenantFilter }).lean();
         const existingAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true }).lean();
 
         const desiredCombos = new Set<string>();
-        for (const role of roleCategories as any[]) for (const location of locationCategories as any[]) desiredCombos.add(`${role._id}-${location._id}`);
+        for (const team of teamCategories as any[]) for (const location of locationCategories as any[]) desiredCombos.add(`${team._id}-${location._id}`);
 
         const existingCombos = new Map<string, any>();
         for (const assignment of existingAssignments as any[]) existingCombos.set(`${assignment.roleId}-${assignment.locationId}`, assignment);
@@ -518,14 +577,15 @@ export class EmployeeService {
           }
         }
 
-        for (const role of roleCategories as any[]) {
+        for (const team of teamCategories as any[]) {
           for (const location of locationCategories as any[]) {
-            const key = `${role._id}-${location._id}`;
+            const key = `${team._id}-${location._id}`;
             if (!existingCombos.has(key)) {
               try {
                 await EmployeeRoleAssignment.create({
+                  tenantId: tenantIdForAssignment,
                   employeeId: id,
-                  roleId: role._id,
+                  roleId: team._id,
                   locationId: location._id,
                   validFrom: now,
                   validTo: null,
@@ -534,8 +594,8 @@ export class EmployeeService {
                   assignedAt: now,
                   notes: 'Auto-assigned during employee update',
                 });
-              } catch {
-                /* ignore */
+              } catch (err) {
+                console.error('[updateEmployee] Failed to create team assignment:', err);
               }
             }
           }
@@ -657,6 +717,8 @@ export class EmployeeService {
       locations: locationData,
       passwordSetByAdmin: e.passwordSetByAdmin ?? false,
       requirePasswordChange: e.requirePasswordChange ?? false,
+      onboardingCompleted: e.onboardingCompleted === true,
+      onboardingCompletedAt: e.onboardingCompletedAt ?? null,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     };
@@ -664,4 +726,3 @@ export class EmployeeService {
 }
 
 export const employeeService = new EmployeeService();
-

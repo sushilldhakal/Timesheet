@@ -9,7 +9,8 @@ export class TeamService {
     const search = args.query?.search?.trim();
     const isActive = args.query?.isActive;
 
-    const filter: Record<string, unknown> = { tenantId: tid };
+    // Super admin sees all teams across all tenants
+    const filter: Record<string, unknown> = tid ? { tenantId: tid } : {};
     if (typeof isActive === 'boolean') filter.isActive = isActive;
     if (search) filter.name = { $regex: search, $options: 'i' };
 

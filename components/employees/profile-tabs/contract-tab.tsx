@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertCircle, RefreshCw, FileText, Plus } from "lucide-react"
 import { useEmployeeContracts } from "@/lib/queries/employees"
 import { ContractForm } from "@/components/employees/forms/ContractForm"
 import { ContractCard } from "@/components/employees/contracts/ContractCard"
+import { ProfileSectionCard } from "@/components/shared/profile"
+import { FormDialogShell } from "@/components/shared/forms"
 
 interface ContractTabProps {
   employeeId: string
@@ -17,10 +17,12 @@ interface ContractTabProps {
 
 function SectionSkeleton() {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-48 w-full" />
-      <Skeleton className="h-32 w-full" />
-    </div>
+    <ProfileSectionCard title="Loading contracts...">
+      <div className="space-y-4">
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    </ProfileSectionCard>
   )
 }
 
@@ -49,41 +51,42 @@ export function ContractTab({ employeeId, canEditPayroll = false }: ContractTabP
   if (contracts.length === 0 && !isCreatingContract) {
     return (
       <>
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center justify-center text-center">
-              <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">No Contracts</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                No contracts have been created for this employee yet.
-              </p>
-              {canEditPayroll && (
-                <Button onClick={() => setIsCreatingContract(true)} className="mt-4">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add New Contract
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <ProfileSectionCard 
+          title="No Contracts"
+          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+        >
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No Contracts</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              No contracts have been created for this employee yet.
+            </p>
+            {canEditPayroll && (
+              <Button onClick={() => setIsCreatingContract(true)} className="mt-4">
+                <Plus className="mr-2 h-4 w-4" />
+                Add New Contract
+              </Button>
+            )}
+          </div>
+        </ProfileSectionCard>
 
-        <Dialog open={isCreatingContract} onOpenChange={(open) => {
-          if (!open) setIsCreatingContract(false)
-        }}>
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New Contract</DialogTitle>
-            </DialogHeader>
-            <ContractForm
-              employeeId={employeeId}
-              onSuccess={() => {
-                setIsCreatingContract(false)
-                refetch()
-              }}
-              onCancel={() => setIsCreatingContract(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <FormDialogShell
+          open={isCreatingContract}
+          onOpenChange={(open) => {
+            if (!open) setIsCreatingContract(false)
+          }}
+          title="Create New Contract"
+          size="lg"
+        >
+          <ContractForm
+            employeeId={employeeId}
+            onSuccess={() => {
+              setIsCreatingContract(false)
+              refetch()
+            }}
+            onCancel={() => setIsCreatingContract(false)}
+          />
+        </FormDialogShell>
       </>
     )
   }
@@ -97,8 +100,10 @@ export function ContractTab({ employeeId, canEditPayroll = false }: ContractTabP
   return (
     <div className="space-y-6">
       {activeContract && (
-        <div>
-          <h3 className="mb-3 text-lg font-semibold">Current Contract</h3>
+        <ProfileSectionCard 
+          title="Current Contract"
+          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+        >
           <ContractCard
             contract={activeContract}
             isActive
@@ -108,12 +113,14 @@ export function ContractTab({ employeeId, canEditPayroll = false }: ContractTabP
               /* delete not supported via API yet */
             }}
           />
-        </div>
+        </ProfileSectionCard>
       )}
 
       {pastContracts.length > 0 && (
-        <div>
-          <h3 className="mb-3 text-lg font-semibold text-muted-foreground">Previous Contracts</h3>
+        <ProfileSectionCard 
+          title="Previous Contracts"
+          icon={<FileText className="h-4 w-4 text-muted-foreground/60" />}
+        >
           <div className="space-y-3">
             {pastContracts.map(contract => (
               <ContractCard
@@ -125,44 +132,44 @@ export function ContractTab({ employeeId, canEditPayroll = false }: ContractTabP
               />
             ))}
           </div>
-        </div>
+        </ProfileSectionCard>
       )}
 
       {canEditPayroll && (
-        <Button onClick={() => setIsCreatingContract(true)} className="mt-4">
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Contract
-        </Button>
+        <div className="flex justify-end">
+          <Button onClick={() => setIsCreatingContract(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Contract
+          </Button>
+        </div>
       )}
 
-      <Dialog open={isCreatingContract || !!editingContractId} onOpenChange={(open) => {
-        if (!open) {
-          setIsCreatingContract(false)
-          setEditingContractId(null)
-        }
-      }}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isCreatingContract ? 'Create New Contract' : 'Edit Contract'}
-            </DialogTitle>
-          </DialogHeader>
-          <ContractForm
-            employeeId={employeeId}
-            isEditing={!!editingContractId}
-            initialData={editingContract}
-            onSuccess={() => {
-              setIsCreatingContract(false)
-              setEditingContractId(null)
-              refetch()
-            }}
-            onCancel={() => {
-              setIsCreatingContract(false)
-              setEditingContractId(null)
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      <FormDialogShell
+        open={isCreatingContract || !!editingContractId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreatingContract(false)
+            setEditingContractId(null)
+          }
+        }}
+        title={isCreatingContract ? 'Create New Contract' : 'Edit Contract'}
+        size="lg"
+      >
+        <ContractForm
+          employeeId={employeeId}
+          isEditing={!!editingContractId}
+          initialData={editingContract}
+          onSuccess={() => {
+            setIsCreatingContract(false)
+            setEditingContractId(null)
+            refetch()
+          }}
+          onCancel={() => {
+            setIsCreatingContract(false)
+            setEditingContractId(null)
+          }}
+        />
+      </FormDialogShell>
     </div>
   )
 }

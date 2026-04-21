@@ -1,9 +1,10 @@
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
-import { connectDB, User } from "@/lib/db"
+import { connectDB, User, Employer } from "@/lib/db"
 import { UserTenant } from "@/lib/db/schemas/user-tenant"
 import { setAuthCookie } from "@/lib/auth/auth-helpers"
 import { createFullAuthToken, getTenantContext } from "@/lib/auth/tenant-context"
+import { isSuperAdmin } from "@/lib/config/roles"
 
 const requestSchema = z.object({
   tenantId: z.string().min(1, "tenantId is required"),
@@ -58,7 +59,49 @@ export const POST = createApiRoute({
 
       await connectDB()
 
-      // Verify the user actually belongs to the requested org
+      // Super admin path: skip membership check, just verify org exists
+      if (isSuperAdmin(ctx.role)) {
+        const employer = await Employer.findById(tenantId).select("_id isActive name").lean()
+        
+        if (!employer) {
+          if (process.env.NODE_ENV === "development") {
+            console.error(`[auth/switch-org] Organization not found: ${tenantId}`)
+            // Log available orgs for debugging
+            const availableOrgs = await Employer.find({ isActive: true })
+              .select("_id name")
+              .limit(5)
+              .lean()
+            console.log('[auth/switch-org] Available organizations:', 
+              availableOrgs.map((o: any) => ({ id: String(o._id), name: o.name }))
+            )
+          }
+          return { status: 404, data: { error: "Organization not found" } }
+        }
+
+        if (!(employer as any).isActive) {
+          return { status: 403, data: { error: "Organization is not active" } }
+        }
+
+        const user = await User.findById(ctx.sub).select("email name").lean()
+        const email = (user as any)?.email ?? ctx.email
+        const name = (user as any)?.name ?? ctx.name ?? ""
+
+        // Issue full auth token with super_admin role + real tenantId
+        const token = await createFullAuthToken({
+          sub: ctx.sub,
+          email: String(email ?? ""),
+          name: String(name ?? ""),
+          tenantId: String(tenantId),
+          role: "super_admin",
+          locations: [],
+          managedRoles: [],
+        })
+
+        await setAuthCookie(token)
+        return { status: 200, data: { success: true } }
+      }
+
+      // Regular user path: verify membership
       const membership = await UserTenant.findOne({
         userId: ctx.sub,
         tenantId,

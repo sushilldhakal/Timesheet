@@ -1,13 +1,13 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { useOnboarding } from '@/lib/context/onboarding-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { step1Schema } from '@/lib/validations/onboarding'
+import { OnboardingStepShell } from '@/components/shared/onboarding'
 
 type Step1Data = z.infer<typeof step1Schema>
 
@@ -30,12 +30,13 @@ export function OnboardingStep1() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Basic Information</h2>
-        <p className="text-muted-foreground">Let&apos;s start with the employee&apos;s basic contact details.</p>
-      </div>
-
+    <OnboardingStepShell
+      title="Basic Information"
+      description="Let's start with the employee's basic contact details."
+      onNext={form.handleSubmit(onSubmit)}
+      isFirstStep
+      nextLabel="Next Step"
+    >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -86,12 +87,8 @@ export function OnboardingStep1() {
               </FormItem>
             )}
           />
-
-          <div className="flex justify-end gap-3 pt-6 border-t">
-            <Button type="submit">Next Step &rarr;</Button>
-          </div>
         </form>
       </Form>
-    </div>
+    </OnboardingStepShell>
   )
 }

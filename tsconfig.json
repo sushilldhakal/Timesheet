@@ -98,6 +98,7 @@
     ".next",
     "big-calendar/**/*",
     "full-calendar/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "**/__tests__/**/*"
   ]
 }

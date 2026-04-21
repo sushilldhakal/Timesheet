@@ -24,6 +24,7 @@ import { useDebounce } from "@/lib/hooks/use-debounce"
 import { AddEmployeeDialog } from "./AddEmployeeDialog"
 import { EditEmployeeDialog } from "./EditEmployeeDialog"
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 // Custom toolbar for server-side filtering
 function CustomEmployeeToolbar({ 
@@ -139,6 +140,7 @@ export default function EmployeesPage() {
   const [columnVisibility, setColumnVisibility] = useState({})
   const [columnFilters, setColumnFilters] = useState<{ id: string; value: string[] }[]>([])
   const debouncedSearch = useDebounce(search, 300)
+  const { selectedLocationNames } = useDashboardLocationScope()
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true)
@@ -163,7 +165,8 @@ export default function EmployeesPage() {
               columnFilters
                 .filter(filter => filter.value.length > 0)
                 .map(filter => [filter.id, filter.value.join(',')])
-            )
+            ),
+            location: selectedLocationNames.length > 0 ? selectedLocationNames.join(',') : undefined,
           }
           
           const data = await employeesApi.getEmployees(params)
@@ -193,7 +196,8 @@ export default function EmployeesPage() {
             columnFilters
               .filter(filter => filter.value.length > 0)
               .map(filter => [filter.id, filter.value.join(',')])
-          )
+          ),
+          location: selectedLocationNames.length > 0 ? selectedLocationNames.join(',') : undefined,
         }
         const data = await employeesApi.getEmployees(params)
         setEmployees(data.employees ?? [])
@@ -205,7 +209,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, pageIndex, pageSize, sortBy, sortOrder, columnFilters])
+  }, [columnFilters, debouncedSearch, pageIndex, pageSize, selectedLocationNames, sortBy, sortOrder])
 
   useEffect(() => {
     fetchEmployees()
@@ -231,7 +235,7 @@ export default function EmployeesPage() {
   }
 
   // Define sortable column IDs
-  const sortableColumnIds = ["name", "pin", "role", "email", "phone", "employer", "location"]
+  const sortableColumnIds = ["name", "pin", "team", "email", "phone", "employer", "location"]
 
   // Define columns
   const columns = useMemo<ColumnDef<Employee>[]>(
@@ -258,92 +262,92 @@ export default function EmployeesPage() {
         enableSorting: sortableColumnIds.includes("pin"),
       },
       {
-        accessorKey: "role",
+        accessorKey: "team",
         accessorFn: (row) => {
-          if (row.roles && row.roles.length > 0) {
-            const activeRoles = row.roles.filter((r) => r.isActive)
-            const roleNames = activeRoles.map((r) => r.role.name).join(", ")
-            return roleNames
+          if (row.teams && row.teams.length > 0) {
+            const activeTeams = row.teams.filter((t) => t.isActive)
+            const teamNames = activeTeams.map((t) => t.team.name).join(", ")
+            return teamNames
           }
           return "—"
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Roles" />
+          <DataTableColumnHeader column={column} title="Teams" />
         ),
         cell: ({ row }) => {
-          const roles = row.original.roles
+          const teams = row.original.teams
           
-          if (!roles || roles.length === 0) {
+          if (!teams || teams.length === 0) {
             return <span className="text-muted-foreground">—</span>
           }
           
-          const activeRoles = roles.filter((r) => r.isActive)
+          const activeTeams = teams.filter((t) => t.isActive)
             
-          if (activeRoles.length === 0) {
+          if (activeTeams.length === 0) {
             return <span className="text-muted-foreground">—</span>
           }
           
-          if (activeRoles.length === 1) {
-            const role = activeRoles[0]
+          if (activeTeams.length === 1) {
+            const team = activeTeams[0]
             return (
               <div className="flex items-center gap-2">
-                {role.role.color && (
+                {team.team.color && (
                   <div
                     className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: role.role.color }}
+                    style={{ backgroundColor: team.team.color }}
                   />
                 )}
-                <span>{role.role.name}</span>
+                <span>{team.team.name}</span>
               </div>
             )
           }
           
-          const displayRoles = activeRoles.slice(0, 2)
-          const remainingCount = activeRoles.length - 2
+          const displayTeams = activeTeams.slice(0, 2)
+          const remainingCount = activeTeams.length - 2
           
           return (
             <HoverCard>
               <HoverCardTrigger asChild>
                 <div className="flex items-center gap-1 cursor-pointer">
-                  {displayRoles.map((role, index) => (
+                  {displayTeams.map((team, index) => (
                     <Badge
-                      key={`${role.id}-${index}`}
+                      key={`${team.id}-${index}`}
                       variant="secondary"
                       className="flex items-center gap-1"
                     >
-                      {role.role.color && (
+                      {team.team.color && (
                         <div
                           className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: role.role.color }}
+                          style={{ backgroundColor: team.team.color }}
                         />
                       )}
-                      {role.role.name}
+                      {team.team.name}
                     </Badge>
                   ))}
-                  {remainingCount > 0 && (
+                  {remainingCount > 0} && (
                     <Badge variant="outline">+{remainingCount}</Badge>
-                  )}
+                  )
                 </div>
               </HoverCardTrigger>
               <HoverCardContent className="w-80" align="start">
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold">Team Assignments</h4>
                   <div className="space-y-2">
-                    {activeRoles.map((role, index) => (
+                    {activeTeams.map((team, index) => (
                       <div
-                        key={`${role.id}-${index}`}
+                        key={`${team.id}-${index}`}
                         className="flex items-start gap-2 text-sm"
                       >
-                        {role.role.color && (
+                        {team.team.color && (
                           <div
                             className="w-3 h-3 rounded-full shrink-0 mt-0.5"
-                            style={{ backgroundColor: role.role.color }}
+                            style={{ backgroundColor: team.team.color }}
                           />
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">{role.role.name}</div>
+                          <div className="font-medium">{team.team.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {role.location.name}
+                            {team.location.name}
                           </div>
                         </div>
                       </div>
@@ -354,7 +358,7 @@ export default function EmployeesPage() {
             </HoverCard>
           )
         },
-        enableSorting: sortableColumnIds.includes("role"),
+        enableSorting: sortableColumnIds.includes("team"),
       },
       {
         accessorKey: "employer",
@@ -434,13 +438,11 @@ export default function EmployeesPage() {
   // Extract unique filter options from ALL data (not just current page)
   // We'll fetch these separately when user interacts with filters (lazy loading)
   const [allFilterOptions, setAllFilterOptions] = useState<{
-    roles: { label: string; value: string; count: number }[]
+    teams: { label: string; value: string; count: number }[]
     employers: { label: string; value: string; count: number }[]
-    locations: { label: string; value: string; count: number }[]
   }>({
-    roles: [],
-    employers: [],
-    locations: []
+    teams: [],
+    employers: []
   })
   const [filtersLoaded, setFiltersLoaded] = useState(false)
   const [filtersLoading, setFiltersLoading] = useState(false)
@@ -453,10 +455,10 @@ export default function EmployeesPage() {
     try {
       const data = await employeesApi.getEmployeeFilters()
       
-      const roles = data.roles.map(role => ({
-        label: `${role.name} (${role.count})`,
-        value: role.name,
-        count: role.count
+      const teams = data.teams.map(team => ({
+        label: `${team.name} (${team.count})`,
+        value: team.name,
+        count: team.count
       }))
       
       const employers = data.employers.map(employer => ({
@@ -464,14 +466,8 @@ export default function EmployeesPage() {
         value: employer.name,
         count: employer.count
       }))
-      
-      const locations = data.locations.map(location => ({
-        label: `${location.name} (${location.count})`,
-        value: location.name,
-        count: location.count
-      }))
 
-      setAllFilterOptions({ roles, employers, locations })
+      setAllFilterOptions({ teams, employers })
       setFiltersLoaded(true)
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
@@ -496,8 +492,8 @@ export default function EmployeesPage() {
     if (!filtersLoaded) {
       // Show common filter placeholders while loading
       configs.push({ 
-        columnId: "role", 
-        title: filtersLoading ? "Role (loading...)" : "Role", 
+        columnId: "team", 
+        title: filtersLoading ? "Team (loading...)" : "Team", 
         options: [] 
       })
       configs.push({ 
@@ -505,25 +501,16 @@ export default function EmployeesPage() {
         title: filtersLoading ? "Employer (loading...)" : "Employer", 
         options: [] 
       })
-      configs.push({ 
-        columnId: "location", 
-        title: filtersLoading ? "Location (loading...)" : "Location", 
-        options: [] 
-      })
       return configs
     }
     
     // Once loaded, only show filters with multiple options
-    if (allFilterOptions.roles.length > 1) {
-      configs.push({ columnId: "role", title: "Role", options: allFilterOptions.roles })
+    if (allFilterOptions.teams.length > 1) {
+      configs.push({ columnId: "team", title: "Team", options: allFilterOptions.teams })
     }
     
     if (allFilterOptions.employers.length > 1) {
       configs.push({ columnId: "employer", title: "Employer", options: allFilterOptions.employers })
-    }
-    
-    if (allFilterOptions.locations.length > 1) {
-      configs.push({ columnId: "location", title: "Location", options: allFilterOptions.locations })
     }
     
     return configs
@@ -535,7 +522,7 @@ export default function EmployeesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Employees</h1>
           <p className="text-muted-foreground">
-            Manage staff, roles, and timesheets.
+            Manage staff, teams, and timesheets.
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)}>
@@ -574,7 +561,7 @@ export default function EmployeesPage() {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
-            sortableColumnIds={["name", "pin", "role", "email", "phone", "employer", "location"]}
+            sortableColumnIds={["name", "pin", "team", "email", "phone", "employer", "location"]}
             filterConfig={filterConfig}
             enableRowSelection={true}
             onRowClick={handleRowClick}

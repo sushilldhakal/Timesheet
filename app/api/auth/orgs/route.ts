@@ -3,7 +3,7 @@ import { z } from "zod"
 import { connectDB } from "@/lib/db"
 import { Employer } from "@/lib/db/schemas/employer"
 import { UserTenant } from "@/lib/db/schemas/user-tenant"
-import { getPreAuthFromCookie } from "@/lib/auth/tenant-context"
+import { getTenantContext } from "@/lib/auth/tenant-context"
 
 const orgSchema = z.object({
   id: z.string(),
@@ -33,14 +33,40 @@ export const GET = createApiRoute({
   },
   handler: async () => {
     try {
-      const preauth = await getPreAuthFromCookie()
-      if (!preauth || preauth.type !== "preauth") {
+      const ctx = await getTenantContext()
+      
+      // Accept both preauth (during login) and full auth (already logged in)
+      if (!ctx || (ctx.type !== "preauth" && ctx.type !== "full")) {
         return { status: 401, data: { error: "Not authenticated" } }
       }
 
       await connectDB()
 
-      const memberships = await UserTenant.find({ userId: preauth.sub, isActive: true })
+      // For full auth, user already has tenantId in their session
+      if (ctx.type === "full" && ctx.tenantId) {
+        // User is already logged in with a specific org
+        const employer = await Employer.findById(ctx.tenantId).select("name").lean()
+        if (!employer) {
+          return { status: 200, data: { orgs: [] } }
+        }
+        
+        const name = String((employer as any).name ?? "")
+        const slug = name
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
+        
+        return {
+          status: 200,
+          data: {
+            orgs: [{ id: ctx.tenantId, name, slug }]
+          },
+        }
+      }
+
+      // For preauth, look up user's organizations via UserTenant
+      const memberships = await UserTenant.find({ userId: ctx.sub, isActive: true })
         .select("tenantId")
         .lean()
       const tenantIds = memberships.map((m: any) => String(m.tenantId))

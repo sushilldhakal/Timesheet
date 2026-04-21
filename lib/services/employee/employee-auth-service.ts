@@ -157,6 +157,16 @@ export class EmployeeAuthService {
           standardHoursPerWeek: typeof (employee as any).standardHoursPerWeek === "number" ? (employee as any).standardHoursPerWeek : null,
           award,
           lastClockInImage,
+          onboardingCompleted: (employee as any).onboardingCompleted === true,
+          onboardingCompletedAt: (employee as any).onboardingCompletedAt ? new Date((employee as any).onboardingCompletedAt).toISOString() : null,
+          timeZone: (employee as any).timeZone || "Australia/Melbourne",
+          nationality: (employee as any).nationality || "",
+          legalFirstName: (employee as any).legalFirstName || "",
+          legalMiddleNames: (employee as any).legalMiddleNames || "",
+          legalLastName: (employee as any).legalLastName || "",
+          preferredName: (employee as any).preferredName || "",
+          address: (employee as any).address || null,
+          emergencyContact: (employee as any).emergencyContact || null,
           isBirthday: false,
         },
       },
@@ -185,4 +195,3 @@ export class EmployeeAuthService {
 }
 
 export const employeeAuthService = new EmployeeAuthService();
-

@@ -13,7 +13,7 @@ const UPLOAD_FOLDER = "timesheet"
 /**
  * Create S3 client for R2
  */
-function createR2Client(config: R2Config): S3Client {
+export function createR2Client(config: R2Config): S3Client {
   const endpoint = `https://${config.accountId}.r2.cloudflarestorage.com`
   
   return new S3Client({
@@ -35,12 +35,20 @@ export async function uploadToR2(
   options?: {
     folder?: string
     filename?: string
+    key?: string
   }
 ): Promise<{ url: string; key: string }> {
   const client = createR2Client(config)
-  const folder = options?.folder ?? UPLOAD_FOLDER
-  const filename = options?.filename ?? `${Date.now()}-${Math.random().toString(36).substring(7)}`
-  const key = `${folder}/${filename}`
+  
+  // Use provided key or build from folder/filename
+  let key: string
+  if (options?.key) {
+    key = options.key
+  } else {
+    const folder = options?.folder ?? UPLOAD_FOLDER
+    const filename = options?.filename ?? `${Date.now()}-${Math.random().toString(36).substring(7)}`
+    key = folder ? `${folder}/${filename}` : filename
+  }
   
   // Convert string (base64) to buffer if needed
   let buffer: Buffer

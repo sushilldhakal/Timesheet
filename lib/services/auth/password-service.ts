@@ -33,7 +33,14 @@ export class PasswordService {
             email: (user as any).email,
             changedAt: new Date().toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" }),
           });
-          await sendEmail({ to: (user as any).email, subject: emailContent.subject, html: emailContent.html, plain: emailContent.plain });
+          const orgId = (user as any).tenantId ? (user as any).tenantId.toString() : "system";
+          await sendEmail({ 
+            to: (user as any).email, 
+            subject: emailContent.subject, 
+            html: emailContent.html, 
+            plain: emailContent.plain,
+            orgId,
+          });
         } catch {}
       }
 
@@ -58,7 +65,14 @@ export class PasswordService {
           email: (employee as any).email,
           changedAt: new Date().toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" }),
         });
-        await sendEmail({ to: (employee as any).email, subject: emailContent.subject, html: emailContent.html, plain: emailContent.plain });
+        const orgId = (employee as any).tenantId ? (employee as any).tenantId.toString() : "system";
+        await sendEmail({ 
+          to: (employee as any).email, 
+          subject: emailContent.subject, 
+          html: emailContent.html, 
+          plain: emailContent.plain,
+          orgId,
+        });
       } catch {}
     }
 

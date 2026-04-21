@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo } from "react"
+import { toast } from "@/lib/utils/toast"
 import { type ColumnDef } from "@tanstack/react-table"
 import {
   Card,
@@ -159,7 +160,7 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
       fetchTimesheetApprovals()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to create timesheet"
-      alert(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setCreating(false)
     }
@@ -189,7 +190,7 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
       fetchTimesheetApprovals()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : `Failed to ${action} timesheet`
-      alert(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setActionLoading(null)
     }

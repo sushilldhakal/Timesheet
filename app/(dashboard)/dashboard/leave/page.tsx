@@ -55,6 +55,7 @@ import {
   type LeaveRecord,
   type AffectedShift,
 } from "@/lib/api/absences"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 const LEAVE_TYPE_OPTIONS = ["ANNUAL", "SICK", "UNPAID", "PUBLIC_HOLIDAY"] as const
 
@@ -96,7 +97,14 @@ export default function LeavePage() {
   const canManageLeave = isHydrated && (isAdminOrSuperAdmin(userRole) || isManager(userRole) || isSupervisor(userRole))
 
   const employeesQuery = useEmployees(500)
-  const employees = employeesQuery.data?.employees ?? []
+  const allEmployees = employeesQuery.data?.employees ?? []
+  const { selectedLocationNames } = useDashboardLocationScope()
+  const employees = useMemo(() => {
+    if (selectedLocationNames.length === 0) return allEmployees
+    return allEmployees.filter((employee) =>
+      (employee.locations ?? []).some((location) => selectedLocationNames.includes(location.name))
+    )
+  }, [allEmployees, selectedLocationNames])
 
   const [view, setView] = useState<TimesheetView>("week")
   const [selectedDate, setSelectedDate] = useState(() => new Date())

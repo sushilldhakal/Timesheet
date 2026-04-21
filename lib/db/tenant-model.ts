@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Model } from "mongoose"
+import { SUPER_ADMIN_SENTINEL } from "@/lib/auth/auth-constants"
 
 type Filter = Record<string, any> | undefined | null
 type Update = Record<string, any>
@@ -15,6 +16,11 @@ export type TenantScopeOptions = {
 }
 
 function tenantMatch(tenantId: string, options?: TenantScopeOptions) {
+  // Super admin in sentinel mode: match nothing (return empty results)
+  if (tenantId === SUPER_ADMIN_SENTINEL) {
+    return { _id: { $exists: false } } // This will never match any document
+  }
+  
   if (options?.allowGlobalNullTenantForReads) {
     return { $or: [{ tenantId }, { tenantId: null }] }
   }

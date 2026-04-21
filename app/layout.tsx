@@ -47,6 +47,9 @@ export default async function RootLayout({
         <meta name="theme-color" content="#2563eb" />
       </head>
       <body className="antialiased min-h-screen font-sans">
+        <a href="#main-content" className="skip-to-content">
+          Skip to main content
+        </a>
         <QueryProvider>
           <ThemeProvider initialTheme={theme}>
             <TooltipProvider>

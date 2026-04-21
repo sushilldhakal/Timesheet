@@ -1,5 +1,6 @@
 import { LocationsDbQueries } from '@/lib/db/queries/locations';
 import { connectDB } from '@/lib/db';
+import { SUPER_ADMIN_SENTINEL } from '@/lib/auth/auth-api';
 
 function toLocationResponse(l: any) {
   return {
@@ -26,6 +27,12 @@ function toLocationResponse(l: any) {
 export class LocationService {
   async list(ctx: any, query: any) {
     await connectDB();
+    
+    // Guard against sentinel: super admin in "All Organizations" mode has no org selected yet
+    if (ctx.tenantId === SUPER_ADMIN_SENTINEL) {
+      return { locations: [] };
+    }
+    
     const search = query?.search?.trim();
     const isActive = query?.isActive;
     const locations = await LocationsDbQueries.listLean({

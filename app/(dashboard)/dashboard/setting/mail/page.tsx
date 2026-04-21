@@ -1,157 +1,99 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
+import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Mail, Save, Loader2, AlertTriangle, ArrowLeft, Send, ExternalLink, Calendar as CalendarLog, ChevronLeft, ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils/cn"
+import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ArrowLeft, Mail, Loader2, Plus, Send } from "lucide-react"
+import { format } from "date-fns"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
-import {
-  useMailSettings,
-  useUpdateMailSettings,
-  useTestMailSettings,
-  useActivityLogs,
-  useCreateActivityLog,
-} from "@/lib/queries/settings"
-
-type MailSettings = {
-  fromEmail: string
-  fromName: string
-  apiKey: string
-  hasApiKey: boolean
-}
-
-type ActivityLog = {
-  id: string
-  action: string
-  timestamp: Date
-  details: string
-  status: "success" | "error" | "warning"
-}
+import { cn } from "@/lib/utils/cn"
 
 export default function MailSettingsPage() {
   const { user, isHydrated } = useAuth()
   const router = useRouter()
-  const [settings, setSettings] = useState<MailSettings>({
-    fromEmail: "",
-    fromName: "",
-    apiKey: "",
-    hasApiKey: false,
-  })
-  const [testEmail, setTestEmail] = useState("")
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
-  const [activityLogsPage, setActivityLogsPage] = useState(1)
-  const [totalLogsPages, setTotalLogsPages] = useState(1)
+  const [emailUsage, setEmailUsage] = useState<any>(null)
+  const [quotaRequests, setQuotaRequests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false)
+  const [requestedQuota, setRequestedQuota] = useState("")
+  const [requestNote, setRequestNote] = useState("")
 
   const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
+  const isSuperAdminUser = isSuperAdmin(user?.role ?? null)
 
-  // TanStack Query hooks
-  const mailSettingsQuery = useMailSettings()
-  const updateMailSettingsMutation = useUpdateMailSettings()
-  const testMailSettingsMutation = useTestMailSettings()
-  const activityLogsQuery = useActivityLogs('mail', activityLogsPage)
-  const createActivityLogMutation = useCreateActivityLog()
-
-  useEffect(() => {
-    if (mailSettingsQuery.data?.settings) {
-      setSettings({
-        ...mailSettingsQuery.data.settings,
-        apiKey: "",
-      })
-    }
-  }, [mailSettingsQuery.data])
-
-  useEffect(() => {
-    const logs = (activityLogsQuery.data as any)?.logs
-    const total = (activityLogsQuery.data as any)?.total
-    if (Array.isArray(logs)) {
-      const newLogs = logs.map((log: any) => ({
-        id: log._id,
-        action: log.action,
-        timestamp: new Date(log.createdAt),
-        details: log.details,
-        status: log.status,
-      }))
-      setActivityLogs(newLogs)
-      setTotalLogsPages(Math.ceil((typeof total === "number" ? total : 0) / 10))
-    } else if (activityLogsQuery.data) {
-      setActivityLogs([])
-      setTotalLogsPages(1)
-    }
-  }, [activityLogsQuery.data])
-
-  const addLog = (action: string, details: string, status: ActivityLog["status"]) => {
-    const newLog: ActivityLog = {
-      id: Date.now().toString(),
-      action,
-      timestamp: new Date(),
-      details,
-      status,
-    }
-    setActivityLogs((prev) => [newLog, ...prev].slice(0, 10))
-    createActivityLogMutation.mutate({ action, details, status, category: "mail" })
-  }
-
-  const handleSave = async () => {
+  // Fetch data
+  const fetchData = async () => {
     try {
-      if (!settings.fromEmail) {
-        toast.error("Please fill in from email")
-        return
+      setLoading(true)
+      const [usageRes, requestsRes] = await Promise.all([
+        fetch("/api/admin/email-usage"),
+        fetch("/api/admin/quota-requests"),
+      ])
+
+      if (usageRes.ok) {
+        const data = await usageRes.json()
+        setEmailUsage(data)
       }
 
-      if (!settings.hasApiKey && !settings.apiKey) {
-        toast.error("Please enter Maileroo API key")
-        return
+      if (requestsRes.ok) {
+        const data = await requestsRes.json()
+        setQuotaRequests(data.requests?.filter((r: any) => r.requestType === "email") || [])
       }
-
-      const body: any = {
-        fromEmail: settings.fromEmail,
-        fromName: settings.fromName,
-      }
-
-      if (settings.apiKey) {
-        body.apiKey = settings.apiKey
-      }
-
-      await updateMailSettingsMutation.mutateAsync(body)
-      toast.success("Mail settings saved successfully!")
-      addLog("Settings Saved", "Mail settings updated successfully", "success")
-      setHasUnsavedChanges(false)
-    } catch (error: any) {
-      toast.error("Failed to save settings")
-      addLog("Save Failed", error?.message || "Failed to save mail settings", "error")
+    } catch (error) {
+      console.error("Error fetching data:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleTestEmail = async () => {
-    if (!testEmail) {
-      toast.error("Please enter a test email address")
+  useEffect(() => {
+    if (isHydrated && isAdmin) {
+      fetchData()
+    }
+  }, [isHydrated, isAdmin])
+
+  const handleRequestQuota = async () => {
+    if (!requestedQuota) {
+      toast.error("Please enter requested quota")
       return
     }
 
     try {
-      const result = await testMailSettingsMutation.mutateAsync({ testEmail })
-      const message = result.success ? (result.data as any).message : "Test email sent successfully!"
-      toast.success(message)
-      addLog("Test Email Sent", `Test email sent to ${testEmail}`, "success")
-    } catch (error: any) {
-      toast.error("Test failed")
-      addLog("Test Email Failed", error?.message || `Failed to send test email to ${testEmail}`, "error")
+      const res = await fetch("/api/admin/quota-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "email",
+          requestedQuota: parseInt(requestedQuota),
+          requestNote,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success("Quota request submitted")
+        setRequestDialogOpen(false)
+        setRequestedQuota("")
+        setRequestNote("")
+        fetchData()
+      } else {
+        const data = await res.json()
+        toast.error(data.error || "Failed to submit request")
+      }
+    } catch (error) {
+      toast.error("Error submitting request")
     }
   }
 
   if (!isHydrated) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    )
+    return <div className="flex items-center justify-center min-h-[200px]">Loading...</div>
   }
 
   if (!isAdmin) {
@@ -160,281 +102,155 @@ export default function MailSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>
-              Only administrators can access settings.
-            </CardDescription>
+            <CardDescription>Only administrators can access settings.</CardDescription>
           </CardHeader>
         </Card>
       </div>
     )
   }
 
+  const usedPercent = emailUsage ? (emailUsage.sentCount / emailUsage.quotaMonthly) * 100 : 0
+
   return (
     <div className="flex flex-col space-y-4 p-4 lg:p-8">
-      {/* Header with Back Button */}
       <div className="mb-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/dashboard/setting")}
-          className="mb-4"
-        >
+        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/setting")} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Settings
         </Button>
-        <h1 className="text-2xl font-semibold">Mail Settings</h1>
-        <p className="text-muted-foreground">Configure Maileroo API for email notifications.</p>
+        <h1 className="text-2xl font-semibold">Email Usage</h1>
+        <p className="text-muted-foreground">Monitor your email quota and manage settings.</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content - 2/3 width */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Main Settings Card */}
-          <Card>
-            <CardHeader>
+      <div className="grid gap-6">
+        {/* Email Usage Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Mail className="h-5 w-5 text-primary" />
-                <div>
-                  <CardTitle>Maileroo Configuration</CardTitle>
-                  <CardDescription>Configure email delivery service for notifications</CardDescription>
-                </div>
+                <CardTitle>Email Usage — {emailUsage && format(new Date(emailUsage.periodStart), "MMMM yyyy")}</CardTitle>
               </div>
-            </CardHeader>
-
-            <CardContent className="space-y-6">
-              {/* Unsaved Changes Warning */}
-              {hasUnsavedChanges && (
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-900">Unsaved Changes</p>
-                    <p className="text-sm text-yellow-700">Remember to save your changes.</p>
+              <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Request More Emails
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Request Email Quota Increase</DialogTitle>
+                    <DialogDescription>Submit a request to increase your monthly email quota.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Current Quota: {emailUsage?.quotaMonthly || 0} emails/month</Label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="requestedQuota">Requested Quota (emails/month)</Label>
+                      <Input
+                        id="requestedQuota"
+                        type="number"
+                        value={requestedQuota}
+                        onChange={(e) => setRequestedQuota(e.target.value)}
+                        placeholder="e.g., 1000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="requestNote">Reason (Optional)</Label>
+                      <Textarea
+                        id="requestNote"
+                        value={requestNote}
+                        onChange={(e) => setRequestNote(e.target.value)}
+                        placeholder="Why do you need more emails?"
+                        rows={3}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Instructions */}
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Get your Maileroo credentials:</p>
-                  <ol className="list-decimal list-inside space-y-0.5 ml-2">
-                    <li>Sign up at <a href="https://maileroo.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">maileroo.com <ExternalLink className="h-3 w-3" /></a></li>
-                    <li>Dashboard → API Keys → Create New Key</li>
-                    <li>Copy the API key and paste below</li>
-                    <li>Set your verified sender email address</li>
-                  </ol>
-                </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setRequestDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleRequestQuota}>Submit Request</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
               </div>
-
-              <div className="space-y-4">
+            ) : (
+              <>
                 <div className="space-y-2">
-                  <Label htmlFor="apiKey">
-                    Maileroo API Key
-                    {settings.hasApiKey && (
-                      <span className="ml-2 text-xs text-green-600 font-normal">✓ Saved</span>
-                    )}
-                  </Label>
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    value={settings.apiKey}
-                    onChange={(e) => {
-                      setSettings({ ...settings, apiKey: e.target.value })
-                      setHasUnsavedChanges(true)
-                    }}
-                    placeholder={settings.hasApiKey ? "••••••••" : "Enter API key"}
-                  />
-                  {settings.hasApiKey && (
-                    <p className="text-xs text-muted-foreground">Leave empty to keep existing</p>
-                  )}
+                  <div className="flex justify-between text-sm">
+                    <span>{emailUsage?.sentCount || 0} sent</span>
+                    <span>{emailUsage?.quotaMonthly || 0} total</span>
+                  </div>
+                  <Progress value={usedPercent} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {emailUsage?.remaining || 0} emails remaining • Resets on{" "}
+                    {emailUsage && format(new Date(emailUsage.periodEnd), "MMMM d, yyyy")}
+                  </p>
                 </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
-                <div className="space-y-2">
-                  <Label htmlFor="fromEmail">From Email</Label>
-                  <Input
-                    id="fromEmail"
-                    type="email"
-                    value={settings.fromEmail}
-                    onChange={(e) => {
-                      setSettings({ ...settings, fromEmail: e.target.value })
-                      setHasUnsavedChanges(true)
-                    }}
-                    placeholder="noreply@example.com"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="fromName">From Name (Optional)</Label>
-                  <Input
-                    id="fromName"
-                    value={settings.fromName}
-                    onChange={(e) => {
-                      setSettings({ ...settings, fromName: e.target.value })
-                      setHasUnsavedChanges(true)
-                    }}
-                    placeholder="Your Company Name"
-                  />
-                </div>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex gap-3">
+        {/* Superadmin Note */}
+        {isSuperAdminUser && (
+          <Card className="border-primary/50 bg-primary/5">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">
+                <strong>Superadmin:</strong> To configure system-wide email settings, go to{" "}
                 <Button
-                  onClick={handleSave}
-                  disabled={updateMailSettingsMutation.isPending || !hasUnsavedChanges}
+                  variant="link"
+                  className="h-auto p-0 text-primary"
+                  onClick={() => router.push("/dashboard/superadmin/system-settings")}
                 >
-                  {updateMailSettingsMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      {hasUnsavedChanges ? "Save Changes" : "No Changes"}
-                    </>
-                  )}
+                  System Settings
                 </Button>
-              </div>
+              </p>
             </CardContent>
           </Card>
+        )}
 
-          {/* Test Email Card */}
+        {/* Quota Requests History */}
+        {quotaRequests.length > 0 && (
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-primary" />
-                <div>
-                  <CardTitle>Test Email</CardTitle>
-                  <CardDescription>Send a test email to verify your configuration</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="testEmail">Test Email Address</Label>
-                <Input
-                  id="testEmail"
-                  type="email"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  placeholder="test@example.com"
-                />
-              </div>
-
-              <Button
-                onClick={handleTestEmail}
-                disabled={testMailSettingsMutation.isPending || !settings.hasApiKey}
-                variant="outline"
-              >
-                {testMailSettingsMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Test Email
-                  </>
-                )}
-              </Button>
-
-              {!settings.hasApiKey && (
-                <p className="text-xs text-muted-foreground">
-                  Save your API key first before testing
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar - 1/3 width */}
-        <div className="space-y-6">
-          {/* Activity Logs Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <CalendarLog className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Activity Logs</CardTitle>
-              </div>
+              <CardTitle>Quota Request History</CardTitle>
             </CardHeader>
             <CardContent>
-              {activityLogsQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {activityLogs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No activity yet</p>
-                  ) : (
-                    <>
-                      {activityLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className={cn(
-                            "p-3 rounded-lg border text-sm",
-                            log.status === "success" && "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900",
-                            log.status === "error" && "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900",
-                            log.status === "warning" && "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-900"
-                          )}
-                        >
-                          <div className="flex items-start gap-2 mb-1">
-                            <span className="font-medium flex-1">{log.action}</span>
-                            <span
-                              className={cn(
-                                "text-xs px-1.5 py-0.5 rounded-full",
-                                log.status === "success" && "bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-100",
-                                log.status === "error" && "bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-100",
-                                log.status === "warning" && "bg-yellow-200 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                              )}
-                            >
-                              {log.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-1">{log.details}</p>
-                          <p className="text-xs text-muted-foreground">{log.timestamp.toLocaleString()}</p>
-                        </div>
-                      ))}
-
-                      {totalLogsPages > 1 && (
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setActivityLogsPage((p) => p - 1)}
-                            disabled={activityLogsPage === 1 || activityLogsQuery.isLoading}
-                            className="h-8"
-                          >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
-                            Previous
-                          </Button>
-
-                          <span className="text-xs text-muted-foreground">
-                            Page {activityLogsPage} of {totalLogsPages}
-                          </span>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setActivityLogsPage((p) => p + 1)}
-                            disabled={activityLogsPage === totalLogsPages || activityLogsQuery.isLoading}
-                            className="h-8"
-                          >
-                            Next
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              <div className="space-y-2">
+                {quotaRequests.map((req) => (
+                  <div key={req.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{req.requestedQuota} emails/month requested</span>
+                      <span
+                        className={cn(
+                          "text-xs px-2 py-1 rounded-full",
+                          req.status === "pending" && "bg-yellow-100 text-yellow-800",
+                          req.status === "approved" && "bg-green-100 text-green-800",
+                          req.status === "denied" && "bg-red-100 text-red-800"
+                        )}
+                      >
+                        {req.status}
+                      </span>
+                    </div>
+                    {req.requestNote && <p className="text-xs text-muted-foreground mb-1">{req.requestNote}</p>}
+                    {req.reviewNote && <p className="text-xs text-muted-foreground">Review: {req.reviewNote}</p>}
+                    <p className="text-xs text-muted-foreground">{new Date(req.createdAt).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
-        </div>
+        )}
       </div>
     </div>
   )

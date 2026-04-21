@@ -46,6 +46,7 @@
   .g-pay    { border-color: #4a235a; } .g-pay .card-header    { background: #4a235a; }
   .g-emp    { border-color: #0e6251; } .g-emp .card-header    { background: #0e6251; }
   .g-sys    { border-color: #2c2c2c; } .g-sys .card-header    { background: #2c2c2c; }
+  .g-super  { border-color: #5a1a5a; } .g-super .card-header  { background: #5a1a5a; }
 
   .wide { width: 260px; }
   .w280 { width: 280px; }
@@ -61,7 +62,7 @@
 <p class="subtitle">
   MongoDB collections derived from <code style="color:#79c0ff">lib/db/schemas/*.ts</code> Mongoose models.
   Most tenant-scoped collections carry a <code style="color:#79c0ff">tenantId</code> referencing <code style="color:#79c0ff">Employer</code> (the business/tenant entity).
-  47 schema modules &middot; 45 top-level collections &middot; 2 embedded sub-schemas.
+  52 schema modules &middot; 50 top-level collections &middot; 2 embedded sub-schemas.
 </p>
 
 <div class="legend">
@@ -74,6 +75,7 @@
   <div class="legend-item"><div class="legend-dot" style="background:#7b241c"></div> Time &amp; attendance</div>
   <div class="legend-item"><div class="legend-dot" style="background:#4a235a"></div> Payroll</div>
   <div class="legend-item"><div class="legend-dot" style="background:#2c2c2c"></div> System</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#5a1a5a"></div> Superadmin</div>
 </div>
 
 <!-- ═══════════════════ TENANT + RULES ═══════════════════ -->
@@ -841,7 +843,7 @@
     <div class="card g-sys w300">
       <div class="card-header">AuditLog <span class="collection-name">audit_logs</span></div>
       <div class="card-body">
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
         <div class="field"><span class="field-name">rosterId</span><span class="field-ref">→ Roster?</span></div>
         <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee?</span></div>
         <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
@@ -850,6 +852,7 @@
         <div class="field"><span class="field-name">oldValue / newValue</span><span class="field-type">Mixed</span></div>
         <div class="field"><span class="field-name">ipAddress / userAgent</span><span class="field-type">String?</span></div>
         <div class="field"><span class="field-name">createdAt</span><span class="field-type">Date (no updatedAt)</span></div>
+        <div class="rel-tag">Tenant-scoped audit trail for roster, shift, and employee actions.</div>
       </div>
     </div>
 
@@ -882,6 +885,105 @@
   </div>
 </div>
 
+<!-- ═══════════════════ SUPERADMIN ═══════════════════ -->
+<div class="section">
+  <div class="section-label">Superadmin (platform management)</div>
+  <div class="cards-row">
+
+    <div class="card g-super w320">
+      <div class="card-header">SystemSettings <span class="collection-name">system_settings</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
+        <div class="field"><span class="field-name">r2AccountId / r2AccessKeyId</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">r2SecretAccessKey</span><span class="field-type">String? (encrypted)</span></div>
+        <div class="field"><span class="field-name">r2BucketName / r2PublicUrl</span><span class="field-type">String?</span></div>
+        <hr class="section-divider">
+        <div class="field"><span class="field-name">mailerooApiKey</span><span class="field-type">String? (encrypted)</span></div>
+        <div class="field"><span class="field-name">mailerooFromEmail / FromName</span><span class="field-type">String?</span></div>
+        <hr class="section-divider">
+        <div class="field"><span class="field-name">defaultStorageQuotaBytes</span><span class="field-type">Number (default: 2GB)</span></div>
+        <div class="field"><span class="field-name">defaultEmailQuotaMonthly</span><span class="field-type">Number (default: 500)</span></div>
+        <div class="field"><span class="field-name">updatedBy</span><span class="field-ref">→ User?</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Singleton document for platform-wide settings. Secrets encrypted with AES-256-GCM.</div>
+      </div>
+    </div>
+
+    <div class="card g-super w300">
+      <div class="card-header">OrgStorageQuota <span class="collection-name">org_storage_quotas</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer (unique)</span></div>
+        <div class="field"><span class="field-name">usedBytes</span><span class="field-type">Number (default: 0)</span></div>
+        <div class="field"><span class="field-name">quotaBytes</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Per-org storage usage tracking. Updated on file upload/delete.</div>
+      </div>
+    </div>
+
+    <div class="card g-super w300">
+      <div class="card-header">OrgEmailUsage <span class="collection-name">org_email_usages</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer (unique)</span></div>
+        <div class="field"><span class="field-name">sentCount</span><span class="field-type">Number (default: 0)</span></div>
+        <div class="field"><span class="field-name">quotaMonthly</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">periodStart</span><span class="field-type">Date (month start)</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Per-org email usage tracking. Resets monthly.</div>
+      </div>
+    </div>
+
+    <div class="card g-super w320">
+      <div class="card-header">QuotaRequest <span class="collection-name">quota_requests</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer</span></div>
+        <div class="field"><span class="field-name">requestType</span><span class="field-type">storage | email</span></div>
+        <div class="field"><span class="field-name">currentQuota / requestedQuota</span><span class="field-type">Number</span></div>
+        <div class="field"><span class="field-name">requestNote</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">pending | approved | denied</span></div>
+        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User?</span></div>
+        <div class="field"><span class="field-name">reviewedAt</span><span class="field-type">Date?</span></div>
+        <div class="field"><span class="field-name">reviewNote</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Org requests for quota increases. Indexed on <span>(orgId, requestType, status)</span>.</div>
+      </div>
+    </div>
+
+    <div class="card g-super w320">
+      <div class="card-header">OrgSignupRequest <span class="collection-name">org_signup_requests</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">orgName / contactName / email</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">phone</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">companySize</span><span class="field-type">1-10 | 11-50 | 51-200 | 201-500 | 500+</span></div>
+        <div class="field"><span class="field-name">planInterest</span><span class="field-type">free | starter | professional | enterprise</span></div>
+        <div class="field"><span class="field-name">message / timezone</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">status</span><span class="field-type">pending | approved | rejected</span></div>
+        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User?</span></div>
+        <div class="field"><span class="field-name">reviewedAt</span><span class="field-type">Date?</span></div>
+        <div class="field"><span class="field-name">reviewNote</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdEmployerId / createdUserId</span><span class="field-ref">→ Employer? / → User?</span></div>
+        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
+        <div class="rel-tag">Onboarding pipeline for new organizations. Approval creates org + admin user.</div>
+      </div>
+    </div>
+
+    <div class="card g-super w320">
+      <div class="card-header">SuperAdminAuditLog <span class="badge badge-new">NEW</span> <span class="collection-name">superadmin_audit_logs</span></div>
+      <div class="card-body">
+        <div class="field"><span class="field-name">actor / actorId</span><span class="field-type">String / → User</span></div>
+        <div class="field"><span class="field-name">action</span><span class="field-type">CREATE | UPDATE | DELETE | APPROVE | DENY | UPDATE_QUOTA | CREATE_ORG | DELETE_ORG | DEACTIVATE_USER | ACTIVATE_USER</span></div>
+        <div class="field"><span class="field-name">entityType / entityId</span><span class="field-type">String</span></div>
+        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer?</span></div>
+        <div class="field"><span class="field-name">previousValue / newValue</span><span class="field-type">Mixed</span></div>
+        <div class="field"><span class="field-name">metadata</span><span class="field-type">Mixed</span></div>
+        <div class="field"><span class="field-name">ipAddress / userAgent</span><span class="field-type">String?</span></div>
+        <div class="field"><span class="field-name">createdAt</span><span class="field-type">Date (no updatedAt)</span></div>
+        <div class="rel-tag">Platform-level audit trail for superadmin actions. Separate from tenant-scoped audit logs. Indexed on <span>(actorId, createdAt)</span>, <span>(orgId, createdAt)</span>, <span>(action, createdAt)</span>.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ═══════════════════ NOTES ═══════════════════ -->
 <div class="section">
   <div class="section-label" style="color:#8ab4f8">Implementation notes</div>
@@ -889,15 +991,17 @@
     <div class="note" style="width:100%;max-width:960px">
       <strong>Tenant scoping</strong> — Collections with <code>tenantId</code> reference <code>Employer</code> (not <code>Tenant</code>). Tenant-scoped: <code>locations</code>, <code>teams</code>, <code>team_groups</code>, <code>users</code>, <code>rosters</code>, <code>daily_shifts</code>, <code>pay_runs</code>, <code>employee_tax_infos</code>.<br><br>
       <strong>Employee payroll sub-collections</strong> — <code>EmployeeTaxInfo</code>, <code>EmployeeBankDetails</code>, <code>EmployeeContract</code>, <code>EmployeeQualification</code>, and <code>EmployeeCompliance</code> are standalone collections linked via <code>employeeId</code>. The <code>Employee</code> document keeps shortcut refs (<code>taxInfoId</code>, <code>bankDetailsId</code>, <code>contractId</code>).<br><br>
+      <strong>Superadmin collections</strong> — <code>SystemSettings</code> (singleton), <code>OrgStorageQuota</code>, <code>OrgEmailUsage</code>, <code>QuotaRequest</code>, <code>OrgSignupRequest</code>, and <code>SuperAdminAuditLog</code> are platform-level collections for SaaS management. <code>SuperAdminAuditLog</code> is separate from tenant-scoped <code>AuditLog</code>.<br><br>
       <strong>Computed fields</strong> — <code>LocationRoleEnablement.isActive</code> and <code>EmployeeRoleAssignment.isActive</code> are computed from date ranges in pre-save hooks.<br><br>
       <strong>Embedded sub-schemas</strong> — <code>Schedule</code> (on <code>employees.schedules[]</code>) and <code>Shift</code> (on <code>rosters.shifts[]</code>) are not top-level collections.<br><br>
       <strong>Unix timestamps</strong> — <code>Tenant</code>, <code>User</code>, and <code>OAuthToken</code> store <code>createdAt</code>/<code>updatedAt</code> as Unix seconds (not Mongoose <code>timestamps</code>).<br><br>
+      <strong>Encryption</strong> — <code>SystemSettings.r2SecretAccessKey</code> and <code>SystemSettings.mailerooApiKey</code> are encrypted using AES-256-GCM before storage.<br><br>
       <strong>RuleTemplate / PayrollMapping</strong> — These schema modules exist (<code>rule-template.ts</code>, <code>payroll-mapping.ts</code>) but are not re-exported from the schemas barrel (<code>schemas/index.ts</code>) in all environments; they may be imported directly where needed.
     </div>
   </div>
 </div>
 
-<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Derived from <code>lib/db/schemas/*.ts</code> · 47 modules · Timesheet · MongoDB</p>
+<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Derived from <code>lib/db/schemas/*.ts</code> · 52 modules · Timesheet · MongoDB</p>
 
 </body>
 </html>

@@ -15,14 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,69 +117,65 @@ function CreateKeyDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Create API Key</DialogTitle>
-          <DialogDescription>
-            The key will be shown once after creation. Store it securely.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="key-name">Name</Label>
-            <Input
-              id="key-name"
-              placeholder="e.g. Xero Integration"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
+    <FormDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create API Key"
+      description="The key will be shown once after creation. Store it securely."
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleCreate();
+      }}
+      submitLabel={createKey.isPending ? "Creating..." : "Create Key"}
+      loading={createKey.isPending}
+      size="md"
+    >
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="key-name">Name</Label>
+          <Input
+            id="key-name"
+            placeholder="e.g. Xero Integration"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
 
-          <div className="space-y-2">
-            <Label>Scopes</Label>
-            <div className="grid grid-cols-1 gap-2 rounded-lg border p-3">
-              {ALL_SCOPES.map((scope) => (
-                <div key={scope.value} className="flex items-center gap-2">
-                  <Checkbox
-                    id={scope.value}
-                    checked={selectedScopes.includes(scope.value)}
-                    onCheckedChange={() => toggleScope(scope.value)}
-                  />
-                  <label htmlFor={scope.value} className="text-sm cursor-pointer">
-                    {scope.label}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Expires In</Label>
-            <Select value={expiresIn} onValueChange={setExpiresIn}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPIRY_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-2">
+          <Label>Scopes</Label>
+          <div className="grid grid-cols-1 gap-2 rounded-lg border p-3">
+            {ALL_SCOPES.map((scope) => (
+              <div key={scope.value} className="flex items-center gap-2">
+                <Checkbox
+                  id={scope.value}
+                  checked={selectedScopes.includes(scope.value)}
+                  onCheckedChange={() => toggleScope(scope.value)}
+                />
+                <label htmlFor={scope.value} className="text-sm cursor-pointer">
+                  {scope.label}
+                </label>
+              </div>
+            ))}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreate} disabled={createKey.isPending}>
-            {createKey.isPending ? "Creating..." : "Create Key"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+        <div className="space-y-2">
+          <Label>Expires In</Label>
+          <Select value={expiresIn} onValueChange={setExpiresIn}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EXPIRY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </FormDialogShell>
   )
 }
 
@@ -198,33 +187,28 @@ function NewKeyRevealDialog({
   onClose: () => void
 }) {
   return (
-    <Dialog open={!!apiKey} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>API Key Created</DialogTitle>
-          <DialogDescription>
-            Copy this key now. It will not be shown again.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-lg bg-muted p-3">
-            <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              Store this key securely. You cannot retrieve it after closing this dialog.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono break-all">
-              {apiKey}
-            </code>
-            <CopyButton text={apiKey} />
-          </div>
+    <FormDialogShell
+      open={!!apiKey}
+      onOpenChange={(open) => !open && onClose()}
+      title="API Key Created"
+      description="Copy this key now. It will not be shown again."
+      size="md"
+    >
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 rounded-lg bg-muted p-3">
+          <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            Store this key securely. You cannot retrieve it after closing this dialog.
+          </p>
         </div>
-        <DialogFooter>
-          <Button onClick={onClose}>Done</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono break-all">
+            {apiKey}
+          </code>
+          <CopyButton text={apiKey} />
+        </div>
+      </div>
+    </FormDialogShell>
   )
 }
 

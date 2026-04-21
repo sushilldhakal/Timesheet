@@ -1,9 +1,10 @@
 import { connectDB, User } from "@/lib/db"
 import { getAuthFromCookie, type AuthPayload } from "./auth-helpers"
 import { NextRequest } from "next/server"
+import { SUPER_ADMIN_SENTINEL } from "./auth-constants"
 
-/** Sentinel tenantId value used for super admin sessions without a real tenant binding */
-export const SUPER_ADMIN_SENTINEL = "__super_admin__"
+// Re-export for backward compatibility
+export { SUPER_ADMIN_SENTINEL }
 
 export type AuthWithLocations = {
   auth: AuthPayload

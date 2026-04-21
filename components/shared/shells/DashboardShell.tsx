@@ -55,7 +55,9 @@ export function DashboardShell({
 
         {/* Page Container */}
         <PageContainer variant="dashboard" fullWidth={fullWidth}>
-          {children}
+          <main id="main-content" className="focus-enhanced" tabIndex={-1}>
+            {children}
+          </main>
         </PageContainer>
       </div>
     </AppShell>

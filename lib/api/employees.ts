@@ -4,9 +4,39 @@ export interface Employee {
   id: string
   name: string
   pin: string
+  onboardingCompleted?: boolean
+  onboardingCompletedAt?: string | null
   roles?: Array<{
     id: string
     role: {
+      id: string
+      name: string
+      color?: string
+      type?: string
+    }
+    location: {
+      id: string
+      name: string
+      address: string
+      lat?: number
+      lng?: number
+      geofence: {
+        radius: number
+        mode: string
+      }
+      hours: {
+        opening?: number
+        closing?: number
+        workingDays: number[]
+      }
+    }
+    validFrom: string
+    validTo: string | null
+    isActive: boolean
+  }>
+  teams?: Array<{
+    id: string
+    team: {
       id: string
       name: string
       color?: string
@@ -80,9 +110,10 @@ export interface CreateEmployeeRequest {
   dob?: string
   gender?: string
   comment?: string
-  role?: string[]
+  team?: string[]
   employer?: string[]
   location?: string[]
+  locationTeamAssignments?: Array<{ location: string; team: string }>
   employmentType?: string
   standardHoursPerWeek?: number | null
   awardId?: string
@@ -101,7 +132,7 @@ export interface UpdateEmployeeRequest {
   homeAddress?: string
   gender?: string
   comment?: string
-  role?: string[]
+  team?: string[]
   employer?: string[]
   location?: string[]
   employmentType?: string
@@ -121,7 +152,7 @@ export interface GetEmployeesParams {
   sortBy?: string
   order?: 'asc' | 'desc'
   location?: string
-  role?: string
+  team?: string
   employer?: string
 }
 
@@ -195,12 +226,12 @@ export interface AwardEmployeeRequest {
   overridingRate?: number
 }
 
-export interface EmployeeRoleAssignment {
+export interface EmployeeTeamAssignment {
   id: string
   employeeId: string
-  roleId: string
-  roleName: string
-  roleColor?: string
+  teamId: string
+  teamName: string
+  teamColor?: string
   locationId: string
   locationName: string
   locationColor?: string
@@ -211,27 +242,27 @@ export interface EmployeeRoleAssignment {
   assignedAt: string
 }
 
-export interface CreateEmployeeRoleRequest {
-  roleId: string
+export interface CreateEmployeeTeamRequest {
+  teamId: string
   locationId: string
   validFrom?: string
   validTo?: string | null
   notes?: string
 }
 
-export interface EmployeeRoleAssignmentResponse {
-  assignment: EmployeeRoleAssignment
+export interface EmployeeTeamAssignmentResponse {
+  assignment: EmployeeTeamAssignment
 }
 
-export interface EmployeeRolesResponse {
+export interface EmployeeTeamsResponse {
   success: boolean
   data: {
-    assignments: EmployeeRoleAssignment[]
+    assignments: EmployeeTeamAssignment[]
   }
 }
 
 export interface EmployeeFiltersResponse {
-  roles: Array<{ name: string; count: number }>
+  teams: Array<{ name: string; count: number }>
   employers: Array<{ name: string; count: number }>
   locations: Array<{ name: string; count: number }>
 }
@@ -251,7 +282,7 @@ export async function getEmployees(params?: GetEmployeesParams): Promise<Employe
   if (params?.sortBy) searchParams.set('sortBy', params.sortBy)
   if (params?.order) searchParams.set('order', params.order)
   if (params?.location) searchParams.set('location', params.location)
-  if (params?.role) searchParams.set('role', params.role)
+  if (params?.team) searchParams.set('team', params.team)
   if (params?.employer) searchParams.set('employer', params.employer)
   
   const url = `/api/employees${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
@@ -330,39 +361,39 @@ export async function awardEmployee(id: string, data: AwardEmployeeRequest): Pro
   })
 }
 
-// Create employee role assignment
-export async function createEmployeeRole(
+// Create employee team assignment
+export async function createEmployeeTeam(
   employeeId: string, 
-  data: CreateEmployeeRoleRequest
-): Promise<EmployeeRoleAssignmentResponse> {
-  return apiFetch<EmployeeRoleAssignmentResponse>(`/api/employees/${employeeId}/roles`, {
+  data: CreateEmployeeTeamRequest
+): Promise<EmployeeTeamAssignmentResponse> {
+  return apiFetch<EmployeeTeamAssignmentResponse>(`/api/employees/${employeeId}/teams`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
 }
 
-// Get employee role assignments
-export async function getEmployeeRoles(
+// Get employee team assignments
+export async function getEmployeeTeams(
   employeeId: string,
   params?: { locationId?: string; date?: string; includeInactive?: boolean }
-): Promise<EmployeeRolesResponse> {
+): Promise<EmployeeTeamsResponse> {
   const searchParams = new URLSearchParams()
   
   if (params?.locationId) searchParams.set('locationId', params.locationId)
   if (params?.date) searchParams.set('date', params.date)
   if (params?.includeInactive) searchParams.set('includeInactive', 'true')
   
-  const url = `/api/employees/${employeeId}/roles${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
-  return apiFetch<EmployeeRolesResponse>(url)
+  const url = `/api/employees/${employeeId}/teams${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  return apiFetch<EmployeeTeamsResponse>(url)
 }
 
-// Delete employee role assignment
-export async function deleteEmployeeRole(
+// Delete employee team assignment
+export async function deleteEmployeeTeam(
   employeeId: string,
   assignmentId: string
 ): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(`/api/employees/${employeeId}/roles/${assignmentId}`, {
+  return apiFetch<{ success: boolean }>(`/api/employees/${employeeId}/teams/${assignmentId}`, {
     method: 'DELETE',
   })
 }
@@ -402,6 +433,7 @@ export interface EmployeeTaxInfo {
   bankRoutingType: string
   bankAccountName: string
   bankName: string | null
+  bankAccountType?: string | null
   countryName: string
   currency: string
 }

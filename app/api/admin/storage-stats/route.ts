@@ -1,39 +1,50 @@
 import { NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
 import { isAdminOrSuperAdmin } from "@/lib/config/roles"
-import { createApiRoute } from "@/lib/api/create-api-route"
-import {
-  storageStatsResponseSchema,
-} from "@/lib/validations/admin"
-import { errorResponseSchema } from "@/lib/validations/auth"
-import { storageStatsService } from "@/lib/services/admin/storage-stats-service"
+import { QuotaService } from "@/lib/services/superadmin/quota-service"
+import { MediaFileRepo } from "@/lib/db/queries/media-file"
 
-const getStorageStats = createApiRoute({
-  method: 'GET',
-  path: '/api/admin/storage-stats',
-  summary: 'Get storage usage statistics',
-  description: 'Get storage usage statistics from the active storage provider (Cloudinary or R2)',
-  tags: ['Admin'],
-  security: 'adminAuth',
-  responses: {
-    200: storageStatsResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema,
-    500: errorResponseSchema,
-  },
-  handler: async () => {
-    const auth = await getAuthFromCookie()
-    if (!auth) {
-      return { status: 401, data: { error: "Unauthorized" } }
+/**
+ * GET /api/admin/storage-stats
+ * Get storage usage statistics from database
+ */
+export async function GET() {
+  try {
+    const session = await getAuthFromCookie()
+    if (!session || !isAdminOrSuperAdmin(session.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-    if (!isAdminOrSuperAdmin(auth.role)) {
-      return { status: 403, data: { error: "Forbidden" } }
+
+    const orgId = session.tenantId
+    if (!orgId) {
+      return NextResponse.json({ error: "Organization ID not found" }, { status: 400 })
     }
-    return {
-      status: 200,
-      data: await storageStatsService.getStats(),
-    }
+
+    // Get quota info
+    const quota = await QuotaService.getStorageQuota(orgId)
+    
+    // Get file count and recent files
+    const [fileCount, recentFiles] = await Promise.all([
+      MediaFileRepo.countByOrgId(orgId),
+      MediaFileRepo.findByOrgId(orgId, { limit: 10, sort: { createdAt: -1 } }),
+    ])
+
+    const formatted = recentFiles.map((file) => ({
+      id: file._id.toString(),
+      originalName: file.originalName,
+      sizeBytes: file.sizeBytes,
+      mimeType: file.mimeType,
+      createdAt: file.createdAt,
+    }))
+
+    return NextResponse.json({
+      usedBytes: quota.usedBytes,
+      quotaBytes: quota.quotaBytes,
+      fileCount,
+      recentFiles: formatted,
+    })
+  } catch (error: any) {
+    console.error("Error fetching storage stats:", error)
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
-})
-
-export const GET = getStorageStats
+}

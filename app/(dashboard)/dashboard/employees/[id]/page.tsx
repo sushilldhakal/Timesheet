@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,8 +12,8 @@ import {
 } from "lucide-react"
 import { OptimizedImage } from "@/components/ui/optimized-image"
 import { EditEmployeeDialog } from "../EditEmployeeDialog"
-import { EmployeeRoleAssignmentDialog } from "@/components/employees/employee-role-assignment-dialog"
-import EmployeeRoleAssignmentList from "@/components/employees/employee-role-assignment-list"
+import { EmployeeTeamAssignmentDialog } from "@/components/employees/employee-team-assignment-dialog"
+import EmployeeTeamAssignmentList from "@/components/employees/employee-team-assignment-list"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"
 import { useEmployee } from "@/lib/queries/employees"
 
@@ -46,7 +46,7 @@ function EmployeeDetailPage() {
   const id = params?.id as string
   const [activeTab, setActiveTab] = useState("overview")
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false)
-  const [roleAssignmentDialogOpen, setRoleAssignmentDialogOpen] = useState(false)
+  const [teamAssignmentDialogOpen, setTeamAssignmentDialogOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -56,7 +56,7 @@ function EmployeeDetailPage() {
   // Allow deep-linking via URL hash (e.g. /employees/:id/#timesheet).
   useEffect(() => {
     if (!mounted) return
-    const hash = typeof window !== "undefined" ? window.location.hash : ""
+    const hash = window.location.hash
     const next = hash?.replace("#", "").trim()
     if (!next) return
     if (["overview", "timesheet", "payroll", "compliance", "contract", "development"].includes(next)) {
@@ -65,7 +65,7 @@ function EmployeeDetailPage() {
   }, [mounted])
 
   const employeeQuery = useEmployee(id)
-  const loading = employeeQuery.isLoading
+  const loading = !mounted || employeeQuery.isLoading
   const rawEmployee = employeeQuery.data?.employee
 
   const employee = rawEmployee
@@ -73,7 +73,7 @@ function EmployeeDetailPage() {
         id: rawEmployee.id,
         name: rawEmployee.name ?? "",
         pin: rawEmployee.pin ?? "",
-        roles: rawEmployee.roles ?? [],
+        teams: rawEmployee.teams ?? [],
         employers: rawEmployee.employers ?? [],
         locations: rawEmployee.locations ?? [],
         email: rawEmployee.email ?? "",
@@ -86,7 +86,7 @@ function EmployeeDetailPage() {
         award: rawEmployee.award ?? undefined,
         employmentType: rawEmployee.employmentType ?? undefined,
         standardHoursPerWeek: rawEmployee.standardHoursPerWeek ?? undefined,
-        // New payroll/compliance fields (may not be returned by existing API yet)
+        // New payroll/compliance fields
         legalFirstName: (rawEmployee as any).legalFirstName,
         legalMiddleNames: (rawEmployee as any).legalMiddleNames,
         legalLastName: (rawEmployee as any).legalLastName,
@@ -101,27 +101,18 @@ function EmployeeDetailPage() {
         terminationReason: (rawEmployee as any).terminationReason,
         skills: (rawEmployee as any).skills,
         certifications: (rawEmployee as any).certifications,
+        onboardingCompleted: (rawEmployee as any).onboardingCompleted ?? false,
+        onboardingCompletedAt: (rawEmployee as any).onboardingCompletedAt ?? null,
+        onboardingStatus: (rawEmployee as any).onboardingStatus,
+        emergencyContact: (rawEmployee as any).emergencyContact,
+        address: (rawEmployee as any).address,
+        passwordSetupExpiry: (rawEmployee as any).passwordSetupExpiry,
         createdAt: rawEmployee.createdAt,
         updatedAt: rawEmployee.updatedAt,
       }
     : null
 
   const refetchEmployee = () => employeeQuery.refetch()
-
-  // Avoid hydration mismatch when the client has a warm React Query cache
-  // but the server render shows the loading skeleton.
-  if (!mounted) {
-    return (
-      <div className="flex flex-col space-y-6 p-4 lg:p-8">
-        <HeaderSkeleton />
-        <Skeleton className="h-10 w-full max-w-lg" />
-        <div className="grid gap-6 md:grid-cols-2">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
-        </div>
-      </div>
-    )
-  }
 
   if (loading) {
     return (
@@ -148,7 +139,8 @@ function EmployeeDetailPage() {
     )
   }
 
-  const isActive = employee.isActive !== false && !employee.terminatedAt
+  const onboardingPending = employee.onboardingCompleted === false
+  const isActive = employee.isActive !== false && !employee.terminatedAt && !onboardingPending
 
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8">
@@ -175,13 +167,19 @@ function EmployeeDetailPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold truncate">{employee.name}</h1>
-              {isActive ? (
+              {employee.terminatedAt ? (
+                <Badge variant="destructive">Terminated</Badge>
+              ) : onboardingPending ? (
+                <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 bg-amber-500/10">
+                  Pending Onboarding
+                </Badge>
+              ) : isActive ? (
                 <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
                   Active
                 </Badge>
               ) : (
                 <Badge variant="destructive">
-                  {employee.terminatedAt ? "Terminated" : "Inactive"}
+                  Inactive
                 </Badge>
               )}
               {employee.isProbationary && (
@@ -258,11 +256,11 @@ function EmployeeDetailPage() {
           <div className="space-y-6 pt-2">
             <OverviewTab employee={employee} onNavigate={setActiveTab} />
 
-            {/* Existing role assignments & award cards */}
+            {/* Existing team assignments & award cards */}
             <div className="grid gap-6 lg:grid-cols-2">
-              <EmployeeRoleAssignmentList
+              <EmployeeTeamAssignmentList
                 employeeId={employee.id}
-                onAdd={() => setRoleAssignmentDialogOpen(true)}
+                onAdd={() => setTeamAssignmentDialogOpen(true)}
               />
               <EmployeeAwardCard
                 employeeId={employee.id}
@@ -317,11 +315,11 @@ function EmployeeDetailPage() {
         onSuccess={refetchEmployee}
       />
 
-      <EmployeeRoleAssignmentDialog
+      <EmployeeTeamAssignmentDialog
         employeeId={employee.id}
         employeeName={employee.name}
-        open={roleAssignmentDialogOpen}
-        onOpenChange={setRoleAssignmentDialogOpen}
+        open={teamAssignmentDialogOpen}
+        onOpenChange={setTeamAssignmentDialogOpen}
         onSuccess={refetchEmployee}
       />
     </div>

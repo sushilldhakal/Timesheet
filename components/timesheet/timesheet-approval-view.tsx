@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { toast } from "@/lib/utils/toast"
 import {
   Card,
   CardContent,
@@ -12,14 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
 import {
   Table,
   TableBody,
@@ -138,7 +132,7 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : `Failed to ${action} timesheet`
-      alert(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setActionLoading(false)
     }
@@ -471,40 +465,29 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
       </Card>
 
       {/* Reject dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Timesheet</DialogTitle>
-            <DialogDescription>
-              Provide a reason for rejecting this timesheet. The employee will see this reason.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>Rejection Reason</Label>
-            <Textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g., Missing clock-out for Tuesday shift"
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                handleAction("reject", { rejectionReason: rejectionReason.trim() })
-              }
-              disabled={!rejectionReason.trim() || actionLoading}
-            >
-              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Reject Timesheet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialogShell
+        open={rejectDialogOpen}
+        onOpenChange={setRejectDialogOpen}
+        title="Reject Timesheet"
+        description="Provide a reason for rejecting this timesheet. The employee will see this reason."
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleAction("reject", { rejectionReason: rejectionReason.trim() });
+        }}
+        submitLabel={actionLoading ? "Rejecting..." : "Reject Timesheet"}
+        loading={actionLoading}
+        disabled={!rejectionReason.trim()}
+      >
+        <div className="space-y-2">
+          <Label>Rejection Reason</Label>
+          <Textarea
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="e.g., Missing clock-out for Tuesday shift"
+            rows={3}
+          />
+        </div>
+      </FormDialogShell>
     </div>
   )
 }

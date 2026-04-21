@@ -110,6 +110,16 @@ export const employeeMeResponseSchema = z.object({
     homeAddress: z.string().optional(),
     employmentType: z.string().optional(),
     img: z.string().optional(),
+    onboardingCompleted: z.boolean().optional(),
+    onboardingCompletedAt: z.string().datetime().nullable().optional(),
+    timeZone: z.string().optional(),
+    nationality: z.string().optional(),
+    legalFirstName: z.string().optional(),
+    legalMiddleNames: z.string().optional(),
+    legalLastName: z.string().optional(),
+    preferredName: z.string().optional(),
+    address: z.any().optional(),
+    emergencyContact: z.any().optional(),
   }),
 })
 

@@ -10,19 +10,19 @@ interface StaffOnboardingWizardLayoutProps {
   children: ReactNode
 }
 
-const steps = [
-  { number: 1, title: 'Personal Information', description: 'Verify your contact details' },
-  { number: 2, title: 'Legal Details', description: 'Legal name and preferences' },
-  { number: 3, title: 'Tax Information', description: 'TFN and superannuation' },
-  { number: 4, title: 'Banking Details', description: 'Account for payroll' },
-  { number: 5, title: 'Employment Contract', description: 'Contract details' },
-  { number: 6, title: 'Compliance', description: 'Clearances and certifications' },
-  { number: 7, title: 'Review & Submit', description: 'Complete your onboarding' },
-]
-
 export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardLayoutProps) {
-  const { currentStep, isLoading } = useOnboarding()
-  const progress = ((currentStep - 1) / (steps.length - 1)) * 100
+  const { currentStep, totalSteps, requiresCompliance, isLoading } = useOnboarding()
+
+  const steps = [
+    { number: 1, title: 'Personal & Legal', description: 'Contact and legal details' },
+    { number: 2, title: 'Tax & Banking', description: 'TFN, super and bank account' },
+    ...(requiresCompliance
+      ? [{ number: 3, title: 'Compliance', description: 'Clearances and certifications' }]
+      : []),
+    { number: totalSteps, title: 'Review & Submit', description: 'Complete your onboarding' },
+  ]
+
+  const progress = ((currentStep - 1) / (totalSteps - 1)) * 100
 
   if (isLoading) {
     return (
@@ -41,7 +41,7 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Welcome to the Team!</h1>
           <p className="text-muted-foreground">Complete your onboarding to access your dashboard</p>
-          <p className="text-sm text-muted-foreground">Step {currentStep} of {steps.length}</p>
+          <p className="text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</p>
         </div>
 
         <Progress value={progress} className="h-2" />

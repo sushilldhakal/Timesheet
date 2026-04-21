@@ -40,7 +40,7 @@ export class EmployeeFiltersService {
       { $sort: { name: 1 } },
     ]);
 
-    return { roles: roleAggregation, employers: employerAggregation, locations: locationAggregation };
+    return { teams: roleAggregation, employers: employerAggregation, locations: locationAggregation };
   }
 }
 

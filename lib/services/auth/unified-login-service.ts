@@ -3,6 +3,7 @@ import { setAuthCookie } from "@/lib/auth/auth-helpers";
 import { Employer } from "@/lib/db/schemas/employer";
 import { UserTenant } from "@/lib/db/schemas/user-tenant";
 import { createFullAuthToken, createPreAuthToken, setPreAuthCookie, clearPreAuthCookie } from "@/lib/auth/tenant-context";
+import { SUPER_ADMIN_SENTINEL } from "@/lib/auth/auth-constants";
 
 export class UnifiedLoginService {
   private async employeeWebLogin(employee: any) {
@@ -106,12 +107,17 @@ export class UnifiedLoginService {
           await clearPreAuthCookie()
 
           const membership = effectiveMemberships[0] as any | undefined
-          const tenantId = membership?.tenantId
-            ? String(membership.tenantId)
-            : (user as any).tenantId
-              ? String((user as any).tenantId)
-              : ""
           const role = String(membership?.role ?? (user as any).role ?? "user")
+          
+          // Super admin gets sentinel tenantId
+          const tenantId = role === "super_admin"
+            ? SUPER_ADMIN_SENTINEL
+            : membership?.tenantId
+              ? String(membership.tenantId)
+              : (user as any).tenantId
+                ? String((user as any).tenantId)
+                : ""
+          
           const locations = Array.isArray(membership?.location)
             ? membership.location.map(String).filter(Boolean)
             : Array.isArray((user as any).location)
@@ -210,12 +216,17 @@ export class UnifiedLoginService {
         await clearPreAuthCookie()
 
         const membership = effectiveMemberships[0] as any | undefined
-        const tenantId = membership?.tenantId
-          ? String(membership.tenantId)
-          : (user as any).tenantId
-            ? String((user as any).tenantId)
-            : ""
         const role = String(membership?.role ?? (user as any).role ?? "user")
+        
+        // Super admin gets sentinel tenantId
+        const tenantId = role === "super_admin"
+          ? SUPER_ADMIN_SENTINEL
+          : membership?.tenantId
+            ? String(membership.tenantId)
+            : (user as any).tenantId
+              ? String((user as any).tenantId)
+              : ""
+        
         const locations = Array.isArray(membership?.location)
           ? membership.location.map(String).filter(Boolean)
           : Array.isArray((user as any).location)

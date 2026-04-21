@@ -32,9 +32,6 @@ export * from "./audit-log"
 export * from "./location-role-enablement"
 export * from "./employee-role-assignment"
 
-// Storage settings
-export * from "./storage-settings"
-
 // OAuth 2 authentication
 export * from "./oauth-token"
 
@@ -56,6 +53,7 @@ export * from "./employee-bank-details"
 export * from "./employee-contract"
 export * from "./employee-qualification"
 export * from "./employee-compliance"
+export * from "./employee-self-audit-log"
 
 // Tanda parity collections (schema layer)
 export * from "./sales-target"

@@ -82,6 +82,24 @@ export interface EmployeeProfile {
   award?: { id: string; name: string; level: string } | null
   onboardingCompleted?: boolean
   onboardingCompletedAt?: string | null
+  timeZone?: string
+  nationality?: string
+  legalFirstName?: string
+  legalMiddleNames?: string
+  legalLastName?: string
+  preferredName?: string
+  address?: {
+    line1?: string
+    line2?: string
+    city?: string
+    state?: string
+    postcode?: string
+    country?: string
+  } | null
+  emergencyContact?: {
+    name?: string
+    phone?: string
+  } | null
 }
 
 export interface ChangePasswordRequest {

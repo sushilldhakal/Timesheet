@@ -46,7 +46,7 @@ const STEPS = [
   {
     id: "work",
     title: "Work Assignment",
-    description: "Roles & locations",
+    description: "Teams & locations",
     icon: <Briefcase className="size-4" />,
   },
   {
@@ -74,9 +74,33 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   const [img, setImg] = useState("")
   
   // Work Assignment
-  const [role, setRole] = useState<string[]>([])
+  const [team, setTeam] = useState<string[]>([])
   const [employer, setEmployer] = useState<string[]>([])
   const [location, setLocation] = useState<string[]>([])
+  
+  // Compute current team assignments per location (read-only display)
+  const currentLocationTeamAssignments = useMemo(() => {
+    if (!employee.teams || location.length <= 1) return []
+    
+    // Group by location
+    const assignmentsByLocation = new Map<string, string[]>()
+    employee.teams.forEach((teamAssignment: any) => {
+      const locName = teamAssignment.location?.name
+      const teamName = teamAssignment.team?.name
+      if (locName && teamName) {
+        if (!assignmentsByLocation.has(locName)) {
+          assignmentsByLocation.set(locName, [])
+        }
+        assignmentsByLocation.get(locName)!.push(teamName)
+      }
+    })
+    
+    // Convert to array format, only for selected locations
+    return location.map(loc => ({
+      location: loc,
+      teams: assignmentsByLocation.get(loc) || []
+    }))
+  }, [employee.teams, location])
   
   // Employment Details
   const [standardHours, setStandardHours] = useState<number | null>(null)
@@ -100,7 +124,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   const updateEmployeeMutation = useUpdateEmployee()
   const uploadImageMutation = useUploadImage()
   
-  // Get enabled roles for the first selected location
+  // Get enabled teams for the first selected location
   const firstLocationId = useMemo(() => {
     if (location.length === 0) return null
     const firstLoc = locationsQuery.data?.locations?.find(c => c.name === location[0])
@@ -109,20 +133,20 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
   
   const locationTeamsQuery = useLocationTeams(firstLocationId)
 
-  const roleOptions = useMemo(() => {
-    const allRoles = teamsQuery.data?.teams?.map((c: any, index) => ({
+  const teamOptions = useMemo(() => {
+    const allTeams = teamsQuery.data?.teams?.map((c: any, index) => ({
       value: c.name,
       label: c.name,
-      id: c.id || c._id || `role-${index}`
+      id: c.id || c._id || `team-${index}`
     })) || []
     
     // If no location selected, return all teams
-    if (location.length === 0) return allRoles
+    if (location.length === 0) return allTeams
     
     const enabledTeamIds = locationTeamsQuery.data?.teams?.map((t) => t.teamId) || []
-    if (enabledTeamIds.length === 0) return allRoles
+    if (enabledTeamIds.length === 0) return allTeams
     
-    return allRoles.filter((role) => enabledTeamIds.includes(role.id))
+    return allTeams.filter((team) => enabledTeamIds.includes(team.id))
   }, [teamsQuery.data?.teams, location, locationTeamsQuery.data])
 
   const employerOptions = useMemo(() => 
@@ -174,7 +198,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
       setComment(employee.comment ?? "")
       setImg(employee.img ?? "")
       
-      setRole(unique(employee.roles?.map(r => r.role.name)))
+      setTeam(unique(employee.teams?.map((r: any) => r.team.name)))
       setEmployer(unique(employee.employers?.map(e => e.name)))
       setLocation(unique(employee.locations?.map(l => l.name)))
       
@@ -200,10 +224,10 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
 
   // Stabilize options to prevent infinite loops
   useEffect(() => {
-    if (roleOptions.length > 0) {
-      const roleValues = new Set(roleOptions.map(o => o.value))
-      setRole(prev => {
-        const filtered = prev.filter(r => roleValues.has(r))
+    if (teamOptions.length > 0) {
+      const teamValues = new Set(teamOptions.map(o => o.value))
+      setTeam(prev => {
+        const filtered = prev.filter(r => teamValues.has(r))
         // Only update if values actually changed
         if (filtered.length !== prev.length || !filtered.every((v, i) => v === prev[i])) {
           return filtered
@@ -231,18 +255,18 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
         return prev
       })
     }
-  }, [roleOptions, employerOptions, locationOptions])
+  }, [teamOptions, employerOptions, locationOptions])
   
   useEffect(() => {
     if (location.length > 0 && locationTeamsQuery.data?.teams) {
       const enabledTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
       
-      setRole((prev) => {
-        const validRoles = prev.filter((roleName) => {
-          const roleData = teamsQuery.data?.teams?.find((c: any) => c.name === roleName) as any
-          return roleData && enabledTeamIds.includes(roleData.id || roleData._id)
+      setTeam((prev) => {
+        const validTeams = prev.filter((teamName) => {
+          const teamData = teamsQuery.data?.teams?.find((c: any) => c.name === teamName) as any
+          return teamData && enabledTeamIds.includes(teamData.id || teamData._id)
         })
-        return validRoles
+        return validTeams
       })
     }
   }, [location, locationTeamsQuery.data, teamsQuery.data])
@@ -280,7 +304,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
         id: employee.id,
         data: {
           name: name.trim(),
-          role: role.length > 0 ? role : undefined,
+          team: team.length > 0 ? team : undefined,
           employer: employer.length > 0 ? employer : undefined,
           location: location.length > 0 ? location : undefined,
           email: email.trim() || undefined,
@@ -339,7 +363,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
             {/* Profile Photo Upload - Always visible */}
             <div className="w-full">
               <div className="flex flex-col items-center gap-4">
-                <div className="relative h-32 w-32 rounded-full overflow-hidden bg-background flex items-center justify-center flex-shrink-0 border-4 border-background shadow-lg">
+                <div className="relative h-32 w-32 rounded-full overflow-hidden bg-background flex items-center justify-center shrink-0 border-4 border-background shadow-lg">
                   {img ? (
                     <>
                       <img src={img} alt="Preview" className="h-full w-full object-cover" decoding="async" />
@@ -507,25 +531,58 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                   disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select location first to filter available roles
+                  Select location first to filter available teams
                 </p>
               </Field>
 
-              <Field>
-                <FieldLabel>Roles</FieldLabel>
-                <MultiSelect
-                  options={roleOptions}
-                  onValueChange={setRole}
-                  defaultValue={role}
-                  placeholder={location.length === 0 ? "Select location first..." : "Select roles..."}
-                  disabled={loading || location.length === 0}
-                />
-                {location.length > 0 && roleOptions.length === 0 && (
+              {location.length === 1 ? (
+                // Single location: show team multi-select (disabled - read-only)
+                <Field>
+                  <FieldLabel>Teams (Read-only)</FieldLabel>
+                  <MultiSelect
+                    options={teamOptions}
+                    onValueChange={setTeam}
+                    defaultValue={team}
+                    placeholder="Select teams..."
+                    disabled={true}
+                  />
                   <p className="text-xs text-amber-600 mt-1">
-                    No roles enabled for this location. Please enable roles in Location settings.
+                    Team assignments cannot be changed here. Use the employee detail page &quot;Team Assignments&quot; section to modify teams.
                   </p>
-                )}
-              </Field>
+                </Field>
+              ) : location.length > 1 ? (
+                // Multiple locations: show per-location team table (read-only)
+                <Field>
+                  <FieldLabel>Team per Location (Read-only)</FieldLabel>
+                  <div className="border rounded-md overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="text-left p-3 font-medium">Location</th>
+                          <th className="text-left p-3 font-medium">Teams</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentLocationTeamAssignments.map((assignment) => (
+                          <tr key={assignment.location} className="border-t">
+                            <td className="p-3">{assignment.location}</td>
+                            <td className="p-3">
+                              <div className="text-sm text-muted-foreground">
+                                {assignment.teams.length > 0 
+                                  ? assignment.teams.join(", ") 
+                                  : "No teams assigned"}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Team assignments cannot be changed here. Use the employee detail page &quot;Team Assignments&quot; section to modify teams.
+                  </p>
+                </Field>
+              ) : null}
 
               <Field>
                 <FieldLabel>Employers</FieldLabel>

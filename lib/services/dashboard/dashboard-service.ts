@@ -1,9 +1,10 @@
 import { endOfWeek, format, getDay, startOfWeek, subDays } from 'date-fns';
 import { apiErrors } from '@/lib/api/api-error';
-import { employeeLocationFilter, type AuthWithLocations } from '@/lib/auth/auth-api';
+import { employeeLocationFilter, type AuthWithLocations, SUPER_ADMIN_SENTINEL } from '@/lib/auth/auth-api';
 import { DashboardDbQueries } from '@/lib/db/queries/dashboard';
 import { parseTimeToHour24 } from '@/lib/utils/format/time';
 import { connectDB } from '@/lib/db';
+import mongoose from 'mongoose';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -47,8 +48,20 @@ export class DashboardService {
     timelineDateEnd.setHours(23, 59, 59, 999);
 
     const empFilter: Record<string, unknown> = {};
+    
+    // Add tenantId filter when not in sentinel mode
+    if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+    }
+    
     const locFilter = employeeLocationFilter(ctx.userLocations);
-    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter];
+    if (Object.keys(locFilter).length > 0) {
+      if (empFilter.$and) {
+        (empFilter.$and as any[]).push(locFilter);
+      } else {
+        empFilter.$and = [locFilter];
+      }
+    }
 
     const employees = await DashboardDbQueries.findEmployeesLean(empFilter);
 
@@ -56,8 +69,14 @@ export class DashboardService {
       ctx.userLocations && ctx.userLocations.length > 0
         ? (employees as { pin?: string }[]).map((e) => e.pin ?? '').filter(Boolean)
         : null;
-    const timesheetFilter = (base: Record<string, unknown>): Record<string, unknown> =>
-      allowedPins && allowedPins.length > 0 ? { ...base, pin: { $in: allowedPins } } : base;
+    const timesheetFilter = (base: Record<string, unknown>): Record<string, unknown> => {
+      const filtered = allowedPins && allowedPins.length > 0 ? { ...base, pin: { $in: allowedPins } } : base;
+      // Add tenantId filter to timesheet queries when not in sentinel mode
+      if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+        return { ...filtered, tenantId: new mongoose.Types.ObjectId(ctx.tenantId) };
+      }
+      return filtered;
+    };
 
     // 1) Daily Timeline
     const todayShifts = await DashboardDbQueries.findShiftsLean(
@@ -288,14 +307,32 @@ export class DashboardService {
     if (daysDiff > 366) throw apiErrors.badRequest('Date range too large');
 
     const empFilter: Record<string, unknown> = {};
+    
+    // Add tenantId filter when not in sentinel mode
+    if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+    }
+    
     const locFilter = employeeLocationFilter(ctx.userLocations);
-    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter];
+    if (Object.keys(locFilter).length > 0) {
+      if (empFilter.$and) {
+        (empFilter.$and as any[]).push(locFilter);
+      } else {
+        empFilter.$and = [locFilter];
+      }
+    }
     const employees = await DashboardDbQueries.findEmployeesLean(empFilter);
 
     const shiftQuery: Record<string, unknown> = {
       date: { $gte: start, $lte: end },
       status: { $in: ['completed', 'approved'] },
     };
+    
+    // Add tenantId filter to shift query when not in sentinel mode
+    if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+      shiftQuery.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+    }
+    
     if (Object.keys(locFilter).length > 0) {
       const allowedPins = (employees as { pin?: string }[]).map((e) => e.pin ?? '').filter(Boolean);
       shiftQuery.pin = allowedPins.length > 0 ? { $in: allowedPins } : { $in: [''] };
@@ -351,9 +388,22 @@ export class DashboardService {
     const INACTIVE_DAYS = 100;
     const DATE_FMT = 'dd-MM-yyyy';
 
-    const grouped = await DashboardDbQueries.aggregateShifts<{ _id: string; lastDate: Date }>([
-      { $group: { _id: '$pin', lastDate: { $max: '$date' } } },
-    ]);
+    // Build shift aggregation pipeline with tenantId filter
+    const shiftPipeline: any[] = [];
+    
+    // Add tenantId filter when not in sentinel mode
+    if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+      shiftPipeline.push({
+        $match: { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
+      });
+    }
+    
+    // Group by pin to get last punch date
+    shiftPipeline.push({
+      $group: { _id: '$pin', lastDate: { $max: '$date' } }
+    });
+
+    const grouped = await DashboardDbQueries.aggregateShifts<{ _id: string; lastDate: Date }>(shiftPipeline);
 
     const lastPunchMap = new Map<string, { date: Date; dateStr: string }>();
     for (const x of grouped as any[]) {
@@ -364,8 +414,20 @@ export class DashboardService {
     }
 
     const empFilter: Record<string, unknown> = {};
+    
+    // Add tenantId filter when not in sentinel mode
+    if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
+      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+    }
+    
     const locFilter = employeeLocationFilter(ctx.userLocations);
-    if (Object.keys(locFilter).length > 0) empFilter.$and = [locFilter];
+    if (Object.keys(locFilter).length > 0) {
+      if (empFilter.$and) {
+        (empFilter.$and as any[]).push(locFilter);
+      } else {
+        empFilter.$and = [locFilter];
+      }
+    }
     const allEmployees = await DashboardDbQueries.findEmployeesLean(empFilter);
 
     const inactive: Array<{ id: string; name: string; pin: string; lastPunchDate: string | null; daysInactive: number }> =

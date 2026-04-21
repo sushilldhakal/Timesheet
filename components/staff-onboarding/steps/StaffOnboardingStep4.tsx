@@ -1,127 +1,178 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useOnboarding } from '@/lib/context/staff-onboarding-context'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { step4Schema } from '@/lib/validations/onboarding'
-
-type Step4Data = z.infer<typeof step4Schema>
+import { employeeClockKeys } from '@/lib/queries/employee-clock'
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function StaffOnboardingStep4() {
-  const { formData, setFormData, nextStep, prevStep } = useOnboarding()
+  const { formData, prevStep, requiresCompliance } = useOnboarding()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isComplete, setIsComplete] = useState(false)
 
-  const form = useForm<Step4Data>({
-    resolver: zodResolver(step4Schema),
-    defaultValues: {
-      bankName: formData.bankName,
-      accountNumber: formData.accountNumber,
-      bsbCode: formData.bsbCode,
-      accountHolderName: formData.accountHolderName,
-      accountType: formData.accountType,
-    },
-  })
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    setSubmitError(null)
 
-  const onSubmit = (data: Step4Data) => {
-    setFormData(data)
-    nextStep()
+    try {
+      const response = await fetch('/api/employee/complete-onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to complete onboarding')
+      }
+
+      toast.success('Onboarding completed successfully!')
+      setIsComplete(true)
+
+      // Invalidate the cached profile so the dashboard sees onboardingCompleted: true
+      await queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile })
+
+      router.push('/staff/dashboard')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to complete onboarding'
+      setSubmitError(message)
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (isComplete) {
+    return (
+      <div className="space-y-6 text-center py-12">
+        <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
+        <div>
+          <h2 className="text-2xl font-bold">Welcome to the Team!</h2>
+          <p className="text-muted-foreground mt-2">Onboarding complete. Taking you to your dashboard...</p>
+        </div>
+        <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Banking Details</h2>
-        <p className="text-muted-foreground">Your bank account information for salary payments.</p>
+        <h2 className="text-2xl font-bold">Review & Submit</h2>
+        <p className="text-muted-foreground">Please review your information before completing onboarding.</p>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="bankName"
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel>Bank Name *</FormLabel>
-                <FormControl><Input placeholder="e.g., Commonwealth Bank" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+      {submitError && (
+        <div className="flex items-center gap-2 bg-destructive/10 p-4 rounded-md text-destructive border border-destructive/20">
+          <AlertCircle className="h-5 w-5" />
+          {submitError}
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              control={form.control}
-              name="bsbCode"
-              render={({ field }: any) => (
-                <FormItem>
-                  <FormLabel>BSB Code *</FormLabel>
-                  <FormControl><Input placeholder="123-456" {...field} /></FormControl>
-                  <FormDescription>6-digit BSB in format XXX-XXX</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="accountNumber"
-              render={({ field }: any) => (
-                <FormItem>
-                  <FormLabel>Account Number *</FormLabel>
-                  <FormControl><Input placeholder="12345678" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Personal Information</CardTitle></CardHeader>
+          <CardContent className="text-sm space-y-2">
+            <div><p className="text-muted-foreground">Name</p><p className="font-semibold">{formData.firstName} {formData.lastName}</p></div>
+            <div><p className="text-muted-foreground">Email</p><p className="font-semibold">{formData.email || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Phone</p><p className="font-semibold">{formData.phone || 'Not provided'}</p></div>
+            <div>
+              <p className="text-muted-foreground">Address</p>
+              <p className="font-semibold">
+                {[formData.addressLine1, formData.addressLine2, `${formData.city} ${formData.state} ${formData.postcode}`, formData.country]
+                  .filter(Boolean)
+                  .join(', ')}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Emergency Contact</p>
+              <p className="font-semibold">{formData.emergencyContactName} ({formData.emergencyContactPhone})</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Legal Details</CardTitle></CardHeader>
+          <CardContent className="text-sm space-y-2">
+            <div><p className="text-muted-foreground">Legal Name</p><p className="font-semibold">{formData.legalFirstName} {formData.legalLastName}</p></div>
+            <div><p className="text-muted-foreground">Nationality</p><p className="font-semibold">{formData.nationality || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Time Zone</p><p className="font-semibold">{formData.timeZone}</p></div>
+            <div>
+              <p className="text-muted-foreground">Work Rights</p>
+              <p className="font-semibold">
+                {String(formData.nationality || '').toLowerCase().includes('austral')
+                  ? `${formData.australianIdType ? formData.australianIdType.replace('_', ' ') : 'ID'}: ${formData.australianIdNumber || '—'}`
+                  : `Visa: ${formData.visaType || '—'} (${formData.visaNumber || '—'})`}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Tax Information</CardTitle></CardHeader>
+          <CardContent className="text-sm space-y-2">
+            <div><p className="text-muted-foreground">TFN</p><p className="font-semibold font-mono">{formData.tfn ? '***-***-' + formData.tfn.slice(-3) : 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Superannuation Fund</p><p className="font-semibold">{formData.superannuationFund || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">HELP Debt</p><p className="font-semibold">{formData.hasHelpDebt ? 'Yes' : 'No'}</p></div>
+            <div><p className="text-muted-foreground">Tax-free threshold</p><p className="font-semibold">{formData.taxFreeThreshold ? 'Yes' : 'No'}</p></div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Banking Details</CardTitle></CardHeader>
+          <CardContent className="text-sm space-y-2">
+            <div><p className="text-muted-foreground">Bank</p><p className="font-semibold">{formData.bankName || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Account</p><p className="font-semibold font-mono">{formData.accountNumber ? '****' + formData.accountNumber.slice(-4) : 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">BSB</p><p className="font-semibold font-mono">{formData.bsbCode || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Account Holder</p><p className="font-semibold">{formData.accountHolderName || 'Not provided'}</p></div>
+            <div><p className="text-muted-foreground">Account Type</p><p className="font-semibold">{formData.accountType}</p></div>
+          </CardContent>
+        </Card>
+
+        {requiresCompliance && (
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-base">Compliance Status</CardTitle></CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <div><p className="text-muted-foreground">WWC</p><Badge variant="outline" className="capitalize">{formData.wwcStatus?.replace('_', ' ')}</Badge></div>
+              <div><p className="text-muted-foreground">Police Clearance</p><Badge variant="outline" className="capitalize">{formData.policeClearanceStatus}</Badge></div>
+              <div><p className="text-muted-foreground">Food Handling</p><Badge variant="outline" className="capitalize">{formData.foodHandlingStatus}</Badge></div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-900">Ready to Complete Onboarding</p>
+            <p className="text-blue-700 mt-1">
+              By submitting this form, you confirm that all information provided is accurate and complete.
+              This information will be used for payroll, tax, and compliance purposes.
+            </p>
           </div>
+        </div>
+      </div>
 
-          <FormField
-            control={form.control}
-            name="accountHolderName"
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel>Account Holder Name *</FormLabel>
-                <FormControl><Input placeholder="Name as it appears on your bank account" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="accountType"
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel>Account Type *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select account type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="savings">Savings Account</SelectItem>
-                    <SelectItem value="cheque">Cheque Account</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="flex justify-between gap-3 pt-6 border-t">
-            <Button type="button" variant="outline" onClick={prevStep} size="lg">
-              &larr; Previous
-            </Button>
-            <Button type="submit" size="lg">
-              Next: Employment Contract &rarr;
-            </Button>
-          </div>
-        </form>
-      </Form>
+      <div className="flex justify-between gap-3 pt-6 border-t">
+        <Button type="button" variant="outline" onClick={prevStep} disabled={isSubmitting} size="lg">
+          &larr; Previous
+        </Button>
+        <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2" size="lg">
+          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isSubmitting ? 'Completing Onboarding...' : 'Complete Onboarding'}
+        </Button>
+      </div>
     </div>
   )
 }

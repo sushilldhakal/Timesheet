@@ -1,9 +1,14 @@
 import { mongoose, Team, TeamGroup } from '@/lib/db';
 import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
 import { User } from '@/lib/db/schemas/user';
+import { SUPER_ADMIN_SENTINEL } from '@/lib/auth/auth-constants';
 
 export class TeamsDbQueries {
   static tenantObjectId(tenantId: string) {
+    // Super admin sentinel value is not a valid ObjectId
+    if (tenantId === SUPER_ADMIN_SENTINEL) {
+      return null;
+    }
     return new mongoose.Types.ObjectId(tenantId);
   }
 

@@ -68,6 +68,13 @@ function formatCompliance(c: any) {
   return {
     id: String(c._id),
     employeeId: String(c.employeeId),
+    workRightsType: c.workRightsType || null,
+    australianIdType: c.australianIdType ?? null,
+    australianIdNumber: c.australianIdNumber ?? null,
+    visaType: c.visaType ?? null,
+    visaNumber: c.visaNumber ?? null,
+    workRightsStatus: c.workRightsStatus || null,
+    workRightsLastCheckedAt: c.workRightsLastCheckedAt?.toISOString() ?? null,
     wwcStatus: c.wwcStatus || null,
     wwcNumber: c.wwcNumber || null,
     wwcExpiryDate: c.wwcExpiryDate?.toISOString() ?? null,
@@ -291,4 +298,3 @@ export class EmployeePayrollService {
 }
 
 export const employeePayrollService = new EmployeePayrollService();
-

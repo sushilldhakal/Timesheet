@@ -9,17 +9,17 @@ export const assignmentIdParamSchema = z.object({
   assignmentId: objectIdSchema
 });
 
-// Role assignment query schema
+// Team assignment query schema
 export const roleAssignmentQuerySchema = z.object({
   locationId: z.string().optional(),
   date: z.string().optional(),
   includeInactive: z.string().optional()
 });
 
-// Role assignment form schema (for dialog/form submission)
+// Team assignment form schema (for dialog/form submission)
 export const roleAssignmentFormSchema = z.object({
   locationId: z.string().min(1, "Location is required"),
-  roleId: z.string().min(1, "Team is required"),
+  teamId: z.string().min(1, "Team is required"),
   validFrom: z.date({
     message: "Valid from date is required",
   }),
@@ -38,28 +38,28 @@ export const roleAssignmentFormSchema = z.object({
   }
 )
 
-// Role assignment create schema
+// Team assignment create schema
 export const roleAssignmentCreateSchema = z.object({
-  roleId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid role ID format"),
+  teamId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid team ID format"),
   locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format"),
   validFrom: z.string().datetime().optional(),
   validTo: z.string().datetime().nullable().optional(),
   notes: z.string().max(500).optional()
 });
 
-// Role assignment update schema
+// Team assignment update schema
 export const roleAssignmentUpdateSchema = z.object({
   validTo: z.string().datetime().nullable().optional(),
   notes: z.string().max(500).optional()
 });
 
-// Role assignment response schema
+// Team assignment response schema
 export const roleAssignmentSchema = z.object({
   id: z.string(),
   employeeId: z.string(),
-  roleId: z.string(),
-  roleName: z.string(),
-  roleColor: z.string().optional(),
+  teamId: z.string(),
+  teamName: z.string(),
+  teamColor: z.string().optional(),
   locationId: z.string(),
   locationName: z.string(),
   locationColor: z.string().optional(),

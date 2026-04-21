@@ -1,9 +1,17 @@
-const ALLOWED_HOSTS = ["res.cloudinary.com"];
+// Allow R2 URLs (custom domains, r2.dev subdomains, and cloudflarestorage.com)
+// Legacy Cloudinary support removed as we've migrated to R2
+const ALLOWED_HOST_PATTERNS = [
+  /\.r2\.dev$/,                    // R2 public subdomain: pub-{hash}.r2.dev
+  /\.r2\.cloudflarestorage\.com$/, // R2 direct bucket URLs
+];
 
 function isAllowedUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return (parsed.protocol === "https:" || parsed.protocol === "http:") && ALLOWED_HOSTS.some((h) => parsed.hostname === h);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    
+    // Check if hostname matches any allowed pattern
+    return ALLOWED_HOST_PATTERNS.some((pattern) => pattern.test(parsed.hostname));
   } catch {
     return false;
   }

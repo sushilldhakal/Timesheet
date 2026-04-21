@@ -18,7 +18,7 @@ export type BankRoutingType = 'bsb' | 'ifsc' | 'iban' | 'swift' | 'routing'
 const auTaxSchema = z.object({
   taxId: z
     .string()
-    .regex(/^\d{11}$/, 'TFN must be 11 digits')
+    .regex(/^\d{8,9}$/, 'TFN must be 8 or 9 digits')
     .describe('Tax File Number'),
   taxFreeThreshold: z.boolean().describe('Claim tax-free threshold'),
   seniorTaxOffset: z.boolean().optional().describe('Eligible for senior Australian resident offset'),
@@ -34,9 +34,10 @@ const auBankSchema = z.object({
     .regex(/^\d{6,10}$/, 'Account number must be 6-10 digits'),
   bsb: z
     .string()
-    .regex(/^\d{6}$/, 'BSB must be exactly 6 digits (XXX-XXX format)')
+    .regex(/^\d{6}$/, 'BSB must be exactly 6 digits')
     .describe('Bank State Branch code'),
   bankName: z.string().optional(),
+  accountType: z.enum(['savings', 'cheque']).optional(),
 })
 
 // INDIA & NEPAL (PAN + IFSC)

@@ -40,8 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [logoutMutation, router])
 
+  // Always render children — auth state is provided via context.
+  // Components that need auth gating (loading/redirect) consume useAuth() themselves.
+  // This avoids hydration mismatches caused by the server rendering the full tree
+  // while the client renders a loading spinner at this level.
   return (
-    <AuthContext.Provider value={{ user: user?.user || null, isLoading, logout, refetch }}>
+    <AuthContext.Provider value={{ user: user?.user ?? null, isLoading, logout, refetch }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "@/lib/utils/toast"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,7 +68,7 @@ export function RuleEngineTab() {
 
   const handleDeleteTemplate = async (id: string, isDefault: boolean) => {
     if (isDefault) {
-      alert("Cannot delete default templates")
+      toast.warning("Cannot delete default templates")
       return
     }
 
@@ -77,7 +78,7 @@ export function RuleEngineTab() {
       await deleteRuleTemplate(id)
       fetchTemplates()
     } catch (err: any) {
-      alert(err.message || "Failed to delete template")
+      toast.error(err.message || "Failed to delete template")
     }
   }
 
@@ -96,7 +97,7 @@ export function RuleEngineTab() {
       setIsCreating(false)
       fetchTemplates()
     } catch (err: any) {
-      alert(err.message || "Failed to save template")
+      toast.error(err.message || "Failed to save template")
     }
   }
 

@@ -1,10 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { useLabourCostAnalytics, useGenerateLabourCostAnalysis } from "@/lib/queries/analytics"
-import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -25,6 +22,7 @@ import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCa
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 function StatsCard({
   title,
@@ -74,13 +72,8 @@ function StatsCard({
 }
 
 export default function LabourCostAnalyticsPage() {
-  const { user } = useAuth()
-  const isAdmin = isAdminOrSuperAdmin(user?.role ?? null)
-
-  // Admins pick a location; managers/supervisors use their own location automatically
-  const scopedLocationId = !isAdmin ? (user?.location?.[0] ?? "") : ""
-  const [adminLocationId, setAdminLocationId] = useState<string>("")
-  const locationId = isAdmin ? adminLocationId : scopedLocationId
+  const { primaryLocationId } = useDashboardLocationScope()
+  const locationId = primaryLocationId ?? ""
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [view, setView] = useState<TimesheetView>("week")
@@ -113,14 +106,6 @@ export default function LabourCostAnalyticsPage() {
       }
     }
   }, [selectedDate, view, useCustomRange, customStartDate, customEndDate])
-
-  // Only fetch locations list for admins (for the selector)
-  const { data: locationsResponse } = useQuery({
-    queryKey: ["locations"],
-    queryFn: () => import('@/lib/api/locations').then(m => m.getAll()),
-    enabled: isAdmin,
-  })
-  const locations = locationsResponse?.locations ?? []
 
   const { data: labourCostData, isLoading } = useLabourCostAnalytics({
     locationId: locationId || undefined,
@@ -197,26 +182,22 @@ export default function LabourCostAnalyticsPage() {
     </div>
   )
 
-  // Only admins see the location selector
-  const locationSelect = isAdmin ? (
-    <select
-      value={adminLocationId}
-      onChange={(e) => setAdminLocationId(e.target.value)}
-      className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm"
-    >
-      <option value="">All locations</option>
-      {mounted && locations.map((loc: any) => (
-        <option key={loc.id} value={loc.id}>
-          {loc.name}
-        </option>
-      ))}
-    </select>
-  ) : null
-
   const handleGenerateReport = () => {
     if (!locationId) return
     setReportDialogOpen(true)
-    generateAnalysis.mutate({ locationId, from: dateRange.from, to: dateRange.to })
+    generateAnalysis.mutate(
+      { locationId, from: dateRange.from, to: dateRange.to },
+      {
+        onSuccess: () => {
+          // Close dialog on success
+          setTimeout(() => setReportDialogOpen(false), 500)
+        },
+        onError: () => {
+          // Close dialog on error
+          setReportDialogOpen(false)
+        }
+      }
+    )
   }
 
   // Prevent hydration mismatch — user/location data is only available client-side
@@ -253,7 +234,7 @@ export default function LabourCostAnalyticsPage() {
             </div>
           }
           viewSwitcher={viewSwitcher}
-          peopleSelect={locationSelect}
+          peopleSelect={null}
           actions={
             <Button
               onClick={handleGenerateReport}

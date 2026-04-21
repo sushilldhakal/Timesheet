@@ -33,13 +33,13 @@ export class EmployeeRolesService {
       const assignments = await manager.getEmployeeAssignments(employeeId, locationId || undefined, date, includeInactive);
 
       const formattedAssignments = (assignments as any[]).map((assignment) => {
-        const roleData = assignment.roleId as any;
+        const teamData = assignment.roleId as any;
         const locationData = assignment.locationId as any;
         return {
           id: assignment._id.toString(),
-          roleId: roleData._id.toString(),
-          roleName: roleData.name,
-          roleColor: roleData.color,
+          teamId: teamData._id.toString(),
+          teamName: teamData.name,
+          teamColor: teamData.color,
           locationId: locationData._id.toString(),
           locationName: locationData.name,
           locationColor: locationData.color,
@@ -75,13 +75,13 @@ export class EmployeeRolesService {
     const employeeId = args.employeeId;
     if (!mongoose.Types.ObjectId.isValid(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
 
-    const { roleId, locationId, validFrom, validTo, notes } = args.body || {};
+    const { teamId, locationId, validFrom, validTo, notes } = args.body || {};
 
     try {
       const manager = new RoleAssignmentManager();
       const assignment = (await manager.assignRole({
         employeeId,
-        roleId,
+        roleId: teamId,
         locationId,
         validFrom: validFrom ? new Date(validFrom) : new Date(),
         validTo: validTo ? new Date(validTo) : null,
@@ -92,7 +92,7 @@ export class EmployeeRolesService {
       const populatedAssignment = await EmployeeRolesDbQueries.findAssignmentPopulatedLean(assignment._id);
       if (!populatedAssignment) return { status: 500, data: formatError('Failed to retrieve created assignment', 'ASSIGNMENT_NOT_FOUND') };
 
-      const roleData = (populatedAssignment as any).roleId as any;
+      const teamData = (populatedAssignment as any).roleId as any;
       const locationData = (populatedAssignment as any).locationId as any;
 
       return {
@@ -102,9 +102,9 @@ export class EmployeeRolesService {
             assignment: {
               id: (populatedAssignment as any)._id.toString(),
               employeeId: (populatedAssignment as any).employeeId.toString(),
-              roleId: roleData._id.toString(),
-              roleName: roleData.name,
-              roleColor: roleData.color,
+              teamId: teamData._id.toString(),
+              teamName: teamData.name,
+              teamColor: teamData.color,
               locationId: locationData._id.toString(),
               locationName: locationData.name,
               validFrom: (populatedAssignment as any).validFrom,
@@ -162,7 +162,7 @@ export class EmployeeRolesService {
       const populatedAssignment = await EmployeeRolesDbQueries.findAssignmentPopulatedLean((assignment as any)._id);
       if (!populatedAssignment) return { status: 500, data: formatError('Failed to retrieve updated assignment', 'ASSIGNMENT_NOT_FOUND') };
 
-      const roleData = (populatedAssignment as any).roleId as any;
+      const teamData = (populatedAssignment as any).roleId as any;
       const locationData = (populatedAssignment as any).locationId as any;
 
       return {
@@ -172,9 +172,9 @@ export class EmployeeRolesService {
             assignment: {
               id: (populatedAssignment as any)._id.toString(),
               employeeId: (populatedAssignment as any).employeeId.toString(),
-              roleId: roleData._id.toString(),
-              roleName: roleData.name,
-              roleColor: roleData.color,
+              teamId: teamData._id.toString(),
+              teamName: teamData.name,
+              teamColor: teamData.color,
               locationId: locationData._id.toString(),
               locationName: locationData.name,
               validFrom: (populatedAssignment as any).validFrom,

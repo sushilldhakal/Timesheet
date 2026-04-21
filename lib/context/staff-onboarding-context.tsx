@@ -4,46 +4,44 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 import { useEmployeeProfile } from '@/lib/queries/employee-clock'
 
 export interface StaffOnboardingFormData {
-  // Step 1: Personal Information (pre-filled from employee record)
+  // Step 1: Personal & Legal
   firstName: string
   lastName: string
   email: string
   phone: string
-
-  // Step 2: Legal Details
+  addressLine1: string
+  addressLine2: string
+  city: string
+  state: string
+  postcode: string
+  country: string
   legalFirstName: string
   legalMiddleNames: string
   legalLastName: string
   preferredName: string
   nationality: string
   timeZone: string
-  locale: string
+  emergencyContactName: string
+  emergencyContactPhone: string
+  australianIdType: 'drivers_licence' | 'medicare' | 'passport' | ''
+  australianIdNumber: string
+  visaType: string
+  visaNumber: string
+  maxHoursPerFortnight: number
 
-  // Step 3: Tax Information
+  // Step 2: Tax & Banking
   tfn: string
-  abn: string
+  taxFreeThreshold: boolean
   superannuationFund: string
   superannuationMemberNumber: string
-  taxWithholdingPercentage: number
   hasHelpDebt: boolean
-
-  // Step 4: Banking Details
   bankName: string
   accountNumber: string
   bsbCode: string
   accountHolderName: string
   accountType: 'savings' | 'cheque'
 
-  // Step 5: Employment Details
-  contractType: 'permanent' | 'fixed-term' | 'casual' | 'contractor'
-  startDate: string
-  endDate: string
-  wageType: 'salary' | 'hourly' | 'piecework'
-  salary: number
-  noticePeriod: number
-  probationPeriodEnd: string
-
-  // Step 6: Compliance & Certifications
+  // Step 3: Compliance (only if requiresCompliance)
   wwcStatus: 'not_required' | 'pending' | 'active' | 'expired'
   wwcExpiryDate: string
   policeClearanceStatus: 'pending' | 'active' | 'expired'
@@ -54,7 +52,9 @@ export interface StaffOnboardingFormData {
 
 export interface StaffOnboardingContextType {
   currentStep: number
+  totalSteps: number
   formData: StaffOnboardingFormData
+  requiresCompliance: boolean
   setFormData: (data: Partial<StaffOnboardingFormData>) => void
   nextStep: () => void
   prevStep: () => void
@@ -69,31 +69,35 @@ const initialFormData: StaffOnboardingFormData = {
   lastName: '',
   email: '',
   phone: '',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  postcode: '',
+  country: 'Australia',
   legalFirstName: '',
   legalMiddleNames: '',
   legalLastName: '',
   preferredName: '',
   nationality: '',
-  timeZone: 'Australia/Sydney',
-  locale: 'en-AU',
+  timeZone: 'Australia/Melbourne',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  australianIdType: '',
+  australianIdNumber: '',
+  visaType: '',
+  visaNumber: '',
+  maxHoursPerFortnight: 0,
   tfn: '',
-  abn: '',
+  taxFreeThreshold: true,
   superannuationFund: '',
   superannuationMemberNumber: '',
-  taxWithholdingPercentage: 0,
   hasHelpDebt: false,
   bankName: '',
   accountNumber: '',
   bsbCode: '',
   accountHolderName: '',
   accountType: 'savings',
-  contractType: 'permanent',
-  startDate: '',
-  endDate: '',
-  wageType: 'salary',
-  salary: 0,
-  noticePeriod: 2,
-  probationPeriodEnd: '',
   wwcStatus: 'pending',
   wwcExpiryDate: '',
   policeClearanceStatus: 'pending',
@@ -106,45 +110,69 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormDataState] = useState<StaffOnboardingFormData>(initialFormData)
   const [isLoading, setIsLoading] = useState(true)
-  
+  const [requiresCompliance, setRequiresCompliance] = useState(false)
+
   const employeeProfileQuery = useEmployeeProfile()
 
-  // Pre-fill form data from employee profile
   useEffect(() => {
+    if (employeeProfileQuery.isLoading) return
+
     if (employeeProfileQuery.data?.data?.employee) {
       const employee = employeeProfileQuery.data.data.employee
       const nameParts = employee.name?.split(' ') || ['', '']
-      
+
       setFormDataState(prev => ({
         ...prev,
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || '',
         email: employee.email || '',
         phone: employee.phone || '',
-        // Pre-fill legal names with the same values initially
         legalFirstName: nameParts[0] || '',
         legalLastName: nameParts.slice(1).join(' ') || '',
+        timeZone: (employee as any).timeZone || prev.timeZone,
+        nationality: (employee as any).nationality || prev.nationality,
+        preferredName: (employee as any).preferredName || prev.preferredName,
+        legalMiddleNames: (employee as any).legalMiddleNames || prev.legalMiddleNames,
+        addressLine1: (employee as any)?.address?.line1 || prev.addressLine1,
+        addressLine2: (employee as any)?.address?.line2 || prev.addressLine2,
+        city: (employee as any)?.address?.city || prev.city,
+        state: (employee as any)?.address?.state || prev.state,
+        postcode: (employee as any)?.address?.postcode || prev.postcode,
+        country: (employee as any)?.address?.country || prev.country,
+        emergencyContactName: (employee as any)?.emergencyContact?.name || prev.emergencyContactName,
+        emergencyContactPhone: (employee as any)?.emergencyContact?.phone || prev.emergencyContactPhone,
       }))
-      setIsLoading(false)
+
+      // Set by admin when creating the employee - derive from certifications array
+      const hasCertifications = Array.isArray((employee as any).certifications) && (employee as any).certifications.length > 0
+      setRequiresCompliance(hasCertifications)
     }
-  }, [employeeProfileQuery.data])
+
+    setIsLoading(false)
+  }, [employeeProfileQuery.data, employeeProfileQuery.isLoading, employeeProfileQuery.isError])
 
   const setFormData = (data: Partial<StaffOnboardingFormData>) => {
     setFormDataState((prev) => ({ ...prev, ...data }))
   }
 
-  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, 7))
+  // Base: Step 1 (Personal+Legal), Step 2 (Tax+Banking), Step 3 (Review)
+  // +1 if compliance required: Step 3 (Compliance), Step 4 (Review)
+  const totalSteps = requiresCompliance ? 4 : 3
+
+  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, totalSteps))
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1))
 
   return (
-    <StaffOnboardingContext.Provider value={{ 
-      currentStep, 
-      formData, 
-      setFormData, 
-      nextStep, 
-      prevStep, 
+    <StaffOnboardingContext.Provider value={{
+      currentStep,
+      totalSteps,
+      formData,
+      requiresCompliance,
+      setFormData,
+      nextStep,
+      prevStep,
       setCurrentStep,
-      isLoading 
+      isLoading,
     }}>
       {children}
     </StaffOnboardingContext.Provider>

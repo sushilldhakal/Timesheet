@@ -50,13 +50,6 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as DatePickerCalendar } from '@/components/ui/calendar';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -101,6 +94,7 @@ import useDashboardStore from '@/lib/store';
 import { startOfDay, endOfDay, format, parseISO, getISOWeek, getISOWeekYear } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils/cn';
+import { useDashboardLocationScope } from '@/components/providers/DashboardLocationScopeProvider';
 
 type KViewBase = 'day' | 'week' | 'month' | 'year';
 type KView = KViewBase | `list${KViewBase}`;
@@ -128,7 +122,6 @@ const EMPTY_EMPLOYEES: unknown[] = []
 const EMPTY_LOCATION_TEAMS: { teamId: string; teamName: string }[] = []
 
 export default function SchedulingPage() {
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [shifts, setShifts] = useState<Block[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -172,6 +165,10 @@ export default function SchedulingPage() {
     null,
   )
   const [settingsOverride, setSettingsOverride] = useState<Partial<Settings>>({})
+  const { primaryLocationId, selectedLocationIds } = useDashboardLocationScope()
+  
+  // Use the first selected location from the header, or fallback to primary location
+  const selectedLocationId = selectedLocationIds[0] || primaryLocationId || ''
 
   // Dashboard store for sidebar management
   const { setSidebarCollapsed, sidebarCollapsed } = useDashboardStore();
@@ -663,23 +660,6 @@ export default function SchedulingPage() {
   useEffect(() => {
     setSidebarCollapsed(true);
   }, [setSidebarCollapsed]);
-
-  useEffect(() => {
-    if (!locations.length) return;
-    if (selectedLocationId && locations.some((l: { id: string }) => l.id === selectedLocationId)) return;
-
-    const isRestricted =
-      userInfo &&
-      userInfo.role !== 'admin' &&
-      userInfo.role !== 'super_admin' &&
-      (userInfo.location?.length ?? 0) > 0;
-    if (isRestricted && userInfo?.location) {
-      const filtered = locations.filter((loc: { id: string; name: string }) => userInfo.location?.includes(loc.name));
-      if (filtered[0]) setSelectedLocationId(filtered[0].id);
-      return;
-    }
-    setSelectedLocationId(locations[0]!.id);
-  }, [userInfo, locations, selectedLocationId]);
 
   useEffect(() => {
     const s = userSchedulingSettingsQuery.data?.schedulingSettings;
@@ -1280,34 +1260,21 @@ export default function SchedulingPage() {
 
           <div className="flex items-center gap-4">
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Location</span>
+              <span className="text-xs font-medium text-muted-foreground">Current Location</span>
               <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-3">
                 <MapPin className="h-5 w-5 shrink-0 text-primary" />
-                <Select
-                  value={selectedLocationId || undefined}
-                  onValueChange={(v) => setSelectedLocationId(v)}
-                  disabled={locationOptions.length <= 1}
-                >
-                  <SelectTrigger className="w-[min(100%,280px)] min-w-[200px] border-0 bg-transparent shadow-none focus:ring-0">
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locationOptions.map((loc: { id: string; name: string }) => (
-                      <SelectItem key={loc.id} value={loc.id}>
-                        {loc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <span className="font-medium">
+                  {selectedLocationId 
+                    ? locationOptions.find((loc: { id: string; name: string }) => loc.id === selectedLocationId)?.name || 'Unknown Location'
+                    : 'No location selected'
+                  }
+                </span>
               </div>
-              {userInfo &&
-                userInfo.role !== 'admin' &&
-                userInfo.role !== 'super_admin' &&
-                (userInfo.location?.length ?? 0) > 0 && (
-                  <p className="max-w-[320px] text-[11px] text-muted-foreground">
-                    Only locations assigned to you are listed. Team scope follows your manager roles.
-                  </p>
-                )}
+              {!selectedLocationId && (
+                <p className="max-w-[320px] text-[11px] text-muted-foreground">
+                  Please select a location from the header to view schedules.
+                </p>
+              )}
             </div>
 
             <div className="rounded-lg border bg-muted px-4 py-3">

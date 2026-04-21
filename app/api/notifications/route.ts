@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db"
 import { scope } from "@/lib/db/tenant-model"
 import { Notification } from "@/lib/db/schemas/notification"
 import { z } from "zod"
+import { SUPER_ADMIN_SENTINEL } from "@/lib/auth/auth-api"
 
 const querySchema = z.object({
   read: z.string().optional(),
@@ -32,6 +33,11 @@ export const GET = createApiRoute({
     const ctx = await getTenantContext()
     if (!ctx || ctx.type !== "full") {
       return { status: 401, data: { error: "Unauthorized" } }
+    }
+
+    // Super admin in sentinel mode: return empty notifications
+    if (ctx.tenantId === SUPER_ADMIN_SENTINEL) {
+      return { status: 200, data: { notifications: [], total: 0, unreadCount: 0 } }
     }
 
     await connectDB()

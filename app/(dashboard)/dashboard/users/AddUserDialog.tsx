@@ -62,8 +62,6 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, currentUserRole }
       { value: UserRole.MANAGER, label: "Manager" },
       { value: UserRole.SUPERVISOR, label: "Supervisor" },
       { value: UserRole.ACCOUNTS, label: "Accounts" },
-      { value: UserRole.USER, label: "User (Deprecated)" },
-      { value: UserRole.EMPLOYEE, label: "Employee" },
     ]
   }, [])
 

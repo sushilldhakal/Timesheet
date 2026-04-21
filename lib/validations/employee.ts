@@ -1,25 +1,35 @@
 import { z } from "zod"
 import { objectIdSchema, dateTimeSchema, emailSchema, phoneSchema, pinSchema, extendedPaginationSchema } from "./common"
 
+// Employee Certification Schema
+export const employeeCertificationSchema = z.object({
+  type: z.enum(['wwcc', 'police_check', 'food_safety', 'rsa', 'other']),
+  label: z.string().optional(),
+  required: z.boolean(),
+})
+
 export const employeeCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   pin: pinSchema,
   email: emailSchema.optional(),
   phone: phoneSchema,
-  homeAddress: z.string().max(500).optional().or(z.literal("")),
-  dob: z.string().optional().or(z.literal("")),
-  gender: z.string().optional().or(z.literal("")),
   comment: z.string().max(1000).optional(),
   img: z.string().url().optional(),
+  profileImage: z.string().url().optional(),
   employmentType: z.string().optional(),
   standardHoursPerWeek: z.number().min(0).max(168).optional(),
-  role: z.array(z.string()).optional(), // Category names
+  team: z.array(z.string()).optional(), // Category names (legacy - for single location or Cartesian product)
   location: z.array(z.string()).optional(), // Category names
   employer: z.array(z.string()).optional(), // Category names
+  locationTeamAssignments: z.array(z.object({
+    location: z.string(),
+    team: z.string(),
+  })).optional(), // Per-location team assignments (preferred for multi-location)
   awardId: objectIdSchema.optional(),
   awardLevel: z.string().optional(),
   password: z.string().min(8).optional(),
   sendSetupEmail: z.boolean().optional(),
+  certifications: z.array(employeeCertificationSchema).optional(),
 })
 
 export const employeeUpdateSchema = z.object({
@@ -27,14 +37,12 @@ export const employeeUpdateSchema = z.object({
   pin: pinSchema.optional(),
   email: emailSchema.optional(),
   phone: phoneSchema,
-  homeAddress: z.string().max(500).optional().or(z.literal("")),
-  dob: z.string().optional().or(z.literal("")),
-  gender: z.string().optional().or(z.literal("")),
   comment: z.string().max(1000).optional(),
   img: z.string().url().optional(),
+  profileImage: z.string().url().optional(),
   employmentType: z.string().optional(),
   standardHoursPerWeek: z.number().min(0).max(168).optional(),
-  role: z.array(z.string()).optional(), // Category names (deprecated - use EmployeeRoleAssignment API)
+  team: z.array(z.string()).optional(), // Category names (deprecated - use EmployeeRoleAssignment API)
   employer: z.array(z.string()).optional(),
   location: z.array(z.string()).optional(),
   awardId: objectIdSchema.optional(),
@@ -42,6 +50,7 @@ export const employeeUpdateSchema = z.object({
   isActive: z.boolean().optional(),
   password: z.string().min(8).optional(),
   sendSetupEmail: z.boolean().optional(),
+  certifications: z.array(employeeCertificationSchema).optional(),
 })
 
 export const employeeResponseSchema = z.object({
@@ -56,18 +65,20 @@ export const employeeResponseSchema = z.object({
   img: z.string().optional(),
   employmentType: z.string().optional(),
   standardHoursPerWeek: z.number().optional(),
-  roles: z.array(z.any()).optional(),
+  teams: z.array(z.any()).optional(),
   employers: z.array(z.any()).optional(),
   locations: z.array(z.any()).optional(),
   awardId: z.string().optional(),
   awardLevel: z.string().optional(),
   isActive: z.boolean(),
+  onboardingCompleted: z.boolean().optional(),
+  onboardingCompletedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })
 
 export const assignRoleSchema = z.object({
-  roleId: objectIdSchema,
+  teamId: objectIdSchema,
   locationId: objectIdSchema,
   validFrom: dateTimeSchema.optional(),
   validTo: dateTimeSchema.optional(),
@@ -83,7 +94,7 @@ export const updateAssignmentSchema = z.object({
 export const employeeQuerySchema = extendedPaginationSchema.extend({
   search: z.string().optional(),
   location: z.string().optional(),
-  role: z.string().optional(),
+  team: z.string().optional(),
   employer: z.string().optional(),
 }).merge(z.object({
   sortBy: z.string().optional().default('name'),
@@ -98,7 +109,7 @@ export const employeeListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   pin: z.string(),
-  roles: z.array(z.any()), // Simplified for now
+  teams: z.array(z.any()), // Simplified for now
   employers: z.array(z.any()), // Simplified for now
   locations: z.array(z.any()), // Simplified for now
   email: z.string(),
@@ -112,6 +123,8 @@ export const employeeListItemSchema = z.object({
   standardHoursPerWeek: z.number().nullable(),
   awardId: z.string().nullable(),
   awardLevel: z.string().nullable(),
+  onboardingCompleted: z.boolean().optional(),
+  onboardingCompletedAt: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

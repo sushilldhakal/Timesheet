@@ -1,176 +1,214 @@
 /**
- * Unified Storage Manager
- * Dynamically uses Cloudinary or Cloudflare R2 based on database settings
+ * Centralized R2 Storage Manager
+ * Uses system-wide R2 configuration with per-org quotas
  */
 
 import { connectDB } from "@/lib/db"
-import { StorageSettings } from "@/lib/db/schemas/storage-settings"
-import { decrypt } from "@/lib/utils/storage/encryption"
+import { SystemSettingsService } from "@/lib/services/superadmin/system-settings-service"
+import { QuotaService } from "@/lib/services/superadmin/quota-service"
+import { MediaFileRepo } from "@/lib/db/queries/media-file"
+import { StorageQuotaExceededError } from "@/lib/errors/storage-quota-exceeded"
+import { uploadToR2, deleteFromR2 } from "./r2"
+import mongoose from "mongoose"
 
 export type UploadResult = {
   url: string
   publicId: string
-  provider: "cloudinary" | "r2"
+  provider: "r2"
 }
 
-export type StorageConfig = {
-  provider: "cloudinary" | "r2"
-  cloudinary?: {
-    cloudName: string
-    apiKey: string
-    apiSecret: string
-  }
-  r2?: {
-    accountId: string
-    accessKeyId: string
-    secretAccessKey: string
-    bucketName: string
-    publicUrl?: string
-  }
+type R2Config = {
+  accountId: string
+  accessKeyId: string
+  secretAccessKey: string
+  bucketName: string
+  publicUrl?: string
 }
 
 /**
- * Get active storage configuration from database
+ * Sanitize filename for R2 key
  */
-export async function getStorageConfig(): Promise<StorageConfig | null> {
-  try {
-    await connectDB()
-    const settings = await StorageSettings.findOne({ isActive: true }).lean()
-    
-    if (!settings) {
-      console.warn("No active storage settings found in database")
-      return null
-    }
-    
-    const config: StorageConfig = {
-      provider: settings.provider,
-    }
-    
-    if (settings.provider === "cloudinary") {
-      if (!settings.cloudinaryCloudName || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) {
-        console.error("Cloudinary settings incomplete")
-        return null
-      }
-      
-      config.cloudinary = {
-        cloudName: settings.cloudinaryCloudName,
-        apiKey: settings.cloudinaryApiKey,
-        apiSecret: decrypt(settings.cloudinaryApiSecret),
-      }
-    } else if (settings.provider === "r2") {
-      if (!settings.r2AccountId || !settings.r2AccessKeyId || !settings.r2SecretAccessKey || !settings.r2BucketName) {
-        console.error("R2 settings incomplete")
-        return null
-      }
-      
-      config.r2 = {
-        accountId: settings.r2AccountId,
-        accessKeyId: settings.r2AccessKeyId,
-        secretAccessKey: decrypt(settings.r2SecretAccessKey),
-        bucketName: settings.r2BucketName,
-        publicUrl: settings.r2PublicUrl,
-      }
-    }
-    
-    return config
-  } catch (error) {
-    console.error("Failed to get storage config:", error)
-    return null
-  }
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
 }
 
 /**
- * Upload file to configured storage provider
+ * Upload file to R2 with quota check
  */
 export async function uploadFile(
   file: Buffer | string,
-  options?: {
+  options: {
+    orgId: string
+    uploadedBy: string
     folder?: string
     filename?: string
+    mimeType?: string
   }
 ): Promise<UploadResult> {
-  const config = await getStorageConfig()
+  await connectDB()
   
-  if (!config) {
-    throw new Error("No storage configuration found. Please configure storage in Settings.")
+  // Get system settings
+  const settings = await SystemSettingsService.getDecrypted()
+  
+  if (!settings?.r2AccountId || !settings?.r2AccessKeyId || !settings?.r2SecretAccessKey || !settings?.r2BucketName) {
+    throw new Error("Storage not configured. Contact your administrator.")
   }
   
-  if (config.provider === "cloudinary" && config.cloudinary) {
-    const { uploadToCloudinary } = await import("./cloudinary")
-    const result = await uploadToCloudinary(file, config.cloudinary, options)
-    return {
-      url: result.secure_url,
-      publicId: result.public_id,
-      provider: "cloudinary",
+  // Calculate file size
+  let fileSize: number
+  let buffer: Buffer
+  
+  if (Buffer.isBuffer(file)) {
+    buffer = file
+    fileSize = file.length
+  } else if (typeof file === "string") {
+    if (file.startsWith("data:")) {
+      const base64Data = file.split(",")[1]
+      buffer = Buffer.from(base64Data, "base64")
+    } else {
+      buffer = Buffer.from(file, "base64")
     }
-  } else if (config.provider === "r2" && config.r2) {
-    const { uploadToR2 } = await import("./r2")
-    const result = await uploadToR2(file, config.r2, options)
-    return {
-      url: result.url,
-      publicId: result.key,
-      provider: "r2",
+    fileSize = buffer.length
+  } else {
+    throw new Error("Invalid file format")
+  }
+  
+  // Check quota
+  const allowed = await QuotaService.checkStorageAllowed(options.orgId, fileSize)
+  
+  if (!allowed) {
+    const quota = await QuotaService.getStorageQuota(options.orgId)
+    throw new StorageQuotaExceededError(options.orgId, quota.quotaBytes)
+  }
+  
+  // Build R2 key
+  const sanitizedFilename = sanitizeFilename(options.filename || `${Date.now()}-file`)
+  const r2Key = `org_${options.orgId}/files/${Date.now()}_${sanitizedFilename}`
+  
+  // Upload to R2
+  const r2Config: R2Config = {
+    accountId: settings.r2AccountId,
+    accessKeyId: settings.r2AccessKeyId,
+    secretAccessKey: settings.r2SecretAccessKey,
+    bucketName: settings.r2BucketName,
+    publicUrl: settings.r2PublicUrl,
+  }
+  
+  const result = await uploadToR2(buffer, r2Config, { 
+    folder: '', // We're using the full key path
+    filename: r2Key 
+  })
+  
+  // Insert MediaFile record
+  await MediaFileRepo.create({
+    orgId: new mongoose.Types.ObjectId(options.orgId),
+    r2Key,
+    originalName: options.filename || 'unknown',
+    mimeType: options.mimeType || 'application/octet-stream',
+    sizeBytes: fileSize,
+    uploadedBy: new mongoose.Types.ObjectId(options.uploadedBy),
+  })
+  
+  // Increment storage quota
+  await QuotaService.incrementStorage(options.orgId, fileSize)
+  
+  return {
+    url: result.url,
+    publicId: r2Key,
+    provider: "r2",
+  }
+}
+
+/**
+ * Delete file from R2 and update quota
+ */
+export async function deleteFile(r2Key: string, orgId: string): Promise<void> {
+  await connectDB()
+  
+  // Get system settings
+  const settings = await SystemSettingsService.getDecrypted()
+  
+  if (!settings?.r2AccountId || !settings?.r2AccessKeyId || !settings?.r2SecretAccessKey || !settings?.r2BucketName) {
+    throw new Error("Storage not configured. Contact your administrator.")
+  }
+  
+  // Find MediaFile record
+  const mediaFile = await MediaFileRepo.findByR2Key(r2Key)
+  
+  if (!mediaFile) {
+    console.warn(`MediaFile record not found for key: ${r2Key}`)
+    return
+  }
+  
+  // Delete from R2
+  const r2Config: R2Config = {
+    accountId: settings.r2AccountId,
+    accessKeyId: settings.r2AccessKeyId,
+    secretAccessKey: settings.r2SecretAccessKey,
+    bucketName: settings.r2BucketName,
+    publicUrl: settings.r2PublicUrl,
+  }
+  
+  await deleteFromR2(r2Key, r2Config)
+  
+  // Delete MediaFile record
+  await MediaFileRepo.deleteByR2Key(r2Key)
+  
+  // Decrement storage quota
+  await QuotaService.decrementStorage(orgId, mediaFile.sizeBytes)
+}
+
+/**
+ * Delete files before a specific date
+ */
+export async function deleteFilesBeforeDate(
+  beforeDate: Date,
+  orgId: string
+): Promise<{ deletedCount: number; freedBytes: number }> {
+  await connectDB()
+  
+  // Get system settings
+  const settings = await SystemSettingsService.getDecrypted()
+  
+  if (!settings?.r2AccountId || !settings?.r2AccessKeyId || !settings?.r2SecretAccessKey || !settings?.r2BucketName) {
+    throw new Error("Storage not configured. Contact your administrator.")
+  }
+  
+  const r2Config: R2Config = {
+    accountId: settings.r2AccountId,
+    accessKeyId: settings.r2AccessKeyId,
+    secretAccessKey: settings.r2SecretAccessKey,
+    bucketName: settings.r2BucketName,
+    publicUrl: settings.r2PublicUrl,
+  }
+  
+  // Find all files before date
+  const files = await MediaFileRepo.findBeforeDate(orgId, beforeDate)
+  
+  let deletedCount = 0
+  let freedBytes = 0
+  
+  for (const file of files) {
+    try {
+      // Delete from R2
+      await deleteFromR2(file.r2Key, r2Config)
+      
+      // Delete DB record
+      await MediaFileRepo.deleteByR2Key(file.r2Key)
+      
+      deletedCount++
+      freedBytes += file.sizeBytes
+    } catch (error) {
+      console.error(`Failed to delete file ${file.r2Key}:`, error)
     }
   }
   
-  throw new Error("Invalid storage configuration")
-}
-
-/**
- * Delete file from configured storage provider
- */
-export async function deleteFile(publicId: string, provider?: "cloudinary" | "r2"): Promise<void> {
-  const config = await getStorageConfig()
-  
-  if (!config) {
-    throw new Error("No storage configuration found")
+  // Decrement storage quota
+  if (freedBytes > 0) {
+    await QuotaService.decrementStorage(orgId, freedBytes)
   }
   
-  // Use provided provider or fall back to current config
-  const targetProvider = provider || config.provider
-  
-  if (targetProvider === "cloudinary" && config.cloudinary) {
-    const { deleteFromCloudinary } = await import("./cloudinary")
-    await deleteFromCloudinary(publicId, config.cloudinary)
-  } else if (targetProvider === "r2" && config.r2) {
-    const { deleteFromR2 } = await import("./r2")
-    await deleteFromR2(publicId, config.r2)
-  }
-}
-
-/**
- * Delete files older than a given number of days
- */
-export async function deleteFilesOlderThanDays(
-  olderThanDays: number,
-  folder?: string
-): Promise<{ deleted: number; errors: number }> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - olderThanDays)
-  const beforeDate = cutoff.toISOString().slice(0, 10)
-  return deleteFilesOlderThanDate(beforeDate, folder)
-}
-
-/**
- * Delete files older than a specific date
- */
-export async function deleteFilesOlderThanDate(
-  beforeDate: string,
-  folder?: string
-): Promise<{ deleted: number; errors: number }> {
-  const config = await getStorageConfig()
-  
-  if (!config) {
-    throw new Error("No storage configuration found")
-  }
-  
-  if (config.provider === "cloudinary" && config.cloudinary) {
-    const { deleteImagesOlderThanDate } = await import("./cloudinary")
-    return await deleteImagesOlderThanDate(beforeDate, config.cloudinary, folder)
-  } else if (config.provider === "r2" && config.r2) {
-    const { deleteFilesOlderThanDate: deleteR2Files } = await import("./r2")
-    return await deleteR2Files(beforeDate, config.r2, folder)
-  }
-  
-  return { deleted: 0, errors: 0 }
+  return { deletedCount, freedBytes }
 }

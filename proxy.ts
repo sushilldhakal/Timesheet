@@ -33,6 +33,8 @@ function isAdminDashboardPath(pathname: string) {
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  
+  console.log('[PROXY] Request to:', pathname)
 
   // Skip API routes (handled by route handlers)
   if (pathname.startsWith("/api/")) {
@@ -80,15 +82,30 @@ export default async function proxy(request: NextRequest) {
 
   // Continue with normal auth flow
   const token = getTokenFromRequest(request)
+  console.log('[PROXY] Token found:', !!token)
   let auth = null
   if (token) {
     try {
       auth = await verifyAuthToken(token)
-    } catch {
+      console.log('[PROXY] Auth verified:', !!auth, 'Role:', auth?.role)
+      
+      // SECURITY: Verify user still exists in database
+      if (auth) {
+        const { connectDB, User } = await import("@/lib/db")
+        await connectDB()
+        const user = await User.findById(auth.sub).select("_id").lean()
+        if (!user) {
+          console.log('[PROXY] User not found in database, invalidating token')
+          auth = null
+        }
+      }
+    } catch (err) {
+      console.log('[PROXY] Auth verification failed:', err)
       auth = null
     }
   }
   const isAuthenticated = !!auth
+  console.log('[PROXY] isAuthenticated:', isAuthenticated, 'pathname:', pathname)
 
   // Keep authenticated users away from auth pages
   if (isAuthPath(pathname) && isAuthenticated) {
@@ -97,6 +114,7 @@ export default async function proxy(request: NextRequest) {
 
   // Protect admin dashboard routes on the edge to avoid rendering protected pages unauthenticated
   if (isAdminDashboardPath(pathname) && !isAuthenticated) {
+    console.log('[PROXY] Blocking unauthenticated access to:', pathname)
     const loginUrl = new URL("/", request.url)
     loginUrl.searchParams.set("redirect", pathname)
     return NextResponse.redirect(loginUrl)

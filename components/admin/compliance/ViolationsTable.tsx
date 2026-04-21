@@ -11,14 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -180,42 +173,37 @@ export function ViolationsTable() {
       )}
 
       {/* Resolve Dialog */}
-      <Dialog open={!!resolveTarget} onOpenChange={(open) => !open && setResolveTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Resolve Violation</DialogTitle>
-            <DialogDescription>
-              Mark this compliance violation as resolved. Add notes to explain the resolution.
-            </DialogDescription>
-          </DialogHeader>
-          {resolveTarget && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-3 text-sm">
-                <p className="font-medium">{RULE_TYPE_LABELS[resolveTarget.ruleType] ?? resolveTarget.ruleType}</p>
-                <p className="text-muted-foreground mt-1">{resolveTarget.message}</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="resolve-notes">Resolution Notes (optional)</Label>
-                <Textarea
-                  id="resolve-notes"
-                  placeholder="Explain why this violation is being resolved..."
-                  value={resolveNotes}
-                  onChange={(e) => setResolveNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
+      <FormDialogShell
+        open={!!resolveTarget}
+        onOpenChange={(open) => !open && setResolveTarget(null)}
+        title="Resolve Violation"
+        description="Mark this compliance violation as resolved. Add notes to explain the resolution."
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleResolve();
+        }}
+        submitLabel={resolveViolation.isPending ? "Resolving..." : "Resolve Violation"}
+        loading={resolveViolation.isPending}
+      >
+        {resolveTarget && (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-3 text-sm">
+              <p className="font-medium">{RULE_TYPE_LABELS[resolveTarget.ruleType] ?? resolveTarget.ruleType}</p>
+              <p className="text-muted-foreground mt-1">{resolveTarget.message}</p>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResolveTarget(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleResolve} disabled={resolveViolation.isPending}>
-              {resolveViolation.isPending ? "Resolving..." : "Resolve Violation"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-2">
+              <Label htmlFor="resolve-notes">Resolution Notes (optional)</Label>
+              <Textarea
+                id="resolve-notes"
+                placeholder="Explain why this violation is being resolved..."
+                value={resolveNotes}
+                onChange={(e) => setResolveNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+        )}
+      </FormDialogShell>
     </div>
   )
 }

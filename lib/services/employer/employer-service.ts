@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { EmployerDbQueries } from "@/lib/db/queries/employers";
+import { QuotaService } from "@/lib/services/superadmin/quota-service";
 
 function mapEmployer(e: any) {
   return {
@@ -35,6 +36,16 @@ export class EmployerService {
     if (existing) return { status: 409, data: { error: "An employer with this name already exists" } };
 
     const created = await EmployerDbQueries.createEmployer({ ...body, name });
+    
+    // Provision default quotas for new organization
+    try {
+      await QuotaService.getStorageQuota(created._id.toString());
+      await QuotaService.getEmailUsage(created._id.toString());
+    } catch (error) {
+      console.error("Failed to provision quotas for new employer:", error);
+      // Don't fail the employer creation if quota provisioning fails
+    }
+    
     return { status: 200, data: { employer: mapEmployer(created) } };
   }
 

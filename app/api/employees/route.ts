@@ -10,7 +10,7 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { apiErrors } from "@/lib/api/api-error"
 import { employeeService } from "@/lib/services/employee/employee-service"
 
-/** GET /api/employees?search=...&limit=50&offset=0&location=...&role=...&employer=... - List employees with search and pagination */
+/** GET /api/employees?search=...&limit=50&offset=0&location=...&team=...&employer=... - List employees with search and pagination */
 export const GET = createApiRoute({
   method: 'GET',
   path: '/api/employees',
@@ -39,7 +39,7 @@ export const POST = createApiRoute({
   method: 'POST',
   path: '/api/employees',
   summary: 'Create employee',
-  description: 'Create a new employee with optional role assignments and email setup',
+  description: 'Create a new employee with optional team assignments and email setup',
   tags: ['Employees'],
   security: 'adminAuth',
   request: {

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2, FileDown } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ExportDialog } from "@/components/payroll/export-dialog"
@@ -484,66 +484,51 @@ export default function PayRunsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Pay Run</DialogTitle>
-            <DialogDescription>
-              Set the pay period dates and optional notes for this pay run.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes about this pay run..."
-              />
-            </div>
+      <FormDialogShell
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        title="Create New Pay Run"
+        description="Set the pay period dates and optional notes for this pay run."
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleCreatePayRun();
+        }}
+        submitLabel={creating ? "Creating..." : "Create Pay Run"}
+        loading={creating}
+        disabled={!startDate || !endDate}
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="startDate">Start Date</Label>
+            <Input
+              id="startDate"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
           </div>
           
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setCreateDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreatePayRun}
-              disabled={!startDate || !endDate || creating}
-            >
-              {creating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
-              Create Pay Run
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div>
+            <Label htmlFor="endDate">End Date</Label>
+            <Input
+              id="endDate"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes about this pay run..."
+            />
+          </div>
+        </div>
+      </FormDialogShell>
 
       {exportPayRunId && (
         <ExportDialog

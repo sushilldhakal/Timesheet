@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, User, DollarSign, Award, Shield, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEmployeeProfile, useChangeEmployeePassword } from '@/lib/queries/employee-clock'
-import { useEmployeeTaxInfo, useEmployeeBankDetails, useEmployeeQualifications, useEmployeeCompliance } from '@/lib/queries/employees'
+import { useEmployeeTaxInfo, useEmployeeQualifications, useEmployeeCompliance } from '@/lib/queries/employees'
 import { EmployeeInfoSidebarCard } from '@/components/employees/employee-info-sidebar-card'
 import { ChangePasswordCard } from '@/components/profile/change-password-card'
 import { StaffOverviewTab } from '@/components/staff/profile-tabs/staff-overview-tab'
@@ -27,7 +27,6 @@ export default function StaffProfilePage() {
 
   // Prefetch all tab data in parallel so tabs render instantly when clicked
   useEmployeeTaxInfo(employeeId)
-  useEmployeeBankDetails(employeeId)
   useEmployeeQualifications(employeeId)
   useEmployeeCompliance(employeeId)
 

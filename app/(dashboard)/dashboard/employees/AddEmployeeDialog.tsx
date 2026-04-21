@@ -22,7 +22,7 @@ import { useLocations, useLocationTeams } from "@/lib/queries/locations"
 import { useTeams } from "@/lib/queries/teams"
 import { useEmployers } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
-import { useCreateEmployee, useGeneratePin, useCheckPin } from "@/lib/queries/employees"
+import { useCreateEmployee, useGeneratePin } from "@/lib/queries/employees"
 import { useUploadImage } from "@/lib/queries/upload"
 
 type Props = {
@@ -41,7 +41,7 @@ const STEPS = [
   {
     id: "work",
     title: "Work Assignment",
-    description: "Roles & locations",
+    description: "Teams & locations",
     icon: <Briefcase className="size-4" />,
   },
   {
@@ -67,15 +67,27 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const [img, setImg] = useState("")
   
   // Work Assignment
-  const [role, setRole] = useState<string[]>([])
+  const [team, setTeam] = useState<string[]>([])
   const [employer, setEmployer] = useState<string[]>([])
   const [location, setLocation] = useState<string[]>([])
+  const [locationTeamAssignments, setLocationTeamAssignments] = useState<Array<{ location: string; team: string }>>([])
   
   // Employment Details
   const [standardHours, setStandardHours] = useState<number | null>(null)
   const [employmentType, setEmploymentType] = useState<string>("")
   const [awardId, setAwardId] = useState<string>("")
   const [awardLevel, setAwardLevel] = useState<string>("")
+  
+  // Compliance
+  const [requiresCompliance, setRequiresCompliance] = useState(false)
+  
+  // Certifications (structured)
+  const [certifications, setCertifications] = useState<Array<{
+    type: 'wwcc' | 'police_check' | 'food_safety' | 'rsa' | 'other'
+    label?: string
+    required: boolean
+  }>>([])
+  const [otherCertLabel, setOtherCertLabel] = useState("")
   
   // Password setup
   const [password, setPassword] = useState("")
@@ -95,7 +107,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   const generatePinMutation = useGeneratePin()
   const uploadImageMutation = useUploadImage()
   
-  // Get enabled roles for the first selected location
+  // Get enabled Teams for the first selected location
   const firstLocationId = useMemo(() => {
     if (location.length === 0) return null
     const firstLoc = locationsQuery.data?.locations?.find(c => c.name === location[0])
@@ -104,15 +116,15 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   
   const locationTeamsQuery = useLocationTeams(firstLocationId)
 
-  const roleOptions = useMemo(() => {
-    const allRoles = teamsQuery.data?.teams?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
+  const teamOptions = useMemo(() => {
+    const allTeams = teamsQuery.data?.teams?.map((c: any) => ({ value: c.name, label: c.name, id: c.id || c._id })) || []
     
-    if (location.length === 0) return allRoles
+    if (location.length === 0) return allTeams
     
     const enabledTeamIds = locationTeamsQuery.data?.teams?.map((t) => t.teamId) || []
-    if (enabledTeamIds.length === 0) return allRoles
+    if (enabledTeamIds.length === 0) return allTeams
     
-    return allRoles.filter((role) => enabledTeamIds.includes(role.id))
+    return allTeams.filter((team) => enabledTeamIds.includes(team.id))
   }, [teamsQuery.data?.teams, location, locationTeamsQuery.data])
   
   const employerOptions = useMemo(() => 
@@ -130,6 +142,22 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     }
   }, [locationOptions])
   
+  // Initialize locationTeamAssignments when locations change
+  useEffect(() => {
+    if (location.length > 1) {
+      // Multi-location: initialize per-location assignments
+      setLocationTeamAssignments(
+        location.map((loc) => {
+          const existing = locationTeamAssignments.find((a) => a.location === loc)
+          return existing || { location: loc, team: "" }
+        })
+      )
+    } else {
+      // Single location: clear per-location assignments
+      setLocationTeamAssignments([])
+    }
+  }, [location])
+  
   useEffect(() => {
     if (employerOptions.length === 1 && employer.length === 0) {
       setEmployer([employerOptions[0].value])
@@ -140,12 +168,12 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     if (location.length > 0 && locationTeamsQuery.data?.teams) {
       const enabledTeamIds = locationTeamsQuery.data.teams.map((t) => t.teamId)
       
-      setRole((prev) => {
-        const validRoles = prev.filter((roleName) => {
-          const roleData = teamsQuery.data?.teams?.find((c: any) => c.name === roleName) as any
-          return roleData && enabledTeamIds.includes(roleData.id || roleData._id)
+      setTeam((prev) => {
+        const validTeams = prev.filter((teamName) => {
+          const teamData = teamsQuery.data?.teams?.find((c: any) => c.name === teamName) as any
+          return teamData && enabledTeamIds.includes(teamData.id || teamData._id)
         })
-        return validRoles
+        return validTeams
       })
     }
   }, [location, locationTeamsQuery.data, teamsQuery.data])
@@ -195,20 +223,20 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     setCurrentStep(0)
     setName("")
     setPin("")
-    setRole([])
-    setEmployer([])
-    setLocation([])
     setEmail("")
     setPhone("")
-    setHomeAddress("")
-    setDob("")
-    setGender("")
     setComment("")
     setImg("")
-    setEmploymentType("")
+    setTeam([])
+    setEmployer([])
+    setLocation([])
+    setLocationTeamAssignments([])
     setStandardHours(null)
+    setEmploymentType("")
     setAwardId("")
     setAwardLevel("")
+    setCertifications([])
+    setOtherCertLabel("")
     setPassword("")
     setSendSetupEmail(true)
     setError(null)
@@ -234,7 +262,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     }
   }
 
-  const handleSubmit = async (quickCreate: boolean = false) => {
+  const handleSubmit = async (_quickCreate: boolean = false) => {
     setError(null)
 
     const finalPin = getEffectivePin()
@@ -258,9 +286,10 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
         dob: dob || undefined,
         gender: gender.trim(),
         comment: comment.trim() || undefined,
-        role: role.length > 0 ? role : undefined,
+        team: location.length === 1 ? team : undefined, // Only for single location
         employer: employer.length > 0 ? employer : undefined,
         location: location.length > 0 ? location : undefined,
+        locationTeamAssignments: location.length > 1 ? locationTeamAssignments.filter(a => a.team) : undefined,
         employmentType: employmentType || undefined,
         standardHoursPerWeek: standardHours,
         awardId: awardId || undefined,
@@ -300,12 +329,12 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
   }
 
   // Check if Quick Create is enabled
-  // Required: name, email, roles, location, awards, employer
+  // Required: name, email, teams, location, awards, employer
   const canQuickCreate = () => {
     return (
       name.trim().length > 0 &&
       email.trim().length > 0 &&
-      role.length > 0 &&
+      team.length > 0 &&
       location.length > 0 &&
       employer.length > 0 &&
       awardId.length > 0
@@ -327,7 +356,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
             {/* Profile Photo Upload - Always visible */}
             <div className="w-full">
               <div className="flex flex-col items-center gap-4">
-                <div className="relative h-32 w-32 rounded-full overflow-hidden bg-background flex items-center justify-center flex-shrink-0 border-4 border-background shadow-lg">
+                <div className="relative h-32 w-32 rounded-full overflow-hidden bg-background flex items-center justify-center shrink-0 border-4 border-background shadow-lg">
                   {img ? (
                     <>
                       <img src={img} alt="Preview" className="h-full w-full object-cover" decoding="async" />
@@ -370,8 +399,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
             <div className="flex-1 flex flex-col items-center justify-center">
               <div className="mb-4 flex justify-center">
                 <img
-                  src={gender === "Female" ? "/female.svg" : "/male.svg"}
-                  alt={gender === "Female" ? "Female" : "Male"}
+                  src="/male.svg"
+                  alt="Employee"
                   className="h-64 w-auto"
                 />
               </div>
@@ -466,42 +495,6 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                   />
                 </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="add-employee-dob">Date of Birth</FieldLabel>
-                  <Input
-                    id="add-employee-dob"
-                    type="date"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                  />
-                </Field>
-
-                <Field> 
-                  <FieldLabel htmlFor="add-employee-home-address">Gender</FieldLabel>
-                  <select
-                    id="add-employee-gender"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Select gender...</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </Field>
-
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor="add-employee-home-address">Home Address</FieldLabel>
-                  <Input
-                    id="add-employee-home-address"
-                    value={homeAddress}
-                    onChange={(e) => setHomeAddress(e.target.value)}
-                    placeholder="123 Main Street, Melbourne VIC 3000"
-                  />
-                </Field>
-
                 <Field className="sm:col-span-2">
                   <FieldLabel htmlFor="add-employee-comment">Comments / Notes</FieldLabel>
                   <textarea
@@ -530,25 +523,72 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                   disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select location first to filter available roles
+                  Select location first to filter available teams
                 </p>
               </Field>
 
-              <Field>
-                <FieldLabel>Roles</FieldLabel>
-                <MultiSelect
-                  options={roleOptions}
-                  onValueChange={setRole}
-                  defaultValue={role}
-                  placeholder={location.length === 0 ? "Select location first..." : "Select roles..."}
-                  disabled={loading || location.length === 0}
-                />
-                {location.length > 0 && roleOptions.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    No roles enabled for this location. Please enable roles in Location settings.
+              {location.length === 1 ? (
+                // Single location: show team multi-select
+                <Field>
+                  <FieldLabel>Teams</FieldLabel>
+                  <MultiSelect
+                    options={teamOptions}
+                    onValueChange={setTeam}
+                    defaultValue={team}
+                    placeholder="Select teams..."
+                    disabled={loading}
+                  />
+                  {location.length > 0 && teamOptions.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      No teams enabled for this location. Please enable teams in Location settings.
+                    </p>
+                  )}
+                </Field>
+              ) : location.length > 1 ? (
+                // Multiple locations: show per-location team table
+                <Field>
+                  <FieldLabel>Team per Location *</FieldLabel>
+                  <div className="border rounded-md overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="text-left p-3 font-medium">Location</th>
+                          <th className="text-left p-3 font-medium">Team</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {locationTeamAssignments.map((assignment, index) => (
+                          <tr key={assignment.location} className="border-t">
+                            <td className="p-3">{assignment.location}</td>
+                            <td className="p-3">
+                              <select
+                                value={assignment.team}
+                                onChange={(e) => {
+                                  const updated = [...locationTeamAssignments]
+                                  updated[index].team = e.target.value
+                                  setLocationTeamAssignments(updated)
+                                }}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                disabled={loading}
+                              >
+                                <option value="">Select team...</option>
+                                {teamOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assign a team for each location. This allows different roles at different sites.
                   </p>
-                )}
-              </Field>
+                </Field>
+              ) : null}
 
               <Field>
                 <FieldLabel>Employers</FieldLabel>
@@ -677,6 +717,127 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                 </Field>
               </div>
 
+              {/* Compliance Certifications */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-medium mb-3">Required Compliance Certifications</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Select which certifications this employee must provide during onboarding
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cert-wwcc"
+                      checked={certifications.some(c => c.type === 'wwcc')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCertifications([...certifications, { type: 'wwcc', required: true }])
+                        } else {
+                          setCertifications(certifications.filter(c => c.type !== 'wwcc'))
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <FieldLabel htmlFor="cert-wwcc" className="mb-0 cursor-pointer">
+                      Working with Children Check (WWCC)
+                    </FieldLabel>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cert-police"
+                      checked={certifications.some(c => c.type === 'police_check')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCertifications([...certifications, { type: 'police_check', required: true }])
+                        } else {
+                          setCertifications(certifications.filter(c => c.type !== 'police_check'))
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <FieldLabel htmlFor="cert-police" className="mb-0 cursor-pointer">
+                      Police Clearance
+                    </FieldLabel>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cert-food"
+                      checked={certifications.some(c => c.type === 'food_safety')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCertifications([...certifications, { type: 'food_safety', required: true }])
+                        } else {
+                          setCertifications(certifications.filter(c => c.type !== 'food_safety'))
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <FieldLabel htmlFor="cert-food" className="mb-0 cursor-pointer">
+                      Food Handling Certificate
+                    </FieldLabel>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cert-rsa"
+                      checked={certifications.some(c => c.type === 'rsa')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCertifications([...certifications, { type: 'rsa', required: true }])
+                        } else {
+                          setCertifications(certifications.filter(c => c.type !== 'rsa'))
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <FieldLabel htmlFor="cert-rsa" className="mb-0 cursor-pointer">
+                      RSA — Responsible Service of Alcohol
+                    </FieldLabel>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="cert-other"
+                        checked={certifications.some(c => c.type === 'other')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setCertifications([...certifications, { type: 'other', label: otherCertLabel || 'Other certification', required: true }])
+                          } else {
+                            setCertifications(certifications.filter(c => c.type !== 'other'))
+                            setOtherCertLabel("")
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <FieldLabel htmlFor="cert-other" className="mb-0 cursor-pointer">
+                        Other (specify)
+                      </FieldLabel>
+                    </div>
+                    {certifications.some(c => c.type === 'other') && (
+                      <Input
+                        id="cert-other-label"
+                        value={otherCertLabel}
+                        onChange={(e) => {
+                          setOtherCertLabel(e.target.value)
+                          setCertifications(certifications.map(c => 
+                            c.type === 'other' ? { ...c, label: e.target.value || 'Other certification' } : c
+                          ))
+                        }}
+                        placeholder="e.g. First Aid Certificate"
+                        className="ml-6"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Quick Create Button */}
               <div className="mt-4 p-4 border rounded-lg bg-muted/30">
                 <div className="flex items-start gap-3">
@@ -698,7 +859,7 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
                     </Button>
                     {!canQuickCreate() && (
                       <p className="text-xs text-muted-foreground mt-2">
-                        Required: Name, Email, Roles, Locations, Employers, and Award
+                        Required: Name, Email, Teams, Locations, Employers, and Award
                       </p>
                     )}
                   </div>

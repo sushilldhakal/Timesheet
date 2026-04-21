@@ -158,9 +158,13 @@ export class AuthService {
     // Fetch tenantName from Employer — tenantId comes from JWT (no extra User query needed)
     const tenantId = auth.tenantId ?? null
     let tenantName: string | null = null
-    if (tenantId) {
+    
+    // Super admin has sentinel tenantId, not a real employer ID
+    if (tenantId && tenantId !== "__super_admin__") {
       const employer = await Employer.findById(tenantId).select("name").lean()
       tenantName = (employer as any)?.name ?? null
+    } else if (tenantId === "__super_admin__") {
+      tenantName = "Super Admin"
     }
 
     return {

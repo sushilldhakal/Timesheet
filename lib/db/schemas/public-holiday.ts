@@ -37,8 +37,11 @@ const publicHolidaySchema = new Schema<IPublicHolidayDocument>(
   }
 )
 
-// Unique compound index
-publicHolidaySchema.index({ date: 1, state: 1 }, { unique: true })
+// Unique compound index to prevent duplicates
+publicHolidaySchema.index({ date: 1, state: 1, name: 1 }, { unique: true })
+
+// Additional index for efficient queries
+publicHolidaySchema.index({ date: 1, state: 1 })
 
 export const PublicHoliday = 
   (mongoose.models.PublicHoliday as mongoose.Model<IPublicHolidayDocument>) ??

@@ -21,6 +21,10 @@ export interface NavigationItem {
   adminOnly?: boolean
   /** Visible to manager, admin, super_admin */
   managerOnly?: boolean
+  /** Visible only to super_admin */
+  superAdminOnly?: boolean
+  /** Hidden from super_admin when in platform mode (not bound to a specific org) */
+  orgContextOnly?: boolean
   children?: NavigationItem[]
 }
 

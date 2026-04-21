@@ -31,6 +31,7 @@ import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { AlignJustify, Columns, LayoutGrid, RefreshCw, Search } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
+import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
 
@@ -71,7 +72,14 @@ export default function UnavailabilityPage() {
   const canManageUnavailability = isHydrated && (isAdminOrSuperAdmin(userRole) || isManager(userRole) || isSupervisor(userRole))
 
   const employeesQuery = useEmployees(500)
-  const employees = employeesQuery.data?.employees ?? []
+  const allEmployees = employeesQuery.data?.employees ?? []
+  const { selectedLocationNames } = useDashboardLocationScope()
+  const employees = useMemo(() => {
+    if (selectedLocationNames.length === 0) return allEmployees
+    return allEmployees.filter((employee) =>
+      (employee.locations ?? []).some((location) => selectedLocationNames.includes(location.name))
+    )
+  }, [allEmployees, selectedLocationNames])
 
   const [view, setView] = useState<TimesheetView>("week")
   const [selectedDate, setSelectedDate] = useState(() => new Date())

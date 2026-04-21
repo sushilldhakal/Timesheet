@@ -28,6 +28,7 @@ export interface IBankDetails {
   routing: IBankRouting
   bankName?: string
   swiftCode?: string
+  accountType?: 'savings' | 'cheque'
 }
 
 /**
@@ -109,6 +110,7 @@ const bankDetailsSchema = new mongoose.Schema(
     routing: { type: bankRoutingSchema, required: true },
     bankName: { type: String },
     swiftCode: { type: String },
+    accountType: { type: String, enum: ['savings', 'cheque'] },
   },
   { _id: false }
 )

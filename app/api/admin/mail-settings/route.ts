@@ -1,102 +1,67 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookie } from "@/lib/auth/auth-helpers"
-import { isAdminOrSuperAdmin } from "@/lib/config/roles"
-import { createApiRoute } from "@/lib/api/create-api-route"
-import {
-  mailSettingsUpdateSchema,
-  mailSettingsResponseSchema,
-} from "@/lib/validations/admin"
-import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
-import { mailSettingsService } from "@/lib/services/admin/mail-settings-service"
+import { isAdminOrSuperAdmin, isSuperAdmin } from "@/lib/config/roles"
+import { SystemSettingsService } from "@/lib/services/superadmin/system-settings-service"
 
-export const GET = createApiRoute({
-  method: 'GET',
-  path: '/api/admin/mail-settings',
-  summary: 'Get mail settings',
-  description: 'Get current mail configuration settings',
-  tags: ['Admin'],
-  security: 'adminAuth',
-  responses: {
-    200: mailSettingsResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema,
-    500: errorResponseSchema,
-  },
-  handler: async () => {
-    try {
-      const auth = await getAuthFromCookie()
-      if (!auth) {
-        return {
-          status: 401,
-          data: { error: "Unauthorized" }
-        };
-      }
-      if (!isAdminOrSuperAdmin(auth.role)) {
-        return {
-          status: 403,
-          data: { error: "Forbidden" }
-        };
-      }
-
-      return {
-        status: 200,
-        data: await mailSettingsService.get(),
-      };
-    } catch (error) {
-      console.error("[GET /api/admin/mail-settings]", error)
-      return {
-        status: 500,
-        data: { error: "Failed to fetch settings" }
-      };
+/**
+ * GET /api/admin/mail-settings
+ * Get mail settings (read-only for admin, full for superadmin)
+ */
+export async function GET() {
+  try {
+    const session = await getAuthFromCookie()
+    if (!session || !isAdminOrSuperAdmin(session.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-  }
-});
 
-export const POST = createApiRoute({
-  method: 'POST',
-  path: '/api/admin/mail-settings',
-  summary: 'Update mail settings',
-  description: 'Update mail configuration settings',
-  tags: ['Admin'],
-  security: 'adminAuth',
-  request: {
-    body: mailSettingsUpdateSchema,
-  },
-  responses: {
-    200: successResponseSchema,
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema,
-    500: errorResponseSchema,
-  },
-  handler: async ({ body }) => {
-    try {
-      const auth = await getAuthFromCookie()
-      if (!auth) {
-        return {
-          status: 401,
-          data: { error: "Unauthorized" }
-        };
-      }
-      if (!isAdminOrSuperAdmin(auth.role)) {
-        return {
-          status: 403,
-          data: { error: "Forbidden" }
-        };
-      }
+    const settings = await SystemSettingsService.get()
 
-      const { apiKey, fromEmail, fromName } = body!;
-
-      return {
-        status: 200,
-        data: await mailSettingsService.save(body),
-      };
-    } catch (error) {
-      console.error("[POST /api/admin/mail-settings]", error)
-      return {
-        status: 500,
-        data: { error: "Failed to save settings" }
-      };
+    if (isSuperAdmin(session.role)) {
+      // Superadmin gets full masked settings
+      return NextResponse.json({
+        fromEmail: settings?.mailerooFromEmail || "",
+        fromName: settings?.mailerooFromName || "",
+        apiKey: settings?.mailerooApiKey || "••••••••",
+        isConfigured: !!(settings?.mailerooApiKey && settings?.mailerooFromEmail),
+      })
+    } else {
+      // Admin gets read-only view (no API key)
+      return NextResponse.json({
+        fromEmail: settings?.mailerooFromEmail || "",
+        fromName: settings?.mailerooFromName || "",
+        isConfigured: !!(settings?.mailerooApiKey && settings?.mailerooFromEmail),
+      })
     }
+  } catch (error: any) {
+    console.error("Error fetching mail settings:", error)
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
-});
+}
+
+/**
+ * POST /api/admin/mail-settings
+ * Update mail settings (superadmin only)
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getAuthFromCookie()
+    if (!session || !isSuperAdmin(session.role)) {
+      return NextResponse.json({ error: "Forbidden - Superadmin only" }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { apiKey, fromEmail, fromName } = body
+
+    await SystemSettingsService.save({
+      mailerooApiKey: apiKey,
+      mailerooFromEmail: fromEmail,
+      mailerooFromName: fromName,
+      updatedBy: session.sub,
+    })
+
+    return NextResponse.json({ message: "Mail settings updated successfully" })
+  } catch (error: any) {
+    console.error("Error updating mail settings:", error)
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+  }
+}

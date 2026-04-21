@@ -1,4 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import {
   employeeIdParamSchema,
@@ -8,6 +9,8 @@ import {
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { employeePayrollService } from "@/lib/services/employee/employee-payroll-service"
 
+/** GET /api/employees/[id]/compliance
+ * Allowed: admin/manager/supervisor/super_admin OR the employee themselves (read-only) */
 export const GET = createApiRoute({
   method: 'GET',
   path: '/api/employees/{id}/compliance',
@@ -23,14 +26,25 @@ export const GET = createApiRoute({
     500: errorResponseSchema,
   },
   handler: async ({ params }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
     if (!params) return { status: 400, data: { error: "Employee ID is required" } }
-    const result = await employeePayrollService.getCompliance(params.id)
-    return { status: 200, data: result }
+
+    const ctx = await getAuthWithUserLocations()
+    if (ctx) {
+      const result = await employeePayrollService.getCompliance(params.id)
+      return { status: 200, data: result }
+    }
+
+    const employee = await getEmployeeFromCookie()
+    if (employee && employee.sub === params.id) {
+      const result = await employeePayrollService.getCompliance(params.id)
+      return { status: 200, data: result }
+    }
+
+    return { status: 401, data: { error: "Unauthorized" } }
   },
 })
 
+/** PATCH /api/employees/[id]/compliance — admin only */
 export const PATCH = createApiRoute({
   method: 'PATCH',
   path: '/api/employees/{id}/compliance',

@@ -340,3 +340,15 @@ export const getRoleScope = (role: string | null): 'global' | 'location' | 'loca
     // Default to location scope for unknown roles
     return 'location';
 };
+
+/**
+ * Check if super admin is in platform mode (viewing all orgs) vs org context mode
+ * @param role - User role
+ * @param tenantId - Current tenant ID from session
+ * @returns True if super admin is in platform mode (not bound to a specific org)
+ */
+export const isSuperAdminPlatformMode = (role: string | null, tenantId?: string | null): boolean => {
+    if (role !== UserRole.SUPER_ADMIN) return false;
+    // Super admin sentinel value indicates platform mode (all organizations view)
+    return tenantId === '__super_admin__' || !tenantId;
+};
