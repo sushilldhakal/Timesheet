@@ -11,12 +11,15 @@ import { useState } from 'react'
 import { Loader2, ChevronLeft, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { employeeClockKeys } from '@/lib/queries/employee-clock'
 
 export function StaffOnboardingStep5() {
   const { formData, prevStep, onboardingCountry } = useOnboarding()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [consentGiven, setConsentGiven] = useState(false)
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const {
     handleSubmit,
@@ -41,12 +44,17 @@ export function StaffOnboardingStep5() {
         }),
       })
 
+      // 400 "already completed" means the employee is done — treat as success
       if (!response.ok) {
-        throw new Error('Failed to complete onboarding')
+        const body = await response.json().catch(() => ({}))
+        if (response.status !== 400 || body?.error !== 'Onboarding already completed') {
+          throw new Error(body?.error || 'Failed to complete onboarding')
+        }
       }
 
-      // Redirect to staff dashboard
-      router.push('/staff/dashboard')
+      // Bust the stale profile cache so the onboarding page redirect fires
+      await queryClient.invalidateQueries({ queryKey: employeeClockKeys.profile })
+      router.replace('/staff/dashboard')
     } catch (error) {
       console.error('Failed to complete onboarding:', error)
       alert('Failed to complete onboarding. Please try again.')
