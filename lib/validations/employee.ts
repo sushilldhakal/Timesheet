@@ -42,7 +42,7 @@ export const employeeUpdateSchema = z.object({
   profileImage: z.string().url().optional(),
   employmentType: z.string().optional(),
   standardHoursPerWeek: z.number().min(0).max(168).optional(),
-  team: z.array(z.string()).optional(), // Category names (deprecated - use EmployeeRoleAssignment API)
+  team: z.array(z.string()).optional(), // Category names (deprecated - use EmployeeTeamAssignment API)
   employer: z.array(z.string()).optional(),
   location: z.array(z.string()).optional(),
   awardId: objectIdSchema.optional(),
@@ -93,6 +93,22 @@ export const updateAssignmentSchema = z.object({
 // Employee query parameters
 export const employeeQuerySchema = extendedPaginationSchema.extend({
   search: z.string().optional(),
+  // Prefer locationId (stable); location(name) is deprecated
+  locationId: z
+    .string()
+    .optional()
+    .refine(
+      (v) => {
+        if (!v) return true
+        const parts = v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+        if (parts.length === 0) return true
+        return parts.every((id) => /^[0-9a-fA-F]{24}$/.test(id))
+      },
+      { message: "Invalid MongoDB ObjectId" }
+    ),
   location: z.string().optional(),
   team: z.string().optional(),
   employer: z.string().optional(),

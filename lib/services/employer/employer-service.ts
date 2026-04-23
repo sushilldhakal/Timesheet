@@ -9,6 +9,7 @@ function mapEmployer(e: any) {
     name: e.name,
     abn: e.abn,
     contactEmail: e.contactEmail,
+    phone: e.phone,
     color: e.color,
     defaultAwardId: e.defaultAwardId?.toString(),
     isActive: e.isActive ?? true,
@@ -71,6 +72,7 @@ export class EmployerService {
     if (body.name !== undefined) (employer as any).name = body.name.trim();
     if (body.abn !== undefined) (employer as any).abn = body.abn;
     if (body.contactEmail !== undefined) (employer as any).contactEmail = body.contactEmail;
+    if (body.phone !== undefined) (employer as any).phone = body.phone;
     if (body.color !== undefined) (employer as any).color = body.color;
     if (body.defaultAwardId !== undefined) {
       (employer as any).defaultAwardId = body.defaultAwardId ? new mongoose.Types.ObjectId(body.defaultAwardId) : undefined;

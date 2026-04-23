@@ -1,14 +1,17 @@
 import crypto from 'crypto'
 
-const ENCRYPTION_KEY = process.env.TAX_ENCRYPTION_KEY || 'dev-key-32-chars-must-be-exactly-32'
+const RAW_KEY = process.env.TAX_ENCRYPTION_KEY || 'dev-key-32-chars-placeholder-only!'
 const ALGORITHM = 'aes-256-gcm'
+
+// Derive a fixed 32-byte key regardless of the raw key length
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(RAW_KEY).digest()
 
 /**
  * Encrypt sensitive tax/bank data
  */
 export function encryptTaxData(plaintext: string): string {
   const iv = crypto.randomBytes(16)
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv)
+  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv)
   let encrypted = cipher.update(plaintext, 'utf8', 'hex')
   encrypted += cipher.final('hex')
   const authTag = cipher.getAuthTag()
@@ -22,7 +25,7 @@ export function decryptTaxData(encrypted: string): string {
   const [ivHex, ciphertext, authTagHex] = encrypted.split(':')
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
-  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv)
+  const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv)
   decipher.setAuthTag(authTag)
   let plaintext = decipher.update(ciphertext, 'hex', 'utf8')
   plaintext += decipher.final('utf8')

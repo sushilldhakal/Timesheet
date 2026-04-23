@@ -7,6 +7,8 @@ export interface ILocation {
   name: string
   code?: string
   address?: string
+  country?: 'AU' | 'NZ' | 'IN' | 'NP'
+  state?: string
   lat?: number
   lng?: number
   radius?: number
@@ -32,6 +34,8 @@ const locationSchema = new mongoose.Schema<ILocationDocument>(
     name: { type: String, required: true, trim: true },
     code: { type: String, trim: true, default: undefined },
     address: { type: String, trim: true, default: undefined },
+    country: { type: String, enum: ["AU", "NZ", "IN", "NP"], default: "AU" },
+    state: { type: String, trim: true, default: undefined },
     lat: { type: Number, default: undefined },
     lng: { type: Number, default: undefined },
     radius: { type: Number, default: 100 },

@@ -13,6 +13,7 @@ export interface IEmployer {
   name: string
   abn?: string
   contactEmail?: string
+  phone?: string
   color?: string
   defaultAwardId?: mongoose.Types.ObjectId
   slug?: string
@@ -35,6 +36,7 @@ const employerSchema = new mongoose.Schema<IEmployerDocument>(
     name: { type: String, required: true, trim: true },
     abn: { type: String, trim: true, default: undefined },
     contactEmail: { type: String, trim: true, lowercase: true, default: undefined },
+    phone: { type: String, trim: true, default: undefined },
     color: { type: String, default: undefined },
     defaultAwardId: { type: mongoose.Schema.Types.ObjectId, ref: "Award", default: undefined },
     slug: { type: String, trim: true, lowercase: true, default: undefined },

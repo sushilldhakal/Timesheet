@@ -364,7 +364,7 @@ export default function ComplianceConfigPage() {
                     We hire staff from external companies or agencies
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Activates the Employers module under Settings. Most organisations don't need this.
+                    Activates the Employers module under Workforce. Most organisations don't need this.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -383,7 +383,7 @@ export default function ComplianceConfigPage() {
                   <div className="flex items-start gap-2">
                     <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                     <p className="text-xs text-muted-foreground">
-                      When enabled, an <strong className="text-foreground">Employers</strong> section will appear in Settings to manage external companies.
+                      When enabled, an <strong className="text-foreground">Employers</strong> section will appear in Workforce to manage external companies.
                     </p>
                   </div>
                 </div>

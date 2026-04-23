@@ -30,7 +30,7 @@ export * from "./audit-log"
 
 // Location-scoped role system
 export * from "./location-role-enablement"
-export * from "./employee-role-assignment"
+export * from "./employee-team-assignment"
 
 // OAuth 2 authentication
 export * from "./oauth-token"

@@ -133,13 +133,13 @@ export class AutoFillEngine {
       }
     }
 
-    const assignments = await SchedulingModels.EmployeeRoleAssignment.find({
+    const assignments = await (SchedulingModels as any).EmployeeTeamAssignment.find({
       locationId: locOid,
-      roleId: { $in: roleOids },
+      teamId: { $in: roleOids },
       isActive: true,
     }).lean()
 
-    const employeeIds = Array.from(new Set(assignments.map((a) => a.employeeId.toString())))
+    const employeeIds: string[] = Array.from(new Set(assignments.map((a: any) => a.employeeId.toString() as string)))
     const employees = await SchedulingModels.Employee.find({ _id: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) } })
 
     const constraints = await SchedulingModels.AvailabilityConstraint.find({
@@ -182,12 +182,12 @@ export class AutoFillEngine {
       const standardHoursPerWeek =
         employee.standardHoursPerWeek ?? workingHours.standardHoursPerWeek ?? 38
 
-      const empAssignments = assignments.filter((a) => a.employeeId.toString() === employee._id.toString())
+      const empAssignments = assignments.filter((a: any) => a.employeeId.toString() === employee._id.toString())
 
       for (const a of empAssignments) {
-        if (!roleOids.some((r) => r.equals(a.roleId as mongoose.Types.ObjectId))) continue
+        if (!roleOids.some((r) => r.equals(a.teamId as mongoose.Types.ObjectId))) continue
 
-        const role = await SchedulingModels.Team.findById(a.roleId)
+        const role = await SchedulingModels.Team.findById(a.teamId)
         if (!role) continue
 
         await this.fillForAssignment({

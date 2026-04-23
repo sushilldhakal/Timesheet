@@ -1,5 +1,5 @@
 import { mongoose, Team, TeamGroup } from '@/lib/db';
-import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
+import { EmployeeTeamAssignment } from '@/lib/db/schemas/employee-team-assignment';
 import { User } from '@/lib/db/schemas/user';
 import { SUPER_ADMIN_SENTINEL } from '@/lib/auth/auth-constants';
 
@@ -37,15 +37,15 @@ export class TeamsDbQueries {
   }
 
   static async aggregateStaffByTeam(teamIds: any[], now: Date) {
-    return EmployeeRoleAssignment.aggregate([
+    return EmployeeTeamAssignment.aggregate([
       {
         $match: {
-          roleId: { $in: teamIds },
+          teamId: { $in: teamIds },
           validFrom: { $lte: now },
           $or: [{ validTo: null }, { validTo: { $gte: now } }],
         },
       },
-      { $group: { _id: '$roleId', employees: { $addToSet: '$employeeId' } } },
+      { $group: { _id: '$teamId', employees: { $addToSet: '$employeeId' } } },
     ]);
   }
 

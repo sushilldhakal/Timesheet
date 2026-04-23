@@ -23,6 +23,8 @@ const EMPLOYEE_LOCKED_FIELDS = [
   'onboardingCompleted',
   'onboardingCompletedAt',
   'onboardingStatus',
+  'onboardingWorkflowStatus',
+  'onboardingCountry',
   'taxInfoId',
   'bankDetailsId',
   'contractId',

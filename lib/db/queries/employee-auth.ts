@@ -1,5 +1,5 @@
 import { DailyShift, Employee, Location } from "@/lib/db"
-import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment"
+import { EmployeeTeamAssignment } from "@/lib/db/schemas/employee-team-assignment"
 import Award from "@/lib/db/schemas/award"
 
 export const EmployeeAuthDbQueries = {
@@ -16,12 +16,12 @@ export const EmployeeAuthDbQueries = {
   },
 
   listRoleAssignmentsWithRoleLean: async (employeeId: unknown) => {
-    return EmployeeRoleAssignment.find({ employeeId, isActive: true }).populate("roleId", "name").lean()
+    return EmployeeTeamAssignment.find({ employeeId, isActive: true }).populate("teamId", "name").lean()
   },
 
   listRoleAssignmentsWithRoleAndLocationLean: async (employeeId: unknown) => {
-    return EmployeeRoleAssignment.find({ employeeId, isActive: true })
-      .populate("roleId", "name")
+    return EmployeeTeamAssignment.find({ employeeId, isActive: true })
+      .populate("teamId", "name")
       .populate("locationId", "name")
       .lean()
   },

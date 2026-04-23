@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import React, { useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { type ColumnDef } from "@tanstack/react-table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { type ColumnDef, type ColumnFiltersState } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -20,7 +19,6 @@ import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view
 import type { FilterConfig } from "@/components/ui/data-table/data-table-toolbar"
 import * as employeesApi from "@/lib/api/employees"
 import type { Employee } from "@/lib/api/employees"
-import { useDebounce } from "@/lib/hooks/use-debounce"
 import { AddEmployeeDialog } from "./AddEmployeeDialog"
 import { EditEmployeeDialog } from "./EditEmployeeDialog"
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog"
@@ -40,11 +38,14 @@ function CustomEmployeeToolbar({
   searchValue: string
   onSearchChange: (value: string) => void
   filterConfig: FilterConfig[]
-  columnFilters: { id: string; value: string[] }[]
-  onColumnFiltersChange: (filters: { id: string; value: string[] }[]) => void
+  columnFilters: ColumnFiltersState
+  onColumnFiltersChange: (filters: ColumnFiltersState) => void
   onFilterInteraction: () => void
 }) {
-  const hasFilters = columnFilters.some(filter => filter.value.length > 0)
+  const hasFilters = columnFilters.some(filter => {
+    const value = filter.value as string[] | undefined
+    return value && value.length > 0
+  })
 
   const handleFilterChange = (columnId: string, values: string[]) => {
     const newFilters = columnFilters.filter(f => f.id !== columnId)
@@ -69,7 +70,7 @@ function CustomEmployeeToolbar({
         />
         {filterConfig.map((filter) => {
           const currentFilter = columnFilters.find(f => f.id === filter.columnId)
-          const selectedValues = currentFilter?.value || []
+          const selectedValues = (currentFilter?.value as string[]) || []
           
           // Create a minimal column-like object that satisfies the DataTableFacetedFilter requirements
           const mockColumn = {
@@ -126,116 +127,64 @@ function CustomEmployeeToolbar({
 
 export default function EmployeesPage() {
   const router = useRouter()
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  const [pageIndex, setPageIndex] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
-  const [sortBy, setSortBy] = useState<string | null>("name")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [addOpen, setAddOpen] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null)
   const [columnVisibility, setColumnVisibility] = useState({})
-  const [columnFilters, setColumnFilters] = useState<{ id: string; value: string[] }[]>([])
-  const debouncedSearch = useDebounce(search, 300)
-  const { selectedLocationNames } = useDashboardLocationScope()
+  const { selectedLocationIds, isReady: locationScopeReady } = useDashboardLocationScope()
 
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true)
-    try {
-      // For "All" option, we need to fetch all employees using pagination
-      if (pageSize >= 99999) {
-        // Fetch all employees using pagination
-        let allEmployees: Employee[] = []
-        let offset = 0
-        const limit = 1000 // Use maximum allowed limit
-        let hasMore = true
-        
-        while (hasMore) {
-          const params = {
-            limit,
-            offset,
-            search: debouncedSearch || undefined,
-            sortBy: sortBy || undefined,
-            order: sortOrder,
-            // Add server-side filters
-            ...Object.fromEntries(
-              columnFilters
-                .filter(filter => filter.value.length > 0)
-                .map(filter => [filter.id, filter.value.join(',')])
-            ),
-            location: selectedLocationNames.length > 0 ? selectedLocationNames.join(',') : undefined,
-          }
-          
-          const data = await employeesApi.getEmployees(params)
-          const employees = data.employees || []
-          allEmployees = [...allEmployees, ...employees]
-          
-          // Check if we got fewer employees than requested, meaning we've reached the end
-          hasMore = employees.length === limit
-          offset += limit
-        }
-        
-        setEmployees(allEmployees)
-        setTotal(allEmployees.length)
-      } else {
-        // Normal pagination
-        const limit = pageSize
-        const offset = pageIndex * pageSize
-        
-        const params = {
-          limit,
-          offset,
-          search: debouncedSearch || undefined,
-          sortBy: sortBy || undefined,
-          order: sortOrder,
-          // Add server-side filters
-          ...Object.fromEntries(
-            columnFilters
-              .filter(filter => filter.value.length > 0)
-              .map(filter => [filter.id, filter.value.join(',')])
-          ),
-          location: selectedLocationNames.length > 0 ? selectedLocationNames.join(',') : undefined,
-        }
-        const data = await employeesApi.getEmployees(params)
-        setEmployees(data.employees ?? [])
-        setTotal(data.total ?? 0)
-      }
-    } catch {
-      setEmployees([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [columnFilters, debouncedSearch, pageIndex, pageSize, selectedLocationNames, sortBy, sortOrder])
-
-  useEffect(() => {
-    fetchEmployees()
-  }, [fetchEmployees])
-
-  useEffect(() => {
-    setPageIndex(0)
-  }, [debouncedSearch, columnFilters])
-
-  // Load filters immediately on page load for better UX
-  useEffect(() => {
-    fetchFilterOptions()
+  // For refetching after mutations
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const refreshData = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1)
   }, [])
+
+  // Fetch function for virtual mode
+  const fetchEmployeesPage = useCallback(async (params: {
+    limit: number
+    offset: number
+    search?: string
+    sortBy?: string
+    order?: 'asc' | 'desc'
+    [key: string]: any
+  }) => {
+    // Don't fetch until location scope is ready
+    if (!locationScopeReady) {
+      return { employees: [], total: 0 }
+    }
+
+    try {
+      const apiParams: any = {
+        limit: params.limit,
+        offset: params.offset,
+        search: params.search || undefined,
+        sortBy: params.sortBy || undefined,
+        order: params.order,
+        // Prefer stable locationId scoping from dashboard header
+        locationId: selectedLocationIds.length > 0 ? selectedLocationIds.join(',') : undefined,
+      }
+
+      // Add filters from params (team, employer, etc.)
+      Object.keys(params).forEach(key => {
+        if (!['limit', 'offset', 'search', 'sortBy', 'order'].includes(key)) {
+          apiParams[key] = params[key]
+        }
+      })
+
+      const data = await employeesApi.getEmployees(apiParams)
+      return {
+        employees: data.employees ?? [],
+        total: data.total ?? 0
+      }
+    } catch (error) {
+      console.error('Failed to fetch employees:', error)
+      return { employees: [], total: 0 }
+    }
+  }, [locationScopeReady, selectedLocationIds, refreshTrigger])
 
   const handleRowClick = (row: Employee) => {
     router.push(`/dashboard/employees/${row.id}`)
   }
-
-  const handleSortChange = (columnId: string, order: "asc" | "desc") => {
-    setSortBy(columnId)
-    setSortOrder(order)
-    setPageIndex(0)
-  }
-
-  // Define sortable column IDs
-  const sortableColumnIds = ["name", "pin", "team", "email", "phone", "employer", "location"]
 
   // Define columns
   const columns = useMemo<ColumnDef<Employee>[]>(
@@ -250,7 +199,8 @@ export default function EmployeesPage() {
           <span className="font-medium">{row.original.name || "—"}</span>
         ),
         enableHiding: false,
-        enableSorting: sortableColumnIds.includes("name"),
+        enableSorting: true,
+        size: 200,
       },
       {
         accessorKey: "pin",
@@ -259,7 +209,8 @@ export default function EmployeesPage() {
         ),
         cell: ({ row }) => row.original.pin,
         enableHiding: false,
-        enableSorting: sortableColumnIds.includes("pin"),
+        enableSorting: true,
+        size: 100,
       },
       {
         accessorKey: "team",
@@ -281,7 +232,7 @@ export default function EmployeesPage() {
             return <span className="text-muted-foreground">—</span>
           }
           
-          const activeTeams = teams.filter((t) => t.isActive)
+          const activeTeams = teams.filter((t) => t?.isActive && t?.team)
             
           if (activeTeams.length === 0) {
             return <span className="text-muted-foreground">—</span>
@@ -291,45 +242,49 @@ export default function EmployeesPage() {
             const team = activeTeams[0]
             return (
               <div className="flex items-center gap-2">
-                {team.team.color && (
+                {team.team?.color && (
                   <div
                     className="w-3 h-3 rounded-full shrink-0"
                     style={{ backgroundColor: team.team.color }}
                   />
                 )}
-                <span>{team.team.name}</span>
+                <span>{team.team?.name || '—'}</span>
               </div>
             )
           }
           
-          const displayTeams = activeTeams.slice(0, 2)
-          const remainingCount = activeTeams.length - 2
+          const displayTeams = activeTeams.slice(0, 1)
+          const remainingCount = activeTeams.length - 1
           
           return (
-            <HoverCard>
+            <HoverCard openDelay={200}>
               <HoverCardTrigger asChild>
                 <div className="flex items-center gap-1 cursor-pointer">
-                  {displayTeams.map((team, index) => (
-                    <Badge
-                      key={`${team.id}-${index}`}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {team.team.color && (
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: team.team.color }}
-                        />
-                      )}
-                      {team.team.name}
-                    </Badge>
-                  ))}
-                  {remainingCount > 0} && (
+                  <Badge
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
+                    {displayTeams[0].team?.color && (
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: displayTeams[0].team.color }}
+                      />
+                    )}
+                    {displayTeams[0].team?.name || '—'}
+                  </Badge>
+                  {remainingCount > 0 && (
                     <Badge variant="outline">+{remainingCount}</Badge>
-                  )
+                  )}
                 </div>
               </HoverCardTrigger>
-              <HoverCardContent className="w-80" align="start">
+              <HoverCardContent 
+                className="w-80 z-[9999]" 
+                align="start"
+                side="top"
+                sideOffset={8}
+                collisionPadding={16}
+                avoidCollisions={true}
+              >
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold">Team Assignments</h4>
                   <div className="space-y-2">
@@ -338,16 +293,16 @@ export default function EmployeesPage() {
                         key={`${team.id}-${index}`}
                         className="flex items-start gap-2 text-sm"
                       >
-                        {team.team.color && (
+                        {team.team?.color && (
                           <div
                             className="w-3 h-3 rounded-full shrink-0 mt-0.5"
                             style={{ backgroundColor: team.team.color }}
                           />
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">{team.team.name}</div>
+                          <div className="font-medium">{team.team?.name || '—'}</div>
                           <div className="text-xs text-muted-foreground">
-                            {team.location.name}
+                            {team.location?.name || '—'}
                           </div>
                         </div>
                       </div>
@@ -358,7 +313,8 @@ export default function EmployeesPage() {
             </HoverCard>
           )
         },
-        enableSorting: sortableColumnIds.includes("team"),
+        enableSorting: true,
+        size: 180,
       },
       {
         accessorKey: "employer",
@@ -368,7 +324,8 @@ export default function EmployeesPage() {
         ),
         cell: ({ row }) =>
           row.original.employers?.length ? row.original.employers.map(e => e.name).join(", ") : "—",
-        enableSorting: sortableColumnIds.includes("employer"),
+        enableSorting: true,
+        size: 150,
       },
       {
         accessorKey: "location",
@@ -379,11 +336,66 @@ export default function EmployeesPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Locations" />
         ),
-        cell: ({ row }) =>
-          row.original.locations?.length
-            ? row.original.locations.map(l => l.name).join(", ")
-            : "—",
-        enableSorting: sortableColumnIds.includes("location"),
+        cell: ({ row }) => {
+          const locations = row.original.locations
+          
+          if (!locations || locations.length === 0) {
+            return <span className="text-muted-foreground">—</span>
+          }
+          
+          if (locations.length === 1) {
+            return <span>{locations[0].name}</span>
+          }
+          
+          const displayLocations = locations.slice(0, 1)
+          const remainingCount = locations.length - 1
+          
+          return (
+            <HoverCard openDelay={200}>
+              <HoverCardTrigger asChild>
+                <div className="flex items-center gap-1 cursor-pointer">
+                  <Badge variant="secondary">
+                    {displayLocations[0].name}
+                  </Badge>
+                  {remainingCount > 0 && (
+                    <Badge variant="outline">+{remainingCount}</Badge>
+                  )}
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent 
+                className="w-80 z-[9999]" 
+                align="start"
+                side="top"
+                sideOffset={8}
+                collisionPadding={16}
+                avoidCollisions={true}
+              >
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Locations</h4>
+                  <div className="space-y-2">
+                    {locations.map((location, index) => (
+                      <div
+                        key={`${location.id}-${index}`}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">{location.name}</div>
+                          {location.address && (
+                            <div className="text-xs text-muted-foreground">
+                              {location.address}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          )
+        },
+        enableSorting: true,
+        size: 180,
       },
       {
         accessorKey: "email",
@@ -391,7 +403,8 @@ export default function EmployeesPage() {
           <DataTableColumnHeader column={column} title="Email" />
         ),
         cell: ({ row }) => row.original.email || "—",
-        enableSorting: sortableColumnIds.includes("email"),
+        enableSorting: true,
+        size: 200,
       },
       {
         accessorKey: "phone",
@@ -399,11 +412,37 @@ export default function EmployeesPage() {
           <DataTableColumnHeader column={column} title="Phone" />
         ),
         cell: ({ row }) => row.original.phone || "—",
-        enableSorting: sortableColumnIds.includes("phone"),
+        enableSorting: true,
+        size: 140,
+      },
+      {
+        id: "status",
+        accessorFn: (row) => {
+          const isActive = (row as any).isActive !== false
+          const onboarded = (row as any).onboardingCompleted === true
+          if (!isActive) return "inactive"
+          return onboarded ? "onboarded" : "pending"
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Status" />
+        ),
+        cell: ({ row }) => {
+          const e: any = row.original as any
+          const isActive = e.isActive !== false
+          const onboarded = e.onboardingCompleted === true
+
+          if (!isActive) return <Badge variant="secondary">Inactive</Badge>
+          if (onboarded) return <Badge variant="default">Onboarded</Badge>
+          return <Badge variant="outline">Pending</Badge>
+        },
+        enableSorting: true,
+        size: 120,
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Actions" />
+        ),
         enableHiding: false,
         cell: ({ row }) => {
           const e = row.original
@@ -430,9 +469,10 @@ export default function EmployeesPage() {
             </div>
           )
         },
+        size: 100,
       },
     ],
-    [sortableColumnIds]
+    []
   )
 
   // Extract unique filter options from ALL data (not just current page)
@@ -449,11 +489,13 @@ export default function EmployeesPage() {
 
   // Lazy load filter options when user first interacts with filters
   const fetchFilterOptions = useCallback(async () => {
-    if (filtersLoaded || filtersLoading) return
+    if (filtersLoading || !locationScopeReady) return
     
     setFiltersLoading(true)
     try {
-      const data = await employeesApi.getEmployeeFilters()
+      // Pass the selected locationId to get tenant-safe, location-specific filters
+      const locationIdParam = selectedLocationIds.length > 0 ? selectedLocationIds.join(",") : undefined
+      const data = await employeesApi.getEmployeeFilters({ locationId: locationIdParam })
       
       const teams = data.teams.map(team => ({
         label: `${team.name} (${team.count})`,
@@ -471,10 +513,20 @@ export default function EmployeesPage() {
       setFiltersLoaded(true)
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
+      // On error, still mark as loaded to prevent infinite retries
+      setFiltersLoaded(true)
     } finally {
       setFiltersLoading(false)
     }
-  }, [filtersLoaded, filtersLoading])
+  }, [filtersLoading, locationScopeReady, selectedLocationIds])
+
+  // Refetch filters when location changes
+  React.useEffect(() => {
+    if (filtersLoaded && locationScopeReady) {
+      setFiltersLoaded(false)
+      setAllFilterOptions({ teams: [], employers: [] })
+    }
+  }, [selectedLocationIds, locationScopeReady])
 
   // Trigger filter loading when user interacts with filter UI
   const handleFilterInteraction = useCallback(() => {
@@ -488,29 +540,49 @@ export default function EmployeesPage() {
   const filterConfig = useMemo<FilterConfig[]>(() => {
     const configs: FilterConfig[] = []
     
-    // Show placeholder filters immediately, then populate with real data
+    // Always show both filters - either with placeholder or real data
+    // Team filter
     if (!filtersLoaded) {
-      // Show common filter placeholders while loading
       configs.push({ 
         columnId: "team", 
         title: filtersLoading ? "Team (loading...)" : "Team", 
         options: [] 
       })
+    } else if (allFilterOptions.teams.length > 0) {
+      configs.push({ 
+        columnId: "team", 
+        title: "Team", 
+        options: allFilterOptions.teams 
+      })
+    } else {
+      // Even if no options, show the filter
+      configs.push({ 
+        columnId: "team", 
+        title: "Team", 
+        options: [] 
+      })
+    }
+    
+    // Employer filter
+    if (!filtersLoaded) {
       configs.push({ 
         columnId: "employer", 
         title: filtersLoading ? "Employer (loading...)" : "Employer", 
         options: [] 
       })
-      return configs
-    }
-    
-    // Once loaded, only show filters with multiple options
-    if (allFilterOptions.teams.length > 1) {
-      configs.push({ columnId: "team", title: "Team", options: allFilterOptions.teams })
-    }
-    
-    if (allFilterOptions.employers.length > 1) {
-      configs.push({ columnId: "employer", title: "Employer", options: allFilterOptions.employers })
+    } else if (allFilterOptions.employers.length > 0) {
+      configs.push({ 
+        columnId: "employer", 
+        title: "Employer", 
+        options: allFilterOptions.employers 
+      })
+    } else {
+      // Even if no options, show the filter
+      configs.push({ 
+        columnId: "employer", 
+        title: "Employer", 
+        options: [] 
+      })
     }
     
     return configs
@@ -531,63 +603,35 @@ export default function EmployeesPage() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-none ring-0">
-        <CardHeader>
-          <CardTitle>All Employees</CardTitle>
-          <CardDescription>
-            Search works across all employees. Click a row to view details and timesheet.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            mode="server"
-            columns={columns}
-            data={employees}
-            totalCount={total}
-            loading={loading}
-            searchValue={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search employees..."
-            showSearch={false}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            onPageChange={setPageIndex}
-            onPageSizeChange={(size) => {
-              setPageSize(size)
-              setPageIndex(0)
-            }}
-            pageSizeOptions={[10, 20, 30, 50, 100]}
-            showAllOption={true}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={handleSortChange}
-            sortableColumnIds={["name", "pin", "team", "email", "phone", "employer", "location"]}
+      <DataTable
+        mode="virtual"
+        columns={columns}
+        fetchPage={fetchEmployeesPage}
+        pageSize={50}
+        filterConfig={filterConfig}
+        enableRowSelection={true}
+        onRowClick={handleRowClick}
+        emptyMessage="No employees yet. Click Add Employee to create one."
+        getRowId={(row) => row.id}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        toolbar={(table, search, setSearch, columnFilters, setColumnFilters) => (
+          <CustomEmployeeToolbar
+            table={table}
+            searchValue={search || ""}
+            onSearchChange={setSearch || (() => {})}
             filterConfig={filterConfig}
-            enableRowSelection={true}
-            onRowClick={handleRowClick}
-            emptyMessage="No employees yet. Click Add Employee to create one."
-            getRowId={(row) => row.id}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            toolbar={(table) => (
-              <CustomEmployeeToolbar
-                table={table}
-                searchValue={search}
-                onSearchChange={setSearch}
-                filterConfig={filterConfig}
-                columnFilters={columnFilters}
-                onColumnFiltersChange={setColumnFilters}
-                onFilterInteraction={handleFilterInteraction}
-              />
-            )}
+            columnFilters={columnFilters || []}
+            onColumnFiltersChange={setColumnFilters || (() => {})}
+            onFilterInteraction={handleFilterInteraction}
           />
-        </CardContent>
-      </Card>
+        )}
+      />
 
       <AddEmployeeDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        onSuccess={fetchEmployees}
+        onSuccess={refreshData}
       />
 
       {editEmployee && (
@@ -598,7 +642,7 @@ export default function EmployeesPage() {
           onOpenChange={(open) => !open && setEditEmployee(null)}
           onSuccess={() => {
             setEditEmployee(null)
-            fetchEmployees()
+            refreshData()
           }}
         />
       )}
@@ -611,7 +655,7 @@ export default function EmployeesPage() {
           onOpenChange={(open) => !open && setDeleteEmployee(null)}
           onSuccess={() => {
             setDeleteEmployee(null)
-            fetchEmployees()
+            refreshData()
           }}
         />
       )}

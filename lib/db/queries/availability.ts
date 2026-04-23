@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { AvailabilityConstraint } from '@/lib/db/schemas/availability-constraint';
-import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
+import { EmployeeTeamAssignment } from '@/lib/db/schemas/employee-team-assignment';
 
 export class AvailabilityDbQueries {
   static async listEmployeeConstraints(args: { employeeId: string; organizationId?: string }) {
@@ -18,8 +18,8 @@ export class AvailabilityDbQueries {
   }
 
   static async countActiveAssignments(args: { roleId: any; locationId: any; date: Date }) {
-    return EmployeeRoleAssignment.countDocuments({
-      roleId: args.roleId,
+    return EmployeeTeamAssignment.countDocuments({
+      teamId: args.roleId,
       locationId: args.locationId,
       validFrom: { $lte: args.date },
       $or: [{ validTo: null }, { validTo: { $gte: args.date } }],

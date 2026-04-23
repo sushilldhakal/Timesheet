@@ -205,14 +205,14 @@ export class DashboardService {
       timesheetFilter({ date: { $gte: sevenDaysAgo, $lte: nowEnd }, clockIn: { $exists: true } })
     );
 
-    const { EmployeeRoleAssignment } = await import('@/lib/db');
-    const roleAssignments = await EmployeeRoleAssignment.find({ isActive: true }).populate('roleId').populate('employeeId').lean();
+    const { EmployeeTeamAssignment } = await import('@/lib/db');
+    const roleAssignments = await EmployeeTeamAssignment.find({ isActive: true }).populate('teamId').populate('employeeId').lean();
 
     const employeeIdToRoles = new Map<string, Array<{ name: string; color?: string }>>();
     for (const assignment of roleAssignments as any[]) {
       const empId = String((assignment.employeeId as any)?._id || assignment.employeeId);
-      const roleName = (assignment.roleId as any)?.name || 'Other';
-      const roleColor = (assignment.roleId as any)?.color;
+      const roleName = (assignment.teamId as any)?.name || 'Other';
+      const roleColor = (assignment.teamId as any)?.color;
       if (!employeeIdToRoles.has(empId)) employeeIdToRoles.set(empId, []);
       employeeIdToRoles.get(empId)!.push({ name: roleName, color: roleColor });
     }

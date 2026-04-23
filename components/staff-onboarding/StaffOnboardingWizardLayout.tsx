@@ -11,15 +11,14 @@ interface StaffOnboardingWizardLayoutProps {
 }
 
 export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardLayoutProps) {
-  const { currentStep, totalSteps, requiresCompliance, isLoading } = useOnboarding()
+  const { currentStep, totalSteps, isLoading } = useOnboarding()
 
   const steps = [
-    { number: 1, title: 'Personal & Legal', description: 'Contact and legal details' },
-    { number: 2, title: 'Tax & Banking', description: 'TFN, super and bank account' },
-    ...(requiresCompliance
-      ? [{ number: 3, title: 'Compliance', description: 'Clearances and certifications' }]
-      : []),
-    { number: totalSteps, title: 'Review & Submit', description: 'Complete your onboarding' },
+    { number: 1, title: 'Personal Details', description: 'Your information' },
+    { number: 2, title: 'Eligibility & Tax', description: 'Rights & tax details' },
+    { number: 3, title: 'Banking & Super', description: 'Payment details' },
+    { number: 4, title: 'Documents', description: 'Upload documents' },
+    { number: 5, title: 'Review & Submit', description: 'Complete onboarding' },
   ]
 
   const progress = ((currentStep - 1) / (totalSteps - 1)) * 100
@@ -36,34 +35,34 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Welcome to the Team!</h1>
-          <p className="text-muted-foreground">Complete your onboarding to access your dashboard</p>
-          <p className="text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 sm:p-4">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        <div className="text-center space-y-2 px-2">
+          <h1 className="text-2xl sm:text-3xl font-bold">Welcome to the Team!</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Complete your onboarding to access your dashboard</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</p>
         </div>
 
         <Progress value={progress} className="h-2" />
 
-        <div className="overflow-x-auto">
-          <div className="flex gap-2 md:gap-4 pb-4 md:pb-0 min-w-max">
+        <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <div className="flex gap-2 sm:gap-3 md:gap-4 pb-4 md:pb-0 px-2 sm:px-0" style={{ minWidth: 'max-content' }}>
             {steps.map((step) => (
               <div key={step.number} className="flex items-center gap-2 shrink-0">
                 <div
-                  className={`flex items-center justify-center rounded-full w-10 h-10 shrink-0 ${
+                  className={`flex items-center justify-center rounded-full w-8 h-8 sm:w-10 sm:h-10 shrink-0 ${
                     currentStep >= step.number
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
                   {currentStep > step.number ? (
-                    <CheckCircle className="h-5 w-5" />
+                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                   ) : (
-                    <span className="text-sm font-semibold">{step.number}</span>
+                    <span className="text-xs sm:text-sm font-semibold">{step.number}</span>
                   )}
                 </div>
-                <div className="hidden md:block min-w-0">
+                <div className="hidden lg:block min-w-0">
                   <p className="text-sm font-semibold truncate">{step.title}</p>
                   <p className="text-xs text-muted-foreground truncate">{step.description}</p>
                 </div>
@@ -73,12 +72,12 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
         </div>
 
         <Card className="shadow-lg">
-          <CardContent className="pt-8">
+          <CardContent className="pt-4 sm:pt-6 md:pt-8 px-3 sm:px-6">
             {children}
           </CardContent>
         </Card>
 
-        <div className="text-center text-xs text-muted-foreground">
+        <div className="text-center text-xs text-muted-foreground px-2">
           <p>This information is required to complete your employment setup.</p>
           <p>All data is securely stored and used only for payroll and compliance purposes.</p>
         </div>

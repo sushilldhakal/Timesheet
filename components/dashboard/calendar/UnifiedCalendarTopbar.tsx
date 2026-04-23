@@ -49,7 +49,7 @@ export function UnifiedCalendarTopbar({
   const day = now.getDate()
 
   return (
-    <div className={cn("flex shrink-0 flex-col gap-2.5 border-b bg-background py-2.5", className)}>
+    <div className={cn("flex shrink-0 flex-col gap-2.5 py-2.5", className)}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-3">
           <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-x-2 gap-y-1">

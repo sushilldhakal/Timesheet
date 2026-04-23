@@ -118,6 +118,7 @@ export interface CreateEmployeeRequest {
   standardHoursPerWeek?: number | null
   awardId?: string
   awardLevel?: string
+  certifications?: Array<{ type: string; label?: string; required: boolean; provided: boolean }>
   profileImage?: string
   password?: string
   sendSetupEmail?: boolean
@@ -151,6 +152,8 @@ export interface GetEmployeesParams {
   search?: string
   sortBy?: string
   order?: 'asc' | 'desc'
+  // Prefer locationId (stable); location is deprecated
+  locationId?: string
   location?: string
   team?: string
   employer?: string
@@ -268,8 +271,15 @@ export interface EmployeeFiltersResponse {
 }
 
 // Get employee filters
-export async function getEmployeeFilters(): Promise<EmployeeFiltersResponse> {
-  return apiFetch<EmployeeFiltersResponse>('/api/employees/filters')
+export async function getEmployeeFilters(params?: { locationId?: string; location?: string }): Promise<EmployeeFiltersResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.locationId) {
+    searchParams.append('locationId', params.locationId)
+  } else if (params?.location) {
+    searchParams.append('location', params.location)
+  }
+  const url = `/api/employees/filters${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  return apiFetch<EmployeeFiltersResponse>(url)
 }
 
 // Get all employees
@@ -281,7 +291,8 @@ export async function getEmployees(params?: GetEmployeesParams): Promise<Employe
   if (params?.search) searchParams.set('search', params.search)
   if (params?.sortBy) searchParams.set('sortBy', params.sortBy)
   if (params?.order) searchParams.set('order', params.order)
-  if (params?.location) searchParams.set('location', params.location)
+  if (params?.locationId) searchParams.set('locationId', params.locationId)
+  else if (params?.location) searchParams.set('location', params.location)
   if (params?.team) searchParams.set('team', params.team)
   if (params?.employer) searchParams.set('employer', params.employer)
   

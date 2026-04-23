@@ -16,6 +16,7 @@ import { EmployeeTeamAssignmentDialog } from "@/components/employees/employee-te
 import EmployeeTeamAssignmentList from "@/components/employees/employee-team-assignment-list"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"
 import { useEmployee } from "@/lib/queries/employees"
+import { useBreadcrumbs } from "@/components/providers/BreadcrumbsProvider"
 
 import { OverviewTab } from "@/components/employees/profile-tabs/overview-tab"
 import { PayrollTab } from "@/components/employees/profile-tabs/payroll-tab"
@@ -23,6 +24,7 @@ import { ComplianceTab } from "@/components/employees/profile-tabs/compliance-ta
 import { ContractTab } from "@/components/employees/profile-tabs/contract-tab"
 import { DevelopmentTab } from "@/components/employees/profile-tabs/development-tab"
 import { TimesheetTab } from "@/components/employees/profile-tabs/timesheet-tab"
+import { OnboardingActionsCard } from "@/components/employees/OnboardingActionsCard"
 
 function HeaderSkeleton() {
   return (
@@ -68,6 +70,17 @@ function EmployeeDetailPage() {
   const loading = !mounted || employeeQuery.isLoading
   const rawEmployee = employeeQuery.data?.employee
 
+  const { setBreadcrumbs } = useBreadcrumbs()
+
+  useEffect(() => {
+    if (rawEmployee?.name) {
+      setBreadcrumbs([
+        { label: "Employees", href: "/dashboard/employees" },
+        { label: rawEmployee.name },
+      ])
+    }
+  }, [rawEmployee?.name, setBreadcrumbs])
+
   const employee = rawEmployee
     ? {
         id: rawEmployee.id,
@@ -104,6 +117,8 @@ function EmployeeDetailPage() {
         onboardingCompleted: (rawEmployee as any).onboardingCompleted ?? false,
         onboardingCompletedAt: (rawEmployee as any).onboardingCompletedAt ?? null,
         onboardingStatus: (rawEmployee as any).onboardingStatus,
+        onboardingWorkflowStatus: (rawEmployee as any).onboardingWorkflowStatus ?? 'not_started',
+        onboardingCountry: (rawEmployee as any).onboardingCountry ?? 'AU',
         emergencyContact: (rawEmployee as any).emergencyContact,
         address: (rawEmployee as any).address,
         passwordSetupExpiry: (rawEmployee as any).passwordSetupExpiry,
@@ -255,6 +270,23 @@ function EmployeeDetailPage() {
         <TabsContent value="overview">
           <div className="space-y-6 pt-2">
             <OverviewTab employee={employee} onNavigate={setActiveTab} />
+
+            {/* HR Onboarding Actions — shown when onboarding is pending or needs review */}
+            {(employee.onboardingWorkflowStatus === 'pending_review' ||
+              employee.onboardingWorkflowStatus === 'manually_verified' ||
+              (!employee.onboardingCompleted && employee.passwordSetupExpiry)) && (
+              <div className="rounded-lg border p-4 sm:p-6 space-y-3">
+                <h3 className="font-semibold text-sm">HR Onboarding Actions</h3>
+                <OnboardingActionsCard
+                  employeeId={employee.id}
+                  employeeName={employee.name}
+                  workflowStatus={employee.onboardingWorkflowStatus}
+                  onboardingCompleted={employee.onboardingCompleted}
+                  passwordSetupExpiry={employee.passwordSetupExpiry}
+                  onSuccess={refetchEmployee}
+                />
+              </div>
+            )}
 
             {/* Existing team assignments & award cards */}
             <div className="grid gap-6 lg:grid-cols-2">

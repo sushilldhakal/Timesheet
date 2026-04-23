@@ -10,6 +10,22 @@ export interface IEmployeeBankDetails {
   accountHolderName: string
   bankName?: string
   accountType?: 'savings' | 'cheque'
+
+  // AU superannuation
+  superFundName?: string
+  superUSI?: string
+  superMemberNumber?: string
+
+  // Nepal banking
+  nepalBankName?: string
+  nepalBranch?: string
+  nepalAccountNumber?: string
+  ssfNumber?: string            // Social Security Fund
+
+  // Multi-country fields (schema completeness, UI deferred for IN/NZ)
+  ifscCode?: string         // India
+  nzAccountNumber?: string  // NZ format
+  
   createdAt?: Date
   updatedAt?: Date
 }
@@ -53,6 +69,21 @@ const employeeBankDetailsSchema = new mongoose.Schema<IEmployeeBankDetails>(
       enum: ['savings', 'cheque'],
       default: 'savings',
     },
+
+    // AU superannuation
+    superFundName: { type: String, default: null },
+    superUSI: { type: String, default: null },
+    superMemberNumber: { type: String, default: null },
+
+    // Nepal banking
+    nepalBankName: { type: String, default: null },
+    nepalBranch: { type: String, default: null },
+    nepalAccountNumber: { type: String, default: null },
+    ssfNumber: { type: String, default: null },
+
+    // Multi-country fields (schema completeness, UI deferred for IN/NZ)
+    ifscCode: { type: String, default: null },
+    nzAccountNumber: { type: String, default: null },
   },
   {
     timestamps: true,

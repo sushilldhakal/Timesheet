@@ -161,7 +161,8 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                 <div className="flex items-center gap-2">
                     {user && (
                         <>
-                            {isLocationScopeReady && accessibleLocations.length > 0 && (
+                            {/* Only show location selector if user has access to more than 1 location */}
+                            {isLocationScopeReady && accessibleLocations.length > 1 && (
                                 <div className="hidden lg:flex min-w-[200px] max-w-[280px] items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
                                     <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                                     <MultiSelect
@@ -184,7 +185,6 @@ export function DashboardHeader({ onToggleSidebar, onLogout }: DashboardHeaderPr
                                         searchable
                                         avatarView={true}
                                         closeOnSelect={!canSelectMultiple}
-                                        disabled={accessibleLocations.length === 1}
                                     />
                                 </div>
                             )}

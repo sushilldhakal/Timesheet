@@ -65,6 +65,21 @@ export function EmployersTable({ employers, awardNameById, onEdit, onDelete }: P
         enableSorting: false,
       },
       {
+        id: "phone",
+        header: () => <span>Phone</span>,
+        cell: ({ row }) => {
+          const phone = (row.original as any).phone
+          return phone ? (
+            <a href={`tel:${phone}`} className="text-sm text-primary hover:underline">
+              {phone}
+            </a>
+          ) : (
+            <span className="text-muted-foreground/60">—</span>
+          )
+        },
+        enableSorting: false,
+      },
+      {
         id: "award",
         header: () => <span>Award</span>,
         cell: ({ row }) => {

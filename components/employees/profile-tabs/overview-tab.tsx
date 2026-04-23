@@ -53,6 +53,8 @@ interface OverviewTabProps {
       tax: boolean
       bank: boolean
     }
+    onboardingWorkflowStatus?: string
+    onboardingCountry?: string
     passwordSetupExpiry?: string | null
   }
   onNavigate?: (tab: string) => void
@@ -150,20 +152,210 @@ export function OverviewTab({ employee, onNavigate }: OverviewTabProps) {
           </ProfileInfoGrid>
         </ProfileSectionCard>
 
-        {/* Emergency Contact */}
-        {employee.emergencyContact && (employee.emergencyContact.name || employee.emergencyContact.phone) && (
-          <ProfileSectionCard
-            title="Emergency Contact"
-            icon={<PhoneIcon className="h-4 w-4 text-muted-foreground" />}
-          >
+        {/* Emergency Contact - Enhanced */}
+        <ProfileSectionCard
+          title="Emergency Contact"
+          icon={<PhoneIcon className="h-4 w-4 text-muted-foreground" />}
+          actions={
+            <Button variant="ghost" size="sm" className="text-xs">
+              Edit
+            </Button>
+          }
+        >
+          {employee.emergencyContact && (employee.emergencyContact.name || employee.emergencyContact.phone) ? (
             <ProfileInfoGrid columns={2}>
               <ProfileInfoField label="Name" value={employee.emergencyContact.name} />
-              <ProfileInfoField label="Phone" value={employee.emergencyContact.phone} />
+              <ProfileInfoField label="Relationship" value={(employee.emergencyContact as any).relationship} />
+              <ProfileInfoField label="Phone" value={employee.emergencyContact.phone} span={2} />
             </ProfileInfoGrid>
-          </ProfileSectionCard>
-        )}
+          ) : (
+            <p className="text-sm text-muted-foreground">No emergency contact on file</p>
+          )}
+        </ProfileSectionCard>
+      </div>
 
-        {/* Employment Details */}
+      {/* Onboarding Progress Card - NEW */}
+      {onboardingPending && (
+        <ProfileSectionCard
+          title="Onboarding Progress"
+          icon={<ClockIcon className="h-4 w-4 text-muted-foreground" />}
+        >
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <OnboardingStepBadge label="Personal" completed={employee.onboardingStatus?.personal || false} />
+              <OnboardingStepBadge label="Identity" completed={employee.onboardingStatus?.identity || false} />
+              <OnboardingStepBadge label="Tax" completed={employee.onboardingStatus?.tax || false} />
+              <OnboardingStepBadge label="Bank" completed={employee.onboardingStatus?.bank || false} />
+            </div>
+
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Workflow Status:</span>
+              <Badge variant="outline" className={{
+                not_started: 'text-muted-foreground',
+                in_progress: 'text-blue-600 border-blue-200 bg-blue-50',
+                completed: 'text-teal-600 border-teal-200 bg-teal-50',
+                pending_review: 'text-amber-600 border-amber-200 bg-amber-50',
+                approved: 'text-emerald-600 border-emerald-200 bg-emerald-50',
+                action_required: 'text-red-600 border-red-200 bg-red-50',
+                manually_verified: 'text-purple-600 border-purple-200 bg-purple-50',
+              }[(employee as any).onboardingWorkflowStatus as string] ?? 'text-muted-foreground'}>
+                {{
+                  not_started: 'Not Started',
+                  in_progress: 'In Progress',
+                  completed: 'Completed',
+                  pending_review: 'Pending Review',
+                  approved: 'Approved',
+                  action_required: 'Action Required',
+                  manually_verified: 'Manually Verified',
+                }[(employee as any).onboardingWorkflowStatus as string] ?? 'Not Started'}
+              </Badge>
+            </div>
+
+            {employee.passwordSetupExpiry && new Date(employee.passwordSetupExpiry) < new Date() && (
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-200 rounded-md">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm text-amber-900 dark:text-amber-100">Setup invite expired</span>
+                </div>
+                <Button size="sm" variant="outline">
+                  Resend Invite
+                </Button>
+              </div>
+            )}
+          </div>
+        </ProfileSectionCard>
+      )}
+
+      {/* Identity & Compliance Card - Enhanced */}
+      <ProfileSectionCard
+        title="Identity & Compliance"
+        icon={<Shield className="h-4 w-4 text-muted-foreground" />}
+        actions={
+          onNavigate && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => onNavigate('compliance')}
+              className="text-xs"
+            >
+              View Full Compliance →
+            </Button>
+          )
+        }
+      >
+        <div className="space-y-4">
+          <ProfileInfoGrid columns={3}>
+            <ProfileInfoField 
+              label="Country" 
+              value={
+                <div className="flex items-center gap-2">
+                  <span>{(employee as any).onboardingCountry || 'AU'}</span>
+                </div>
+              } 
+            />
+            <ProfileInfoField label="Nationality" value={employee.nationality} />
+            <ProfileInfoField 
+              label="Work Rights" 
+              value={
+                employee.nationality?.toLowerCase().includes('austral') 
+                  ? 'Citizen/PR' 
+                  : 'Visa Holder'
+              } 
+            />
+          </ProfileInfoGrid>
+
+          {/* Visa expiry warning for AU visa holders */}
+          {(employee as any).onboardingCountry === 'AU' && employee.nationality && !employee.nationality.toLowerCase().includes('austral') && (
+            <div className="p-3 bg-amber-500/10 border border-amber-200 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm text-amber-900 dark:text-amber-100">Visa verification required</span>
+                </div>
+                <Button size="sm" variant="outline" asChild>
+                  <a href="https://immi.homeaffairs.gov.au/visas/already-have-a-visa/check-visa-details-and-conditions/check-conditions-online" target="_blank" rel="noopener noreferrer">
+                    Verify via VEVO
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Nepal manual review */}
+          {(employee as any).onboardingCountry === 'NP' && (
+            <div className="p-3 bg-blue-500/10 border border-blue-200 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm text-blue-900 dark:text-blue-100">Pending manual review</span>
+                </div>
+                <Button size="sm" variant="outline">
+                  Mark as Verified
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </ProfileSectionCard>
+
+      {/* Certifications Card - Enhanced */}
+      {employee.certifications && employee.certifications.length > 0 && (
+        <ProfileSectionCard 
+          title="Certifications" 
+          icon={<Shield className="h-4 w-4 text-muted-foreground" />}
+        >
+          <div className="space-y-3">
+            {employee.certifications.map((c, idx) => {
+              if (typeof c === 'string') {
+                return (
+                  <div key={idx} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline">{c}</Badge>
+                    </div>
+                  </div>
+                )
+              }
+              const label = c.type === 'other' ? c.label : formatCertType(c.type)
+              const isExpiringSoon = c.expiryDate && new Date(c.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              
+              return (
+                <div key={idx} className="flex items-center justify-between p-3 border rounded-md">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{label}</span>
+                      <Badge variant={c.required ? "default" : "secondary"} className="text-xs">
+                        {c.required ? 'Required' : 'Optional'}
+                      </Badge>
+                      <Badge 
+                        variant={c.provided ? "default" : "outline"}
+                        className={c.provided ? "bg-emerald-500/10 text-emerald-700 border-emerald-200" : ""}
+                      >
+                        {c.provided ? 'Provided' : 'Not Provided'}
+                      </Badge>
+                      {isExpiringSoon && (
+                        <Badge variant="outline" className="text-amber-600 border-amber-200">
+                          Expiring Soon
+                        </Badge>
+                      )}
+                    </div>
+                    {c.expiryDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Expires: {formatDateLong(c.expiryDate) || c.expiryDate}
+                      </p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="ghost">
+                    Upload
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        </ProfileSectionCard>
+      )}
+
+      {/* Employment Details & Locale */}
+      <div className="grid gap-6 md:grid-cols-2">
         <ProfileSectionCard
           title="Employment Details"
           icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
@@ -212,98 +404,27 @@ export function OverviewTab({ employee, onNavigate }: OverviewTabProps) {
             )}
           </div>
         </ProfileSectionCard>
+
+        {/* Locale & Preferences */}
+        <ProfileSectionCard
+          title="Locale & Preferences"
+          icon={<Globe className="h-4 w-4 text-muted-foreground" />}
+        >
+          <ProfileInfoGrid columns={2}>
+            <ProfileInfoField label="Time Zone" value={employee.timeZone || "Australia/Sydney"} />
+            <ProfileInfoField label="Locale" value={employee.locale || "en-AU"} />
+            <ProfileInfoField label="PIN" value={employee.pin} />
+          </ProfileInfoGrid>
+        </ProfileSectionCard>
       </div>
 
-      {/* Identity & Work Rights - Only show if compliance tab would have data */}
-      {employee.nationality && onNavigate && (
-        <ProfileSectionCard
-          title="Identity & Work Rights"
-          icon={<Shield className="h-4 w-4 text-muted-foreground" />}
-          actions={
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onNavigate('compliance')}
-              className="text-xs"
-            >
-              View Full Compliance →
-            </Button>
-          }
-        >
-          <ProfileInfoGrid columns={3}>
-            <ProfileInfoField label="Nationality" value={employee.nationality} />
-            <ProfileInfoField 
-              label="Work Rights" 
-              value={
-                employee.nationality?.toLowerCase().includes('austral') 
-                  ? 'Australian Citizen/Resident' 
-                  : 'Visa Holder'
-              } 
-            />
-            <ProfileInfoField 
-              label="Verification Status" 
-              value={
-                <Badge variant="outline" className="text-amber-600 dark:text-amber-400">
-                  Pending Verification
-                </Badge>
-              } 
-            />
-          </ProfileInfoGrid>
-          <p className="text-xs text-muted-foreground mt-3">
-            Full identity documents and compliance certifications are available in the Compliance tab.
-          </p>
-        </ProfileSectionCard>
-      )}
-
-      {/* Locale & Preferences */}
-      <ProfileSectionCard
-        title="Locale & Preferences"
-        icon={<Globe className="h-4 w-4 text-muted-foreground" />}
-      >
-        <ProfileInfoGrid columns={4}>
-          <ProfileInfoField label="Time Zone" value={employee.timeZone || "Australia/Sydney"} />
-          <ProfileInfoField label="Locale" value={employee.locale || "en-AU"} />
-          <ProfileInfoField label="Nationality" value={employee.nationality} />
-          <ProfileInfoField label="PIN" value={employee.pin} />
-        </ProfileInfoGrid>
-      </ProfileSectionCard>
-
-      {/* Skills & Certifications */}
-      {((employee.skills && employee.skills.length > 0) || (employee.certifications && employee.certifications.length > 0)) && (
-        <ProfileSectionCard title="Skills & Certifications">
-          <div className="space-y-3">
-            {employee.skills && employee.skills.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Skills</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {employee.skills.map((s) => (
-                    <Badge key={s} variant="secondary">{s}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {employee.certifications && employee.certifications.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Required Certifications</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {employee.certifications.map((c, idx) => {
-                    if (typeof c === 'string') {
-                      return <Badge key={idx} variant="outline">{c}</Badge>
-                    }
-                    const label = c.type === 'other' ? c.label : formatCertType(c.type)
-                    return (
-                      <Badge 
-                        key={idx} 
-                        variant={c.provided ? "default" : "outline"}
-                        className={c.provided ? "bg-emerald-500/10 text-emerald-700 border-emerald-200" : ""}
-                      >
-                        {label} {c.provided ? "✓" : "⏳"}
-                      </Badge>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+      {/* Skills */}
+      {employee.skills && employee.skills.length > 0 && (
+        <ProfileSectionCard title="Skills">
+          <div className="flex flex-wrap gap-1.5">
+            {employee.skills.map((s) => (
+              <Badge key={s} variant="secondary">{s}</Badge>
+            ))}
           </div>
         </ProfileSectionCard>
       )}

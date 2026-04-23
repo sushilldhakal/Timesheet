@@ -59,6 +59,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
   const [name, setName] = useState(category.name)
   const [description, setDescription] = useState(category.description ?? "")
   const [mapLink, setMapLink] = useState("")
+  const [locationCountry, setLocationCountry] = useState<"AU" | "NZ" | "IN" | "NP">((category as any).country ?? "AU")
   const [lat, setLat] = useState<number | undefined>(category.lat)
   const [lng, setLng] = useState<number | undefined>(category.lng)
   const [radius, setRadius] = useState(category.radius ?? 100)
@@ -84,6 +85,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
   )
   const [abn, setAbn] = useState(category.abn ?? "")
   const [contactEmail, setContactEmail] = useState(category.contactEmail ?? "")
+  const [phone, setPhone] = useState(category.phone ?? "")
   const [defaultAwardId, setDefaultAwardId] = useState<string>(category.defaultAwardId ?? "")
   const [groupId, setGroupId] = useState<string>(category.groupId ?? "")
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
@@ -126,6 +128,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
       )
       setAbn(category.abn ?? "")
       setContactEmail(category.contactEmail ?? "")
+      setPhone(category.phone ?? "")
       setDefaultAwardId(category.defaultAwardId ?? "")
       setGroupId(category.groupId ?? "")
       setError(null)
@@ -163,6 +166,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
         body.geofenceMode = geofenceMode
         body.openingHour = openingHour
         body.closingHour = closingHour
+        body.country = locationCountry
         await updateLocationMutation.mutateAsync({ id: category.id, data: body as any })
       } else if (category.type === "team") {
         await updateTeamMutation.mutateAsync({
@@ -200,6 +204,7 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
             color,
             abn: abn.trim() || undefined,
             contactEmail: contactEmail.trim() || undefined,
+            phone: phone.trim() || undefined,
             defaultAwardId: defaultAwardId || undefined,
           },
         })
@@ -373,6 +378,15 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
                       />
                     </Field>
                     <Field>
+                      <FieldLabel htmlFor="edit-phone">Phone number</FieldLabel>
+                      <Input
+                        id="edit-phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
                       <FieldLabel>Default award</FieldLabel>
                       <Select
                         value={defaultAwardId || "__none__"}
@@ -542,6 +556,26 @@ export function EditMasterDataDialog({ category, open, onOpenChange, onSuccess }
             )}
             {category.type === "location" && (
               <>
+                <Field>
+                  <FieldLabel>Country *</FieldLabel>
+                  <Select
+                    value={locationCountry}
+                    onValueChange={(v) => setLocationCountry(v as "AU" | "NZ" | "IN" | "NP")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AU">🇦🇺 Australia</SelectItem>
+                      <SelectItem value="NP">🇳🇵 Nepal</SelectItem>
+                      <SelectItem value="NZ">🇳🇿 New Zealand (coming soon)</SelectItem>
+                      <SelectItem value="IN">🇮🇳 India (coming soon)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Determines the onboarding country path for staff hired at this location
+                  </p>
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="edit-map-link">Paste Google Maps link</FieldLabel>
                   <Input

@@ -10,16 +10,18 @@ import { StaffOnboardingStep1 } from '@/components/staff-onboarding/steps/StaffO
 import { StaffOnboardingStep2 } from '@/components/staff-onboarding/steps/StaffOnboardingStep2'
 import { StaffOnboardingStep3 } from '@/components/staff-onboarding/steps/StaffOnboardingStep3'
 import { StaffOnboardingStep4 } from '@/components/staff-onboarding/steps/StaffOnboardingStep4'
+import { StaffOnboardingStep5 } from '@/components/staff-onboarding/steps/StaffOnboardingStep5'
 
 function StaffOnboardingContent() {
-  const { currentStep, requiresCompliance, totalSteps } = useOnboarding()
+  const { currentStep } = useOnboarding()
 
   return (
     <StaffOnboardingWizardLayout>
       {currentStep === 1 && <StaffOnboardingStep1 />}
       {currentStep === 2 && <StaffOnboardingStep2 />}
-      {currentStep === 3 && requiresCompliance && <StaffOnboardingStep3 />}
-      {currentStep === totalSteps && <StaffOnboardingStep4 />}
+      {currentStep === 3 && <StaffOnboardingStep3 />}
+      {currentStep === 4 && <StaffOnboardingStep4 />}
+      {currentStep === 5 && <StaffOnboardingStep5 />}
     </StaffOnboardingWizardLayout>
   )
 }
@@ -35,7 +37,6 @@ export default function StaffOnboardingPage() {
     }
   }, [isLoading, employee, router])
 
-  // Still loading — wait before showing anything
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -44,7 +45,6 @@ export default function StaffOnboardingPage() {
     )
   }
 
-  // Already completed — show spinner while redirect happens
   if (employee?.onboardingCompleted) {
     return (
       <div className="min-h-screen flex items-center justify-center">

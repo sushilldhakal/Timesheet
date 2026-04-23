@@ -33,7 +33,7 @@ export class EmployeeRolesService {
       const assignments = await manager.getEmployeeAssignments(employeeId, locationId || undefined, date, includeInactive);
 
       const formattedAssignments = (assignments as any[]).map((assignment) => {
-        const teamData = assignment.roleId as any;
+        const teamData = assignment.teamId as any;
         const locationData = assignment.locationId as any;
         return {
           id: assignment._id.toString(),
@@ -81,7 +81,7 @@ export class EmployeeRolesService {
       const manager = new RoleAssignmentManager();
       const assignment = (await manager.assignRole({
         employeeId,
-        roleId: teamId,
+        teamId,
         locationId,
         validFrom: validFrom ? new Date(validFrom) : new Date(),
         validTo: validTo ? new Date(validTo) : null,
@@ -92,7 +92,7 @@ export class EmployeeRolesService {
       const populatedAssignment = await EmployeeRolesDbQueries.findAssignmentPopulatedLean(assignment._id);
       if (!populatedAssignment) return { status: 500, data: formatError('Failed to retrieve created assignment', 'ASSIGNMENT_NOT_FOUND') };
 
-      const teamData = (populatedAssignment as any).roleId as any;
+      const teamData = (populatedAssignment as any).teamId as any;
       const locationData = (populatedAssignment as any).locationId as any;
 
       return {
@@ -162,7 +162,7 @@ export class EmployeeRolesService {
       const populatedAssignment = await EmployeeRolesDbQueries.findAssignmentPopulatedLean((assignment as any)._id);
       if (!populatedAssignment) return { status: 500, data: formatError('Failed to retrieve updated assignment', 'ASSIGNMENT_NOT_FOUND') };
 
-      const teamData = (populatedAssignment as any).roleId as any;
+      const teamData = (populatedAssignment as any).teamId as any;
       const locationData = (populatedAssignment as any).locationId as any;
 
       return {

@@ -5,8 +5,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2, FileDown } from "lucide-react"
+import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2, FileDown, CalendarIcon } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
@@ -15,6 +14,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { ExportDialog } from "@/components/payroll/export-dialog"
 import { PayrollExportStatus } from "@/components/payroll/payroll-export-status"
 import { apiFetch } from "@/lib/api/fetch-client"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format, addDays } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import {
   getPayRuns,
   getPayRunExport,
@@ -44,10 +47,22 @@ export default function PayRunsPage() {
   const [exportPayRunId, setExportPayRunId] = useState<string>("")
 
   // Create dialog form state
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const [notes, setNotes] = useState("")
   const [creating, setCreating] = useState(false)
+
+  const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : ""
+  const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : ""
+
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    if (range?.from && !range.to) {
+      // Auto-set end date to 6 days after start (7-day week)
+      setDateRange({ from: range.from, to: addDays(range.from, 6) })
+    } else {
+      setDateRange(range)
+    }
+  }
 
   // Fetch current user's tenant
   useEffect(() => {
@@ -102,8 +117,7 @@ export default function PayRunsPage() {
     try {
       await createPayRun({ tenantId, startDate, endDate, notes: notes || undefined })
       setCreateDialogOpen(false)
-      setStartDate("")
-      setEndDate("")
+      setDateRange(undefined)
       setNotes("")
       fetchPayRuns()
     } catch (error) {
@@ -499,23 +513,42 @@ export default function PayRunsPage() {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="startDate">Start Date</Label>
-            <Input
-              id="startDate"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="endDate">End Date</Label>
-            <Input
-              id="endDate"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <Label>Pay Period (Week)</Label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal mt-1"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd MMM yyyy")} – {format(dateRange.to, "dd MMM yyyy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd MMM yyyy")
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">Select a week</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={handleDateRangeSelect}
+                  numberOfMonths={2}
+                  initialFocus
+                />
+                {dateRange?.from && dateRange?.to && (
+                  <div className="px-3 pb-3 text-xs text-muted-foreground text-center">
+                    {Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24) + 1)} days selected
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
           
           <div>

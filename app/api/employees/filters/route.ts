@@ -3,6 +3,7 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { z } from "zod"
 import { employeeFiltersService } from "@/lib/services/employee/employee-filters-service"
+import { objectIdSchema } from "@/lib/validations/common"
 
 const employeeFiltersResponseSchema = z.object({
   teams: z.array(z.object({
@@ -19,6 +20,27 @@ const employeeFiltersResponseSchema = z.object({
   }))
 })
 
+const employeeFiltersQuerySchema = z.object({
+  // Supports single ObjectId or comma-separated list (multi-location scope)
+  locationId: z
+    .string()
+    .optional()
+    .refine(
+      (v) => {
+        if (!v) return true
+        const parts = v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+        if (parts.length === 0) return true
+        return parts.every((id) => /^[0-9a-fA-F]{24}$/.test(id))
+      },
+      { message: "Invalid MongoDB ObjectId" }
+    ),
+  // Back-compat (deprecated): location name
+  location: z.string().optional(),
+})
+
 /** GET /api/employees/filters - Get filter options with counts for employees */
 export const GET = createApiRoute({
   method: 'GET',
@@ -27,6 +49,9 @@ export const GET = createApiRoute({
   description: 'Get available filter options with employee counts for teams, employers, and locations',
   tags: ['Employees'],
   security: 'adminAuth',
+  request: {
+    query: employeeFiltersQuerySchema,
+  },
   responses: {
     200: employeeFiltersResponseSchema,
     401: errorResponseSchema,
@@ -41,9 +66,11 @@ export const GET = createApiRoute({
       }
     }
 
+    const { locationId, location } = data.query || {}
+
     return {
       status: 200,
-      data: await employeeFiltersService.getFilters(ctx)
+      data: await employeeFiltersService.getFilters(ctx, { locationId: locationId || undefined, locationName: location || undefined })
     }
   }
 })

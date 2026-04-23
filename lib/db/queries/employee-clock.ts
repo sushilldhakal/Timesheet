@@ -13,8 +13,8 @@ export class EmployeeClockDbQueries {
   }
 
   static async findActiveRoleAssignments(employeeId: unknown) {
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
-    return EmployeeRoleAssignment.find({ employeeId, isActive: true }).populate('roleId', 'name').lean();
+    const { EmployeeTeamAssignment } = await import('@/lib/db/schemas/employee-team-assignment');
+    return EmployeeTeamAssignment.find({ employeeId, isActive: true }).populate('teamId', 'name').lean();
   }
 
   static async findDeviceByDeviceId(deviceId: string) {

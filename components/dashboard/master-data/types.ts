@@ -14,6 +14,7 @@ export type CategoryRow = {
   color?: string
   abn?: string
   contactEmail?: string
+  phone?: string
   defaultAwardId?: string
   description?: string
   isActive?: boolean

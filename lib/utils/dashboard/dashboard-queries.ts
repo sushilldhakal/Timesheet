@@ -1,4 +1,4 @@
-import { EmployeeRoleAssignment, LocationRoleEnablement, DailyShift, Employee } from '@/lib/db'
+import { EmployeeTeamAssignment, LocationRoleEnablement, DailyShift, Employee } from '@/lib/db'
 import { parseTimeToHour24 } from '@/lib/utils/format/time'
 import mongoose from 'mongoose'
 
@@ -36,7 +36,7 @@ export async function getActiveRoleAssignments(filters: {
   }
   
   if (filters.roleId) {
-    query.roleId = new ObjectId(filters.roleId)
+    query.teamId = new ObjectId(filters.roleId)
   }
   
   if (filters.employeeIds) {
@@ -53,8 +53,8 @@ export async function getActiveRoleAssignments(filters: {
     { validTo: { $gte: effectiveDate } }
   ]
   
-  return await EmployeeRoleAssignment.find(query)
-    .populate('employeeId roleId locationId')
+  return await EmployeeTeamAssignment.find(query)
+    .populate('employeeId teamId locationId')
     .lean()
 }
 
@@ -150,10 +150,10 @@ export async function getEmployeeRolesWithHours(
   endDate: Date
 ): Promise<Map<string, Array<{ roleId: string; roleName: string; hours: number }>>> {
   // Get all active assignments for these employees
-  const assignments = await EmployeeRoleAssignment.find({
+  const assignments = await EmployeeTeamAssignment.find({
     employeeId: { $in: employeeIds.map(id => new ObjectId(id)) },
     isActive: true
-  }).populate('roleId').lean()
+  }).populate('teamId').lean()
   
   // Get shift data
   const employees = await Employee.find({
@@ -184,8 +184,8 @@ export async function getEmployeeRolesWithHours(
   
   for (const assignment of assignments) {
     const empId = String(assignment.employeeId)
-    const roleId = String((assignment.roleId as any)._id)
-    const roleName = (assignment.roleId as any).name
+    const roleId = String((assignment.teamId as any)._id)
+    const roleName = (assignment.teamId as any).name
     const hours = employeeHours.get(empId) || 0
     
     if (!result.has(empId)) {

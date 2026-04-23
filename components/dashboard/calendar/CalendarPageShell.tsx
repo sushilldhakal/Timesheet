@@ -34,7 +34,7 @@ export function CalendarPageShell({
   containerClassName,
 }: CalendarPageShellProps): React.ReactElement {
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {(header || toolbar) && (
         <div className={cn("shrink-0", containerClassName)}>
           {header}

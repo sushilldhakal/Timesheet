@@ -120,7 +120,7 @@ export async function getFilteredEmployeeIdsByRole(
   // Has managed roles = filter by those roles
   try {
     await connectDB()
-    const { EmployeeRoleAssignment } = await import("@/lib/db/schemas/employee-role-assignment")
+    const { EmployeeTeamAssignment } = await import("@/lib/db/schemas/employee-team-assignment")
     const { Team, Location } = await import("@/lib/db")
 
     // Get role IDs from role names
@@ -150,8 +150,8 @@ export async function getFilteredEmployeeIdsByRole(
     }
 
     // Find active role assignments matching the criteria
-    const assignments = await EmployeeRoleAssignment.find({
-      roleId: { $in: roleIds },
+    const assignments = await EmployeeTeamAssignment.find({
+      teamId: { $in: roleIds },
       locationId: { $in: locationIds },
       isActive: true
     }).select("employeeId").lean()

@@ -46,7 +46,7 @@ export class EmployeeAuthService {
     const employers = arr((employee as any).employer);
 
     const roleAssignments = await EmployeeAuthDbQueries.listRoleAssignmentsWithRoleLean((employee as any)._id);
-    const roles = (roleAssignments as any[]).map((a) => a.roleId?.name).filter(Boolean);
+    const roles = (roleAssignments as any[]).map((a) => a.teamId?.name).filter(Boolean);
 
     let geofenceWarning = false;
     let detectedLocation: string | null = null;
@@ -118,7 +118,7 @@ export class EmployeeAuthService {
 
     const locations = Array.isArray((employee as any).location) ? (employee as any).location : [];
     const employers = Array.isArray((employee as any).employer) ? (employee as any).employer : [];
-    const roleNames = (roleAssignments as any[]).map((ra) => (ra.roleId as any)?.name).filter(Boolean);
+    const roleNames = (roleAssignments as any[]).map((ra) => (ra.teamId as any)?.name).filter(Boolean);
     const locationNames = (roleAssignments as any[]).map((ra) => (ra.locationId as any)?.name).filter(Boolean);
 
     let award: { id: string; name: string; level: string } | null = null;

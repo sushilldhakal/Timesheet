@@ -126,12 +126,12 @@ export class RosterManager {
 
       // Filter by location if specified
       if (locationIds && locationIds.length > 0) {
-        // Import EmployeeRoleAssignment to filter by location
-        const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
+        // Import EmployeeTeamAssignment to filter by location
+        const EmployeeTeamAssignment = (SchedulingModels as any).EmployeeTeamAssignment
         
         // Find employees who have role assignments at the specified locations
         const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id))
-        const roleAssignments = await EmployeeRoleAssignment.find({
+        const roleAssignments = await EmployeeTeamAssignment.find({
           locationId: { $in: locationObjectIds },
           isActive: true,
         }).distinct('employeeId')
@@ -147,9 +147,9 @@ export class RosterManager {
 
 
 
-      // Import Location model and EmployeeRoleAssignment to fetch role assignments
+      // Import Location model and EmployeeTeamAssignment to fetch role assignments
       const Location = SchedulingModels.Location
-      const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
+      const EmployeeTeamAssignment = (SchedulingModels as any).EmployeeTeamAssignment
       const { WorkingHoursHierarchy } = await import("@/lib/managers/working-hours-hierarchy")
       const workingHoursHierarchy = new WorkingHoursHierarchy()
 
@@ -197,7 +197,7 @@ export class RosterManager {
             weekId,
             generatedShifts,
             skippedEmployees,
-            EmployeeRoleAssignment,
+            EmployeeTeamAssignment,
             Location,
             locationIds
           )
@@ -385,7 +385,7 @@ export class RosterManager {
     weekId: string,
     generatedShifts: IShift[],
     skippedEmployees: Array<{ employeeName: string; reason: string }>,
-    EmployeeRoleAssignment: any,
+    EmployeeTeamAssignment: any,
     Location: any,
     locationIds?: string[]
   ): Promise<void> {
@@ -405,8 +405,8 @@ export class RosterManager {
       }
       
       // Get active role assignments for this employee
-      const roleAssignments = await EmployeeRoleAssignment.find(assignmentQuery)
-        .populate('roleId')
+      const roleAssignments = await EmployeeTeamAssignment.find(assignmentQuery)
+        .populate('teamId')
         .populate('locationId')
 
       if (!roleAssignments || roleAssignments.length === 0) {
@@ -433,7 +433,7 @@ export class RosterManager {
 
       // Process each role assignment
       for (const assignment of roleAssignments) {
-        const role = assignment.roleId
+        const role = assignment.teamId
         const location = assignment.locationId
 
         if (!role || !location) {

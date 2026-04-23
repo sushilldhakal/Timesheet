@@ -1,13 +1,13 @@
 import mongoose from "mongoose"
 
 /**
- * Tracks employee role assignments at specific locations
- * Replaces legacy Employee.role field (roleId references Team documents)
+ * Tracks employee team assignments at specific locations
+ * Replaces legacy Employee.role field (teamId references Team documents)
  */
-export interface IEmployeeRoleAssignment {
+export interface IEmployeeTeamAssignment {
   tenantId: mongoose.Types.ObjectId  // ref: Employer
   employeeId: mongoose.Types.ObjectId  // ref: Employee
-  roleId: mongoose.Types.ObjectId      // ref: Team (scheduling team id)
+  teamId: mongoose.Types.ObjectId      // ref: Team (scheduling team id)
   locationId: mongoose.Types.ObjectId  // ref: Location
   isPrimary: boolean                   // Primary assignment for employee
   validFrom: Date                      // When assignment starts
@@ -20,9 +20,9 @@ export interface IEmployeeRoleAssignment {
   updatedAt?: Date
 }
 
-export interface IEmployeeRoleAssignmentDocument extends IEmployeeRoleAssignment, mongoose.Document {}
+export interface IEmployeeTeamAssignmentDocument extends IEmployeeTeamAssignment, mongoose.Document {}
 
-const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignmentDocument>(
+const employeeTeamAssignmentSchema = new mongoose.Schema<IEmployeeTeamAssignmentDocument>(
   {
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Employer", required: true, index: true },
     employeeId: {
@@ -36,15 +36,15 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
         message: "Employee ID must be a valid ObjectId"
       }
     },
-    roleId: {
+    teamId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Team",
-      required: [true, "Role ID is required"],
+      required: [true, "Team ID is required"],
       validate: {
         validator: function(v: mongoose.Types.ObjectId) {
           return mongoose.Types.ObjectId.isValid(v)
         },
-        message: "Role ID must be a valid ObjectId"
+        message: "Team ID must be a valid ObjectId"
       }
     },
     locationId: {
@@ -76,7 +76,7 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
       type: Date,
       default: null,
       validate: {
-        validator: function(this: IEmployeeRoleAssignmentDocument, v: Date | null) {
+        validator: function(this: IEmployeeTeamAssignmentDocument, v: Date | null) {
           // If validTo is null, it's valid (indefinite assignment)
           if (v === null || v === undefined) return true
           
@@ -124,25 +124,25 @@ const employeeRoleAssignmentSchema = new mongoose.Schema<IEmployeeRoleAssignment
   },
   {
     timestamps: true,
-    collection: "employee_role_assignments",
+    collection: "employee_team_assignments",
   }
 )
 
 // Compound indexes for query performance
-// Unique index to prevent duplicate assignments for the same employee/role/location with the same start date
-employeeRoleAssignmentSchema.index(
-  { tenantId: 1, employeeId: 1, roleId: 1, locationId: 1, validFrom: 1 },
+// Unique index to prevent duplicate assignments for the same employee/team/location with the same start date
+employeeTeamAssignmentSchema.index(
+  { tenantId: 1, employeeId: 1, teamId: 1, locationId: 1, validFrom: 1 },
   { unique: true }
 )
 
 // Index for getting employee's current assignments
-employeeRoleAssignmentSchema.index({ tenantId: 1, employeeId: 1, isActive: 1 })
+employeeTeamAssignmentSchema.index({ tenantId: 1, employeeId: 1, isActive: 1 })
 
-// Index for getting employees for a role at a location
-employeeRoleAssignmentSchema.index({ tenantId: 1, locationId: 1, roleId: 1, isActive: 1 })
+// Index for getting employees for a team at a location
+employeeTeamAssignmentSchema.index({ tenantId: 1, locationId: 1, teamId: 1, isActive: 1 })
 
 // Pre-save hook to compute isActive field
-employeeRoleAssignmentSchema.pre("save", function (next) {
+employeeTeamAssignmentSchema.pre("save", function (next) {
   const now = new Date()
   const isWithinRange = this.validFrom <= now && (!this.validTo || this.validTo >= now)
   this.isActive = isWithinRange
@@ -150,19 +150,19 @@ employeeRoleAssignmentSchema.pre("save", function (next) {
 })
 
 // Validation to prevent overlapping assignments
-employeeRoleAssignmentSchema.pre("save", async function (next) {
+employeeTeamAssignmentSchema.pre("save", async function (next) {
   // Skip validation if this is not a new document and dates haven't changed
   if (!this.isNew && !this.isModified("validFrom") && !this.isModified("validTo")) {
     return next()
   }
 
-  const EmployeeRoleAssignment = this.constructor as mongoose.Model<IEmployeeRoleAssignmentDocument>
+  const EmployeeTeamAssignment = this.constructor as mongoose.Model<IEmployeeTeamAssignmentDocument>
 
   // Check for overlapping assignments
   const overlappingQuery: any = {
     _id: { $ne: this._id }, // Exclude current document
     employeeId: this.employeeId,
-    roleId: this.roleId,
+    teamId: this.teamId,
     locationId: this.locationId,
   }
 
@@ -196,11 +196,11 @@ employeeRoleAssignmentSchema.pre("save", async function (next) {
     ]
   }
 
-  const overlapping = await EmployeeRoleAssignment.findOne(overlappingQuery)
+  const overlapping = await EmployeeTeamAssignment.findOne(overlappingQuery)
 
   if (overlapping) {
     const error = new Error(
-      `Employee already has an overlapping assignment for this role at this location. ` +
+      `Employee already has an overlapping assignment for this team at this location. ` +
       `Existing assignment: ${overlapping.validFrom.toISOString()} to ${overlapping.validTo ? overlapping.validTo.toISOString() : "indefinite"}`
     )
     return next(error)
@@ -209,6 +209,6 @@ employeeRoleAssignmentSchema.pre("save", async function (next) {
   next()
 })
 
-export const EmployeeRoleAssignment =
-  (mongoose.models.EmployeeRoleAssignment as mongoose.Model<IEmployeeRoleAssignmentDocument>) ??
-  mongoose.model<IEmployeeRoleAssignmentDocument>("EmployeeRoleAssignment", employeeRoleAssignmentSchema)
+export const EmployeeTeamAssignment =
+  (mongoose.models.EmployeeTeamAssignment as mongoose.Model<IEmployeeTeamAssignmentDocument>) ??
+  mongoose.model<IEmployeeTeamAssignmentDocument>("EmployeeTeamAssignment", employeeTeamAssignmentSchema)

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { RoleEnablementManager } from "@/lib/managers/role-enablement-manager";
-import { EmployeeRoleAssignment } from "@/lib/db/schemas/employee-role-assignment";
+import { EmployeeTeamAssignment } from "@/lib/db/schemas/employee-team-assignment";
 
 export class TeamAvailabilityService {
   private roleEnablementManager = new RoleEnablementManager();
@@ -18,8 +18,8 @@ export class TeamAvailabilityService {
     const teamsWithCounts = await Promise.all(
       enablements.map(async (enablement: any) => {
         const roleId = enablement.roleId as any;
-        const employeeCount = await EmployeeRoleAssignment.countDocuments({
-          roleId: roleId._id,
+        const employeeCount = await EmployeeTeamAssignment.countDocuments({
+          teamId: roleId._id,
           locationId: new mongoose.Types.ObjectId(locationId),
           validFrom: { $lte: date },
           $or: [{ validTo: null }, { validTo: { $gte: date } }],

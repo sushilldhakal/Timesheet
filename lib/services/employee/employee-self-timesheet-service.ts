@@ -2,7 +2,7 @@ import { endOfWeek, format, isValid, parse, startOfWeek } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { apiErrors } from '@/lib/api/api-error';
 import { getEmployeeFromCookie } from '@/lib/auth/auth-helpers';
-import { EmployeeRoleAssignmentsDbQueries } from "@/lib/db/queries/employee-role-assignments";
+import { EmployeeTeamAssignmentsDbQueries } from "@/lib/db/queries/employee-team-assignments";
 import { EmployeeSelfTimesheetDbQueries } from '@/lib/db/queries/employee-self-timesheet';
 import { formatDate as formatDateDisplay } from '@/lib/utils/format/date-format';
 import { formatTimeString, minutesToHours } from '@/lib/utils/format/time';
@@ -54,10 +54,10 @@ export class EmployeeSelfTimesheetService {
 
     const emp = employee as any;
 
-    const roleAssignments = await EmployeeRoleAssignmentsDbQueries.find({ employeeId: emp._id, isActive: true })
-      .populate('roleId', 'name')
+    const roleAssignments = await EmployeeTeamAssignmentsDbQueries.find({ employeeId: emp._id, isActive: true })
+      .populate('teamId', 'name')
       .lean();
-    const roleNames = (roleAssignments as any[]).map((assignment) => assignment.roleId?.name).filter(Boolean);
+    const roleNames = (roleAssignments as any[]).map((assignment) => assignment.teamId?.name).filter(Boolean);
 
     const employeeData = {
       id: String(emp._id),

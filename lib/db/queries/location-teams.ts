@@ -1,11 +1,11 @@
 import mongoose from 'mongoose';
-import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
+import { EmployeeTeamAssignment } from '@/lib/db/schemas/employee-team-assignment';
 import { LocationRoleEnablement } from '@/lib/db/schemas/location-role-enablement';
 
 export class LocationTeamsDbQueries {
   static async countEmployeesForRoleAtLocation(args: { roleId: string; locationId: string; date: Date }) {
-    return EmployeeRoleAssignment.countDocuments({
-      roleId: new mongoose.Types.ObjectId(args.roleId),
+    return EmployeeTeamAssignment.countDocuments({
+      teamId: new mongoose.Types.ObjectId(args.roleId),
       locationId: new mongoose.Types.ObjectId(args.locationId),
       validFrom: { $lte: args.date },
       $or: [{ validTo: null }, { validTo: { $gte: args.date } }],

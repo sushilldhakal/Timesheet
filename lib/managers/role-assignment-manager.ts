@@ -1,13 +1,13 @@
 import mongoose from "mongoose"
-import type { IEmployeeRoleAssignment } from "@/lib/db/queries/scheduling-types"
+import type { IEmployeeTeamAssignment } from "@/lib/db/queries/scheduling-types"
 import { RoleEnablementManager } from "./role-enablement-manager"
 import { EmployeeDbQueries } from "@/lib/db/queries/employees"
 import { CoreEntitiesDbQueries } from "@/lib/db/queries/core-entities"
-import { EmployeeRoleAssignmentsDbQueries } from "@/lib/db/queries/employee-role-assignments"
+import { EmployeeTeamAssignmentsDbQueries } from "@/lib/db/queries/employee-team-assignments"
 
 export interface AssignRoleParams {
   employeeId: mongoose.Types.ObjectId | string
-  roleId: mongoose.Types.ObjectId | string
+  teamId: mongoose.Types.ObjectId | string
   locationId: mongoose.Types.ObjectId | string
   validFrom: Date
   validTo: Date | null
@@ -49,20 +49,20 @@ export class RoleAssignmentManager {
    * Creates a new assignment record with the specified date range
    * Validates that the role is enabled at the location
    * 
-   * @param params - AssignRoleParams containing employeeId, roleId, locationId, dates, userId, and optional notes
-   * @returns The created EmployeeRoleAssignment document
+   * @param params - AssignRoleParams containing employeeId, teamId, locationId, dates, userId, and optional notes
+   * @returns The created EmployeeTeamAssignment document
    * @throws RoleAssignmentError with appropriate status code and error message
    */
-  async assignRole(params: AssignRoleParams): Promise<IEmployeeRoleAssignment> {
+  async assignRole(params: AssignRoleParams): Promise<IEmployeeTeamAssignment> {
     try {
-      const { employeeId, roleId, locationId, validFrom, validTo, userId, notes } = params
+      const { employeeId, teamId, locationId, validFrom, validTo, userId, notes } = params
 
       // Validate input parameters
       if (!employeeId) {
         throw new RoleAssignmentError("Employee ID is required", 400, "MISSING_EMPLOYEE_ID")
       }
-      if (!roleId) {
-        throw new RoleAssignmentError("Role ID is required", 400, "MISSING_ROLE_ID")
+      if (!teamId) {
+        throw new RoleAssignmentError("Team ID is required", 400, "MISSING_TEAM_ID")
       }
       if (!locationId) {
         throw new RoleAssignmentError("Location ID is required", 400, "MISSING_LOCATION_ID")
@@ -86,8 +86,8 @@ export class RoleAssignmentManager {
       if (!mongoose.Types.ObjectId.isValid(employeeId.toString())) {
         throw new RoleAssignmentError("Invalid employee ID format", 400, "INVALID_EMPLOYEE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
-        throw new RoleAssignmentError("Invalid role ID format", 400, "INVALID_ROLE_ID")
+      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+        throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
       if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
@@ -99,7 +99,7 @@ export class RoleAssignmentManager {
       // Validate the assignment
       const validation = await this.validateAssignment(
         employeeId,
-        roleId,
+        teamId,
         locationId,
         validFrom,
         validTo
@@ -120,10 +120,10 @@ export class RoleAssignmentManager {
       }
 
       // Create the assignment record
-      const assignment = EmployeeRoleAssignmentsDbQueries.createDoc({
+      const assignment = EmployeeTeamAssignmentsDbQueries.createDoc({
         tenantId: (employee as any).tenantId,
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        teamId: new mongoose.Types.ObjectId(teamId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         validFrom,
         validTo,
@@ -225,7 +225,7 @@ export class RoleAssignmentManager {
       const now = new Date()
 
       // Find the assignment
-      const assignment = await EmployeeRoleAssignmentsDbQueries.findById(assignmentId.toString())
+      const assignment = await EmployeeTeamAssignmentsDbQueries.findById(assignmentId.toString())
 
       if (!assignment) {
         throw new RoleAssignmentError(
@@ -328,7 +328,7 @@ export class RoleAssignmentManager {
    * @param locationId - Optional location ID to filter by
    * @param date - The date to check (defaults to current date)
    * @param includeInactive - Whether to include expired assignments
-   * @returns Array of EmployeeRoleAssignment documents with populated details
+   * @returns Array of EmployeeTeamAssignment documents with populated details
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async getEmployeeAssignments(
@@ -336,7 +336,7 @@ export class RoleAssignmentManager {
     locationId?: mongoose.Types.ObjectId | string,
     date: Date = new Date(),
     includeInactive: boolean = false
-  ): Promise<IEmployeeRoleAssignment[]> {
+  ): Promise<IEmployeeTeamAssignment[]> {
     try {
       // Validate input parameters
       if (!employeeId) {
@@ -375,8 +375,8 @@ export class RoleAssignmentManager {
         ]
       }
 
-      const assignments = await EmployeeRoleAssignmentsDbQueries.find(query)
-        .populate("roleId", "name color type")
+      const assignments = await EmployeeTeamAssignmentsDbQueries.find(query)
+        .populate("teamId", "name color type")
         .populate("locationId", "name color type lat lng")
         .populate("assignedBy", "name email")
         .sort({ validFrom: -1 })
@@ -434,29 +434,29 @@ export class RoleAssignmentManager {
   /**
    * Get all employees assigned to a role at a location
    * 
-   * @param roleId - The role ID
+   * @param teamId - The team ID
    * @param locationId - The location ID
    * @param date - The date to check (defaults to current date)
-   * @returns Array of EmployeeRoleAssignment documents with populated employee details
+   * @returns Array of EmployeeTeamAssignment documents with populated employee details
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async getEmployeesForRole(
-    roleId: mongoose.Types.ObjectId | string,
+    teamId: mongoose.Types.ObjectId | string,
     locationId: mongoose.Types.ObjectId | string,
     date: Date = new Date()
-  ): Promise<IEmployeeRoleAssignment[]> {
+  ): Promise<IEmployeeTeamAssignment[]> {
     try {
       // Validate input parameters
-      if (!roleId) {
-        throw new RoleAssignmentError("Role ID is required", 400, "MISSING_ROLE_ID")
+      if (!teamId) {
+        throw new RoleAssignmentError("Team ID is required", 400, "MISSING_TEAM_ID")
       }
       if (!locationId) {
         throw new RoleAssignmentError("Location ID is required", 400, "MISSING_LOCATION_ID")
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
-        throw new RoleAssignmentError("Invalid role ID format", 400, "INVALID_ROLE_ID")
+      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+        throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
       if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
@@ -467,8 +467,8 @@ export class RoleAssignmentManager {
         throw new RoleAssignmentError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const assignments = await EmployeeRoleAssignmentsDbQueries.find({
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+      const assignments = await EmployeeTeamAssignmentsDbQueries.find({
+        teamId: new mongoose.Types.ObjectId(teamId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         validFrom: { $lte: date },
         $or: [
@@ -534,7 +534,7 @@ export class RoleAssignmentManager {
    * Check if an employee is assigned to a role at a location on a specific date
    * 
    * @param employeeId - The employee ID
-   * @param roleId - The role ID
+   * @param teamId - The team ID
    * @param locationId - The location ID
    * @param date - The date to check (defaults to current date)
    * @returns true if the employee is assigned, false otherwise
@@ -542,7 +542,7 @@ export class RoleAssignmentManager {
    */
   async isEmployeeAssigned(
     employeeId: mongoose.Types.ObjectId | string,
-    roleId: mongoose.Types.ObjectId | string,
+    teamId: mongoose.Types.ObjectId | string,
     locationId: mongoose.Types.ObjectId | string,
     date: Date = new Date()
   ): Promise<boolean> {
@@ -551,8 +551,8 @@ export class RoleAssignmentManager {
       if (!employeeId) {
         throw new RoleAssignmentError("Employee ID is required", 400, "MISSING_EMPLOYEE_ID")
       }
-      if (!roleId) {
-        throw new RoleAssignmentError("Role ID is required", 400, "MISSING_ROLE_ID")
+      if (!teamId) {
+        throw new RoleAssignmentError("Team ID is required", 400, "MISSING_TEAM_ID")
       }
       if (!locationId) {
         throw new RoleAssignmentError("Location ID is required", 400, "MISSING_LOCATION_ID")
@@ -562,8 +562,8 @@ export class RoleAssignmentManager {
       if (!mongoose.Types.ObjectId.isValid(employeeId.toString())) {
         throw new RoleAssignmentError("Invalid employee ID format", 400, "INVALID_EMPLOYEE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
-        throw new RoleAssignmentError("Invalid role ID format", 400, "INVALID_ROLE_ID")
+      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+        throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
       if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
@@ -574,9 +574,9 @@ export class RoleAssignmentManager {
         throw new RoleAssignmentError("Date must be a valid date", 400, "INVALID_DATE")
       }
 
-      const assignment = await EmployeeRoleAssignmentsDbQueries.findOne({
+      const assignment = await EmployeeTeamAssignmentsDbQueries.findOne({
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        teamId: new mongoose.Types.ObjectId(teamId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
         validFrom: { $lte: date },
         $or: [
@@ -646,7 +646,7 @@ export class RoleAssignmentManager {
    * - No overlapping assignments exist
    * 
    * @param employeeId - The employee ID
-   * @param roleId - The role ID
+   * @param teamId - The team ID
    * @param locationId - The location ID
    * @param validFrom - Assignment start date
    * @param validTo - Assignment end date (null = indefinite)
@@ -654,7 +654,7 @@ export class RoleAssignmentManager {
    */
   async validateAssignment(
     employeeId: mongoose.Types.ObjectId | string,
-    roleId: mongoose.Types.ObjectId | string,
+    teamId: mongoose.Types.ObjectId | string,
     locationId: mongoose.Types.ObjectId | string,
     validFrom: Date,
     validTo: Date | null
@@ -680,11 +680,11 @@ export class RoleAssignmentManager {
       }
 
       // Verify role exists
-      const role = await CoreEntitiesDbQueries.teamFindById(roleId.toString())
+      const role = await CoreEntitiesDbQueries.teamFindById(teamId.toString())
       if (!role) {
         return {
           valid: false,
-          error: `Role with ID ${roleId} not found`,
+          error: `Team with ID ${teamId} not found`,
           statusCode: 404,
         }
       }
@@ -703,7 +703,7 @@ export class RoleAssignmentManager {
       // We need to check if the role is enabled for the entire assignment period
       const roleEnabledAtStart = await this.roleEnablementManager.isRoleEnabled(
         locationId,
-        roleId,
+        teamId,
         validFrom
       )
 
@@ -719,7 +719,7 @@ export class RoleAssignmentManager {
       if (validTo) {
         const roleEnabledAtEnd = await this.roleEnablementManager.isRoleEnabled(
           locationId,
-          roleId,
+          teamId,
           validTo
         )
 
@@ -737,7 +737,7 @@ export class RoleAssignmentManager {
       // but we can do an early check here for better error messages
       const overlappingQuery: any = {
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        teamId: new mongoose.Types.ObjectId(teamId.toString()),
         locationId: new mongoose.Types.ObjectId(locationId.toString()),
       }
 
@@ -764,7 +764,7 @@ export class RoleAssignmentManager {
         ]
       }
 
-      const overlapping = await EmployeeRoleAssignmentsDbQueries.findOne(overlappingQuery)
+      const overlapping = await EmployeeTeamAssignmentsDbQueries.findOne(overlappingQuery)
       if (overlapping) {
         return {
           valid: false,

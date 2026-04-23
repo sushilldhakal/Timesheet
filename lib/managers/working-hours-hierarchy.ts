@@ -78,20 +78,20 @@ export class WorkingHoursHierarchy {
 
   /**
    * Get role-level template configuration
-   * Uses EmployeeRoleAssignment collection to find active role assignments
+   * Uses EmployeeTeamAssignment collection to find active team assignments
    */
   async getRoleTemplate(
     employeeId: mongoose.Types.ObjectId | string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
-      const EmployeeRoleAssignment = SchedulingModels.EmployeeRoleAssignment
+      const EmployeeTeamAssignment = (SchedulingModels as any).EmployeeTeamAssignment
       
       // Get active role assignments for this employee
-      const roleAssignments = await EmployeeRoleAssignment.find({
+      const roleAssignments = await EmployeeTeamAssignment.find({
         employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
         isActive: true,
-      }).populate('roleId').lean()
+      }).populate('teamId').lean()
 
       if (!roleAssignments || roleAssignments.length === 0) {
         return null
@@ -99,7 +99,7 @@ export class WorkingHoursHierarchy {
 
       // Find the first role with a defaultScheduleTemplate
       for (const assignment of roleAssignments) {
-        const role = assignment.roleId as any
+        const role = assignment.teamId as any
         if (!role || typeof role === 'string' || !role.defaultScheduleTemplate) {
           continue
         }

@@ -3,6 +3,7 @@ export interface Employer {
   name: string
   abn?: string
   contactEmail?: string
+  phone?: string
   color?: string
   defaultAwardId?: string
   isActive: boolean
@@ -14,6 +15,7 @@ export interface CreateEmployerRequest {
   name: string
   abn?: string
   contactEmail?: string
+  phone?: string
   color?: string
   defaultAwardId?: string
   isActive?: boolean
@@ -23,6 +25,7 @@ export interface UpdateEmployerRequest {
   name?: string
   abn?: string
   contactEmail?: string
+  phone?: string
   color?: string
   defaultAwardId?: string
   isActive?: boolean

@@ -22,12 +22,12 @@ export class TimesheetDbQueries {
   }
 
   static async findActiveRoleAssignments(employeeIds: Array<string | mongoose.Types.ObjectId>) {
-    const { EmployeeRoleAssignment } = await import('@/lib/db/schemas/employee-role-assignment');
-    return EmployeeRoleAssignment.find({
+    const { EmployeeTeamAssignment } = await import('@/lib/db/schemas/employee-team-assignment');
+    return EmployeeTeamAssignment.find({
       employeeId: { $in: employeeIds },
       isActive: true,
     })
-      .populate('roleId', 'name')
+      .populate('teamId', 'name')
       .lean();
   }
 

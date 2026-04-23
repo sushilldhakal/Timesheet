@@ -59,8 +59,14 @@ export interface IEmployee {
   img?: string
   emergencyContact?: {
     name?: string
+    relationship?: string
     phone?: string
   }
+  
+  // Onboarding workflow fields
+  onboardingCountry?: 'AU' | 'NZ' | 'IN' | 'NP'
+  onboardingWorkflowStatus?: 'not_started' | 'in_progress' | 'completed' | 'pending_review' | 'approved' | 'action_required' | 'manually_verified'
+  onboardingInvitedBy?: mongoose.Types.ObjectId | null  // User who created/invited this employee
 
   // Legal name (for payroll documents)
   legalFirstName?: string
@@ -188,8 +194,22 @@ const employeeSchema = new mongoose.Schema<IEmployeeDocument>(
     img: { type: String, default: "" },
     emergencyContact: {
       name: { type: String, default: "" },
+      relationship: { type: String, default: "" },
       phone: { type: String, default: "" },
     },
+    
+    // Onboarding workflow fields
+    onboardingCountry: { 
+      type: String, 
+      enum: ['AU', 'NZ', 'IN', 'NP'], 
+      default: null 
+    },
+    onboardingWorkflowStatus: { 
+      type: String, 
+      enum: ['not_started', 'in_progress', 'completed', 'pending_review', 'approved', 'action_required', 'manually_verified'], 
+      default: 'not_started' 
+    },
+    onboardingInvitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
     // Legal name
     legalFirstName: String,
@@ -263,9 +283,9 @@ employeeSchema.index(
   { sparse: true }
 )
 
-// Virtual field for current role assignments (populated from EmployeeRoleAssignment)
-employeeSchema.virtual("currentRoleAssignments", {
-  ref: "EmployeeRoleAssignment",
+// Virtual field for current team assignments (populated from EmployeeTeamAssignment)
+employeeSchema.virtual("currentTeamAssignments", {
+  ref: "EmployeeTeamAssignment",
   localField: "_id",
   foreignField: "employeeId",
   match: { isActive: true }, // Only get active assignments

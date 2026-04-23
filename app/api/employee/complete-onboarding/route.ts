@@ -83,44 +83,68 @@ export const POST = createApiRoute({
 
       const formatHomeAddress = () => {
         const parts = [
-          body.addressLine1,
-          body.addressLine2,
-          `${body.city} ${body.state} ${body.postcode}`.trim(),
-          body.country,
+          b.addressLine1,
+          b.addressLine2,
+          `${b.city} ${b.state} ${b.postcode}`.trim(),
+          b.country,
         ].filter((p) => String(p || '').trim())
         return parts.join(', ')
       }
 
-      // --- Create/Upsert encrypted tax + bank info (AU by default) ---
-      const countrySnapshot: CountryCode = 'AU'
+      // --- Create/Upsert encrypted tax + bank info ---
+      // body is typed from the new staffOnboardingFormSchema — cast to any for flexible access
+      const b = body as any
+      // Use the country stored on the employee record — the form body carries the address
+      // country (e.g. "Australia") not the onboarding country code (e.g. "AU").
+      const countrySnapshot: CountryCode = ((employee as any).onboardingCountry || 'AU') as CountryCode
       const countryConfig = getCountryConfig(countrySnapshot)
 
       const taxSchema = getTaxSchema(countrySnapshot)
       const bankSchema = getBankSchema(countrySnapshot)
 
-      const validatedTaxData = taxSchema.parse({
-        taxId: body.tfn,
-        taxFreeThreshold: body.taxFreeThreshold,
-        studentLoan: body.hasHelpDebt,
-        superannuationFund: body.superannuationFund,
-        superannuationMemberNumber: body.superannuationMemberNumber,
-      }) as any
+      // Build raw tax/bank objects per country — use safeParse so validation errors
+      // don't throw and kill the whole request; fall back to the raw values.
+      const rawTaxInput = countrySnapshot === 'AU'
+        ? { taxId: b.tfn, taxFreeThreshold: b.taxFreeThreshold ?? false, studentLoan: b.hasHelpDebt ?? false, superannuationFund: b.superFundName, superannuationMemberNumber: b.superMemberNumber }
+        : countrySnapshot === 'NP' || countrySnapshot === 'IN'
+        ? { taxId: b.panNepal || b.panForTax, taxIdName: b.legalFirstName + ' ' + b.legalLastName }
+        : countrySnapshot === 'NZ'
+        ? { irdNumber: b.irdNumber, nzTaxCode: b.taxCodeNZ || 'ME' }
+        : { taxId: b.tfn }
 
-      const validatedBankData = bankSchema.parse({
-        accountName: body.accountHolderName,
-        accountNumber: body.accountNumber,
-        bsb: body.bsbCode,
-        bankName: body.bankName,
-        accountType: body.accountType,
-      }) as any
+      const rawBankInput = countrySnapshot === 'AU'
+        ? { accountName: b.accountHolderName, accountNumber: b.accountNumber, bsb: (b.bsbCode || '').replace(/\D/g, ''), bankName: b.bankName, accountType: b.accountType || 'savings' }
+        : countrySnapshot === 'NP' || countrySnapshot === 'IN'
+        ? { accountName: b.accountHolderName || b.legalFirstName, accountNumber: b.nepalAccountNumber, ifsc: b.nepalBranch || '0000000000', bankName: b.nepalBankName }
+        : countrySnapshot === 'NZ'
+        ? { accountName: b.accountHolderName || b.legalFirstName, iban: b.nzAccountNumber, bankName: b.bankName }
+        : { accountName: b.accountHolderName, accountNumber: b.accountNumber }
 
-      const encryptedTaxId = encryptTaxData(String(validatedTaxData.taxId))
-      const taxIdLast4 = extractLast4(String(validatedTaxData.taxId))
+      const taxParseResult = taxSchema.safeParse(rawTaxInput)
+      const bankParseResult = bankSchema.safeParse(rawBankInput)
 
-      const encryptedAccount = encryptTaxData(String(validatedBankData.accountNumber))
-      const accountLast4 = extractLast4(String(validatedBankData.accountNumber))
+      if (!taxParseResult.success) {
+        console.error('[complete-onboarding] Tax validation failed:', taxParseResult.error.flatten())
+      }
+      if (!bankParseResult.success) {
+        console.error('[complete-onboarding] Bank validation failed:', bankParseResult.error.flatten())
+      }
 
-      const routingValue = String(validatedBankData.bsb || '')
+      const validatedTaxData = (taxParseResult.success ? taxParseResult.data : rawTaxInput) as any
+      const validatedBankData = (bankParseResult.success ? bankParseResult.data : rawBankInput) as any
+
+      const encryptedTaxId = validatedTaxData.taxId
+        ? encryptTaxData(String(validatedTaxData.taxId))
+        : encryptTaxData('N/A')
+      const taxIdLast4 = validatedTaxData.taxId
+        ? extractLast4(String(validatedTaxData.taxId))
+        : '0000'
+
+      const accountNum = String(validatedBankData.accountNumber || validatedBankData.iban || 'N/A')
+      const encryptedAccount = encryptTaxData(accountNum)
+      const accountLast4 = extractLast4(accountNum)
+
+      const routingValue = String(validatedBankData.bsb || validatedBankData.ifsc || validatedBankData.routingNumber || '')
       const encryptedRouting = encryptTaxData(routingValue || 'N/A')
       const routingLast4 = routingValue ? extractLast4(routingValue) : '0000'
       
@@ -169,30 +193,26 @@ export const POST = createApiRoute({
       )
 
       // --- Upsert compliance (work rights + optional certifications) ---
-      const isAustralian = String(body.nationality).toLowerCase().includes('austral')
       const complianceUpdates: Record<string, unknown> = {
-        tenantId,
-        employeeId: (employee as any)._id,
-        workRightsType: isAustralian ? 'au_citizen' : 'visa_holder',
-        australianIdType: isAustralian ? (body.australianIdType ?? null) : null,
-        australianIdNumber: isAustralian ? (body.australianIdNumber || null) : null,
-        visaType: !isAustralian ? (body.visaType || null) : null,
-        visaNumber: !isAustralian ? (body.visaNumber || null) : null,
-        maxHoursPerFortnight: !isAustralian && body.maxHoursPerFortnight ? body.maxHoursPerFortnight : null,
+        country: countrySnapshot,
+        workRightsType: b.workRightsType || 'unknown',
+        australianIdType: b.australianIdType ?? null,
+        australianIdNumber: b.australianIdNumber || null,
+        visaType: b.visaSubclass || null,
+        visaNumber: b.visaGrantNumber || null,
+        passportNumber: b.passportNumber || null,
+        passportExpiry: b.passportExpiry ? new Date(b.passportExpiry) : null,
+        visaSubclass: b.visaSubclass || null,
+        visaGrantNumber: b.visaGrantNumber || null,
+        visaWorkConditions: b.visaWorkConditions || null,
+        maxHoursPerFortnight: b.maxHoursPerFortnight || null,
+        citizenshipCertNumber: b.citizenshipCertNumber || null,
+        citizenshipIssuedDistrict: b.citizenshipIssuedDistrict || null,
+        citizenshipIssuedDate: b.citizenshipIssuedDate ? new Date(b.citizenshipIssuedDate) : null,
+        nationalIdNumber: b.nationalIdNumber || null,
+        panNepal: b.panNepal || null,
         workRightsStatus: 'unverified',
         workRightsLastCheckedAt: null,
-      }
-
-      // Check if employee has required certifications
-      const hasCertifications = Array.isArray((employee as any).certifications) && (employee as any).certifications.length > 0
-
-      if (hasCertifications) {
-        complianceUpdates.wwcStatus = body.wwcStatus || 'pending'
-        complianceUpdates.wwcExpiryDate = body.wwcExpiryDate ? new Date(body.wwcExpiryDate) : null
-        complianceUpdates.policeClearanceStatus = body.policeClearanceStatus || 'pending'
-        complianceUpdates.policeClearanceExpiryDate = body.policeClearanceExpiryDate ? new Date(body.policeClearanceExpiryDate) : null
-        complianceUpdates.foodHandlingStatus = body.foodHandlingStatus || 'current'
-        complianceUpdates.foodHandlingExpiryDate = body.foodHandlingExpiryDate ? new Date(body.foodHandlingExpiryDate) : null
       }
 
       await EmployeeCompliance.findOneAndUpdate(
@@ -204,30 +224,29 @@ export const POST = createApiRoute({
       // Update employee with onboarding data (single source of truth)
       const updateData: Record<string, unknown> = {
         // Personal information
-        name: `${body.firstName} ${body.lastName}`.trim(),
-        email: body.email,
-        phone: body.phone,
+        name: `${b.legalFirstName} ${b.legalLastName}`.trim(),
         homeAddress: formatHomeAddress(),
         address: {
-          line1: body.addressLine1,
-          line2: body.addressLine2,
-          city: body.city,
-          state: body.state,
-          postcode: body.postcode,
-          country: body.country,
+          line1: b.addressLine1,
+          line2: b.addressLine2,
+          city: b.city,
+          state: b.state,
+          postcode: b.postcode,
+          country: b.country,
         },
         emergencyContact: {
-          name: body.emergencyContactName,
-          phone: body.emergencyContactPhone,
+          name: b.emergencyContactName,
+          relationship: b.emergencyContactRelationship,
+          phone: b.emergencyContactPhone,
         },
+        dob: b.dob,
+        gender: b.gender,
 
         // Legal details
-        legalFirstName: body.legalFirstName,
-        legalMiddleNames: body.legalMiddleNames,
-        legalLastName: body.legalLastName,
-        preferredName: body.preferredName,
-        nationality: body.nationality,
-        timeZone: body.timeZone,
+        legalFirstName: b.legalFirstName,
+        legalMiddleNames: b.legalMiddleNames,
+        legalLastName: b.legalLastName,
+        preferredName: b.preferredName,
 
         // Link tax info
         taxInfoId: (taxInfoDoc as any)._id,
@@ -235,6 +254,7 @@ export const POST = createApiRoute({
         // Mark onboarding as completed
         onboardingCompleted: true,
         onboardingCompletedAt: new Date(),
+        onboardingWorkflowStatus: 'completed',
         
         // Set granular onboarding status
         onboardingStatus: {
@@ -250,7 +270,7 @@ export const POST = createApiRoute({
       const updatedEmployee = await Employee.findByIdAndUpdate(
         employeeAuth.sub,
         { $set: updateData },
-        { new: true, runValidators: true }
+        { new: true }
       )
 
       if (!updatedEmployee) {
@@ -273,6 +293,59 @@ export const POST = createApiRoute({
         // ignore audit failures
       }
 
+      // Notify HR/Manager that onboarding is complete and pending review
+      try {
+        const { User } = await import('@/lib/db/schemas/user')
+        const { sendEmail } = await import('@/lib/mail/sendEmail')
+
+        const employeeName = (updatedEmployee as any).name
+        const employeeEmail = (updatedEmployee as any).email
+        const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/employees/${String((updatedEmployee as any)._id)}`
+        const subject = `Onboarding Complete: ${employeeName}`
+        const html = `
+          <h2>Employee Onboarding Complete</h2>
+          <p>Hi {{name}},</p>
+          <p><strong>${employeeName}</strong> (${employeeEmail}) has completed their onboarding and is now pending review.</p>
+          <p>Please review their information and approve their account to activate them in the system.</p>
+          <p><a href="${profileUrl}">View Employee Profile</a></p>
+        `
+        const plain = `Hi {{name}},\n\n${employeeName} (${employeeEmail}) has completed their onboarding and is now pending review.\n\nPlease review: ${profileUrl}`
+
+        // Prefer the HR user who originally invited this employee
+        const invitedById = (employee as any).onboardingInvitedBy
+        let recipients: Array<{ email: string; name: string }> = []
+
+        if (invitedById) {
+          const inviter = await User.findById(invitedById).select('email name').lean()
+          if (inviter && (inviter as any).email) {
+            recipients = [{ email: (inviter as any).email, name: (inviter as any).name || 'HR' }]
+          }
+        }
+
+        // Fall back to all tenant admins/managers if no inviter found
+        if (recipients.length === 0) {
+          const hrUsers = await User.find({
+            tenantId,
+            role: { $in: ['admin', 'manager'] },
+          }).select('email name').lean()
+          recipients = hrUsers
+            .filter((u: any) => u.email)
+            .map((u: any) => ({ email: u.email, name: u.name || 'HR' }))
+        }
+
+        for (const recipient of recipients) {
+          await sendEmail({
+            to: recipient.email,
+            subject,
+            html: html.replace('{{name}}', recipient.name),
+            plain: plain.replace('{{name}}', recipient.name),
+            orgId: String(tenantId),
+          })
+        }
+      } catch (emailErr) {
+        console.error('[complete-onboarding] Failed to send HR notification:', emailErr)
+      }
+
       return {
         status: 200,
         data: {
@@ -285,9 +358,7 @@ export const POST = createApiRoute({
         }
       }
     } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[employee/complete-onboarding POST]", err)
-      }
+      console.error("[employee/complete-onboarding POST]", err)
       return {
         status: 500,
         data: { error: "Failed to complete onboarding" }

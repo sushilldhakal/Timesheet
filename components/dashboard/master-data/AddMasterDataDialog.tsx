@@ -53,6 +53,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [mapLink, setMapLink] = useState("")
+  const [locationCountry, setLocationCountry] = useState<"AU" | "NZ" | "IN" | "NP">("AU")
   const [lat, setLat] = useState<number | undefined>()
   const [lng, setLng] = useState<number | undefined>()
   const [radius, setRadius] = useState(100)
@@ -68,6 +69,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
   const [abn, setAbn] = useState("")
   const [contactEmail, setContactEmail] = useState("")
+  const [phone, setPhone] = useState("")
   const [defaultAwardId, setDefaultAwardId] = useState<string>("")
   const [isActive, setIsActive] = useState(true)
   const [groupId, setGroupId] = useState<string>("")
@@ -92,6 +94,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
     setName("")
     setDescription("")
     setMapLink("")
+    setLocationCountry("AU")
     setLat(undefined)
     setLng(undefined)
     setRadius(100)
@@ -107,6 +110,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
     setSelectedTeamIds([])
     setAbn("")
     setContactEmail("")
+    setPhone("")
     setDefaultAwardId("")
     setIsActive(true)
     setGroupId("")
@@ -150,6 +154,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
         body.geofenceMode = geofenceMode
         body.openingHour = openingHour
         body.closingHour = closingHour
+        body.country = locationCountry
         const result = await createLocationMutation.mutateAsync(body as any)
         if (selectedTeamIds.length > 0 && result.location?.id) {
           await Promise.all(
@@ -200,6 +205,7 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
           color,
           abn: abn.trim() || undefined,
           contactEmail: contactEmail.trim() || undefined,
+          phone: phone.trim() || undefined,
           defaultAwardId: defaultAwardId || undefined,
         })
       }
@@ -302,6 +308,16 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
                         type="email"
                         value={contactEmail}
                         onChange={(e) => setContactEmail(e.target.value)}
+                        placeholder="Optional"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="add-phone">Phone number</FieldLabel>
+                      <Input
+                        id="add-phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         placeholder="Optional"
                       />
                     </Field>
@@ -627,6 +643,26 @@ export function AddMasterDataDialog({ type, open, onOpenChange, onSuccess }: Pro
             )}
             {type === "location" && (
               <>
+                <Field>
+                  <FieldLabel>Country *</FieldLabel>
+                  <Select
+                    value={locationCountry}
+                    onValueChange={(v) => setLocationCountry(v as "AU" | "NZ" | "IN" | "NP")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AU">🇦🇺 Australia</SelectItem>
+                      <SelectItem value="NP">🇳🇵 Nepal</SelectItem>
+                      <SelectItem value="NZ">🇳🇿 New Zealand (coming soon)</SelectItem>
+                      <SelectItem value="IN">🇮🇳 India (coming soon)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Determines the onboarding country path for staff hired at this location
+                  </p>
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="add-map-link">Paste Google Maps link</FieldLabel>
                   <Input

@@ -5,6 +5,7 @@ export const employerCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   abn: z.string().max(50).optional(),
   contactEmail: z.string().email().optional(),
+  phone: z.string().max(30).optional(),
   color: z.string().optional(),
   defaultAwardId: objectIdSchema.optional(),
   isActive: z.boolean().optional(),

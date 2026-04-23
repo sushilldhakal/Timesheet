@@ -294,8 +294,10 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
         standardHoursPerWeek: standardHours,
         awardId: awardId || undefined,
         awardLevel: awardLevel || undefined,
+        certifications: certifications.length > 0
+            ? certifications.map(c => ({ type: c.type, label: c.label, required: c.required, provided: false }))
+            : undefined,
         profileImage: img || undefined,
-        password: password.trim() || undefined,
         sendSetupEmail: !password.trim() && sendSetupEmail,
       })
 

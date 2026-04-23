@@ -10,7 +10,7 @@ import { sendEmail } from '@/lib/mail/sendEmail';
 import { generateOnboardingEmail } from '@/lib/mail/templates/employee-onboarding';
 import { generateOnboardingWithPasswordEmail } from '@/lib/mail/templates/employee-onboarding-with-password';
 import { generateOnboardingSetupLinkEmail } from '@/lib/mail/templates/employee-onboarding-setup-link';
-import { EmployeeRoleAssignment } from '@/lib/db/schemas/employee-role-assignment';
+import { EmployeeTeamAssignment } from '@/lib/db/schemas/employee-team-assignment';
 import { Team, Location, Employer } from '@/lib/db';
 
 const arr = (v: unknown): string[] =>
@@ -21,6 +21,7 @@ export class EmployeeService {
     await connectDB();
     const search = query?.search?.trim?.() ?? '';
     const locationFilter = query?.location?.trim?.() ?? '';
+    const locationIdFilter = query?.locationId?.trim?.() ?? '';
     const teamFilter = query?.team?.trim?.() ?? '';
     const employerFilter = query?.employer?.trim?.() ?? '';
     const limit = query?.limit ?? 50;
@@ -29,6 +30,7 @@ export class EmployeeService {
     const orderParam = query?.order ?? 'asc';
 
     const locationFilters = locationFilter ? locationFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+    const locationIdFilters = locationIdFilter ? locationIdFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
     const teamFilters = teamFilter ? teamFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
     const employerFilters = employerFilter ? employerFilter.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
 
@@ -46,7 +48,28 @@ export class EmployeeService {
       andConditions.push({ _id: { $in: roleFilteredEmployeeIds } });
     }
 
-    if (locationFilters.length > 0) andConditions.push({ location: { $in: locationFilters } });
+    // Prefer locationId filtering via assignments (stable + tenant-safe). location(name) is deprecated.
+    if (locationIdFilters.length > 0) {
+      const locOids = locationIdFilters
+        .filter((id: string) => mongoose.Types.ObjectId.isValid(id))
+        .map((id: string) => new mongoose.Types.ObjectId(id));
+
+      if (locOids.length > 0) {
+        const idsAtLocations = await EmployeeTeamAssignment.find({
+          locationId: { $in: locOids },
+          isActive: true,
+        }).distinct("employeeId");
+
+        const strIds = (idsAtLocations as any[]).map((id) => id.toString());
+        if (strIds.length > 0) {
+          andConditions.push({ _id: { $in: strIds.map((id) => new mongoose.Types.ObjectId(id)) } });
+        } else {
+          return { employees: [], total: 0, limit, offset };
+        }
+      }
+    } else if (locationFilters.length > 0) {
+      andConditions.push({ location: { $in: locationFilters } });
+    }
     if (employerFilters.length > 0) andConditions.push({ employer: { $in: employerFilters } });
 
     // teamFilters -> map team names to ids and then to employeeIds via assignments
@@ -55,7 +78,7 @@ export class EmployeeService {
       const teamCategories = await Team.find({ name: { $in: teamFilters } }).lean();
       if (teamCategories.length > 0) {
         const teamIds = teamCategories.map((r: any) => r._id);
-        const teamAssignments = await EmployeeRoleAssignment.find({ roleId: { $in: teamIds }, isActive: true }).distinct(
+        const teamAssignments = await EmployeeTeamAssignment.find({ teamId: { $in: teamIds }, isActive: true }).distinct(
           'employeeId'
         );
         const teamFilteredIds = teamAssignments.map((id: any) => id.toString());
@@ -87,7 +110,7 @@ export class EmployeeService {
     let total = 0;
 
     if (needsAggregation) {
-      const roleAssignmentCollection = 'employee_role_assignments';
+      const roleAssignmentCollection = 'employee_team_assignments';
       const roleCollection = 'roles';
       const locationCollection = 'locations';
 
@@ -116,7 +139,7 @@ export class EmployeeService {
         pipeline.push({
           $lookup: {
             from: roleCollection,
-            localField: '_primaryAssignment.roleId',
+            localField: '_primaryAssignment.teamId',
             foreignField: '_id',
             as: '_roleCategory',
           },
@@ -165,11 +188,11 @@ export class EmployeeService {
     }
 
     const employeeIds = employees.map((e) => e._id);
-    const roleAssignments = await EmployeeRoleAssignment.find({
+    const roleAssignments = await EmployeeTeamAssignment.find({
       employeeId: { $in: employeeIds },
       isActive: true,
     })
-      .populate('roleId', 'name color')
+      .populate('teamId', 'name color')
       .populate('locationId', 'name')
       .lean();
 
@@ -200,17 +223,17 @@ export class EmployeeService {
     for (const assignment of roleAssignments as any[]) {
       const empId = assignment.employeeId.toString();
       if (!assignmentsByEmployee.has(empId)) assignmentsByEmployee.set(empId, []);
-      if (!assignment.locationId || !assignment.roleId) continue;
+      if (!assignment.locationId || !assignment.teamId) continue;
       const assignmentId = assignment._id.toString();
       const existing = assignmentsByEmployee.get(empId)!;
       if (existing.some((x) => x.id === assignmentId)) continue;
       const location = locationMap.get((assignment.locationId as any)._id.toString());
       existing.push({
         id: assignmentId,
-        role: {
-          id: (assignment.roleId as any)._id.toString(),
-          name: (assignment.roleId as any).name,
-          color: (assignment.roleId as any).color,
+        team: {
+          id: (assignment.teamId as any)._id.toString(),
+          name: (assignment.teamId as any).name,
+          color: (assignment.teamId as any).color,
         },
         location:
           location || {
@@ -247,7 +270,7 @@ export class EmployeeService {
         id: e._id.toString(),
         name: e.name ?? '',
         pin: e.pin ?? '',
-        roles: assignments,
+        teams: assignments,
         employers: employerDetails,
         locations: uniqueLocations,
         email: e.email ?? '',
@@ -261,6 +284,9 @@ export class EmployeeService {
         standardHoursPerWeek: e.standardHoursPerWeek ?? null,
         awardId: e.awardId ? e.awardId.toString() : null,
         awardLevel: e.awardLevel ?? null,
+        onboardingCompleted: e.onboardingCompleted === true,
+        onboardingWorkflowStatus: e.onboardingWorkflowStatus ?? 'not_started',
+        onboardingCountry: e.onboardingCountry ?? 'AU',
         createdAt: e.createdAt ? e.createdAt.toISOString() : new Date().toISOString(),
         updatedAt: e.updatedAt ? e.updatedAt.toISOString() : new Date().toISOString(),
       };
@@ -307,7 +333,24 @@ export class EmployeeService {
         required: cert.required,
         provided: false, // Will be updated during onboarding
       })) ?? [],
+      onboardingWorkflowStatus: 'not_started',
+      onboardingInvitedBy: ctx.auth.sub ? new mongoose.Types.ObjectId(ctx.auth.sub) : null,
     };
+    
+    // Derive onboardingCountry from the first selected location
+    if (body.location && body.location.length > 0) {
+      const tenantFilter = ctx.tenantId !== SUPER_ADMIN_SENTINEL
+        ? { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
+        : {};
+      const firstLocation = await Location.findOne({ name: body.location[0], ...tenantFilter }).lean();
+      if (firstLocation && (firstLocation as any).country) {
+        employeeData.onboardingCountry = (firstLocation as any).country;
+      } else {
+        employeeData.onboardingCountry = 'AU'; // Default to AU if location has no country
+      }
+    } else {
+      employeeData.onboardingCountry = 'AU'; // Default to AU if no location selected
+    }
 
     let setupToken: string | undefined;
     if (body.password) {
@@ -336,10 +379,10 @@ export class EmployeeService {
           const team = await Team.findOne({ name: assign.team, ...tenantFilter }).lean();
           const location = await Location.findOne({ name: assign.location, ...tenantFilter }).lean();
           if (team && location) {
-            await EmployeeRoleAssignment.create({
+            await EmployeeTeamAssignment.create({
               tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
               employeeId: employee._id,
-              roleId: (team as any)._id,
+              teamId: (team as any)._id,
               locationId: (location as any)._id,
               validFrom: now,
               validTo: null,
@@ -361,10 +404,10 @@ export class EmployeeService {
       for (const teamCategory of teamCategories as any[]) {
         for (const locationCategory of locationCategories as any[]) {
           try {
-            await EmployeeRoleAssignment.create({
+            await EmployeeTeamAssignment.create({
               tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
               employeeId: employee._id,
-              roleId: teamCategory._id,
+              teamId: teamCategory._id,
               locationId: locationCategory._id,
               validFrom: now,
               validTo: null,
@@ -382,11 +425,11 @@ export class EmployeeService {
 
     if (employee.email) {
       try {
-        const roleAssignments = await EmployeeRoleAssignment.find({ employeeId: employee._id, isActive: true })
-          .populate('roleId', 'name')
+        const roleAssignments = await EmployeeTeamAssignment.find({ employeeId: employee._id, isActive: true })
+          .populate('teamId', 'name')
           .populate('locationId', 'name')
           .lean();
-        const roles = roleAssignments.map((a: any) => a.roleId?.name).filter(Boolean);
+        const roles = roleAssignments.map((a: any) => a.teamId?.name).filter(Boolean);
         const locations = Array.from(new Set(roleAssignments.map((a: any) => a.locationId?.name).filter(Boolean)));
 
         let emailContent: any;
@@ -434,7 +477,7 @@ export class EmployeeService {
     }
 
     // Return in same shape as list item schema expects
-    return { employee: { id: employee._id.toString(), name: employee.name, pin: employee.pin, roles: [], employers: [], locations: [], email: employee.email || '', phone: employee.phone || '', homeAddress: employee.homeAddress || '', dob: employee.dob || '', gender: employee.gender || '', comment: employee.comment || '', img: employee.img || '', employmentType: employee.employmentType || null, standardHoursPerWeek: employee.standardHoursPerWeek ?? null, awardId: employee.awardId ? employee.awardId.toString() : null, awardLevel: employee.awardLevel || null, createdAt: employee.createdAt?.toISOString?.() ?? new Date().toISOString(), updatedAt: employee.updatedAt?.toISOString?.() ?? new Date().toISOString() } };
+    return { employee: { id: employee._id.toString(), name: employee.name, pin: employee.pin, teams: [], employers: [], locations: [], email: employee.email || '', phone: employee.phone || '', homeAddress: employee.homeAddress || '', dob: employee.dob || '', gender: employee.gender || '', comment: employee.comment || '', img: employee.img || '', employmentType: employee.employmentType || null, standardHoursPerWeek: employee.standardHoursPerWeek ?? null, awardId: employee.awardId ? employee.awardId.toString() : null, awardLevel: employee.awardLevel || null, onboardingCompleted: false, onboardingWorkflowStatus: 'not_started', onboardingCountry: (employee as any).onboardingCountry || 'AU', createdAt: employee.createdAt?.toISOString?.() ?? new Date().toISOString(), updatedAt: employee.updatedAt?.toISOString?.() ?? new Date().toISOString() } };
   }
 
   async getEmployeeDetail(ctx: AuthWithLocations, id: string) {
@@ -446,16 +489,16 @@ export class EmployeeService {
     const employee = await EmployeeDbQueries.findEmployeeLean(empFilter);
     if (!employee) throw apiErrors.notFound('Employee not found');
 
-    const roleAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true })
-      .populate('roleId', 'name color type')
+    const roleAssignments = await EmployeeTeamAssignment.find({ employeeId: id, isActive: true })
+      .populate('teamId', 'name color type')
       .populate('locationId', 'name type')
       .lean();
 
     const formattedAssignments = (roleAssignments as any[]).map((assignment) => ({
       id: assignment._id.toString(),
-      roleId: (assignment.roleId as any)._id.toString(),
-      roleName: (assignment.roleId as any).name,
-      roleColor: (assignment.roleId as any).color,
+      teamId: (assignment.teamId as any)._id.toString(),
+      teamName: (assignment.teamId as any).name,
+      teamColor: (assignment.teamId as any).color,
       locationId: (assignment.locationId as any)._id.toString(),
       locationName: (assignment.locationId as any).name,
       validFrom: assignment.validFrom,
@@ -562,18 +605,18 @@ export class EmployeeService {
 
         const teamCategories = await Team.find({ name: { $in: teamNames }, ...tenantFilter }).lean();
         const locationCategories = await Location.find({ name: { $in: locationNames }, ...tenantFilter }).lean();
-        const existingAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true }).lean();
+        const existingAssignments = await EmployeeTeamAssignment.find({ employeeId: id, isActive: true }).lean();
 
         const desiredCombos = new Set<string>();
         for (const team of teamCategories as any[]) for (const location of locationCategories as any[]) desiredCombos.add(`${team._id}-${location._id}`);
 
         const existingCombos = new Map<string, any>();
-        for (const assignment of existingAssignments as any[]) existingCombos.set(`${assignment.roleId}-${assignment.locationId}`, assignment);
+        for (const assignment of existingAssignments as any[]) existingCombos.set(`${assignment.teamId}-${assignment.locationId}`, assignment);
 
         const now = new Date();
         for (const [key, assignment] of existingCombos) {
           if (!desiredCombos.has(key)) {
-            await EmployeeRoleAssignment.updateOne({ _id: assignment._id }, { $set: { validTo: now, isActive: false } });
+            await EmployeeTeamAssignment.updateOne({ _id: assignment._id }, { $set: { validTo: now, isActive: false } });
           }
         }
 
@@ -582,10 +625,10 @@ export class EmployeeService {
             const key = `${team._id}-${location._id}`;
             if (!existingCombos.has(key)) {
               try {
-                await EmployeeRoleAssignment.create({
+                await EmployeeTeamAssignment.create({
                   tenantId: tenantIdForAssignment,
                   employeeId: id,
-                  roleId: team._id,
+                  teamId: team._id,
                   locationId: location._id,
                   validFrom: now,
                   validTo: null,
@@ -602,7 +645,7 @@ export class EmployeeService {
         }
       } else {
         const now = new Date();
-        await EmployeeRoleAssignment.updateMany({ employeeId: id, isActive: true }, { $set: { validTo: now, isActive: false } });
+        await EmployeeTeamAssignment.updateMany({ employeeId: id, isActive: true }, { $set: { validTo: now, isActive: false } });
       }
     }
 
@@ -612,16 +655,16 @@ export class EmployeeService {
         ? await EmployeeDbQueries.updateEmployeeById(id, updates)
         : await EmployeeDbQueries.findEmployeeLean({ _id: id });
 
-    const roleAssignments = await EmployeeRoleAssignment.find({ employeeId: id, isActive: true })
-      .populate('roleId', 'name color type')
+    const roleAssignments = await EmployeeTeamAssignment.find({ employeeId: id, isActive: true })
+      .populate('teamId', 'name color type')
       .populate('locationId', 'name type')
       .lean();
 
     const formattedAssignments = (roleAssignments as any[]).map((assignment) => ({
       id: assignment._id.toString(),
-      roleId: (assignment.roleId as any)._id.toString(),
-      roleName: (assignment.roleId as any).name,
-      roleColor: (assignment.roleId as any).color,
+      teamId: (assignment.teamId as any)._id.toString(),
+      teamName: (assignment.teamId as any).name,
+      teamColor: (assignment.teamId as any).color,
       locationId: (assignment.locationId as any)._id.toString(),
       locationName: (assignment.locationId as any).name,
       validFrom: assignment.validFrom,
@@ -676,11 +719,11 @@ export class EmployeeService {
       }
     }
 
-    const formattedRoles = roleAssignments.map((ra: any) => {
+    const formattedTeams = roleAssignments.map((ra: any) => {
       const location = locationData.find((l: any) => l.id === ra.locationId);
       return {
         id: ra.id,
-        role: { id: ra.roleId, name: ra.roleName, color: ra.roleColor },
+        team: { id: ra.teamId, name: ra.teamName, color: ra.teamColor },
         location:
           location || {
             id: ra.locationId,
@@ -712,13 +755,33 @@ export class EmployeeService {
       standardHoursPerWeek: e.standardHoursPerWeek ?? undefined,
       comment: e.comment ?? '',
       award: awardData,
-      roles: formattedRoles,
+      teams: formattedTeams,
       employers: employerData,
       locations: locationData,
       passwordSetByAdmin: e.passwordSetByAdmin ?? false,
       requirePasswordChange: e.requirePasswordChange ?? false,
       onboardingCompleted: e.onboardingCompleted === true,
       onboardingCompletedAt: e.onboardingCompletedAt ?? null,
+      onboardingStatus: e.onboardingStatus,
+      onboardingWorkflowStatus: e.onboardingWorkflowStatus ?? 'not_started',
+      onboardingCountry: e.onboardingCountry ?? 'AU',
+      legalFirstName: e.legalFirstName,
+      legalMiddleNames: e.legalMiddleNames,
+      legalLastName: e.legalLastName,
+      preferredName: e.preferredName,
+      timeZone: e.timeZone,
+      locale: e.locale,
+      nationality: e.nationality,
+      isActive: e.isActive,
+      isProbationary: e.isProbationary,
+      probationEndDate: e.probationEndDate,
+      terminatedAt: e.terminatedAt,
+      terminationReason: e.terminationReason,
+      skills: e.skills,
+      certifications: e.certifications,
+      emergencyContact: e.emergencyContact,
+      address: e.address,
+      passwordSetupExpiry: e.passwordSetupExpiry,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     };

@@ -70,7 +70,22 @@ export class EmployeeDbQueries {
   }
 
   static async findLocationsByNames(names: string[]) {
-    return Location.find({ name: { $in: names } }).lean();
+    console.log('=== findLocationsByNames DEBUG ===');
+    console.log('Searching for locations with names:', names);
+    const result = await Location.find({ name: { $in: names } }).lean();
+    console.log('Found locations:', JSON.stringify(result, null, 2));
+    
+    // If no exact match, try case-insensitive search
+    if (result.length === 0 && names.length > 0) {
+      console.log('No exact match, trying case-insensitive search...');
+      const caseInsensitiveResult = await Location.find({ 
+        name: { $in: names.map(n => new RegExp(`^${n}$`, 'i')) } 
+      }).lean();
+      console.log('Case-insensitive result:', JSON.stringify(caseInsensitiveResult, null, 2));
+      return caseInsensitiveResult;
+    }
+    
+    return result;
   }
 }
 
