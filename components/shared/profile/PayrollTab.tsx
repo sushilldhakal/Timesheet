@@ -67,23 +67,6 @@ function TaxInfoSection({ employeeId, isStaffView }: { employeeId: string; isSta
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
 
-  if (isLoading) return <SectionSkeleton />
-
-  const isNotFound = error && (error as Error).message?.includes("not found")
-
-  if (error && !isNotFound) {
-    return (
-      <ProfileSectionCard
-        title="Tax Information"
-        icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-      >
-        <ErrorState message="Failed to load tax information" onRetry={() => refetch()} />
-      </ProfileSectionCard>
-    )
-  }
-
-  const taxInfo = data?.taxInfo
-
   const digitsOnly = (value: unknown) => String(value ?? '').replace(/\D/g, '')
   const staffPayrollUpdateSchema = z.object({
     taxFreeThreshold: z.boolean(),
@@ -117,6 +100,23 @@ function TaxInfoSection({ employeeId, isStaffView }: { employeeId: string; isSta
       accountType: 'savings',
     },
   })
+
+  if (isLoading) return <SectionSkeleton />
+
+  const isNotFound = error && (error as Error).message?.includes("not found")
+
+  if (error && !isNotFound) {
+    return (
+      <ProfileSectionCard
+        title="Tax Information"
+        icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+      >
+        <ErrorState message="Failed to load tax information" onRetry={() => refetch()} />
+      </ProfileSectionCard>
+    )
+  }
+
+  const taxInfo = data?.taxInfo
 
   const actions = taxInfo && (
     <div className="flex items-center gap-1.5">
