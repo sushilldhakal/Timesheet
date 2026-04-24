@@ -82,6 +82,8 @@ export function useUpdateEmployerSettings() {
     mutationFn: employersApi.updateEmployerSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: employerSettingsKeys.settings })
+      // Also invalidate the sidebar's query key so the Employers nav item updates immediately
+      queryClient.invalidateQueries({ queryKey: ['org-settings'] })
     },
   })
 }

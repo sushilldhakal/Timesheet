@@ -1,8 +1,11 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useOnboarding } from '@/lib/context/onboarding-context'
@@ -14,6 +17,17 @@ type Step5Data = z.infer<typeof step5Schema>
 
 export function OnboardingStep5() {
   const { formData, setFormData, nextStep, prevStep } = useOnboarding()
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const form = useForm<Step5Data>({
     resolver: zodResolver(step5Schema),
@@ -60,22 +74,29 @@ export function OnboardingStep5() {
             </FormItem>
           )} />
 
-          <FormField control={form.control} name="startDate" render={({ field }: any) => (
-            <FormItem>
-              <FormLabel>Start Date *</FormLabel>
-              <FormControl><Input type="date" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+          <FormField control={form.control} name="startDate" render={({ field }: any) => {
+            const endDate = form.watch('endDate')
+            const endDateError = (form.formState.errors as any)?.endDate?.message as string | undefined
 
-          <FormField control={form.control} name="endDate" render={({ field }: any) => (
-            <FormItem>
-              <FormLabel>End Date (Optional)</FormLabel>
-              <FormControl><Input type="date" {...field} /></FormControl>
-              <FormDescription>Only for fixed-term contracts</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )} />
+            return (
+              <FormItem>
+                <FormLabel>Start / End Dates *</FormLabel>
+                <FormControl>
+                  <DateRangePicker
+                    dateRange={{ from: fromYmd(field.value), to: fromYmd(endDate) }}
+                    onDateRangeChange={(range) => {
+                      field.onChange(toYmd(range?.from))
+                      form.setValue('endDate', toYmd(range?.to), { shouldValidate: true, shouldDirty: true })
+                    }}
+                    placeholder="Pick contract dates"
+                  />
+                </FormControl>
+                <FormDescription>Only required for fixed-term contracts</FormDescription>
+                <FormMessage />
+                {endDateError ? <p className="text-sm font-medium text-destructive">{endDateError}</p> : null}
+              </FormItem>
+            )
+          }} />
 
           <FormField control={form.control} name="wageType" render={({ field }: any) => (
             <FormItem>
@@ -120,7 +141,13 @@ export function OnboardingStep5() {
           <FormField control={form.control} name="probationPeriodEnd" render={({ field }: any) => (
             <FormItem>
               <FormLabel>Probation Period End (Optional)</FormLabel>
-              <FormControl><Input type="date" {...field} /></FormControl>
+              <FormControl>
+                <DatePicker
+                  date={fromYmd(field.value)}
+                  onDateChange={(d) => field.onChange(toYmd(d))}
+                  placeholder="Pick a date"
+                />
+              </FormControl>
               <FormDescription>Date when probation period ends</FormDescription>
               <FormMessage />
             </FormItem>

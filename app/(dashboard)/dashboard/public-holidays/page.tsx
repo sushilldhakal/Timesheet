@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
+import { format } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
@@ -29,6 +31,17 @@ type StateOption = (typeof STATE_OPTIONS)[number]
 
 function formatHolidayDate(date: string | Date) {
   return new Date(date).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fromYmd(value?: string | null): Date | undefined {
+  if (!value) return undefined
+  const d = new Date(`${value}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
+function toYmd(value?: Date): string {
+  if (!value) return ""
+  return format(value, "yyyy-MM-dd")
 }
 
 function StateBadge({ state }: { state: string }) {
@@ -387,11 +400,10 @@ export default function PublicHolidaysPage() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm font-medium">Date</label>
-            <input
-              type="date"
-              value={createDate}
-              onChange={(e) => setCreateDate(e.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            <DatePicker
+              date={fromYmd(createDate)}
+              onDateChange={(d) => setCreateDate(toYmd(d))}
+              placeholder="Pick a date"
             />
           </div>
           <div className="grid gap-2">

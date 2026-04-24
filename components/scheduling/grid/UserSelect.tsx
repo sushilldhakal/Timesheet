@@ -1,5 +1,5 @@
 import React, { useMemo } from "react"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { useSchedulerContext } from "@/components/scheduling/shell/SchedulerProvider"
 
 interface UserSelectProps {

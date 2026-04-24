@@ -1,18 +1,18 @@
 import { z } from "zod"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { approveShift } from "@/lib/services/shift/shift-service"
+import { rejectShift } from "@/lib/services/shift/shift-service"
 
 const paramsSchema = z.object({ id: z.string() })
 
 export const POST = createApiRoute({
   method: "POST",
-  path: "/api/daily-shifts/[id]/approve",
-  summary: "Approve a daily shift",
-  description: "Marks a DailyShift as approved and records approver + timestamp, with audit logging.",
+  path: "/api/daily-shifts/[id]/reject",
+  summary: "Reject a daily shift",
+  description: "Marks a DailyShift as rejected and records the action with audit logging.",
   tags: ["DailyShifts"],
   security: "adminAuth",
-  request: { params: paramsSchema, body: z.object({}).optional() },
+  request: { params: paramsSchema, body: z.object({ reason: z.string().optional() }).optional() },
   responses: {
     200: z.object({ success: z.boolean(), shift: z.any() }),
     400: z.object({ error: z.string() }),
@@ -33,11 +33,11 @@ export const POST = createApiRoute({
       managedRoles: ctx.managedRoles,
     }
 
-    const res = await approveShift(params!.id, actor, {
+    const res = await rejectShift(params!.id, actor, {
       ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
       userAgent: req.headers.get("user-agent") ?? undefined,
+      reason: body?.reason,
     })
     return { status: 200, data: res }
   },
 })
-

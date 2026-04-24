@@ -19,7 +19,7 @@ import { useBuddyPunchAlerts, useUpdateBuddyPunchAlert, type AlertStatus } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { FlagIssueType, FlagRow } from "@/lib/types/flags"
 
-import { BuddyPunchAlertCard } from "./BuddyPunchAlertCard"
+import { BuddyPunchAlertCard } from "../../../../components/dashboard/BuddyPunchAlertCard"
 
 const FILTER_OPTIONS: { value: "" | FlagIssueType; label: string }[] = [
   { value: "", label: "All flagged" },

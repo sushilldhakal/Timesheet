@@ -22,7 +22,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { getRandomTailwindColor, TAILWIND_COLORS } from "@/lib/utils/format/colors"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { useCreateLocation, useEnableLocationTeam } from "@/lib/queries/locations"
 import { useCreateTeam, useTeams } from "@/lib/queries/teams"
 import { useCreateEmployer } from "@/lib/queries/employers"

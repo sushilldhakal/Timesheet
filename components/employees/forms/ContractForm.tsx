@@ -3,8 +3,11 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -55,6 +58,18 @@ export function ContractForm({
 }: ContractFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    // Parse as local date to avoid timezone offsets.
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const form = useForm<ContractFormData>({
     resolver: zodResolver(contractBodySchema),
@@ -146,30 +161,32 @@ export function ContractForm({
             <FormField
               control={form.control}
               name="startDate"
-              render={({ field }: any) => (
-                <FormItem>
-                  <FormLabel>Start Date *</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              render={({ field }: any) => {
+                const endDate = form.watch('endDate')
+                const endDateError = (form.formState.errors as any)?.endDate?.message as string | undefined
 
-            <FormField
-              control={form.control}
-              name="endDate"
-              render={({ field }: any) => (
-                <FormItem>
-                  <FormLabel>End Date (leave blank for permanent)</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormDescription>Only required for fixed-term contracts</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+                return (
+                  <FormItem>
+                    <FormLabel>Start / End Dates *</FormLabel>
+                    <FormControl>
+                      <DateRangePicker
+                        dateRange={{
+                          from: fromYmd(field.value),
+                          to: fromYmd(endDate),
+                        }}
+                        onDateRangeChange={(range) => {
+                          field.onChange(toYmd(range?.from))
+                          form.setValue('endDate', toYmd(range?.to), { shouldValidate: true, shouldDirty: true })
+                        }}
+                        placeholder="Pick contract dates"
+                      />
+                    </FormControl>
+                    <FormDescription>Leave end date blank for permanent contracts</FormDescription>
+                    <FormMessage />
+                    {endDateError ? <p className="text-sm font-medium text-destructive">{endDateError}</p> : null}
+                  </FormItem>
+                )
+              }}
             />
 
             <FormField
@@ -253,7 +270,11 @@ export function ContractForm({
                 <FormItem>
                   <FormLabel>Probation Period End (optional)</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <DatePicker
+                      date={fromYmd(field.value)}
+                      onDateChange={(d) => field.onChange(toYmd(d))}
+                      placeholder="Pick a date"
+                    />
                   </FormControl>
                   <FormDescription>Date when probation period ends (if applicable)</FormDescription>
                   <FormMessage />

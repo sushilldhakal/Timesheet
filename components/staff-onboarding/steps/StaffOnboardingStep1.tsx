@@ -2,9 +2,11 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useOnboarding } from '@/lib/context/staff-onboarding-context'
 import { staffOnboardingStep1Schema, type StaffOnboardingStep1Data } from '@/lib/validations/staff-onboarding'
@@ -18,6 +20,7 @@ export function StaffOnboardingStep1() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
     setValue,
   } = useForm<StaffOnboardingStep1Data>({
@@ -40,6 +43,17 @@ export function StaffOnboardingStep1() {
       emergencyContactPhone: formData.emergencyContactPhone,
     },
   })
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const onSubmit = async (data: StaffOnboardingStep1Data) => {
     setIsSubmitting(true)
@@ -117,10 +131,11 @@ export function StaffOnboardingStep1() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="dob">Date of Birth *</Label>
-            <Input
-              id="dob"
-              type="date"
-              {...register('dob')}
+            <DatePicker
+              date={fromYmd(watch('dob'))}
+              onDateChange={(d) => setValue('dob', toYmd(d), { shouldValidate: true, shouldDirty: true })}
+              placeholder="Pick a date"
+              disabled={isSubmitting}
               className={errors.dob ? 'border-red-500' : ''}
             />
             {errors.dob && (

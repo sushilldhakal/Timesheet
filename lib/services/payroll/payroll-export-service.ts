@@ -37,6 +37,22 @@ export class PayrollExportService {
     const finalFileName = args.fileName || `payroll-export-${args.payRunId}.csv`;
     const exportedAt = new Date();
 
+    // Create PayrollExport record for history tracking
+    const exportRecord = await PayrollExport.create({
+      tenantId: args.ctx.tenantId,
+      payRunId: args.payRunId,
+      exportSystem: args.payrollSystemType,
+      status: "success",
+      exportedAt,
+      exportedBy: args.ctx.auth.sub,
+      exportPayload: { rows, summary } as any,
+      responsePayload: { fileName: finalFileName, exportedAt: exportedAt.toISOString() } as any,
+      rowCount: rows.length,
+      retryCount: 0,
+      maxRetries: 5,
+    });
+
+    // Mark PayRun as exported (updates top-level export fields)
     await PayrollExportDbQueries.markPayRunExported({
       payRunId: args.payRunId,
       payrollSystemType: args.payrollSystemType,
@@ -45,6 +61,7 @@ export class PayrollExportService {
       exportedAt,
     });
 
+    // Mark shifts as exported
     await PayrollExportDbQueries.markDailyShiftsExported({ payRunId: args.payRunId, exportedAt });
 
     return {
@@ -53,6 +70,7 @@ export class PayrollExportService {
         csv,
         fileName: finalFileName,
         summary,
+        exportId: exportRecord._id.toString(),
       },
     };
   }

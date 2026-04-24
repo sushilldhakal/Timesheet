@@ -2,7 +2,7 @@ import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
 import { DailyShift } from "@/lib/db/schemas/daily-shift"
 import { Roster, getWeekBoundaries, type IShift as IRosterShift } from "@/lib/db/schemas/roster"
-import { runComplianceChecks, type ComplianceRuleConfig, type ShiftForCompliance } from "@/lib/validation/compliance-checker"
+import { runComplianceChecks, type ComplianceRuleConfig, type ShiftForCompliance } from "@/lib/validations/compliance-checker"
 
 export type ReconciledShift = {
   variances?: Array<{

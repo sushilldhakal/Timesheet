@@ -90,7 +90,7 @@ import {
   useSchedulingTemplates,
 } from '@/lib/queries/scheduling-page';
 import { useSchedulingSettingsStore } from '@/lib/store/scheduling-settings-store';
-import useDashboardStore from '@/lib/store';
+import useDashboardStore from '@/lib/store/index';
 import { startOfDay, endOfDay, format, parseISO, getISOWeek, getISOWeekYear } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils/cn';
@@ -1239,7 +1239,7 @@ export default function SchedulingPage() {
 
   return (
     <div
-      className="flex flex-col bg-background">
+      className="flex flex-col">
       {/* Page header — title, locations, employee count */}
       <div className="flex shrink-0 flex-col">
         <div className="flex shrink-0 items-center justify-between p-6 pb-4">

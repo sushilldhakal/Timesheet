@@ -32,7 +32,7 @@ import { baseNavigationItems, getFlatNavigationForSearch } from './dashboardNavi
 import type { DashboardHeaderProps } from '@/lib/types/dashboard';
 import { OrgSwitcher } from '@/components/org-switcher/OrgSwitcher';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { MultiSelect } from '@/components/ui/MultiSelect';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { useDashboardLocationScope } from '@/components/providers/DashboardLocationScopeProvider';
 
 

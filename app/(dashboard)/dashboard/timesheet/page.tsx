@@ -9,9 +9,9 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import { FileDown, Printer, AlignJustify, Columns, LayoutGrid, DollarSign } from "lucide-react"
+import { FileDown, Printer, AlignJustify, Columns, LayoutGrid, DollarSign, List } from "lucide-react"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
 import { TimesheetDayView } from "@/components/timesheet/timesheet-day-view"
@@ -24,9 +24,11 @@ import { useEmployees } from "@/lib/queries/employees"
 import { useLocations } from "@/lib/queries/locations"
 import { useTeams } from "@/lib/queries/teams"
 import { useTimesheets } from "@/lib/queries/daily-shifts"
+import { useApproveDailyShift, useRejectDailyShift } from "@/lib/queries/daily-shifts"
 import { getTimesheets } from "@/lib/api/daily-shifts"
 import { AwardEnhancedRow } from "@/components/timesheet/award-enhanced-row"
 import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
+import { useEmployerSettings } from "@/lib/queries/employers"
 
 // 🔥 Mock award data for demonstration
 const mockAwardData: Record<string, any> = {
@@ -159,6 +161,7 @@ interface EmployeeOption {
 export default function TimesheetPage() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [view, setView] = useState<TimesheetView>("week")
+  const [listView, setListView] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [customStartDate, setCustomStartDate] = useState("")
   const [customEndDate, setCustomEndDate] = useState("")
@@ -179,6 +182,9 @@ export default function TimesheetPage() {
     selectedLocationNames,
     setSelectedLocationIds,
   } = useDashboardLocationScope()
+
+  const { data: employerSettings } = useEmployerSettings()
+  const enableExternalHire = employerSettings?.enableExternalHire ?? false
 
   const assignedLocations = userPermissions?.locations ?? []
 
@@ -228,6 +234,7 @@ export default function TimesheetPage() {
       roles: selectedRoles.length > 0 ? selectedRoles : undefined,
       limit: view === "day" ? pageSize : 5000,
       offset: view === "day" ? pageIndex * pageSize : 0,
+      includeSchedule: view === "day" ? ("1" as const) : undefined,
     }),
     [
       startDate,
@@ -243,6 +250,56 @@ export default function TimesheetPage() {
   )
 
   const timesheetsQuery = useTimesheets(timesheetFilters)
+
+  // List-view query: always fetches day-level rows for the full date range
+  const listFilters = useMemo(
+    () => ({
+      startDate,
+      endDate,
+      view: "day" as const,
+      employeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+      employers: selectedEmployers.length > 0 ? selectedEmployers : undefined,
+      locations: selectedLocationNames.length > 0 ? selectedLocationNames : undefined,
+      roles: selectedRoles.length > 0 ? selectedRoles : undefined,
+      limit: 2000,
+      offset: 0,
+      includeSchedule: "1" as const,
+    }),
+    [startDate, endDate, selectedEmployeeIds, selectedEmployers, selectedLocationNames, selectedRoles],
+  )
+  const listQuery = useTimesheets(listFilters)
+
+  const approveMutation = useApproveDailyShift()
+  const rejectMutation = useRejectDailyShift()
+
+  const canApprove = ["admin", "super_admin", "manager", "supervisor"].includes(
+    userPermissions?.role ?? ""
+  )
+
+  // Build teamsByLocationId: every locationId in the current data maps to the full team list.
+  // Teams are global (no locationId on the Team type), so we populate every key with all teams
+  // so TimesheetDayRow's lookup always resolves a name from a roleId.
+  const allTeams = useMemo(
+    () =>
+      (teamsQuery.data?.teams ?? []).map((t: any) => ({ id: String(t.id ?? t._id), name: String(t.name ?? "") })),
+    [teamsQuery.data],
+  )
+
+  const teamsByLocationId = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>()
+    const locationIds = new Set<string>()
+    for (const ts of (timesheetsQuery.data?.timesheets ?? []) as any[]) {
+      if (ts.locationId) locationIds.add(String(ts.locationId))
+    }
+    for (const ts of (listQuery.data?.timesheets ?? []) as any[]) {
+      if (ts.locationId) locationIds.add(String(ts.locationId))
+    }
+    for (const locId of locationIds) {
+      map.set(locId, allTeams)
+    }
+    map.set("", allTeams)
+    return map
+  }, [allTeams, timesheetsQuery.data, listQuery.data])
 
   const timesheets = timesheetsQuery.data?.timesheets ?? []
   const timesheetTotal = timesheetsQuery.data?.total ?? 0
@@ -370,15 +427,12 @@ export default function TimesheetPage() {
   }, [userQuery.data, employeesQuery.data, locationsQuery.data, teamsQuery.data])
 
   const filteredEmployees = useMemo(() => {
-    if (selectedEmployers.length === 0 && selectedRoles.length === 0) return employees
     return employees.filter((e) => {
       const matchEmployer = selectedEmployers.length === 0 || e.employer.some((x) => selectedEmployers.includes(x))
       const matchLocation = selectedLocationNames.length === 0 || e.location.some((x) => selectedLocationNames.includes(x))
-      // For roles, we would need to check employee roles, but since the current data structure doesn't include roles in the employee data,
-      // we'll skip role filtering for now and focus on the UI visibility logic
       return matchEmployer && matchLocation
     })
-  }, [employees, selectedEmployers, selectedLocationNames, selectedRoles])
+  }, [employees, selectedEmployers, selectedLocationNames])
 
   const fetchTimesheets = useCallback(async () => {
     // This is now handled by the useTimesheets hook
@@ -493,7 +547,7 @@ export default function TimesheetPage() {
           "Employee ID",
           "Name",
           "PIN",
-          "Role",
+          "Team",
           "Employer",
           "Location",
           "Clock In",
@@ -536,7 +590,7 @@ export default function TimesheetPage() {
           isValid(rangeStart) && isValid(rangeEnd)
             ? eachDayOfInterval({ start: rangeStart, end: rangeEnd }).map((d) => format(d, "yyyy-MM-dd"))
             : [...new Set(agg.flatMap((r) => Object.keys(r.dailyMinutes ?? {})))].sort()
-        const headers = ["Employee ID", "Name", "PIN", "Role", "Employer", "Location", ...dayKeys, "Total Minutes", "Break Minutes"]
+        const headers = ["Employee ID", "Name", "PIN", "Team", "Employer", "Location", ...dayKeys, "Total Minutes", "Break Minutes"]
         const rows = agg.map((row) => [
           row.employeeId,
           row.name,
@@ -595,6 +649,29 @@ export default function TimesheetPage() {
   }
 
   const renderCurrentView = () => {
+    // List mode: render day-level cards for any view
+    if (listView && view !== "day") {
+      const safeRangeStart = parseISO(startDate)
+      const safeRangeEnd = parseISO(endDate)
+      const listTimesheets = (listQuery.data?.timesheets ?? []).map((ts: any) => {
+        const key = `${ts.employeeId}-${ts.date}`
+        const awardData = mockAwardData[key]
+        return { ...ts, awardTags: awardData?.awardTags || [], computed: awardData?.computed }
+      })
+      return (
+        <TimesheetDayView
+          data={listTimesheets as DashboardTimesheetRow[]}
+          selectedDate={isValid(safeRangeStart) ? safeRangeStart : selectedDate}
+          endDate={isValid(safeRangeEnd) ? safeRangeEnd : undefined}
+          loading={listQuery.isLoading || listQuery.isFetching}
+          canApprove={canApprove}
+          onApprove={(id) => approveMutation.mutateAsync(id)}
+          onReject={(id) => rejectMutation.mutateAsync({ id })}
+          teamsByLocationId={teamsByLocationId}
+        />
+      )
+    }
+
     switch (view) {
       case "day": {
         const safeRangeStart = useCustomRange ? parseISO(customStartDate) : null
@@ -607,6 +684,10 @@ export default function TimesheetPage() {
             selectedDate={safeSelectedDate}
             endDate={safeEndDate}
             loading={loading}
+            canApprove={canApprove}
+            onApprove={(id) => approveMutation.mutateAsync(id)}
+            onReject={(id) => rejectMutation.mutateAsync({ id })}
+            teamsByLocationId={teamsByLocationId}
             serverPagination={{
               totalCount: timesheetTotal,
               pageIndex,
@@ -709,6 +790,33 @@ export default function TimesheetPage() {
               })}
             </div>
           }
+          gridListToggle={
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              className="relative h-9 w-9 shrink-0 overflow-hidden text-muted-foreground hover:text-foreground"
+              onClick={() => setListView((v) => !v)}
+              title={listView ? "Switch to table view" : "Switch to list view"}
+            >
+              <div
+                className={[
+                  "absolute flex items-center justify-center transition-all duration-300",
+                  !listView ? "scale-100 rotate-0 opacity-100" : "scale-50 rotate-90 opacity-0",
+                ].join(" ")}
+              >
+                <List size={16} />
+              </div>
+              <div
+                className={[
+                  "absolute flex items-center justify-center transition-all duration-300",
+                  listView ? "scale-100 rotate-0 opacity-100" : "scale-50 -rotate-90 opacity-0",
+                ].join(" ")}
+              >
+                <LayoutGrid size={16} />
+              </div>
+            </Button>
+          }
           actions={
             <div className="flex items-center gap-2">
               <div className="hidden md:block">
@@ -757,8 +865,8 @@ export default function TimesheetPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-end gap-4">
-              {/* Employer filter - show if multiple employers exist OR if admin */}
-              {(employers.length > 1 ||
+              {/* Employer filter - show if multiple employers exist OR if admin, and only when external hire is enabled */}
+              {enableExternalHire && (employers.length > 1 ||
                 (userPermissions &&
                   (userPermissions.role === "admin" || userPermissions.role === "super_admin") &&
                   employers.length > 0)) && (
@@ -775,18 +883,18 @@ export default function TimesheetPage() {
                 </div>
               )}
 
-              {/* Role filter - show for admin users (if any exist) OR if regular user has multiple managed roles */}
+              {/* Team filter - show for admin users (if any exist) OR if regular user has multiple managed roles */}
               {userPermissions &&
                 ((userPermissions.role === "admin" || userPermissions.role === "super_admin")
                   ? roles.length > 0
                   : userPermissions.managedRoles.length > 1) && (
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-medium text-muted-foreground">Role</label>
+                    <label className="block text-xs font-medium text-muted-foreground">Team</label>
                     <MultiSelect
                       options={roles.map((c) => ({ label: c.name, value: c.name }))}
                       defaultValue={selectedRoles}
                       onValueChange={setSelectedRoles}
-                      placeholder="All roles"
+                      placeholder="All teams"
                       searchable
                       className="min-w-[180px] max-w-[220px]"
                     />

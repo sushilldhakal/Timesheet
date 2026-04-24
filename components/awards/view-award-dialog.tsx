@@ -15,108 +15,7 @@ interface ViewAwardDialogProps {
 export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogProps) {
   if (!award) return null
 
-  const mockRules = [
-    {
-      id: "1",
-      name: "Ordinary Time",
-      description: "Standard 1x rate for regular hours",
-      priority: 1,
-      isActive: true,
-      canStack: false,
-      conditions: {},
-      outcome: {
-        type: "ordinary" as const,
-        multiplier: 1.0,
-        description: "Standard rate"
-      }
-    },
-    {
-      id: "2", 
-      name: "Daily Overtime",
-      description: "1.5x rate after 8 hours daily",
-      priority: 10,
-      isActive: true,
-      canStack: false,
-      conditions: {
-        afterHoursWorked: 8
-      },
-      outcome: {
-        type: "overtime" as const,
-        multiplier: 1.5,
-        description: "Daily overtime"
-      }
-    },
-    {
-      id: "3",
-      name: "Weekend Premium",
-      description: "1.25x rate for weekend work",
-      priority: 15,
-      isActive: true,
-      canStack: false,
-      conditions: {
-        daysOfWeek: ["saturday", "sunday"]
-      },
-      outcome: {
-        type: "overtime" as const,
-        multiplier: 1.25,
-        description: "Weekend penalty"
-      }
-    },
-    {
-      id: "4",
-      name: "Meal Break",
-      description: "30 minute unpaid break for 5+ hour shifts",
-      priority: 5,
-      isActive: true,
-      canStack: false,
-      conditions: {
-        minHoursWorked: 5
-      },
-      outcome: {
-        type: "break" as const,
-        durationMinutes: 30,
-        isPaid: false,
-        isAutomatic: true,
-        description: "Meal break"
-      }
-    },
-    {
-      id: "5",
-      name: "Night Shift Allowance",
-      description: "$25 allowance for shifts starting after 10 PM",
-      priority: 8,
-      isActive: true,
-      canStack: true,
-      conditions: {
-        timeRange: { start: 22, end: 6 }
-      },
-      outcome: {
-        type: "allowance" as const,
-        flatRate: 25,
-        currency: "AUD",
-        description: "Night shift allowance"
-      }
-    },
-    {
-      id: "6",
-      name: "TOIL Accrual",
-      description: "Accrue TOIL instead of overtime when tagged",
-      priority: 25,
-      isActive: true,
-      canStack: false,
-      conditions: {
-        requiredTags: ["TOIL"],
-        afterHoursWorked: 8
-      },
-      outcome: {
-        type: "toil" as const,
-        accrualMultiplier: 1.5,
-        maxBalance: 76,
-        expiryDays: 365,
-        description: "TOIL accrual"
-      }
-    }
-  ]
+  const rules = award.rules || []
 
   const getRuleIcon = (ruleType: string) => {
     switch (ruleType) {
@@ -251,7 +150,7 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="levelRates">Rates ({award.levelRates?.length || 0})</TabsTrigger>
-            <TabsTrigger value="rules">Rules ({mockRules.length})</TabsTrigger>
+            <TabsTrigger value="rules">Rules ({rules.length})</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="specificity">Specificity</TabsTrigger>
           </TabsList>
@@ -281,9 +180,9 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{mockRules.length}</div>
+                  <div className="text-3xl font-bold">{rules.length}</div>
                   <div className="text-sm text-muted-foreground">
-                    {mockRules.filter(r => r.isActive).length} active
+                    {rules.filter((r: any) => r.isActive !== false).length} active
                   </div>
                 </CardContent>
               </Card>
@@ -296,7 +195,9 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{award.availableTags?.length || 0}</div>
+                  <div className="text-3xl font-bold">
+                    {award.awardTagIds?.length || award.availableTags?.length || 0}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     Available overrides
                   </div>
@@ -408,57 +309,65 @@ export function ViewAwardDialog({ award, open, onOpenChange }: ViewAwardDialogPr
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {mockRules
-                    .sort((a, b) => b.priority - a.priority)
-                    .map((rule) => (
-                    <div key={rule.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-full ${getRuleTypeColor(rule.outcome.type)}`}>
-                            {getRuleIcon(rule.outcome.type)}
+                {rules.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No rules configured</p>
+                    <p className="text-sm">Edit this award to add pay rules</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {[...rules]
+                      .sort((a: any, b: any) => (b.priority || 0) - (a.priority || 0))
+                      .map((rule: any, idx: number) => (
+                      <div key={rule.id || idx} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${getRuleTypeColor(rule.outcome?.type)}`}>
+                              {getRuleIcon(rule.outcome?.type)}
+                            </div>
+                            <div>
+                              <div className="font-medium">{rule.name}</div>
+                              <div className="text-sm text-muted-foreground">{rule.description}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium">{rule.name}</div>
-                            <div className="text-sm text-muted-foreground">{rule.description}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            Priority: {rule.priority}
-                          </Badge>
-                          <Badge variant={rule.isActive ? "default" : "secondary"} className="text-xs">
-                            {rule.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground">CONDITIONS</Label>
-                          <div className="text-sm mt-1">
-                            {formatConditions(rule.conditions)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground">OUTCOME</Label>
-                          <div className="text-sm mt-1">
-                            {formatOutcome(rule.outcome)}
-                          </div>
-                        </div>
-
-                        {rule.canStack && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-xs">
-                              Can Stack
+                              Priority: {rule.priority || 0}
+                            </Badge>
+                            <Badge variant={rule.isActive !== false ? "default" : "secondary"} className="text-xs">
+                              {rule.isActive !== false ? "Active" : "Inactive"}
                             </Badge>
                           </div>
-                        )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground">CONDITIONS</Label>
+                            <div className="text-sm mt-1">
+                              {formatConditions(rule.conditions || {})}
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground">OUTCOME</Label>
+                            <div className="text-sm mt-1">
+                              {formatOutcome(rule.outcome || {})}
+                            </div>
+                          </div>
+
+                          {rule.canStack && (
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs">
+                                Can Stack
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

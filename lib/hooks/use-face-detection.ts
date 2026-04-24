@@ -136,7 +136,7 @@ export function useFaceDetection(
     async function load() {
       try {
         // Use local .mjs copy to avoid webpack resolution issues
-        const { default: Human } = await import("@/lib/services/human-browser")
+        const { default: Human } = await import("@/lib/services/face-recognition/human-browser")
         
         const human = new Human({
           modelBasePath: "/models",

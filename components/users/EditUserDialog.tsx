@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { useLocations } from "@/lib/queries/locations"
 import { useTeams } from "@/lib/queries/teams"
 import { useEmployees } from "@/lib/queries/employees"

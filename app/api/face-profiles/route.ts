@@ -6,7 +6,7 @@ import {
   faceProfileCreateResponseSchema,
 } from "@/lib/validations/face-profiles"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import { faceProfilesService } from "@/lib/services/monitoring/face-profiles-service"
+import { faceProfilesService } from "@/lib/services/face-recognition/face-profiles-service"
 
 // POST /api/face-profiles - Enroll or re-enroll a staff member
 export const POST = createApiRoute({

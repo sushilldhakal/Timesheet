@@ -15,7 +15,7 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, RefreshCw, User, Briefcase, Award, Zap } from "lucide-react"
 import { useLocations, useLocationTeams } from "@/lib/queries/locations"
@@ -182,7 +182,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess }: Props) {
     awardsQuery.data?.awards?.map((a: any) => ({
       value: a._id,
       label: a.name,
-      levels: a.levels?.map((l: any) => l.label) || []
+      // Derive unique levels from levelRates (no dependency on legacy a.levels)
+      levels: [...new Set((a.levelRates || []).map((r: any) => r.level))] as string[]
     })) || []
   , [awardsQuery.data?.awards])
 

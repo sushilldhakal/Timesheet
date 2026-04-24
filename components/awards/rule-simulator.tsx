@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Table,
   TableBody,
@@ -32,6 +33,8 @@ import {
   Info,
 } from "lucide-react"
 import { getAwards, evaluateAwardRules } from "@/lib/api/awards"
+import { buildEvaluationRequest } from "@/lib/utils/award-evaluation-request"
+import { format } from "date-fns"
 
 interface AwardOption {
   _id: string
@@ -92,10 +95,7 @@ export function RuleSimulator() {
 
   const [awardId, setAwardId] = useState("")
   const [employmentType, setEmploymentType] = useState("full_time")
-  const [shiftDate, setShiftDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split("T")[0]
-  })
+  const [shiftDate, setShiftDate] = useState<Date>(() => new Date())
   const [startTime, setStartTime] = useState("09:00")
   const [endTime, setEndTime] = useState("17:00")
   const [awardTags, setAwardTags] = useState<string[]>([])
@@ -150,23 +150,19 @@ export function RuleSimulator() {
     setResult(null)
 
     try {
-      const dateObj = new Date(shiftDate + "T" + startTime + ":00")
-      const endDateObj = new Date(shiftDate + "T" + endTime + ":00")
-      if (endDateObj <= dateObj) {
-        endDateObj.setDate(endDateObj.getDate() + 1)
-      }
-
-      const data = await evaluateAwardRules({
+      // Use shared helper to build timezone-safe payload
+      const payload = buildEvaluationRequest({
         awardId,
-        shiftDate: dateObj.toISOString(),
-        startTime: dateObj.toISOString(),
-        endTime: endDateObj.toISOString(),
+        dateString: format(shiftDate, "yyyy-MM-dd"),
+        startTime,
+        endTime,
         employmentType,
         awardTags,
         isPublicHoliday,
-        dailyHoursWorked,
         weeklyHoursWorked,
       })
+
+      const data = await evaluateAwardRules(payload)
 
       if (data.error && !data.allRulesEvaluation) {
         setError(data.error)
@@ -301,10 +297,10 @@ export function RuleSimulator() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Shift Date</Label>
-              <Input
-                type="date"
-                value={shiftDate}
-                onChange={e => setShiftDate(e.target.value)}
+              <DatePicker
+                date={shiftDate}
+                onDateChange={(date) => setShiftDate(date || new Date())}
+                placeholder="Select shift date"
               />
             </div>
             <div className="space-y-2">
@@ -334,7 +330,7 @@ export function RuleSimulator() {
             <Separator orientation="vertical" className="h-4" />
             <div className="flex items-center gap-1.5">
               <span>Day: <strong className="text-foreground">
-                {new Date(shiftDate + "T12:00:00").toLocaleDateString('en-US', { weekday: 'long' })}
+                {shiftDate.toLocaleDateString('en-US', { weekday: 'long' })}
               </strong></span>
             </div>
           </div>

@@ -5,7 +5,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ArrowLeft, Download, Calculator, CheckCircle, Eye, Loader2, FileDown, CalendarIcon } from "lucide-react"
+import { Plus, ArrowLeft, Calculator, CheckCircle, Eye, Loader2, FileDown, CalendarIcon, AlertCircle, Clock, FileText } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { FormDialogShell } from "@/components/shared/forms/FormDialogShell"
@@ -16,25 +16,30 @@ import { PayrollExportStatus } from "@/components/payroll/payroll-export-status"
 import { apiFetch } from "@/lib/api/fetch-client"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 import { format, addDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import {
   getPayRuns,
-  getPayRunExport,
+  getPayRunDetail,
   createPayRun,
   calculatePayRun,
   getPayRunJobStatus,
   approvePayRun,
   type PayRun,
-  type PayRunExport,
-  type JobStatus,
+  type PayRunDetail,
+  type PayRunJobStatusResponse,
 } from "@/lib/api/pay-runs"
 
 export default function PayRunsPage() {
   const [view, setView] = useState<'list' | 'detail'>('list')
   const [payRuns, setPayRuns] = useState<PayRun[]>([])
   const [selectedPayRun, setSelectedPayRun] = useState<PayRun | null>(null)
-  const [payRunDetail, setPayRunDetail] = useState<PayRunExport | null>(null)
+  const [payRunDetail, setPayRunDetail] = useState<PayRunDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [calculatingJobs, setCalculatingJobs] = useState<Set<string>>(new Set())
@@ -57,14 +62,12 @@ export default function PayRunsPage() {
 
   const handleDateRangeSelect = (range: DateRange | undefined) => {
     if (range?.from && !range.to) {
-      // Auto-set end date to 6 days after start (7-day week)
       setDateRange({ from: range.from, to: addDays(range.from, 6) })
     } else {
       setDateRange(range)
     }
   }
 
-  // Fetch current user's tenant
   useEffect(() => {
     const fetchTenant = async () => {
       try {
@@ -95,12 +98,17 @@ export default function PayRunsPage() {
   }, [tenantId])
 
   const fetchPayRunDetail = useCallback(async (payRunId: string) => {
+    setDetailLoading(true)
     try {
-      const data = await getPayRunExport(payRunId)
-      setPayRunDetail(data.data ?? null)
+      const data = await getPayRunDetail(payRunId)
+      setPayRunDetail(data)
+      // Update selectedPayRun with fresh data from detail response
+      setSelectedPayRun(data.payRun as PayRun)
     } catch (error) {
       console.error('Failed to fetch pay run detail:', error)
       setPayRunDetail(null)
+    } finally {
+      setDetailLoading(false)
     }
   }, [])
 
@@ -137,7 +145,6 @@ export default function PayRunsPage() {
 
     try {
       await calculatePayRun(payRun._id)
-      // Start polling for job status
       pollJobStatus(payRun._id)
     } catch (error) {
       console.error('Failed to calculate pay run:', error)
@@ -153,31 +160,35 @@ export default function PayRunsPage() {
   const pollJobStatus = (payRunId: string) => {
     const interval = setInterval(async () => {
       try {
-        const status = await getPayRunJobStatus(payRunId)
+        const statusData: PayRunJobStatusResponse = await getPayRunJobStatus(payRunId)
+        const { payRunStatus, job } = statusData
+        const jobStatus = job?.status
 
-        if (status.status === 'completed') {
+        const isTerminal =
+          payRunStatus === 'calculated' ||
+          payRunStatus === 'approved' ||
+          payRunStatus === 'exported' ||
+          payRunStatus === 'failed' ||
+          jobStatus === 'completed' ||
+          jobStatus === 'failed'
+
+        if (isTerminal) {
           clearInterval(interval)
           setCalculatingJobs(prev => {
-            const newSet = new Set(prev)
-            newSet.delete(payRunId)
-            return newSet
+            const next = new Set(prev)
+            next.delete(payRunId)
+            return next
           })
-          fetchPayRuns() // Refresh to show updated status
-        } else if (status.status === 'failed') {
-          clearInterval(interval)
-          setCalculatingJobs(prev => {
-            const newSet = new Set(prev)
-            newSet.delete(payRunId)
-            return newSet
-          })
-          setJobErrors(prev => new Map(prev).set(payRunId, status.error || 'Calculation failed'))
+          if (payRunStatus === 'failed' || jobStatus === 'failed') {
+            setJobErrors(prev => new Map(prev).set(payRunId, statusData.jobError || 'Calculation failed'))
+          }
+          fetchPayRuns()
         }
       } catch (error) {
         console.error('Failed to poll job status:', error)
       }
     }, 2000)
 
-    // Clean up interval after 5 minutes to prevent infinite polling
     setTimeout(() => clearInterval(interval), 5 * 60 * 1000)
   }
 
@@ -185,6 +196,9 @@ export default function PayRunsPage() {
     try {
       await approvePayRun(payRun._id)
       fetchPayRuns()
+      if (view === 'detail' && selectedPayRun?._id === payRun._id) {
+        fetchPayRunDetail(payRun._id)
+      }
     } catch (error) {
       console.error('Failed to approve pay run:', error)
     }
@@ -209,12 +223,23 @@ export default function PayRunsPage() {
     })
   }
 
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
   const getStatusBadge = (status: PayRun['status']) => {
-    const variants = {
+    const variants: Record<PayRun['status'], string> = {
       draft: 'bg-gray-100 text-gray-700',
       calculated: 'bg-blue-100 text-blue-700',
       approved: 'bg-green-100 text-green-700',
-      exported: 'bg-purple-100 text-purple-700'
+      exported: 'bg-purple-100 text-purple-700',
+      failed: 'bg-red-100 text-red-700'
     }
     
     return (
@@ -232,7 +257,13 @@ export default function PayRunsPage() {
       ),
       cell: ({ row }) => {
         const payRun = row.original
-        return `${formatDate(payRun.startDate)} – ${formatDate(payRun.endDate)}`
+        const days = Math.round((new Date(payRun.endDate).getTime() - new Date(payRun.startDate).getTime()) / (1000 * 60 * 60 * 24) + 1)
+        return (
+          <div>
+            <div className="font-medium">{formatDate(payRun.startDate)} – {formatDate(payRun.endDate)}</div>
+            <div className="text-xs text-muted-foreground">{days} days</div>
+          </div>
+        )
       },
       enableSorting: false,
     },
@@ -241,37 +272,56 @@ export default function PayRunsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => {
+        const payRun = row.original
+        const error = jobErrors.get(payRun._id)
+        return (
+          <div className="space-y-1">
+            {getStatusBadge(payRun.status)}
+            {error && <div className="text-xs text-red-600 max-w-[200px] truncate" title={error}>{error}</div>}
+          </div>
+        )
+      },
       enableSorting: false,
     },
     {
       accessorKey: "gross",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Gross" />
+        <DataTableColumnHeader column={column} title="Gross / Net" />
       ),
-      cell: ({ row }) => `$${row.original.totals.gross.toFixed(2)}`,
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">${row.original.totals.gross.toFixed(2)}</div>
+          <div className="text-xs text-muted-foreground">${row.original.totals.net.toFixed(2)} net</div>
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: "super",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Super" />
+      ),
+      cell: ({ row }) => `$${row.original.totals.super.toFixed(2)}`,
       enableSorting: false,
     },
     {
       accessorKey: "hours",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Hours" />
+        <DataTableColumnHeader column={column} title="Hours / Emp" />
       ),
-      cell: ({ row }) => row.original.totals.totalHours.toFixed(1),
-      enableSorting: false,
-    },
-    {
-      accessorKey: "employees",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Employees" />
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.totals.totalHours.toFixed(1)}h</div>
+          <div className="text-xs text-muted-foreground">{row.original.totals.employeeCount} emp</div>
+        </div>
       ),
-      cell: ({ row }) => row.original.totals.employeeCount,
       enableSorting: false,
     },
     {
       id: "exportStatus",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Export Status" />
+        <DataTableColumnHeader column={column} title="Export" />
       ),
       cell: ({ row }) => {
         const payRun = row.original
@@ -293,61 +343,33 @@ export default function PayRunsPage() {
       cell: ({ row }) => {
         const payRun = row.original
         const isCalculating = calculatingJobs.has(payRun._id)
-        const error = jobErrors.get(payRun._id)
-        
+
         return (
-          <div className="flex flex-col gap-1" onClick={(ev) => ev.stopPropagation()}>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleViewDetail(payRun)}
-              >
-                <Eye className="h-4 w-4 mr-1" />
-                View
+          <div className="flex gap-1" onClick={(ev) => ev.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={() => handleViewDetail(payRun)}>
+              <Eye className="h-4 w-4 mr-1" />
+              View
+            </Button>
+
+            {payRun.status === 'draft' && (
+              <Button variant="ghost" size="sm" onClick={() => handleCalculate(payRun)} disabled={isCalculating}>
+                {isCalculating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calculator className="h-4 w-4 mr-1" />}
+                Calculate
               </Button>
-              
-              {payRun.status === 'draft' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCalculate(payRun)}
-                  disabled={isCalculating}
-                >
-                  {isCalculating ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Calculator className="h-4 w-4 mr-1" />
-                  )}
-                  Calculate
-                </Button>
-              )}
-              
-              {payRun.status === 'calculated' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleApprove(payRun)}
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Approve
-                </Button>
-              )}
-              
-              {(payRun.status === 'approved' || payRun.status === 'exported') && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleOpenExportDialog(payRun)}
-                >
-                  <FileDown className="h-4 w-4 mr-1" />
-                  Export to Payroll
-                </Button>
-              )}
-            </div>
-            
-            {error && (
-              <div className="text-xs text-red-600">{error}</div>
+            )}
+
+            {payRun.status === 'calculated' && (
+              <Button variant="ghost" size="sm" onClick={() => handleApprove(payRun)}>
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Approve
+              </Button>
+            )}
+
+            {(payRun.status === 'approved' || payRun.status === 'exported') && (
+              <Button variant="ghost" size="sm" onClick={() => handleOpenExportDialog(payRun)}>
+                <FileDown className="h-4 w-4 mr-1" />
+                Export
+              </Button>
             )}
           </div>
         )
@@ -355,120 +377,338 @@ export default function PayRunsPage() {
     },
   ], [calculatingJobs, jobErrors])
 
+  // Detail View Render
   if (view === 'detail' && selectedPayRun) {
+    const detail = payRunDetail
+    // Use fresh detail data for pay run core fields if available, fallback to selectedPayRun
+    const pr = detail?.payRun || selectedPayRun
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setView('list')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Pay Runs
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">
-              Pay Run: {formatDate(selectedPayRun.startDate)} – {formatDate(selectedPayRun.endDate)}
-            </h1>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => setView('list')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold">
+                {formatDate(pr.startDate)} – {formatDate(pr.endDate)}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Pay Run • {detail?.summary.periodDays || 0} days • {detail?.summary.lineItemCount || 0} line items
+              </p>
+            </div>
+            {getStatusBadge(pr.status)}
           </div>
-          {getStatusBadge(selectedPayRun.status)}
+          <div className="flex gap-2">
+            {pr.status === 'draft' && (
+              <Button onClick={() => handleCalculate(pr)} disabled={calculatingJobs.has(pr._id)}>
+                {calculatingJobs.has(pr._id) ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Calculator className="h-4 w-4 mr-2" />}
+                Calculate
+              </Button>
+            )}
+            {pr.status === 'calculated' && (
+              <Button onClick={() => handleApprove(pr)}>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Approve
+              </Button>
+            )}
+            {(pr.status === 'approved' || pr.status === 'exported') && (
+              <Button onClick={() => handleOpenExportDialog(pr)}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Export to Payroll
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Gross</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${selectedPayRun.totals.gross.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Super</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${selectedPayRun.totals.super.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{selectedPayRun.totals.totalHours.toFixed(1)}h</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Employees</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{selectedPayRun.totals.employeeCount}</div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Error/Job State Alert */}
+        {pr.jobError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Calculation Error:</strong> {pr.jobError}
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {payRunDetail && payRunDetail.employees && payRunDetail.employees.length > 0 && (
-          <div className="space-y-6">
-            {payRunDetail.employees.map((employee) => (
-              <Card key={employee.employeeId}>
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold">{employee.employeeName}</CardTitle>
+        {detailLoading ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i}>
+                  <CardHeader className="pb-2">
+                    <Skeleton className="h-4 w-20" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-24" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : detail ? (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Gross Pay</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2">Type</th>
-                          <th className="text-left py-2">Export Code</th>
-                          <th className="text-left py-2">From → To</th>
-                          <th className="text-right py-2">Hours</th>
-                          <th className="text-right py-2">Rate</th>
-                          <th className="text-right py-2">×Multiplier</th>
-                          <th className="text-right py-2">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {employee.payItems.map((item, index) => (
-                          <tr key={index} className="border-b">
-                            <td className="py-2">{item.type}</td>
-                            <td className="py-2">{item.exportName}</td>
-                            <td className="py-2">
-                              {new Date(item.from).toLocaleTimeString('en-AU', { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })} → {new Date(item.to).toLocaleTimeString('en-AU', { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })}
-                            </td>
-                            <td className="text-right py-2">{item.hours.toFixed(2)}</td>
-                            <td className="text-right py-2">${item.rate.toFixed(2)}</td>
-                            <td className="text-right py-2">×{item.multiplier.toFixed(2)}</td>
-                            <td className="text-right py-2">${item.amount.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <div className="text-2xl font-bold">${pr.totals.gross.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ${detail.summary.averageEmployeeCost.toFixed(2)} avg/emp
+                  </p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Net Pay</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${pr.totals.net.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tax ${pr.totals.tax.toFixed(2)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Superannuation</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${pr.totals.super.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {pr.totals.gross > 0 ? ((pr.totals.super / pr.totals.gross) * 100).toFixed(1) : 0}% of gross
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Hours</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{pr.totals.totalHours.toFixed(1)}h</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ${detail.summary.averageHourlyCost.toFixed(2)}/hr avg
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Metadata & Notes */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pay Run Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Created</p>
+                    <p className="font-medium">{formatDateTime(pr.createdAt)}</p>
+                  </div>
+                  {pr.approvedAt && (
+                    <div>
+                      <p className="text-muted-foreground">Approved</p>
+                      <p className="font-medium">{formatDateTime(pr.approvedAt)}</p>
+                    </div>
+                  )}
+                  {pr.exportedAt && (
+                    <div>
+                      <p className="text-muted-foreground">Exported</p>
+                      <p className="font-medium">{formatDateTime(pr.exportedAt)}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground">Employees</p>
+                    <p className="font-medium">{pr.totals.employeeCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Line Items</p>
+                    <p className="font-medium">{detail.summary.lineItemCount}</p>
+                  </div>
+                </div>
+                {pr.notes && (
+                  <div className="pt-2 border-t">
+                    <p className="text-sm text-muted-foreground mb-1">Notes</p>
+                    <p className="text-sm">{pr.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tabs: Breakdown, Employees, Export History */}
+            <Tabs defaultValue="employees" className="w-full">
+              <TabsList>
+                <TabsTrigger value="employees">Employees ({detail.employees.length})</TabsTrigger>
+                <TabsTrigger value="breakdown">Breakdown by Type</TabsTrigger>
+                <TabsTrigger value="exports">Export History ({detail.exports.length})</TabsTrigger>
+              </TabsList>
+
+              {/* Employees Tab */}
+              <TabsContent value="employees" className="space-y-4 mt-4">
+                {detail.employees.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">
+                      No employees in this pay run
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Accordion type="single" collapsible className="space-y-2">
+                    {detail.employees.map((emp) => (
+                      <AccordionItem key={emp.employeeId} value={emp.employeeId} className="border rounded-lg px-4">
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-center justify-between w-full pr-4">
+                            <div className="text-left">
+                              <div className="font-semibold">{emp.employeeName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {emp.payItemCount} items • {emp.totalHours.toFixed(1)}h @ ${emp.averageRate.toFixed(2)}/hr avg
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold">${emp.totalAmount.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="pt-4">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 font-medium">Type</th>
+                                    <th className="text-left py-2 font-medium">Export Code</th>
+                                    <th className="text-left py-2 font-medium">Period</th>
+                                    <th className="text-right py-2 font-medium">Hours</th>
+                                    <th className="text-right py-2 font-medium">Rate</th>
+                                    <th className="text-right py-2 font-medium">Mult.</th>
+                                    <th className="text-right py-2 font-medium">Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {emp.payItems.map((item, idx) => (
+                                    <tr key={idx} className="border-b last:border-0">
+                                      <td className="py-2 capitalize">{item.type.replace('_', ' ')}</td>
+                                      <td className="py-2 font-mono text-xs">{item.exportName}</td>
+                                      <td className="py-2 text-xs text-muted-foreground">
+                                        {new Date(item.from).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                                        {' → '}
+                                        {new Date(item.to).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                                      </td>
+                                      <td className="text-right py-2">{item.hours.toFixed(2)}</td>
+                                      <td className="text-right py-2">${item.rate.toFixed(2)}</td>
+                                      <td className="text-right py-2">×{item.multiplier.toFixed(2)}</td>
+                                      <td className="text-right py-2 font-medium">${item.amount.toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
+              </TabsContent>
+
+              {/* Breakdown Tab */}
+              <TabsContent value="breakdown" className="mt-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    {detail.breakdown.byType.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground">
+                        No breakdown data available
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {detail.breakdown.byType.map((typeData) => (
+                          <div key={typeData.type} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <div className="font-medium capitalize">{typeData.type.replace('_', ' ')}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {typeData.lineCount} lines • {typeData.hours.toFixed(1)}h
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold">${typeData.amount.toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                ${typeData.hours > 0 ? (typeData.amount / typeData.hours).toFixed(2) : '0.00'}/hr
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Export History Tab */}
+              <TabsContent value="exports" className="mt-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    {detail.exports.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                        <p>No export history yet</p>
+                        <p className="text-xs mt-1">Export this pay run to create a record</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {detail.exports.map((exp) => (
+                          <div key={exp._id} className="flex items-start justify-between p-3 border rounded-lg">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium capitalize">{exp.exportSystem}</span>
+                                <Badge variant={exp.status === 'success' ? 'default' : exp.status === 'failed' ? 'destructive' : 'secondary'}>
+                                  {exp.status}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {exp.exportedAt ? formatDateTime(exp.exportedAt) : 'Not exported yet'}
+                                {' • '}
+                                {exp.rowCount} rows
+                                {exp.retryCount > 0 && ` • ${exp.retryCount} retries`}
+                              </div>
+                              {exp.externalRef && (
+                                <div className="text-xs font-mono text-muted-foreground">
+                                  Ref: {exp.externalRef}
+                                </div>
+                              )}
+                              {exp.errorLog && (
+                                <div className="text-xs text-red-600 mt-1 max-w-md">
+                                  {exp.errorLog}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Failed to load pay run details
+            </CardContent>
+          </Card>
         )}
       </div>
     )
   }
 
+  // List View Render
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -569,7 +809,12 @@ export default function PayRunsPage() {
           tenantId={tenantId}
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
-          onExportComplete={() => fetchPayRuns()}
+          onExportComplete={() => {
+            fetchPayRuns()
+            if (view === 'detail' && selectedPayRun?._id === exportPayRunId) {
+              fetchPayRunDetail(exportPayRunId)
+            }
+          }}
         />
       )}
     </div>

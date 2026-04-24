@@ -63,41 +63,25 @@ export async function getEmployeeConditions(
       return null;
     }
 
-    // Find the level
-    const level = award.levels.find(
-      (l: any) => l.label === activeCondition.awardLevel
+    // Find the matching level rate effective on the requested date (not new Date())
+    const matchingRate = (award.levelRates || []).find(
+      (r: any) =>
+        r.level === activeCondition.awardLevel &&
+        r.employmentType === activeCondition.employmentType &&
+        new Date(r.effectiveFrom) <= date &&
+        (!r.effectiveTo || new Date(r.effectiveTo) >= date)
     );
-    if (!level) {
-      return null;
-    }
 
-    // Find the employment type conditions
-    const conditions = level.conditions.find(
-      (c: any) => c.employmentType === activeCondition.employmentType
-    );
-    if (!conditions) {
-      return null;
-    }
-
-    // Return flattened conditions with metadata
+    // Return resolved conditions with metadata
     const resolved: ResolvedConditions = {
-      ...conditions.toObject(),
       awardId: award._id.toString(),
       awardName: award.name,
       awardLevel: activeCondition.awardLevel,
       effectiveFrom: activeCondition.effectiveFrom,
       effectiveTo: activeCondition.effectiveTo,
       overridingRate: activeCondition.overridingRate,
+      hourlyRate: activeCondition.overridingRate ?? matchingRate?.hourlyRate ?? null,
     };
-
-    // Apply overriding rate if present
-    if (activeCondition.overridingRate && (resolved as any).payRule) {
-      if ((resolved as any).payRule.type === "hourly") {
-        (resolved as any).payRule.rate = activeCondition.overridingRate;
-      } else if ((resolved as any).payRule.type === "salary") {
-        (resolved as any).payRule.annualAmount = activeCondition.overridingRate;
-      }
-    }
 
     return resolved;
   } catch (error) {

@@ -19,10 +19,11 @@ import { DataTableViewOptions } from "@/components/ui/data-table/data-table-view
 import type { FilterConfig } from "@/components/ui/data-table/data-table-toolbar"
 import * as employeesApi from "@/lib/api/employees"
 import type { Employee } from "@/lib/api/employees"
-import { AddEmployeeDialog } from "./AddEmployeeDialog"
-import { EditEmployeeDialog } from "./EditEmployeeDialog"
-import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog"
+import { AddEmployeeDialog } from "../../../../components/employees/AddEmployeeDialog"
+import { EditEmployeeDialog } from "../../../../components/employees/EditEmployeeDialog"
+import { DeleteEmployeeDialog } from "../../../../components/employees/DeleteEmployeeDialog"
 import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
+import { useEmployerSettings } from "@/lib/queries/employers"
 
 // Custom toolbar for server-side filtering
 function CustomEmployeeToolbar({ 
@@ -132,6 +133,8 @@ export default function EmployeesPage() {
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null)
   const [columnVisibility, setColumnVisibility] = useState({})
   const { selectedLocationIds, isReady: locationScopeReady } = useDashboardLocationScope()
+  const { data: employerSettings } = useEmployerSettings()
+  const enableExternalHire = employerSettings?.enableExternalHire ?? false
 
   // For refetching after mutations
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -188,7 +191,8 @@ export default function EmployeesPage() {
 
   // Define columns
   const columns = useMemo<ColumnDef<Employee>[]>(
-    () => [
+    () => {
+      const allColumns: ColumnDef<Employee>[] = [
      
       {
         accessorKey: "name",
@@ -471,8 +475,10 @@ export default function EmployeesPage() {
         },
         size: 100,
       },
-    ],
-    []
+    ]
+    return enableExternalHire ? allColumns : allColumns.filter(c => (c as any).accessorKey !== 'employer')
+  },
+    [enableExternalHire]
   )
 
   // Extract unique filter options from ALL data (not just current page)
@@ -563,30 +569,32 @@ export default function EmployeesPage() {
       })
     }
     
-    // Employer filter
-    if (!filtersLoaded) {
-      configs.push({ 
-        columnId: "employer", 
-        title: filtersLoading ? "Employer (loading...)" : "Employer", 
-        options: [] 
-      })
-    } else if (allFilterOptions.employers.length > 0) {
-      configs.push({ 
-        columnId: "employer", 
-        title: "Employer", 
-        options: allFilterOptions.employers 
-      })
-    } else {
-      // Even if no options, show the filter
-      configs.push({ 
-        columnId: "employer", 
-        title: "Employer", 
-        options: [] 
-      })
+    // Employer filter - only show when external hire is enabled
+    if (enableExternalHire) {
+      if (!filtersLoaded) {
+        configs.push({ 
+          columnId: "employer", 
+          title: filtersLoading ? "Employer (loading...)" : "Employer", 
+          options: [] 
+        })
+      } else if (allFilterOptions.employers.length > 0) {
+        configs.push({ 
+          columnId: "employer", 
+          title: "Employer", 
+          options: allFilterOptions.employers 
+        })
+      } else {
+        // Even if no options, show the filter
+        configs.push({ 
+          columnId: "employer", 
+          title: "Employer", 
+          options: [] 
+        })
+      }
     }
     
     return configs
-  }, [allFilterOptions, filtersLoaded, filtersLoading])
+  }, [allFilterOptions, filtersLoaded, filtersLoading, enableExternalHire])
 
   return (
     <div className="space-y-6">

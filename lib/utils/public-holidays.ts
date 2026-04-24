@@ -3,7 +3,11 @@ import { connectDB } from "@/lib/db"
 
 export async function checkPublicHoliday(date: Date, state?: string): Promise<boolean> {
   await connectDB()
-  const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  // Extract year/month/day from the ISO string so normalization is always on the
+  // intended calendar date, regardless of the server's local timezone.
+  const iso = date.toISOString() // always UTC, e.g. "2026-12-25T12:00:00.000Z"
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const normalizedDate = new Date(Date.UTC(y, m - 1, d))
   const states = state ? [state, 'NAT'] : ['NAT']
   const holiday = await PublicHoliday.findOne({ date: normalizedDate, state: { $in: states } })
   return !!holiday

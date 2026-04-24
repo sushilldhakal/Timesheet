@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils/cn";
 import "./globals.css";
 import "@/components/scheduling/scheduler.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { THEME_STORAGE_KEY } from "@/lib/utils/theme";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";

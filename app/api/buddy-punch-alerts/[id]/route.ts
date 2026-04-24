@@ -6,7 +6,7 @@ import {
   buddyPunchAlertUpdateResponseSchema,
 } from "@/lib/validations/buddy-punch-alerts"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
-import { buddyPunchAlertsService } from "@/lib/services/monitoring/buddy-punch-alerts-service"
+import { buddyPunchAlertsService } from "@/lib/services/face-recognition/buddy-punch-alerts-service"
 
 // PATCH /api/buddy-punch-alerts/:id - Update status (dismiss/confirm)
 export const PATCH = createApiRoute({

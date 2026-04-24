@@ -24,6 +24,7 @@ export const timesheetDashboardQuerySchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional().default(0),
   sortBy: z.string().optional().default("date"),
   order: z.enum(["asc", "desc"]).optional().default("asc"),
+  includeSchedule: z.string().optional(),
 })
 
 /**

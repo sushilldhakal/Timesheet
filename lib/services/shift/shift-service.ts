@@ -17,7 +17,7 @@ import {
   validateShiftTimeAndBreaks,
   type EditableShiftChanges,
   type ShiftActor,
-} from "@/lib/validation/shift-validation"
+} from "@/lib/validations/shift-validation"
 
 function round2(n: number) {
   return Math.round(n * 100) / 100
@@ -352,6 +352,10 @@ export async function editShift(
     ;(shift as any).awardTags = Array.isArray(changes.awardTags) ? changes.awardTags : []
   }
 
+  if (changes.notes !== undefined) {
+    ;(shift as any).notes = changes.notes ?? ""
+  }
+
   // Recompute totals (prefer breaks[] if present, else fall back to legacy breakIn/breakOut)
   const clockIn = safeDate((shift as any).clockIn?.time)
   const clockOut = safeDate((shift as any).clockOut?.time)
@@ -426,6 +430,42 @@ export async function editShift(
     approvedAt: (shift as any).approvedAt ?? null,
     roleId: (shift as any).roleId ? String((shift as any).roleId) : null,
   }
+
+  await logShiftEdit({
+    actor,
+    shift,
+    action: "UPDATE",
+    oldValue,
+    newValue,
+    ipAddress: reqMeta?.ipAddress,
+    userAgent: reqMeta?.userAgent,
+  })
+
+  return { success: true, shift }
+}
+
+export async function rejectShift(shiftId: string, actor: ShiftActor, reqMeta?: { ipAddress?: string; userAgent?: string; reason?: string }) {
+  await connectDB()
+  if (!mongoose.Types.ObjectId.isValid(shiftId)) throw apiErrors.badRequest("Invalid shift id")
+  assertCanApproveShift(actor)
+
+  const shift = await DailyShift.findById(shiftId)
+  if (!shift) throw apiErrors.notFound("Shift not found")
+  if (String((shift as any).tenantId) !== String(actor.tenantId)) throw apiErrors.forbidden()
+
+  const status = String((shift as any).status ?? "")
+  if (["locked", "processed", "exported"].includes(status)) {
+    throw apiErrors.badRequest(`Shift cannot be rejected in '${status}' status`)
+  }
+
+  const oldValue = { status: (shift as any).status, approvedAt: (shift as any).approvedAt ?? null, approvedBy: (shift as any).approvedBy ?? null }
+  ;(shift as any).status = "rejected"
+  ;(shift as any).approvedBy = null
+  ;(shift as any).approvedAt = null
+
+  await (shift as any).save()
+
+  const newValue = { status: (shift as any).status, approvedAt: null, approvedBy: null, rejectionReason: reqMeta?.reason ?? null }
 
   await logShiftEdit({
     actor,

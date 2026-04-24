@@ -2,12 +2,14 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useOnboarding } from '@/lib/context/staff-onboarding-context'
 import { staffOnboardingStep2Schema, type StaffOnboardingStep2Data } from '@/lib/validations/staff-onboarding'
 import { useState } from 'react'
@@ -58,6 +60,17 @@ export function StaffOnboardingStep2() {
   const taxFreeThreshold = watch('taxFreeThreshold') ?? true
   const hasHelpDebt = watch('hasHelpDebt') ?? false
   const auCitizenOrResident = workRightsType === 'au_citizen' || workRightsType === 'au_resident'
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const onSubmit = async (data: StaffOnboardingStep2Data) => {
     setIsSubmitting(true)
@@ -184,11 +197,11 @@ export function StaffOnboardingStep2() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="licenceExpiry">Expiry Date *</Label>
-                      <Input
-                        id="licenceExpiry"
-                        type="date"
-                        {...register('licenceExpiry' as any)}
-                        className={errors.australianIdNumber ? 'border-red-500' : ''}
+                      <DatePicker
+                        date={fromYmd(watch('licenceExpiry' as any))}
+                        onDateChange={(d) => setValue('licenceExpiry' as any, toYmd(d), { shouldValidate: true, shouldDirty: true })}
+                        placeholder="Pick a date"
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div className="space-y-2">
@@ -219,10 +232,11 @@ export function StaffOnboardingStep2() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="passportExpiry">Expiry Date *</Label>
-                    <Input
-                      id="passportExpiry"
-                      type="date"
-                      {...register('passportExpiry')}
+                    <DatePicker
+                      date={fromYmd(watch('passportExpiry'))}
+                      onDateChange={(d) => setValue('passportExpiry', toYmd(d), { shouldValidate: true, shouldDirty: true })}
+                      placeholder="Pick a date"
+                      disabled={isSubmitting}
                       className={errors.passportExpiry ? 'border-red-500' : ''}
                     />
                     {errors.passportExpiry && <p className="text-xs text-red-500">{errors.passportExpiry.message}</p>}
@@ -275,7 +289,13 @@ export function StaffOnboardingStep2() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="passportExpiry">Passport Expiry *</Label>
-                  <Input id="passportExpiry" type="date" {...register('passportExpiry')} className={errors.passportExpiry ? 'border-red-500' : ''} />
+                  <DatePicker
+                    date={fromYmd(watch('passportExpiry'))}
+                    onDateChange={(d) => setValue('passportExpiry', toYmd(d), { shouldValidate: true, shouldDirty: true })}
+                    placeholder="Pick a date"
+                    disabled={isSubmitting}
+                    className={errors.passportExpiry ? 'border-red-500' : ''}
+                  />
                   {errors.passportExpiry && <p className="text-xs text-red-500">{errors.passportExpiry.message}</p>}
                 </div>
                 <div className="space-y-2">
@@ -407,7 +427,13 @@ export function StaffOnboardingStep2() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="citizenshipIssuedDate">Issued Date *</Label>
-                  <Input id="citizenshipIssuedDate" type="date" {...register('citizenshipIssuedDate')} className={errors.citizenshipIssuedDate ? 'border-red-500' : ''} />
+                  <DatePicker
+                    date={fromYmd(watch('citizenshipIssuedDate'))}
+                    onDateChange={(d) => setValue('citizenshipIssuedDate', toYmd(d), { shouldValidate: true, shouldDirty: true })}
+                    placeholder="Pick a date"
+                    disabled={isSubmitting}
+                    className={errors.citizenshipIssuedDate ? 'border-red-500' : ''}
+                  />
                   {errors.citizenshipIssuedDate && <p className="text-xs text-red-500">{errors.citizenshipIssuedDate.message}</p>}
                 </div>
               </div>
@@ -434,7 +460,12 @@ export function StaffOnboardingStep2() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="workPermitExpiry">Work Permit Expiry</Label>
-                <Input id="workPermitExpiry" type="date" {...register('workPermitExpiry')} />
+                <DatePicker
+                  date={fromYmd(watch('workPermitExpiry'))}
+                  onDateChange={(d) => setValue('workPermitExpiry', toYmd(d), { shouldValidate: true, shouldDirty: true })}
+                  placeholder="Pick a date"
+                  disabled={isSubmitting}
+                />
               </div>
             </div>
           )}

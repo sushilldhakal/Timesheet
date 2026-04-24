@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,7 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
 import { getAwards, evaluateAwardRules } from "@/lib/api/awards"
+import { buildEvaluationRequest } from "@/lib/utils/award-evaluation-request"
 import {
   Play,
   Clock,
@@ -26,7 +29,7 @@ import {
   ChevronUp,
   Trash2,
 } from "lucide-react"
-import type { AwardRule, RuleConditions } from "@/lib/validations/awards"
+import type { AwardRule } from "@/lib/validations/awards"
 
 interface TestScenario {
   employeeName: string
@@ -61,146 +64,25 @@ interface TestResult {
   appliedRule: RuleMatchResult | null
   stackedRules: RuleMatchResult[]
   effectiveMultiplier: number
+  resolvedIsPublicHoliday?: boolean
 }
 
 const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const
-
-function calculateShiftHours(start: string, end: string): number {
-  const [sh, sm] = start.split(":").map(Number)
-  const [eh, em] = end.split(":").map(Number)
-  let hours = eh + em / 60 - (sh + sm / 60)
-  if (hours <= 0) hours += 24
-  return Math.round(hours * 100) / 100
-}
 
 function getDayOfWeek(dateStr: string): string {
   const date = new Date(dateStr + "T12:00:00")
   return DAYS_OF_WEEK[date.getDay()]
 }
 
-function timeToHour(time: string): number {
-  const [h, m] = time.split(":").map(Number)
-  return h + m / 60
+function fromYmd(value?: string | null): Date | undefined {
+  if (!value) return undefined
+  const d = new Date(`${value}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
-function evaluateConditions(
-  conditions: RuleConditions,
-  scenario: TestScenario,
-  shiftHours: number,
-  dayOfWeek: string
-): ConditionResult[] {
-  const results: ConditionResult[] = []
-
-  if (conditions.daysOfWeek?.length) {
-    const met = conditions.daysOfWeek.includes(dayOfWeek as any)
-    results.push({
-      name: "Days of Week",
-      met,
-      detail: met
-        ? `${dayOfWeek} is in [${conditions.daysOfWeek.join(", ")}]`
-        : `${dayOfWeek} is not in [${conditions.daysOfWeek.join(", ")}]`,
-    })
-  }
-
-  if (conditions.timeRange) {
-    const startHour = timeToHour(scenario.startTime)
-    const endHour = timeToHour(scenario.endTime)
-    const rangeStart = conditions.timeRange.start
-    const rangeEnd = conditions.timeRange.end
-
-    let met: boolean
-    if (rangeStart <= rangeEnd) {
-      met = startHour >= rangeStart || endHour <= rangeEnd
-    } else {
-      met = startHour >= rangeStart || endHour <= rangeEnd
-    }
-    results.push({
-      name: "Time Range",
-      met,
-      detail: met
-        ? `Shift ${scenario.startTime}-${scenario.endTime} overlaps range ${rangeStart}:00-${rangeEnd}:00`
-        : `Shift ${scenario.startTime}-${scenario.endTime} outside range ${rangeStart}:00-${rangeEnd}:00`,
-    })
-  }
-
-  if (conditions.afterHoursWorked !== undefined) {
-    const met = shiftHours > conditions.afterHoursWorked
-    results.push({
-      name: "After Hours Worked",
-      met,
-      detail: met
-        ? `${shiftHours}h exceeds threshold of ${conditions.afterHoursWorked}h`
-        : `${shiftHours}h does not exceed threshold of ${conditions.afterHoursWorked}h`,
-    })
-  }
-
-  if (conditions.minHoursWorked !== undefined) {
-    const met = shiftHours >= conditions.minHoursWorked
-    results.push({
-      name: "Min Hours Worked",
-      met,
-      detail: met
-        ? `${shiftHours}h meets minimum of ${conditions.minHoursWorked}h`
-        : `${shiftHours}h below minimum of ${conditions.minHoursWorked}h`,
-    })
-  }
-
-  if (conditions.weeklyHoursThreshold !== undefined) {
-    const met = scenario.weeklyHours >= conditions.weeklyHoursThreshold
-    results.push({
-      name: "Weekly Hours Threshold",
-      met,
-      detail: met
-        ? `${scenario.weeklyHours}h/week meets threshold of ${conditions.weeklyHoursThreshold}h`
-        : `${scenario.weeklyHours}h/week below threshold of ${conditions.weeklyHoursThreshold}h`,
-    })
-  }
-
-  if (conditions.employmentTypes?.length) {
-    const met = conditions.employmentTypes.includes(scenario.employmentType)
-    results.push({
-      name: "Employment Type",
-      met,
-      detail: met
-        ? `${scenario.employmentType} is in [${conditions.employmentTypes.join(", ")}]`
-        : `${scenario.employmentType} is not in [${conditions.employmentTypes.join(", ")}]`,
-    })
-  }
-
-  if (conditions.requiredTags?.length) {
-    const met = conditions.requiredTags.every((t) => scenario.awardTags.includes(t))
-    results.push({
-      name: "Required Tags",
-      met,
-      detail: met
-        ? `All required tags present: [${conditions.requiredTags.join(", ")}]`
-        : `Missing required tags: [${conditions.requiredTags.filter((t) => !scenario.awardTags.includes(t)).join(", ")}]`,
-    })
-  }
-
-  if (conditions.excludedTags?.length) {
-    const hasExcluded = conditions.excludedTags.some((t) => scenario.awardTags.includes(t))
-    results.push({
-      name: "Excluded Tags",
-      met: !hasExcluded,
-      detail: hasExcluded
-        ? `Excluded tag present: [${conditions.excludedTags.filter((t) => scenario.awardTags.includes(t)).join(", ")}]`
-        : `No excluded tags present`,
-    })
-  }
-
-  if (conditions.isPublicHoliday !== undefined) {
-    const met = conditions.isPublicHoliday === scenario.isPublicHoliday
-    results.push({
-      name: "Public Holiday",
-      met,
-      detail: met
-        ? `Public holiday: ${scenario.isPublicHoliday ? "Yes" : "No"} (matches)`
-        : `Public holiday: ${scenario.isPublicHoliday ? "Yes" : "No"} (expected ${conditions.isPublicHoliday ? "Yes" : "No"})`,
-    })
-  }
-
-  return results
+function toYmd(value?: Date): string {
+  if (!value) return ""
+  return format(value, "yyyy-MM-dd")
 }
 
 function getOutcomeSummary(outcome: any): string {
@@ -327,61 +209,129 @@ export function TestScenariosTab() {
 
     setIsRunning(true)
 
-    await new Promise((r) => setTimeout(r, 400))
+    try {
+      // Use shared helper to build timezone-safe payload
+      const payload = buildEvaluationRequest({
+        awardId: selectedAward._id,
+        dateString: scenario.shiftDate,
+        startTime: scenario.startTime,
+        endTime: scenario.endTime,
+        employmentType: scenario.employmentType,
+        awardTags: scenario.awardTags,
+        isPublicHoliday: scenario.isPublicHoliday,
+        weeklyHoursWorked: scenario.weeklyHours,
+      })
 
-    const shiftHours = calculateShiftHours(scenario.startTime, scenario.endTime)
-    const dayOfWeek = getDayOfWeek(scenario.shiftDate)
-    const rules: AwardRule[] = selectedAward.rules || []
+      const shiftHours = payload.dailyHoursWorked
 
-    const ruleResults: RuleMatchResult[] = rules
-      .filter((r: AwardRule) => r.isActive !== false)
-      .map((rule: AwardRule) => {
-        const conditions = evaluateConditions(rule.conditions as RuleConditions, scenario, shiftHours, dayOfWeek)
-        const allMet = conditions.length === 0 || conditions.every((c) => c.met)
+      // Call the unified evaluation API (same path as Test Award dialog)
+      const data = await evaluateAwardRules(payload)
+
+      // Log raw API response for debugging
+      console.group('🔍 Raw API Response from /api/awards/evaluate-rules')
+      console.log('Payload sent:', payload)
+      console.log('Full response:', data)
+      if (data.allRulesEvaluation) {
+        console.log(`Total rules evaluated: ${data.allRulesEvaluation.length}`)
+        
+        let consistencyIssues = 0
+        data.allRulesEvaluation.forEach((evaluation: any, idx: number) => {
+          console.group(`Rule ${idx + 1}: ${evaluation.rule.name}`)
+          console.log('matched:', evaluation.matched)
+          console.log('matchedConditions:', evaluation.matchedConditions)
+          console.log('unmatchedConditions:', evaluation.unmatchedConditions)
+          
+          // Verify consistency: matched should be true only if no unmatched conditions
+          const hasUnmatchedConditions = evaluation.unmatchedConditions && evaluation.unmatchedConditions.length > 0
+          const shouldBeMatched = !hasUnmatchedConditions
+          
+          if (evaluation.matched !== shouldBeMatched) {
+            consistencyIssues++
+            console.error('❌ INCONSISTENCY DETECTED:')
+            console.error(`  matched flag: ${evaluation.matched}`)
+            console.error(`  should be matched: ${shouldBeMatched}`)
+            console.error(`  matchedConditions count: ${evaluation.matchedConditions?.length || 0}`)
+            console.error(`  unmatchedConditions count: ${evaluation.unmatchedConditions?.length || 0}`)
+            console.error('  This indicates a backend bug in award-engine.ts')
+          } else {
+            console.log('✓ Consistency check passed')
+          }
+          console.groupEnd()
+        })
+        
+        if (consistencyIssues > 0) {
+          console.error(`\n❌ Found ${consistencyIssues} consistency issue(s)`)
+          console.error('Backend evaluator needs fixing in lib/engines/award-engine.ts')
+        } else {
+          console.log('\n✅ All rules have consistent matched flags')
+          console.log('Backend evaluator is working correctly')
+        }
+      }
+      console.groupEnd()
+
+      if (data.error && !data.allRulesEvaluation) {
+        setIsRunning(false)
+        return
+      }
+
+      // Map API response to local TestResult format.
+      // Merge matchedConditions + unmatchedConditions so RuleResultCard shows
+      // every condition — both passed and failed — for each rule.
+      const ruleResults: RuleMatchResult[] = (data.allRulesEvaluation || []).map((evaluation: any) => {
+        const matched: ConditionResult[] = (evaluation.matchedConditions || []).map((c: any) => ({
+          name: c.conditionName,
+          met: true,
+          detail: c.reason,
+        }))
+        const unmatched: ConditionResult[] = (evaluation.unmatchedConditions || []).map((c: any) => ({
+          name: c.conditionName,
+          met: false,
+          detail: c.reason,
+        }))
         return {
-          rule,
-          matched: allMet,
-          conditions,
-          outcomeSummary: getOutcomeSummary(rule.outcome),
+          rule: evaluation.rule,
+          matched: evaluation.matched,
+          // All conditions in a stable order: matched first, then unmatched
+          conditions: [...matched, ...unmatched],
+          outcomeSummary: getOutcomeSummary(evaluation.rule.outcome),
         }
       })
-      .sort((a, b) => {
-        const specA = a.conditions.length
-        const specB = b.conditions.length
-        if (specB !== specA) return specB - specA
-        return (b.rule.priority ?? 0) - (a.rule.priority ?? 0)
-      })
 
-    const matchedRules = ruleResults.filter((r) => r.matched)
-    const stackedRules = matchedRules.filter((r) => r.rule.canStack)
-    const nonStackedRules = matchedRules.filter((r) => !r.rule.canStack)
-    const appliedRule = nonStackedRules[0] || null
+      const matchedRules = ruleResults.filter((r) => r.matched)
+      const stackedRules = matchedRules.filter((r) => r.rule.canStack)
+      const nonStackedRules = matchedRules.filter((r) => !r.rule.canStack)
+      const appliedRule = nonStackedRules[0] || null
 
-    let effectiveMultiplier = 1.0
-    if (appliedRule) {
-      const outcome = appliedRule.rule.outcome as any
-      if (outcome?.multiplier) effectiveMultiplier = outcome.multiplier
-    }
-    for (const sr of stackedRules) {
-      const outcome = sr.rule.outcome as any
-      if (outcome?.multiplier && outcome.multiplier > 1) {
-        effectiveMultiplier += outcome.multiplier - 1
+      let effectiveMultiplier = 1.0
+      if (appliedRule) {
+        const outcome = appliedRule.rule.outcome as any
+        if (outcome?.multiplier) effectiveMultiplier = outcome.multiplier
       }
-    }
+      for (const sr of stackedRules) {
+        const outcome = sr.rule.outcome as any
+        if (outcome?.multiplier && outcome.multiplier > 1) {
+          effectiveMultiplier += outcome.multiplier - 1
+        }
+      }
 
-    const result: TestResult = {
-      scenario: { ...scenario },
-      awardName: selectedAward.name,
-      shiftHours,
-      ruleResults,
-      appliedRule,
-      stackedRules,
-      effectiveMultiplier,
-    }
+      const result: TestResult = {
+        scenario: { ...scenario },
+        awardName: selectedAward.name,
+        shiftHours,
+        ruleResults,
+        appliedRule,
+        stackedRules,
+        effectiveMultiplier,
+        resolvedIsPublicHoliday: data.isPublicHoliday,
+      }
 
-    setTestResult(result)
-    setTestHistory((prev) => [result, ...prev].slice(0, 10))
-    setIsRunning(false)
+      setTestResult(result)
+      setTestHistory((prev) => [result, ...prev].slice(0, 10))
+    } catch (err) {
+      console.error("Test evaluation failed:", err)
+    } finally {
+      setIsRunning(false)
+    }
   }
 
   const clearResults = () => setTestResult(null)
@@ -481,10 +431,10 @@ export function TestScenariosTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Shift Date</Label>
-                <Input
-                  type="date"
-                  value={scenario.shiftDate}
-                  onChange={(e) => updateScenario("shiftDate", e.target.value)}
+                <DatePicker
+                  date={fromYmd(scenario.shiftDate)}
+                  onDateChange={(d) => updateScenario("shiftDate", toYmd(d))}
+                  placeholder="Pick a date"
                 />
                 {errors.shiftDate && (
                   <p className="text-xs text-destructive">{errors.shiftDate}</p>
@@ -641,6 +591,20 @@ export function TestScenariosTab() {
                       <p>
                         <span className="font-medium">Time:</span> {testResult.scenario.startTime} - {testResult.scenario.endTime}
                       </p>
+                      {testResult.resolvedIsPublicHoliday !== undefined && (
+                        <p>
+                          <span className="font-medium">Holiday used:</span>{" "}
+                          {testResult.resolvedIsPublicHoliday ? (
+                            testResult.scenario.isPublicHoliday ? (
+                              <span className="text-green-600 dark:text-green-400">Yes</span>
+                            ) : (
+                              <span className="text-green-600 dark:text-green-400">Yes (auto-detected)</span>
+                            )
+                          ) : (
+                            <span>No</span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -657,7 +621,7 @@ export function TestScenariosTab() {
                           {testResult.appliedRule.rule.priority
                             ? ` · Priority ${testResult.appliedRule.rule.priority}`
                             : ""}
-                          {" · "}Specificity {testResult.appliedRule.conditions.length}
+                          {" · "}{testResult.appliedRule.conditions.filter(c => c.met).length} condition{testResult.appliedRule.conditions.filter(c => c.met).length !== 1 ? "s" : ""} matched
                         </p>
                       </div>
                     </div>

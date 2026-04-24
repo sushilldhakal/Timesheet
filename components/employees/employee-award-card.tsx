@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Award, Pencil, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { FormDialogShell } from '@/components/shared/forms/FormDialogShell';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
   SelectContent,
@@ -69,8 +70,18 @@ export default function EmployeeAwardCard({
   }, [employeeQuery.data]);
 
   const selectedAward = awards.find((a) => a._id === selectedAwardId);
-  const selectedLevelData = selectedAward?.levels.find((l: any) => l.label === selectedLevel);
-  const employmentTypes = selectedLevelData?.conditions.map((c: any) => c.employmentType) || [];
+  // Derive unique levels from levelRates
+  const availableLevels = selectedAward
+    ? [...new Set((selectedAward.levelRates || []).map((r: any) => r.level))]
+    : [];
+  // Derive employment types for the selected level from levelRates
+  const employmentTypes = selectedAward && selectedLevel
+    ? [...new Set(
+        (selectedAward.levelRates || [])
+          .filter((r: any) => r.level === selectedLevel)
+          .map((r: any) => r.employmentType)
+      )]
+    : [];
 
   const handleOpenDialog = () => {
     if (readOnly) return;
@@ -119,6 +130,17 @@ export default function EmployeeAwardCard({
     } catch {
       return dateStr;
     }
+  };
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined;
+    const d = new Date(`${value}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return '';
+    return format(value, 'yyyy-MM-dd');
   };
 
   return (
@@ -243,9 +265,9 @@ export default function EmployeeAwardCard({
                     <SelectValue placeholder="Select a level" />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedAward.levels.map((level: any) => (
-                      <SelectItem key={level.label} value={level.label}>
-                        {level.label}
+                    {availableLevels.map((level: string) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -253,7 +275,7 @@ export default function EmployeeAwardCard({
               </Field>
             )}
 
-            {selectedLevelData && (
+            {selectedLevel && employmentTypes.length > 0 && (
               <Field>
                 <FieldLabel>Employment Type *</FieldLabel>
                 <Select
@@ -277,12 +299,10 @@ export default function EmployeeAwardCard({
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel htmlFor="effectiveFrom">Effective From *</FieldLabel>
-                <Input
-                  id="effectiveFrom"
-                  type="date"
-                  value={effectiveFrom}
-                  onChange={(e) => setEffectiveFrom(e.target.value)}
-                  required
+                <DatePicker
+                  date={fromYmd(effectiveFrom)}
+                  onDateChange={(d) => setEffectiveFrom(toYmd(d))}
+                  placeholder="Pick a date"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   When this award assignment starts

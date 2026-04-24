@@ -5,7 +5,6 @@ import type { CreatePayRunRequest } from '@/lib/api/pay-runs'
 export const payRunKeys = {
   all: (tenantId: string) => ['pay-runs', tenantId] as const,
   detail: (payRunId: string) => ['pay-runs', 'detail', payRunId] as const,
-  export: (payRunId: string) => ['pay-runs', 'export', payRunId] as const,
   status: (payRunId: string) => ['pay-runs', 'status', payRunId] as const,
 }
 
@@ -18,10 +17,10 @@ export function usePayRuns(tenantId: string) {
   })
 }
 
-export function usePayRunExport(payRunId: string) {
+export function usePayRunDetail(payRunId: string) {
   return useQuery({
-    queryKey: payRunKeys.export(payRunId),
-    queryFn: () => payRunsApi.getPayRunExport(payRunId),
+    queryKey: payRunKeys.detail(payRunId),
+    queryFn: () => payRunsApi.getPayRunDetail(payRunId),
     enabled: !!payRunId,
     staleTime: 5 * 60 * 1000,
   })
@@ -33,8 +32,12 @@ export function usePayRunJobStatus(payRunId: string, enabled: boolean) {
     queryFn: () => payRunsApi.getPayRunJobStatus(payRunId),
     enabled: enabled && !!payRunId,
     refetchInterval: (query) => {
-      const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') return false
+      const payRunStatus = query.state.data?.payRunStatus
+      const jobStatus = query.state.data?.job?.status
+      if (payRunStatus === 'calculated' || payRunStatus === 'approved' || payRunStatus === 'exported' || payRunStatus === 'failed') {
+        return false
+      }
+      if (jobStatus === 'completed' || jobStatus === 'failed') return false
       return 2000 // poll every 2 seconds while pending
     },
     staleTime: 0,

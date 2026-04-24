@@ -151,73 +151,107 @@ function ShiftTimeline({ startTime, endTime, breakInTime, breakOutTime }: { star
     return h + m / 60
   }
 
-  const DAY_START = 6
-  const DAY_END = 18
-  const TOTAL_HOURS = DAY_END - DAY_START
-
   const start = parseTime(startTime)
   const end = parseTime(endTime)
   const breakIn = breakInTime ? parseTime(breakInTime) : null
   const breakOut = breakOutTime ? parseTime(breakOutTime) : null
 
-  const startPercent = ((start - DAY_START) / TOTAL_HOURS) * 100
-  const endPercent = ((end - DAY_START) / TOTAL_HOURS) * 100
-  const width = endPercent - startPercent
+  // Expand window to fit the shift with 30-min padding, snapped to whole hours
+  const rawStart = Math.min(start, breakIn ?? start)
+  const rawEnd = Math.max(end, breakOut ?? end)
+  const DAY_START = Math.max(0, Math.floor(rawStart - 0.5))
+  const DAY_END = Math.min(24, Math.ceil(rawEnd + 0.5))
+  const TOTAL_HOURS = DAY_END - DAY_START
 
-  const barStart = Math.max(0, Math.min(100, startPercent))
-  const barWidth = Math.max(0, Math.min(100 - barStart, width))
+  const pct = (t: number) =>
+    Math.max(0, Math.min(100, ((t - DAY_START) / TOTAL_HOURS) * 100))
 
-  const breakStartPercent = breakIn ? ((breakIn - DAY_START) / TOTAL_HOURS) * 100 : null
-  const breakEndPercent = breakOut ? ((breakOut - DAY_START) / TOTAL_HOURS) * 100 : null
+  // Build segments: work | break | work
+  type Segment = { left: number; width: number; kind: "work" | "break"; label: string }
+  const segments: Segment[] = []
+
+  const hasBreak = breakIn !== null && breakOut !== null && breakOut > breakIn
+
+  if (hasBreak) {
+    // Pre-break work
+    const l1 = pct(start)
+    const r1 = pct(breakIn!)
+    if (r1 > l1) segments.push({ left: l1, width: r1 - l1, kind: "work", label: `${startTime} – ${breakInTime}` })
+    // Break
+    const lb = pct(breakIn!)
+    const rb = pct(breakOut!)
+    if (rb > lb) segments.push({ left: lb, width: rb - lb, kind: "break", label: `Break ${breakInTime} – ${breakOutTime}` })
+    // Post-break work
+    const l2 = pct(breakOut!)
+    const r2 = pct(end)
+    if (r2 > l2) segments.push({ left: l2, width: r2 - l2, kind: "work", label: `${breakOutTime} – ${endTime}` })
+  } else {
+    const l = pct(start)
+    const r = pct(end)
+    if (r > l) segments.push({ left: l, width: r - l, kind: "work", label: `${startTime} – ${endTime}` })
+  }
+
+  // Hour tick marks within the window
+  const ticks = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => DAY_START + i)
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between mb-1">
-        <h4 className="text-xs font-semibold text-muted-foreground">Shift Timeline</h4>
-        <div className="text-xs text-muted-foreground">{startTime} - {endTime}</div>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">Timeline</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {startTime} – {endTime}
+        </span>
       </div>
 
-      <div className="relative h-4 bg-secondary rounded-lg overflow-hidden border border-border">
-        {/* Main shift bar - height 2 */}
-        <div
-          className="absolute h-2 top-1 bg-linear-to-r from-blue-500 to-blue-400 rounded"
-          style={{
-            left: `${barStart}%`,
-            width: `${barWidth}%`,
-            minWidth: "12px",
-          }}
-        />
-
-        {/* Break indicator - gray area height 4 */}
-        {breakStartPercent !== null && breakEndPercent !== null && (
+      {/* Track */}
+      <div className="relative h-5 rounded-md bg-secondary border border-border overflow-visible">
+        {/* Tick marks */}
+        {ticks.map((h, i) => (
           <div
-            className="absolute h-4 top-0 bg-gray-300/40 border-l border-r border-gray-400/60"
-            style={{
-              left: `${breakStartPercent}%`,
-              width: `${Math.max(2, breakEndPercent - breakStartPercent)}%`,
-            }}
+            key={h}
+            className="absolute top-0 bottom-0 w-px bg-border/40 pointer-events-none"
+            style={{ left: `${(i / TOTAL_HOURS) * 100}%` }}
           />
-        )}
+        ))}
 
-        {/* Hour markers */}
-        <div className="absolute inset-0 flex items-end pointer-events-none">
-          {Array.from({ length: TOTAL_HOURS + 1 }).map((_, i) => (
-            <div key={i} className="flex-1 relative" style={{ width: `${100 / TOTAL_HOURS}%` }}>
-              <div className="absolute bottom-0 w-0.5 h-1 bg-border/30" />
-            </div>
-          ))}
-        </div>
+        {/* Segments */}
+        {segments.map((seg, i) => (
+          <TooltipProvider key={i} delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={[
+                    "absolute top-1 bottom-1 rounded cursor-default transition-opacity hover:opacity-80",
+                    seg.kind === "work"
+                      ? "bg-blue-500 dark:bg-blue-400"
+                      : "bg-amber-400 dark:bg-amber-500",
+                  ].join(" ")}
+                  style={{
+                    left: `${seg.left}%`,
+                    width: `${Math.max(seg.width, 1)}%`,
+                    minWidth: "4px",
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {seg.label}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
       </div>
 
-      <div className="flex justify-between text-xs text-muted-foreground px-1">
-        {Array.from({ length: TOTAL_HOURS + 1 }).map((_, i) => {
-          const hour = DAY_START + i
-          return (
-            <span key={i} className="w-0 text-center text-xs">
-              {hour % 12 === 0 ? 12 : hour % 12}{hour < 12 ? "a" : "p"}
-            </span>
-          )
-        })}
+      {/* Hour labels */}
+      <div className="relative h-3">
+        {ticks.map((h, i) => (
+          <span
+            key={h}
+            className="absolute text-[10px] text-muted-foreground -translate-x-1/2 tabular-nums"
+            style={{ left: `${(i / TOTAL_HOURS) * 100}%` }}
+          >
+            {h % 12 === 0 ? 12 : h % 12}{h < 12 ? "a" : "p"}
+          </span>
+        ))}
       </div>
     </div>
   )

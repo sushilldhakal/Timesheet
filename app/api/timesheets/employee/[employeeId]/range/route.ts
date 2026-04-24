@@ -43,7 +43,7 @@ export const GET = createApiRoute({
     const { startDate, endDate, ...rules } = query
 
     // Dynamic import avoids Turbopack occasionally holding a stale named export binding in dev.
-    const { reconcileRange } = await import("@/lib/services/timesheet-reconciliation")
+    const { reconcileRange } = await import("@/lib/services/timesheet/timesheet-reconciliation")
 
     const data = await reconcileRange({
       tenantId: ctx.tenantId,

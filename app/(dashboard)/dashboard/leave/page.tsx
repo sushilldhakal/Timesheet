@@ -14,6 +14,7 @@ import {
   isValid,
   parseISO,
 } from "date-fns"
+import { DateRange } from "react-day-picker"
 import { useEffect, useMemo, useState, type ComponentType } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -108,8 +109,7 @@ export default function LeavePage() {
 
   const [view, setView] = useState<TimesheetView>("week")
   const [selectedDate, setSelectedDate] = useState(() => new Date())
-  const [customStartDate, setCustomStartDate] = useState("")
-  const [customEndDate, setCustomEndDate] = useState("")
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined)
   const [useCustomRange, setUseCustomRange] = useState(false)
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
 
@@ -124,8 +124,7 @@ export default function LeavePage() {
 
   const [addLeaveOpen, setAddLeaveOpen] = useState(false)
   const [addEmployeeId, setAddEmployeeId] = useState("")
-  const [addStart, setAddStart] = useState("")
-  const [addEnd, setAddEnd] = useState("")
+  const [addDateRange, setAddDateRange] = useState<DateRange | undefined>(undefined)
   const [addType, setAddType] = useState<(typeof LEAVE_TYPE_OPTIONS)[number]>("ANNUAL")
   const [addNotes, setAddNotes] = useState("")
   const [addSubmitting, setAddSubmitting] = useState(false)
@@ -141,8 +140,11 @@ export default function LeavePage() {
   const [affectedBannerDismissed, setAffectedBannerDismissed] = useState(false)
 
   const { startDate, endDate } = useMemo(() => {
-    if (useCustomRange && customStartDate && customEndDate) {
-      return { startDate: customStartDate, endDate: customEndDate }
+    if (useCustomRange && customDateRange?.from && customDateRange?.to) {
+      return { 
+        startDate: format(customDateRange.from, "yyyy-MM-dd"), 
+        endDate: format(customDateRange.to, "yyyy-MM-dd") 
+      }
     }
     if (view === "day") {
       return {
@@ -160,14 +162,16 @@ export default function LeavePage() {
       startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"),
       endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd"),
     }
-  }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
+  }, [view, selectedDate, useCustomRange, customDateRange])
 
-  const handleCustomRangeChange = (start: string, end: string) => {
-    setCustomStartDate(start)
-    setCustomEndDate(end)
-    const s = parseISO(String(start || ""))
-    const e = parseISO(String(end || ""))
-    setUseCustomRange(isValid(s) && isValid(e))
+  const handleCustomRangeChange = (range: DateRange | undefined) => {
+    setCustomDateRange(range)
+    if (range?.from && range?.to) {
+      setUseCustomRange(true)
+      setSelectedDate(range.from)
+    } else {
+      setUseCustomRange(false)
+    }
   }
 
   const employeeById = useMemo(() => {
@@ -337,11 +341,11 @@ export default function LeavePage() {
       toast.error("Select an employee")
       return
     }
-    if (!addStart || !addEnd) {
+    if (!addDateRange?.from || !addDateRange?.to) {
       toast.error("Start and end dates are required")
       return
     }
-    if (addEnd < addStart) {
+    if (addDateRange.to < addDateRange.from) {
       toast.error("End date must be on or after start date")
       return
     }
@@ -351,8 +355,8 @@ export default function LeavePage() {
 
     try {
       await createEmployeeAbsence(addEmployeeId, {
-        startDate: addStart,
-        endDate: addEnd,
+        startDate: format(addDateRange.from, "yyyy-MM-dd"),
+        endDate: format(addDateRange.to, "yyyy-MM-dd"),
         leaveType: addType,
         notes: addNotes.trim() || undefined,
       })
@@ -368,8 +372,12 @@ export default function LeavePage() {
 
   const openAddLeave = () => {
     setAddEmployeeId(employees[0]?.id ?? "")
-    setAddStart(startDate)
-    setAddEnd(endDate)
+    const startDateObj = parseISO(startDate)
+    const endDateObj = parseISO(endDate)
+    setAddDateRange({ 
+      from: isValid(startDateObj) ? startDateObj : undefined, 
+      to: isValid(endDateObj) ? endDateObj : undefined 
+    })
     setAddType("ANNUAL")
     setAddNotes("")
     setAddLeaveOpen(true)
@@ -474,11 +482,8 @@ export default function LeavePage() {
     <div className="flex items-center gap-2">
       {view === "day" ? (
         <DateRangePicker
-          value={{
-            startDate: useCustomRange ? customStartDate : startDate,
-            endDate: useCustomRange ? customEndDate : endDate,
-          }}
-          onChange={handleCustomRangeChange}
+          dateRange={customDateRange}
+          onDateRangeChange={handleCustomRangeChange}
           placeholder="Select date or range"
         />
       ) : (
@@ -848,15 +853,13 @@ export default function LeavePage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="add-leave-start">Start date</Label>
-              <Input id="add-leave-start" type="date" value={addStart} onChange={(e) => setAddStart(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-leave-end">End date</Label>
-              <Input id="add-leave-end" type="date" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} />
-            </div>
+          <div className="space-y-2">
+            <Label>Date Range</Label>
+            <DateRangePicker
+              dateRange={addDateRange}
+              onDateRangeChange={setAddDateRange}
+              placeholder="Select start and end dates"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="add-leave-type">Leave type</Label>

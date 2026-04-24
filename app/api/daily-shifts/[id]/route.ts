@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import { editShift } from "@/lib/services/shift-service"
+import { editShift } from "@/lib/services/shift/shift-service"
 
 const paramsSchema = z.object({ id: z.string() })
 
@@ -18,6 +18,7 @@ const patchSchema = z.object({
   roleId: z.string().regex(/^[0-9a-fA-F]{24}$/).nullable().optional(),
   breaks: z.array(breakSchema).nullable().optional(),
   awardTags: z.array(z.string().trim()).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
 })
 
 export const PATCH = createApiRoute({

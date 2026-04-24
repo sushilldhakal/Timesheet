@@ -82,7 +82,7 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
       ),
     },
     {
-      id: "role",
+      id: "team",
       accessorKey: "role",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Team" />
@@ -141,7 +141,7 @@ function getWeekViewColumns(weekDays: Date[]): ColumnDef<WeekViewEmployee>[] {
 
 export function TimesheetWeekView({ data, selectedDate, loading, preAggregated, aggregatedRows }: TimesheetWeekViewProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    role: false,
+    team: false,
   })
   const [isHydrated, setIsHydrated] = useState(false)
 

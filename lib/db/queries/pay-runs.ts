@@ -1,6 +1,7 @@
 import { PayRun } from '@/lib/db/schemas/pay-run';
 import { PayItem } from '@/lib/db/schemas/pay-item';
 import { Employee } from '@/lib/db/schemas/employee';
+import { PayrollExport } from '@/lib/db/schemas/payroll-export';
 
 export class PayRunsDbQueries {
   static async findOverlappingPayRun(args: { tenantId: string; startDate: Date; endDate: Date }) {
@@ -51,5 +52,12 @@ export class PayRunsDbQueries {
   static async findEmployeeNameLean(employeeId: string) {
     return Employee.findById(employeeId).select('name').lean();
   }
-}
 
+  static async findEmployeesByIdsLean(employeeIds: string[]) {
+    return Employee.find({ _id: { $in: employeeIds } }).select('name').lean();
+  }
+
+  static async listPayrollExportsForPayRunLean(payRunId: string) {
+    return PayrollExport.find({ payRunId }).sort({ createdAt: -1 }).lean();
+  }
+}

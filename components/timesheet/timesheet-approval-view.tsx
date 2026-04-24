@@ -36,6 +36,8 @@ import {
   User,
   AlertTriangle,
   Coffee,
+  Pencil,
+  MessageSquare,
 } from "lucide-react"
 import { format } from "date-fns"
 import {
@@ -47,6 +49,8 @@ import {
   type TimesheetDetail,
   type ShiftDetail,
 } from "@/lib/api/timesheets"
+import { PunchEditDialog } from "./punch-edit-dialog"
+import { useQueryClient } from "@tanstack/react-query"
 
 
 
@@ -80,6 +84,9 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
   const [submissionNotes, setSubmissionNotes] = useState("")
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
+  const [punchDialogOpen, setPunchDialogOpen] = useState(false)
+  const [selectedShift, setSelectedShift] = useState<ShiftDetail | null>(null)
+  const queryClient = useQueryClient()
 
   const fetchTimesheet = useCallback(async () => {
     setLoading(true)
@@ -180,6 +187,8 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
   }
 
   const ts = timesheet
+  const employeeName = typeof ts.employeeId === "object" ? ts.employeeId?.name : "Unknown Employee"
+  const canEditPunches = ts.status === "draft" || ts.status === "submitted" || ts.status === "approved"
 
   return (
     <div className="space-y-4">
@@ -250,7 +259,7 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
             <div>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                {typeof ts.employeeId === 'object' ? ts.employeeId?.name : "Unknown Employee"}
+                {employeeName}
               </CardTitle>
               <CardDescription className="mt-1 flex items-center gap-2">
                 <CalendarDays className="h-3.5 w-3.5" />
@@ -349,13 +358,15 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead>Employee</TableHead>
                     <TableHead>Clock In</TableHead>
                     <TableHead>Clock Out</TableHead>
-                    <TableHead>Hours</TableHead>
                     <TableHead>Break</TableHead>
+                    <TableHead>Hours</TableHead>
                     <TableHead>Cost</TableHead>
                     <TableHead>Awards</TableHead>
                     <TableHead>Status</TableHead>
+                    {canEditPunches && <TableHead className="text-right">Edit</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -364,12 +375,13 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
                       <TableCell className="font-medium">
                         {formatDateShort(shift.date)}
                       </TableCell>
+                      <TableCell>{employeeName}</TableCell>
                       <TableCell>{formatTime(shift.clockIn?.time)}</TableCell>
                       <TableCell>{formatTime(shift.clockOut?.time)}</TableCell>
+                      <TableCell>{shift.totalBreakMinutes ?? 0} min</TableCell>
                       <TableCell>
                         {shift.totalWorkingHours?.toFixed(1) ?? "—"}h
                       </TableCell>
-                      <TableCell>{shift.totalBreakMinutes ?? 0} min</TableCell>
                       <TableCell>
                         ${shift.computed?.totalCost?.toFixed(2) ?? "0.00"}
                       </TableCell>
@@ -393,6 +405,22 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
                           {shift.status}
                         </Badge>
                       </TableCell>
+                      {canEditPunches && (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setSelectedShift(shift)
+                              setPunchDialogOpen(true)
+                            }}
+                            title="Edit punch"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -401,6 +429,35 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
           )}
         </CardContent>
       </Card>
+
+      {/* Variance Notes — read-only shift-level comments from operational review */}
+      {(() => {
+        const notedShifts = (ts.shifts ?? []).filter((s) => s.notes?.trim())
+        if (notedShifts.length === 0) return null
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <MessageSquare className="h-4 w-4 text-amber-500" />
+                Variance Notes ({notedShifts.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {notedShifts.map((s) => (
+                <div
+                  key={s._id}
+                  className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 px-3 py-2 text-sm"
+                >
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-0.5">
+                    {formatDateShort(s.date)}
+                  </p>
+                  <p className="text-foreground whitespace-pre-wrap">{s.notes}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Notes / audit section */}
       <Card>
@@ -488,6 +545,27 @@ export function TimesheetApprovalView({ timesheetId, onBack }: TimesheetApproval
           />
         </div>
       </FormDialogShell>
+
+      {selectedShift && (
+        <PunchEditDialog
+          open={punchDialogOpen}
+          onOpenChange={(o) => {
+            setPunchDialogOpen(o)
+            if (!o) setSelectedShift(null)
+          }}
+          timesheetId={timesheetId}
+          shiftId={selectedShift._id}
+          date={selectedShift.date}
+          employeeName={employeeName}
+          clockIn={selectedShift.clockIn?.time ?? null}
+          clockOut={selectedShift.clockOut?.time ?? null}
+          breaks={((selectedShift as any).breaks ?? []) as any}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["timesheet", timesheetId] })
+            fetchTimesheet()
+          }}
+        />
+      )}
     </div>
   )
 }

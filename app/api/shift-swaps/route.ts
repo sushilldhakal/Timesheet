@@ -71,7 +71,7 @@ export const POST = createApiRoute({
 
     const result = await shiftSwapService.create(body)
 
-    // Emit domain event + direct notify (remove after 2025-07-01)
+    // Emit domain event
     const tenantCtx = await getTenantContext()
     if (tenantCtx && tenantCtx.type === "full" && (result as any)?.shiftSwap?.targetEmployeeId) {
       const swap = (result as any).shiftSwap

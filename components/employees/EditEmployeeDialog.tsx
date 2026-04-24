@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
+import { format } from "date-fns"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,8 @@ import {
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { DatePicker } from "@/components/ui/date-picker"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { MultiStepForm } from "@/components/ui/multi-step-form"
 import { UserCircle, Upload, X, User, Briefcase, Award } from "lucide-react"
 import { useLocations } from "@/lib/queries/locations"
@@ -60,6 +62,17 @@ const STEPS = [
 export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: Props) {
   const unique = (values: string[] | undefined | null) =>
     Array.from(new Set(values ?? []))
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ""
+    return format(value, "yyyy-MM-dd")
+  }
 
   const [currentStep, setCurrentStep] = useState(0)
   
@@ -169,7 +182,8 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
     awardsQuery.data?.awards?.map((a: any) => ({
       value: a._id || a.id,
       label: a.name,
-      levels: a.levels?.map((l: any) => typeof l === 'string' ? l : l.label) || []
+      // Derive unique levels from levelRates
+      levels: [...new Set((a.levelRates || []).map((r: any) => r.level))] as string[]
     })) || []
   , [awardsQuery.data?.awards])
 
@@ -469,11 +483,11 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
 
                 <Field>
                   <FieldLabel htmlFor="edit-employee-dob">Date of Birth</FieldLabel>
-                  <Input
-                    id="edit-employee-dob"
-                    type="date"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
+                  <DatePicker
+                    date={fromYmd(dob)}
+                    onDateChange={(d) => setDob(toYmd(d))}
+                    placeholder="Pick a date"
+                    disabled={loading}
                   />
                 </Field>
 

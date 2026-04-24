@@ -4,7 +4,6 @@ import { apiErrors } from '@/lib/api/api-error';
 import { employeeLocationFilter } from '@/lib/auth/auth-api';
 import { TimesheetDbQueries, type TimesheetEmployeeMeta } from '@/lib/db/queries/timesheets';
 import { minutesToHours, formatTimeString } from '@/lib/utils/format/time';
-import { formatDate as formatDateDisplay } from '@/lib/utils/format/date-format';
 import { AwardEngine } from '@/lib/engines/award-engine';
 import {
   timesheetEntryToShiftContext,
@@ -16,6 +15,7 @@ import { checkPublicHoliday } from '@/lib/utils/public-holidays';
 import { formatTimeFromDate } from '@/lib/utils/format/time';
 import type { DailyTimesheetRow } from '@/lib/types/timesheet';
 import { connectDB } from '@/lib/db';
+import { Roster } from '@/lib/db/schemas/roster';
 
 function dateRangeToDateObjects(start: Date, end: Date): Date[] {
   const out: Date[] = [];
@@ -44,6 +44,8 @@ export type TimesheetDashboardQuery = {
   offset?: number;
   sortBy?: string;
   order?: 'asc' | 'desc';
+  /** When '1', enriches day-view rows with dailyShiftId, status, locationId, roleId, rosterShiftId, varianceMinutes, flags */
+  includeSchedule?: string;
 };
 
 export type AuthCtx = {
@@ -66,7 +68,10 @@ export class TimesheetService {
       offset = 0,
       sortBy = 'date',
       order = 'asc',
+      includeSchedule,
     } = query || {};
+
+    const withSchedule = includeSchedule === '1';
 
     let start: Date;
     let end: Date;
@@ -108,6 +113,36 @@ export class TimesheetService {
       endUTC,
     });
 
+    // Batch-fetch roster shift data when schedule enrichment is requested
+    let rosterShiftMap = new Map<string, { startTimeUtc: string; endTimeUtc: string; locationId: string; roleId: string }>();
+    if (withSchedule) {
+      const rosterShiftIds = (shifts as any[])
+        .map((s) => s.rosterShiftId)
+        .filter(Boolean)
+        .map((id: any) => new mongoose.Types.ObjectId(String(id)));
+
+      if (rosterShiftIds.length > 0) {
+        const tenantObjectId = new mongoose.Types.ObjectId(ctx.tenantId);
+        const rosterDocs = await Roster.aggregate([
+          { $match: { tenantId: tenantObjectId, 'shifts._id': { $in: rosterShiftIds } } },
+          { $project: { shifts: 1 } },
+        ]);
+        for (const doc of rosterDocs) {
+          for (const rs of doc.shifts ?? []) {
+            const rsId = String(rs._id);
+            if (rosterShiftIds.some((id) => String(id) === rsId)) {
+              rosterShiftMap.set(rsId, {
+                startTimeUtc: rs.startTime instanceof Date ? rs.startTime.toISOString() : String(rs.startTime),
+                endTimeUtc: rs.endTime instanceof Date ? rs.endTime.toISOString() : String(rs.endTime),
+                locationId: rs.locationId ? String(rs.locationId) : '',
+                roleId: rs.roleId ? String(rs.roleId) : '',
+              });
+            }
+          }
+        }
+      }
+    }
+
     const rows: any[] = [];
     for (const shift of shifts as any[]) {
       const pin = String(shift.pin ?? '');
@@ -116,9 +151,7 @@ export class TimesheetService {
 
       const meta = employeeMap.get(pin);
 
-      const date = formatDateDisplay(
-        new Date(shiftDate.getUTCFullYear(), shiftDate.getUTCMonth(), shiftDate.getUTCDate())
-      );
+      const date = `${shiftDate.getUTCFullYear()}-${String(shiftDate.getUTCMonth() + 1).padStart(2, '0')}-${String(shiftDate.getUTCDate()).padStart(2, '0')}`;
 
       const breakMinutes = shift.totalBreakMinutes ?? 0;
       const totalMin = shift.totalWorkingHours ? Math.round(shift.totalWorkingHours * 60) : 0;
@@ -148,6 +181,22 @@ export class TimesheetService {
         breakOutDeviceLocation: shift.breakOut?.deviceLocation,
         clockOutDeviceId: shift.clockOut?.deviceId,
         clockOutDeviceLocation: shift.clockOut?.deviceLocation,
+        // Schedule enrichment (only when includeSchedule=1)
+        ...(withSchedule ? (() => {
+          const rosterShiftId = shift.rosterShiftId ? String(shift.rosterShiftId) : null;
+          const rosterData = rosterShiftId ? (rosterShiftMap.get(rosterShiftId) ?? null) : null;
+          return {
+            dailyShiftId: String(shift._id),
+            status: shift.status ?? null,
+            locationId: shift.locationId ? String(shift.locationId) : null,
+            roleId: shift.roleId ? String(shift.roleId) : null,
+            rosterShiftId,
+            roster: rosterData,
+            varianceMinutes: this.computeVariance(shift, rosterData),
+            flags: this.computeFlags(shift),
+            notes: shift.notes ?? null,
+          };
+        })() : {}),
       });
     }
 
@@ -384,6 +433,87 @@ export class TimesheetService {
     return { success: true, timesheet };
   }
 
+  async bulkGenerate(
+    ctx: AuthCtx,
+    input: {
+      payPeriodStart: string;
+      payPeriodEnd: string;
+      employeeIds?: string[];
+    }
+  ): Promise<{
+    created: number;
+    skipped: number;
+    failed: number;
+    results: Array<{ employeeId: string; status: 'created' | 'skipped' | 'failed'; error?: string }>;
+  }> {
+    await connectDB();
+
+    const { payPeriodStart, payPeriodEnd, employeeIds } = input;
+
+    const startDate = new Date(payPeriodStart);
+    const endDate = new Date(payPeriodEnd);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw apiErrors.badRequest('Invalid payPeriodStart or payPeriodEnd');
+    }
+    if (startDate >= endDate) {
+      throw apiErrors.badRequest('payPeriodStart must be before payPeriodEnd');
+    }
+
+    let targetEmployeeIds: string[];
+
+    if (employeeIds && employeeIds.length > 0) {
+      targetEmployeeIds = employeeIds;
+    } else {
+      const activeEmployees = await TimesheetDbQueries.findEmployeesForDashboard({
+        tenantId: ctx.tenantId,
+        status: 'active',
+      });
+      targetEmployeeIds = (activeEmployees as any[]).map((e) => String(e._id));
+    }
+
+    const results: Array<{ employeeId: string; status: 'created' | 'skipped' | 'failed'; error?: string }> = [];
+    let created = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const employeeId of targetEmployeeIds) {
+      try {
+        const existing = await TimesheetDbQueries.findTimesheetDuplicate({
+          tenantId: ctx.tenantId,
+          employeeId,
+          payPeriodStart: startDate,
+          payPeriodEnd: endDate,
+        });
+
+        if (existing) {
+          skipped++;
+          results.push({ employeeId, status: 'skipped' });
+          continue;
+        }
+
+        await this.createTimesheet({
+          tenantId: ctx.tenantId,
+          employeeId,
+          payPeriodStart: startDate,
+          payPeriodEnd: endDate,
+        });
+
+        created++;
+        results.push({ employeeId, status: 'created' });
+      } catch (error) {
+        failed++;
+        results.push({
+          employeeId,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return { created, skipped, failed, results };
+  }
+
   async getTimesheetById(id: string) {
     await connectDB();
     if (!id) throw apiErrors.badRequest('id is required');
@@ -586,7 +716,9 @@ export class TimesheetService {
     const rolesByEmployee = new Map<string, string[]>();
     for (const assignment of roleAssignments) {
       const empId = String((assignment as any).employeeId);
-      const roleName = (assignment as any).roleId?.name;
+      // Role assignments are stored as EmployeeTeamAssignment with populated `teamId`.
+      // This dashboard filter uses team names (shown as "Team" in the UI).
+      const roleName = (assignment as any).teamId?.name;
       if (!roleName) continue;
       if (!rolesByEmployee.has(empId)) rolesByEmployee.set(empId, []);
       rolesByEmployee.get(empId)!.push(roleName);
@@ -664,6 +796,42 @@ export class TimesheetService {
 
     const weeklyShifts = await TimesheetDbQueries.findWeeklyShiftsBeforeDate({ employeeId, startOfWeek, shiftDate });
     return (weeklyShifts as any[]).reduce((total, shift) => total + (shift.totalWorkingHours || 0), 0);
+  }
+
+  private computeVariance(shift: any, rosterData?: { startTimeUtc: string; endTimeUtc: string } | null): { start: number | null; end: number | null; duration: number | null } {
+    const clockIn = shift?.clockIn?.time ? new Date(shift.clockIn.time) : null;
+    const clockOut = shift?.clockOut?.time ? new Date(shift.clockOut.time) : null;
+
+    if (!rosterData) {
+      const duration = clockIn && clockOut
+        ? Math.round((clockOut.getTime() - clockIn.getTime()) / (60 * 1000))
+        : null;
+      return { start: null, end: null, duration };
+    }
+
+    const rosterStart = new Date(rosterData.startTimeUtc);
+    const rosterEnd = new Date(rosterData.endTimeUtc);
+    const rosterDuration = Math.round((rosterEnd.getTime() - rosterStart.getTime()) / (60 * 1000));
+
+    const startVar = clockIn ? Math.round((clockIn.getTime() - rosterStart.getTime()) / (60 * 1000)) : null;
+    const endVar = clockOut ? Math.round((clockOut.getTime() - rosterEnd.getTime()) / (60 * 1000)) : null;
+    const actualDuration = clockIn && clockOut
+      ? Math.round((clockOut.getTime() - clockIn.getTime()) / (60 * 1000))
+      : null;
+    const durationVar = actualDuration !== null ? actualDuration - rosterDuration : null;
+
+    return { start: startVar, end: endVar, duration: durationVar };
+  }
+
+  private computeFlags(shift: any): { missingActual: boolean; extraActual: boolean; incompleteActual: boolean } {
+    const hasClockIn = !!shift?.clockIn?.time;
+    const hasClockOut = !!shift?.clockOut?.time;
+    const hasRoster = !!shift?.rosterShiftId;
+    return {
+      missingActual: hasRoster && !hasClockIn,
+      extraActual: !hasRoster && hasClockIn,
+      incompleteActual: hasClockIn && !hasClockOut,
+    };
   }
 }
 

@@ -7,7 +7,7 @@ import { isWithinGeofence } from '@/lib/utils/validation/geofence';
 import { checkShiftOverlap } from '@/lib/utils/validation/shift-validation';
 import { logger } from '@/lib/utils/logger';
 import { updateComputedFields } from '@/lib/utils/calculations/shift-calculations';
-import { processFaceRecognition } from '@/lib/services/clock-with-face-recognition';
+import { processFaceRecognition } from '@/lib/services/clock/clock-with-face-recognition';
 import { connectDB } from '@/lib/db';
 
 export class EmployeeClockService {

@@ -8,7 +8,7 @@ import { BreadcrumbsProvider } from '@/components/providers/BreadcrumbsProvider'
 import { DashboardLocationScopeProvider } from '@/components/providers/DashboardLocationScopeProvider';
 import { DashboardShell } from '@/components/shared/shells/DashboardShell';
 import { PageContent } from '@/components/shared/shells/PageContent';
-import useDashboardStore from '@/lib/store';
+import useDashboardStore from '@/lib/store/index';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { useLayout } from '@/components/providers/LayoutProvider';
 import type { DashboardLayoutClientProps } from '@/lib/types/dashboard';

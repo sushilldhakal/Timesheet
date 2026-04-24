@@ -11,12 +11,18 @@ export class EmployeeAwardService {
     const award = await Award.findById(awardId);
     if (!award) return { status: 404, data: { error: "Award not found" } };
 
-    const level = (award as any).levels.find((l: any) => l.label === awardLevel);
-    if (!level) return { status: 400, data: { error: `Award level "${awardLevel}" not found in award` } };
+    // Derive valid levels from levelRates
+    const validLevels = [...new Set((award.levelRates || []).map((r: any) => r.level))];
+    if (awardLevel && !validLevels.includes(awardLevel)) {
+      return { status: 400, data: { error: `Award level "${awardLevel}" not found in award` } };
+    }
 
-    const conditionSet = level.conditions.find((c: any) => c.employmentType === employmentType);
-    if (!conditionSet) {
-      return { status: 400, data: { error: `Employment type "${employmentType}" not found in level "${awardLevel}"` } };
+    // Derive valid employment types for the chosen level from levelRates
+    const validEmploymentTypes = (award.levelRates || [])
+      .filter((r: any) => !awardLevel || r.level === awardLevel)
+      .map((r: any) => r.employmentType);
+    if (employmentType && !validEmploymentTypes.includes(employmentType)) {
+      return { status: 400, data: { error: `Employment type "${employmentType}" not found for level "${awardLevel}"` } };
     }
 
     const employee = await Employee.findById(employeeId);

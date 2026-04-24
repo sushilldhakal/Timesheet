@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import type { DateRange } from "react-day-picker"
-import { CalendarIcon } from "lucide-react"
+import { Calendar as CalendarIcon } from "lucide-react"
+import { DateRange } from "react-day-picker"
+
 import { cn } from "@/lib/utils/cn"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -14,106 +15,55 @@ import {
 } from "@/components/ui/popover"
 
 interface DateRangePickerProps {
-  value: { startDate: string; endDate: string }
-  onChange: (startDate: string, endDate: string) => void
-  className?: string
+  dateRange?: DateRange
+  onDateRangeChange?: (range: DateRange | undefined) => void
   placeholder?: string
+  disabled?: boolean
+  className?: string
 }
 
 export function DateRangePicker({
-  value,
-  onChange,
-  className,
+  dateRange,
+  onDateRangeChange,
   placeholder = "Pick a date range",
+  disabled = false,
+  className,
 }: DateRangePickerProps) {
-  const [open, setOpen] = React.useState(false)
-  const [mounted, setMounted] = React.useState(false)
-  
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
-  
-  // Parse dates properly to avoid timezone issues
-  const from = value.startDate ? new Date(value.startDate + 'T00:00:00') : undefined
-  const to = value.endDate ? new Date(value.endDate + 'T00:00:00') : undefined
-  
-  const range: DateRange | undefined =
-    from && to ? { from, to } : from ? { from, to: from } : undefined
-
-  const handleSelect = (r: DateRange | undefined) => {
-    if (!r?.from) {
-      // If no date selected, clear the selection
-      onChange("", "")
-      return
-    }
-    
-    // Format dates properly to avoid timezone issues
-    const start = format(r.from, "yyyy-MM-dd")
-    const end = r.to ? format(r.to, "yyyy-MM-dd") : start
-    
-    onChange(start, end)
-    
-    // Don't auto-close - let the user click outside to close
-    // This matches shadcn UI behavior
-  }
-
-  const label = React.useMemo(() => {
-    if (value.startDate && value.endDate) {
-      const fromDate = new Date(value.startDate + 'T00:00:00')
-      const toDate = new Date(value.endDate + 'T00:00:00')
-      
-      if (value.startDate === value.endDate) {
-        return format(fromDate, "d MMM yyyy")
-      }
-      return `${format(fromDate, "d MMM yyyy")} – ${format(toDate, "d MMM yyyy")}`
-    }
-    return placeholder
-  }, [value.startDate, value.endDate, placeholder])
-
-  if (!mounted) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        className={cn(
-          "w-[260px] justify-start text-left font-normal print:hidden",
-          !range && "text-muted-foreground",
-          className
-        )}
-        disabled
-      >
-        <CalendarIcon className="mr-2 size-4" />
-        {placeholder}
-      </Button>
-    )
-  }
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
+          variant={"outline"}
           className={cn(
-            "w-[260px] justify-start text-left font-normal print:hidden",
-            !range && "text-muted-foreground",
+            "w-full justify-start text-left font-normal",
+            !dateRange && "text-muted-foreground",
             className
           )}
+          disabled={disabled}
         >
-          <CalendarIcon className="mr-2 size-4" />
-          {label}
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {dateRange?.from ? (
+            dateRange.to ? (
+              <>
+                {format(dateRange.from, "LLL dd, y")} -{" "}
+                {format(dateRange.to, "LLL dd, y")}
+              </>
+            ) : (
+              format(dateRange.from, "LLL dd, y")
+            )
+          ) : (
+            <span>{placeholder}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
+          initialFocus
           mode="range"
-          defaultMonth={from ?? to ?? new Date()}
-          selected={range}
-          onSelect={handleSelect}
+          defaultMonth={dateRange?.from}
+          selected={dateRange}
+          onSelect={onDateRangeChange}
           numberOfMonths={2}
-          disabled={(date) =>
-            date > new Date() || date < new Date("1900-01-01")
-          }
         />
       </PopoverContent>
     </Popover>

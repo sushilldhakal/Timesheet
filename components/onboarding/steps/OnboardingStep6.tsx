@@ -1,8 +1,10 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useOnboarding } from '@/lib/context/onboarding-context'
@@ -14,6 +16,17 @@ type Step6Data = z.infer<typeof step6Schema>
 
 export function OnboardingStep6() {
   const { formData, setFormData, nextStep, prevStep } = useOnboarding()
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const form = useForm<Step6Data>({
     resolver: zodResolver(step6Schema),
@@ -61,7 +74,13 @@ export function OnboardingStep6() {
             <FormField control={form.control} name="wwcExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
-                <FormControl><Input type="date" {...field} /></FormControl>
+                <FormControl>
+                  <DatePicker
+                    date={fromYmd(field.value)}
+                    onDateChange={(d) => field.onChange(toYmd(d))}
+                    placeholder="Pick a date"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />
@@ -86,7 +105,13 @@ export function OnboardingStep6() {
             <FormField control={form.control} name="policeClearanceExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
-                <FormControl><Input type="date" {...field} /></FormControl>
+                <FormControl>
+                  <DatePicker
+                    date={fromYmd(field.value)}
+                    onDateChange={(d) => field.onChange(toYmd(d))}
+                    placeholder="Pick a date"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />
@@ -110,7 +135,13 @@ export function OnboardingStep6() {
             <FormField control={form.control} name="foodHandlingExpiryDate" render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Expiry Date</FormLabel>
-                <FormControl><Input type="date" {...field} /></FormControl>
+                <FormControl>
+                  <DatePicker
+                    date={fromYmd(field.value)}
+                    onDateChange={(d) => field.onChange(toYmd(d))}
+                    placeholder="Pick a date"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />

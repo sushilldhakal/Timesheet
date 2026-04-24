@@ -31,7 +31,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Plus,
   Eye,
   Send,
   CheckCircle,
@@ -42,13 +41,13 @@ import {
   Clock,
   Users,
   AlertTriangle,
+  CalendarPlus,
 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header"
 import { format } from "date-fns"
 import {
   getTimesheetApprovals,
-  createTimesheet,
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
@@ -56,7 +55,9 @@ import {
   type TimesheetRow,
 } from "@/lib/api/timesheets"
 import { getMe } from "@/lib/api/auth"
-import { getEmployees } from "@/lib/api/employees"
+import { BulkGenerateDialog } from "./bulk-generate-dialog"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { useQueryClient } from "@tanstack/react-query"
 
 
 
@@ -80,17 +81,21 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
   const [loading, setLoading] = useState(true)
   const [tenantId, setTenantId] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [employees, setEmployees] = useState<{ _id: string; name: string; pin: string }[]>([])
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState("")
-  const [periodStart, setPeriodStart] = useState("")
-  const [periodEnd, setPeriodEnd] = useState("")
-  const [creating, setCreating] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [bulkSelected, setBulkSelected] = useState<string[]>([])
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectTargetId, setRejectTargetId] = useState("")
   const [rejectionReason, setRejectionReason] = useState("")
+  const [bulkGenerateOpen, setBulkGenerateOpen] = useState(false)
+
+  const { userRole } = useAuth()
+  const isAdmin = userRole === "admin" || userRole === "super_admin"
+  const queryClient = useQueryClient()
+
+  const approvalsQueryKey = useMemo(
+    () => ["timesheetApprovals", { tenantId, status: statusFilter !== "all" ? statusFilter : undefined }] as const,
+    [tenantId, statusFilter]
+  )
 
   useEffect(() => {
     const fetchTenant = async () => {
@@ -121,50 +126,11 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
     }
   }, [tenantId, statusFilter])
 
-  const fetchEmployees = useCallback(async () => {
-    try {
-      const data = await getEmployees({ limit: 500 })
-      setEmployees(
-        (data.employees || []).map((e: any) => ({
-          _id: e._id || e.id,
-          name: e.name,
-          pin: e.pin,
-        }))
-      )
-    } catch (err) {
-      console.error("Failed to fetch employees:", err)
-    }
-  }, [])
-
   useEffect(() => {
     if (tenantId) {
       fetchTimesheetApprovals()
-      fetchEmployees()
     }
-  }, [tenantId, fetchTimesheetApprovals, fetchEmployees])
-
-  const handleCreate = async () => {
-    if (!selectedEmployeeId || !periodStart || !periodEnd || !tenantId) return
-    setCreating(true)
-    try {
-      await createTimesheet({
-        tenantId,
-        employeeId: selectedEmployeeId,
-        payPeriodStart: periodStart,
-        payPeriodEnd: periodEnd,
-      })
-      setCreateDialogOpen(false)
-      setSelectedEmployeeId("")
-      setPeriodStart("")
-      setPeriodEnd("")
-      fetchTimesheetApprovals()
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to create timesheet"
-      toast.error(errorMessage)
-    } finally {
-      setCreating(false)
-    }
-  }
+  }, [tenantId, fetchTimesheetApprovals])
 
   const handleAction = async (
     timesheetId: string,
@@ -522,6 +488,17 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Timesheet Approvals</CardTitle>
             <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setBulkGenerateOpen(true)}
+                  className="gap-1"
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Generate Timesheets
+                </Button>
+              )}
               {bulkSelected.length > 0 && (
                 <Button
                   size="sm"
@@ -546,10 +523,6 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
                   <SelectItem value="locked">Locked</SelectItem>
                 </SelectContent>
               </Select>
-              <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="mr-1 h-4 w-4" />
-                New Timesheet
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -575,66 +548,6 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
           )}
         </CardContent>
       </Card>
-
-      {/* Create dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Timesheet</DialogTitle>
-            <DialogDescription>
-              Create a draft timesheet for an employee. All shifts within the pay period will be
-              auto-linked.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Employee</Label>
-              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp._id} value={emp._id}>
-                      {emp.name} ({emp.pin})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Period Start</Label>
-                <Input
-                  type="date"
-                  value={periodStart}
-                  onChange={(e) => setPeriodStart(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Period End</Label>
-                <Input
-                  type="date"
-                  value={periodEnd}
-                  onChange={(e) => setPeriodEnd(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={creating || !selectedEmployeeId || !periodStart || !periodEnd}
-            >
-              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Timesheet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Reject dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
@@ -669,6 +582,15 @@ export function TimesheetApprovalList({ onViewTimesheet }: TimesheetApprovalList
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkGenerateDialog
+        open={bulkGenerateOpen}
+        onOpenChange={setBulkGenerateOpen}
+        onGenerated={() => {
+          queryClient.invalidateQueries({ queryKey: approvalsQueryKey as any })
+          fetchTimesheetApprovals()
+        }}
+      />
     </div>
   )
 }

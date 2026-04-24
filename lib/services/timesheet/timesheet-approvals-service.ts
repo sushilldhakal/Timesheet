@@ -64,7 +64,7 @@ export class TimesheetApprovalsService {
 
   async approve(ctx: any, id: string, body: any) {
     await connectDB();
-    const allowedRoles = ["admin", "super_admin", "manager", "supervisor"];
+    const allowedRoles = ["admin", "super_admin", "manager", "supervisor", "accounts"];
     if (!allowedRoles.includes(ctx.auth.role)) {
       return { status: 403, data: { error: "Only managers or admins can approve timesheets" } };
     }

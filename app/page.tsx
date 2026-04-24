@@ -112,7 +112,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex-1 flex flex-col bg-background">
+      <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="w-full p-6 flex justify-between items-center border-b">
           <div className="lg:hidden flex items-center gap-2">

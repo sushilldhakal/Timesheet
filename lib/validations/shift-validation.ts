@@ -23,6 +23,8 @@ export type EditableShiftChanges = {
     source?: "clocked" | "automatic"
   }> | null
   awardTags?: string[] | null
+  /** Operational review note */
+  notes?: string | null
 }
 
 function parseIsoUtc(s: string, field: string): Date {

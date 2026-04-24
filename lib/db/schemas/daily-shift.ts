@@ -91,6 +91,9 @@ export interface IDailyShift {
   totalWorkingHours?: number
   source: "clock" | "manual" | "leave"
   
+  /** Operational review note — set by managers/supervisors, visible to accounts */
+  notes?: string
+  
   // 🔥 CRITICAL: Award Tags (Manual Overrides)
   awardTags: string[] // e.g., ['TOIL', 'BrokenShift', 'PublicHolidayOverride']
   
@@ -229,6 +232,9 @@ const dailyShiftSchema = new mongoose.Schema<IDailyShiftDocument>(
       enum: ["clock", "manual", "leave"],
       default: "clock",
     },
+    
+    /** Operational review note — set by managers/supervisors, visible to accounts */
+    notes: { type: String, default: "" },
     
     // 🔥 Award Tags (Manual Overrides)
     awardTags: [{

@@ -17,7 +17,7 @@
  */
 
 import { StaffFaceProfile, BuddyPunchAlert } from "@/lib/db"
-import { matchFaceDescriptor, isValidDescriptor } from "./face-matching"
+import { matchFaceDescriptor, isValidDescriptor } from "@/lib/services/face-recognition/face-matching"
 import { FACE_MATCH_THRESHOLD } from "@/lib/api/face-recognition"
 
 export interface ClockWithFaceData {

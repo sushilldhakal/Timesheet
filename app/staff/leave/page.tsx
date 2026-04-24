@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { format } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +25,7 @@ import { FormDialogShell } from "@/components/shared/forms"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
 import {
   Select,
   SelectContent,
@@ -113,6 +115,17 @@ export default function StaffLeavePage() {
     merged.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
     return merged
   }, [absencesQuery.data])
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ""
+    return format(value, "yyyy-MM-dd")
+  }
 
   useEffect(() => {
     if (employeeProfileQuery.isError) {
@@ -369,24 +382,15 @@ export default function StaffLeavePage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="start-date">Start Date</Label>
-              <Input
-                id="start-date"
-                type="date"
-                value={addStart}
-                onChange={(e) => setAddStart(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="end-date">End Date</Label>
-              <Input
-                id="end-date"
-                type="date"
-                value={addEnd}
-                onChange={(e) => setAddEnd(e.target.value)}
-                required
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Dates</Label>
+              <DateRangePicker
+                dateRange={{ from: fromYmd(addStart), to: fromYmd(addEnd) }}
+                onDateRangeChange={(range) => {
+                  setAddStart(toYmd(range?.from))
+                  setAddEnd(toYmd(range?.to))
+                }}
+                placeholder="Pick leave dates"
               />
             </div>
           </div>

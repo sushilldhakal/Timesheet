@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Briefcase } from "lucide-react"
-import { useEmployers } from "@/lib/queries/employers"
+import { useEmployers, useEmployerSettings } from "@/lib/queries/employers"
 import { useAwards } from "@/lib/queries/awards"
 import { EmployersTable } from "@/components/dashboard/tables/EmployersTable"
 import { AddMasterDataDialog } from "@/components/dashboard/master-data/AddMasterDataDialog"
@@ -13,6 +14,7 @@ import { TablePageToolbar, InfoGrid, InfoCard } from "@/components/shared"
 import type { CategoryRow } from "@/components/dashboard/master-data/types"
 
 export default function EmployersPage() {
+  const router = useRouter()
   const [addOpen, setAddOpen] = useState(false)
   const [editRow, setEditRow] = useState<CategoryRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<CategoryRow | null>(null)
@@ -21,6 +23,16 @@ export default function EmployersPage() {
   useEffect(() => {
     setHydrated(true)
   }, [])
+
+  const { data: employerSettings, isLoading: settingsLoading } = useEmployerSettings()
+  const enableExternalHire = employerSettings?.enableExternalHire ?? false
+
+  // Redirect away if external hire is disabled (once settings have loaded)
+  useEffect(() => {
+    if (!settingsLoading && employerSettings && !enableExternalHire) {
+      router.replace("/dashboard")
+    }
+  }, [settingsLoading, employerSettings, enableExternalHire, router])
 
   const employersQuery = useEmployers({ listMode: true })
   const awardsQuery = useAwards()
@@ -47,6 +59,9 @@ export default function EmployersPage() {
 
   const loading = !hydrated || employersQuery.isLoading || awardsQuery.isLoading
   const errorMessage = (employersQuery.error as Error | null)?.message
+
+  // Don't render until settings are confirmed
+  if (settingsLoading || !enableExternalHire) return null
 
   return (
     <>

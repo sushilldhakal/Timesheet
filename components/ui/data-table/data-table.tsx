@@ -297,18 +297,12 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
                   <TableRow key={headerGroup.id}>
                     {headers.map((header, hIdx) => {
                       const isLastTwo = hIdx >= headers.length - 2
+                      const isLast = hIdx === headers.length - 1
                       return (
                       <TableHead 
                         key={header.id} 
                         colSpan={header.colSpan}
-                        style={{
-                          position: 'sticky',
-                          top: 0,
-                          right: isLastTwo && hIdx === headers.length - 1 ? 0 : undefined,
-                          zIndex: isLastTwo ? 31 : 30,
-                          backgroundColor: 'hsl(var(--background))',
-                          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)',
-                        }}
+                        className={`sticky top-0 bg-background shadow-sm ${isLastTwo ? (isLast ? 'z-31 right-0' : 'z-31') : 'z-30'}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -326,27 +320,24 @@ export function DataTable<TData, TValue>(props: DataTableProps<TData, TValue>) {
               <TableBody>
                 {table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row, index) => {
-                    const isEven = index % 2 === 0
-                    const rowBg = isEven ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)'
+                    // Start bg-background from second row (index 1)
+                    const isEven = (index + 1) % 2 === 0
+                    const rowBg = index === 0 ? 'transparent' : (isEven ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)')
                     const visibleCells = row.getVisibleCells()
                     return (
                     <React.Fragment key={row.id}>
                       <TableRow
                         data-state={row.getIsSelected() && "selected"}
-                        className={`${onRowClick ? "cursor-pointer hover:bg-muted/50" : ""} ${isEven ? "bg-background" : "bg-muted/20"}`}
+                        className={`${onRowClick ? "cursor-pointer hover:bg-muted/50" : ""} ${index === 0 ? "" : (isEven ? "bg-background" : "bg-muted/20")}`}
                         onClick={() => onRowClick?.(row.original)}
                       >
                         {visibleCells.map((cell, cellIndex) => {
                           const isLastTwo = cellIndex >= visibleCells.length - 2
+                          const isLast = cellIndex === visibleCells.length - 1
                           return (
                           <TableCell
                             key={cell.id}
-                            style={isLastTwo ? {
-                              position: 'sticky',
-                              right: cellIndex === visibleCells.length - 1 ? 0 : undefined,
-                              backgroundColor: rowBg,
-                              zIndex: 1,
-                            } : undefined}
+                            className={isLastTwo ? (isLast ? 'sticky right-0 z-1' : 'sticky z-1') : ''}
                           >
                             {flexRender(
                               cell.column.columnDef.cell,
@@ -550,18 +541,12 @@ function ServerDataTableImpl<TData, TValue>({
                   <TableRow key={headerGroup.id}>
                     {headers.map((header, hIdx) => {
                       const isLastTwo = hIdx >= headers.length - 2
+                      const isLast = hIdx === headers.length - 1
                       return (
                       <TableHead 
                         key={header.id} 
                         colSpan={header.colSpan}
-                        style={{
-                          position: 'sticky',
-                          top: 0,
-                          right: isLastTwo && hIdx === headers.length - 1 ? 0 : undefined,
-                          zIndex: isLastTwo ? 31 : 30,
-                          backgroundColor: 'hsl(var(--background))',
-                          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)',
-                        }}
+                        className={`sticky top-0 bg-background shadow-sm ${isLastTwo ? (isLast ? 'z-31 right-0' : 'z-31') : 'z-30'}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -588,27 +573,24 @@ function ServerDataTableImpl<TData, TValue>({
                   </TableRow>
                 ) : table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row, index) => {
-                    const isEven = index % 2 === 0
-                    const rowBg = isEven ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)'
+                    // Start bg-background from second row (index 1)
+                    const isEven = (index + 1) % 2 === 0
+                    const rowBg = index === 0 ? 'transparent' : (isEven ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)')
                     const visibleCells = row.getVisibleCells()
                     return (
                     <React.Fragment key={row.id}>
                       <TableRow
                         data-state={row.getIsSelected() && "selected"}
-                        className={`${onRowClick ? "cursor-pointer hover:bg-muted/50" : ""} ${isEven ? "bg-background" : "bg-muted/20"}`}
+                        className={`${onRowClick ? "cursor-pointer hover:bg-muted/50" : ""} ${index === 0 ? "" : (isEven ? "bg-background" : "bg-muted/20")}`}
                         onClick={() => onRowClick?.(row.original)}
                       >
                         {visibleCells.map((cell, cellIndex) => {
                           const isLastTwo = cellIndex >= visibleCells.length - 2
+                          const isLast = cellIndex === visibleCells.length - 1
                           return (
                           <TableCell
                             key={cell.id}
-                            style={isLastTwo ? {
-                              position: 'sticky',
-                              right: cellIndex === visibleCells.length - 1 ? 0 : undefined,
-                              backgroundColor: rowBg,
-                              zIndex: 1,
-                            } : undefined}
+                            className={isLastTwo ? (isLast ? 'sticky right-0 z-1' : 'sticky z-1') : ''}
                           >
                             {flexRender(
                               cell.column.columnDef.cell,
@@ -972,19 +954,7 @@ function VirtualDataTableImpl<TData, TValue>({
 
       {/* Sticky header — lives OUTSIDE overflow container so position:sticky works */}
       <div
-        style={{
-          position: 'sticky',
-          top: 64,
-          zIndex: 20,
-          backgroundColor: 'hsl(var(--background))',
-          borderTop: '1px solid hsl(var(--border))',
-          borderLeft: '1px solid hsl(var(--border))',
-          borderRight: '1px solid hsl(var(--border))',
-          borderBottom: '1px solid hsl(var(--border))',
-          borderTopLeftRadius: '0.375rem',
-          borderTopRightRadius: '0.375rem',
-          overflow: 'hidden', // clip the translateX'd inner div
-        }}
+        className="sticky top-16 z-20 bg-background border border-b rounded-t-md overflow-hidden"
       >
         {/* Inner div that gets translateX'd to mirror body scroll — no scrollbar */}
         <div ref={headerInnerRef} style={{ willChange: 'transform' }}>
@@ -1044,24 +1014,20 @@ function VirtualDataTableImpl<TData, TValue>({
                     key={row.id}
                     data-index={virtualRow.index}
                     ref={virtualizer.measureElement}
+                    className={`absolute top-0 left-0 right-0 border-b cursor-${onRowClick ? 'pointer' : 'default'} ${virtualRow.index === 0 ? '' : ((virtualRow.index + 1) % 2 === 0 ? 'bg-background' : 'bg-muted/20')}`}
                     style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
                       transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                       display: 'grid',
                       gridTemplateColumns: colTemplate,
-                      borderBottom: '1px solid hsl(var(--border))',
-                      backgroundColor: virtualRow.index % 2 === 0 ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)',
-                      cursor: onRowClick ? 'pointer' : 'default',
                     }}
                     onClick={() => onRowClick?.(row.original)}
                     onMouseEnter={(e) => {
-                      if (onRowClick) e.currentTarget.style.backgroundColor = 'hsl(var(--muted) / 0.5)'
+                      if (onRowClick) e.currentTarget.classList.add('bg-muted/50')
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = virtualRow.index % 2 === 0 ? 'hsl(var(--background))' : 'hsl(var(--muted) / 0.2)'
+                      if (onRowClick) {
+                        e.currentTarget.classList.remove('bg-muted/50')
+                      }
                     }}
                   >
                     {row.getVisibleCells().map((cell) => (

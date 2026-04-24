@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -47,6 +49,17 @@ export function QualificationForm({
 }: QualificationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const fromYmd = (value?: string | null): Date | undefined => {
+    if (!value) return undefined
+    const d = new Date(`${value}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? undefined : d
+  }
+
+  const toYmd = (value?: Date): string => {
+    if (!value) return ''
+    return format(value, 'yyyy-MM-dd')
+  }
 
   const form = useForm<QualificationFormData>({
     resolver: zodResolver(qualificationBodySchema),
@@ -150,7 +163,11 @@ export function QualificationForm({
                 <FormItem>
                   <FormLabel>Issue Date *</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <DatePicker
+                      date={fromYmd(field.value)}
+                      onDateChange={(d) => field.onChange(toYmd(d))}
+                      placeholder="Pick a date"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -164,7 +181,11 @@ export function QualificationForm({
                 <FormItem>
                   <FormLabel>Expiry Date (optional)</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <DatePicker
+                      date={fromYmd(field.value)}
+                      onDateChange={(d) => field.onChange(toYmd(d))}
+                      placeholder="Pick a date"
+                    />
                   </FormControl>
                   <FormDescription>Leave blank if qualification doesn&apos;t expire</FormDescription>
                   <FormMessage />

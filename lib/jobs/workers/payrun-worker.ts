@@ -223,12 +223,17 @@ async function processPayRunCalculation(job: Job<PayRunJobData>): Promise<PayRun
     // Update job progress
     await job.updateProgress(90)
 
-    // Calculate totals (simplified - no tax/super calculation yet)
+    // Calculate totals
+    // Australian payroll: Super is employer contribution (not deducted from employee pay)
+    const superannuation = totalGross * 0.115 // 11.5% super (July 2024 rate)
+    const tax = 0 // TODO: Implement proper tax calculation based on tax tables
+    const netPay = totalGross - tax // Net = Gross - Tax (super is NOT deducted)
+
     const totals = {
       gross: totalGross,
-      tax: 0, // TODO: Implement tax calculation
-      super: totalGross * 0.11, // 11% superannuation (simplified)
-      net: totalGross, // TODO: Implement net calculation (gross - tax)
+      tax,
+      super: superannuation,
+      net: netPay,
       totalHours,
       employeeCount: processedEmployees.size
     }

@@ -6,7 +6,7 @@ import {
   buddyPunchAlertCreateResponseSchema,
 } from "@/lib/validations/buddy-punch-alerts"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import { buddyPunchAlertsService } from "@/lib/services/monitoring/buddy-punch-alerts-service"
+import { buddyPunchAlertsService } from "@/lib/services/face-recognition/buddy-punch-alerts-service"
 
 // GET /api/buddy-punch-alerts - Dashboard list
 export const GET = createApiRoute({

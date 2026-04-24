@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -55,6 +57,17 @@ interface ComplianceFormProps {
 function toDateInput(val?: string | null): string {
   if (!val) return ''
   try { return new Date(val).toISOString().split('T')[0] } catch { return '' }
+}
+
+function fromYmd(value?: string | null): Date | undefined {
+  if (!value) return undefined
+  const d = new Date(`${value}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
+function toYmd(value?: Date): string {
+  if (!value) return ''
+  return format(value, 'yyyy-MM-dd')
 }
 
 export function ComplianceForm({
@@ -178,7 +191,13 @@ export function ComplianceForm({
                 render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>WWC Expiry Date</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormControl>
+                      <DatePicker
+                        date={fromYmd(field.value)}
+                        onDateChange={(d) => field.onChange(toYmd(d))}
+                        placeholder="Pick a date"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -223,7 +242,13 @@ export function ComplianceForm({
                 render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Police Clearance Expiry Date</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormControl>
+                      <DatePicker
+                        date={fromYmd(field.value)}
+                        onDateChange={(d) => field.onChange(toYmd(d))}
+                        placeholder="Pick a date"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -256,7 +281,13 @@ export function ComplianceForm({
                 render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Food Handling Expiry Date</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormControl>
+                      <DatePicker
+                        date={fromYmd(field.value)}
+                        onDateChange={(d) => field.onChange(toYmd(d))}
+                        placeholder="Pick a date"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -288,7 +319,13 @@ export function ComplianceForm({
                   render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Induction Completed Date</FormLabel>
-                      <FormControl><Input type="date" {...field} /></FormControl>
+                      <FormControl>
+                        <DatePicker
+                          date={fromYmd(field.value)}
+                          onDateChange={(d) => field.onChange(toYmd(d))}
+                          placeholder="Pick a date"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -317,7 +354,13 @@ export function ComplianceForm({
                   render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Code of Conduct Signed Date</FormLabel>
-                      <FormControl><Input type="date" {...field} /></FormControl>
+                      <FormControl>
+                        <DatePicker
+                          date={fromYmd(field.value)}
+                          onDateChange={(d) => field.onChange(toYmd(d))}
+                          placeholder="Pick a date"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

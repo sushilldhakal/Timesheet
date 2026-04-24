@@ -42,6 +42,7 @@ export interface ShiftDetail {
   totalWorkingHours?: number
   totalBreakMinutes?: number
   status: string
+  notes?: string | null
   computed?: {
     totalCost: number
     totalHours: number

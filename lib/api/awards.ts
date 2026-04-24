@@ -16,7 +16,10 @@ export interface Award {
   description: string | null
   isActive: boolean
   levelRates: AwardLevelRate[]
-  levels: any[]
+  rules: any[]
+  availableTags?: { name: string; description?: string }[]
+  awardTagIds?: string[]
+  version?: string
   createdAt: string
   updatedAt: string
 }
@@ -26,7 +29,7 @@ export interface CreateAwardRequest {
   description?: string
   isActive?: boolean
   levelRates?: AwardLevelRate[]
-  levels?: any[]
+  rules?: any[]
 }
 
 export interface UpdateAwardRequest {
@@ -34,7 +37,7 @@ export interface UpdateAwardRequest {
   description?: string
   isActive?: boolean
   levelRates?: AwardLevelRate[]
-  levels?: any[]
+  rules?: any[]
 }
 
 export interface AwardVersion {
@@ -58,6 +61,8 @@ export interface EvaluateRulesRequest {
   shiftDate: string
   startTime: string
   endTime: string
+  startWallClock?: string
+  endWallClock?: string
   employmentType: string
   awardTags?: string[]
   isPublicHoliday?: boolean

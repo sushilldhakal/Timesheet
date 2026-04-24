@@ -31,6 +31,29 @@ export function useUpdateDailyShift() {
   })
 }
 
+// Approve a single daily shift
+export function useApproveDailyShift() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => timesheetsApi.approveDailyShift(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: timesheetKeys.all })
+    },
+  })
+}
+
+// Reject a single daily shift
+export function useRejectDailyShift() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      timesheetsApi.rejectDailyShift(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: timesheetKeys.all })
+    },
+  })
+}
+
 // Bulk approve shifts
 export function useBulkApproveShifts() {
   const queryClient = useQueryClient()

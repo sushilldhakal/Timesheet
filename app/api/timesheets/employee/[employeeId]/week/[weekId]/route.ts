@@ -2,7 +2,7 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { apiErrors } from "@/lib/api/api-error"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { z } from "zod"
-import { reconcileWeek } from "@/lib/services/timesheet-reconciliation"
+import { reconcileWeek } from "@/lib/services/timesheet/timesheet-reconciliation"
 
 export const runtime = "nodejs"
 

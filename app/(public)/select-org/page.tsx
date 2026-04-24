@@ -58,7 +58,7 @@ export default function SelectOrgPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="w-full p-6 flex justify-between items-center border-b">
         <div className="flex items-center gap-2">

@@ -11,7 +11,7 @@ import {
   LayoutDashboard, DollarSign, ShieldCheck, FileText, Award, Clock,
 } from "lucide-react"
 import { OptimizedImage } from "@/components/ui/optimized-image"
-import { EditEmployeeDialog } from "../EditEmployeeDialog"
+import { EditEmployeeDialog } from "../../../../../components/employees/EditEmployeeDialog"
 import { EmployeeTeamAssignmentDialog } from "@/components/employees/employee-team-assignment-dialog"
 import EmployeeTeamAssignmentList from "@/components/employees/employee-team-assignment-list"
 import EmployeeAwardCard from "@/components/employees/employee-award-card"

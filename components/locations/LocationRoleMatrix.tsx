@@ -131,7 +131,7 @@ export function LocationRoleMatrix({
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `location-role-matrix-${new Date().toISOString().split("T")[0]}.csv`
+    link.download = `LocationRoleMatrix-${new Date().toISOString().split("T")[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

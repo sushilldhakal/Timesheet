@@ -190,20 +190,23 @@ export const shiftContextSchema = z.object({
   baseRate: z.number().min(0), // Employee's hourly rate for cost calculation
   startTime: z.date(),
   endTime: z.date(),
-  
+  // Calendar date of the shift (YYYY-MM-DD string). Used for timezone-safe
+  // day-of-week and time-range evaluation. When absent, falls back to startTime.
+  shiftDate: z.string().optional(),
+
   // Award tags applied to this shift (CRITICAL)
   awardTags: z.array(z.string()).default([]),
-  
+
   // Roster information
   rosteredStart: z.date().optional(),
   rosteredEnd: z.date().optional(),
-  
+
   // Context for rule evaluation
   isPublicHoliday: z.boolean().default(false),
   weeklyHoursWorked: z.number().min(0).default(0), // Hours worked this week so far
   dailyHoursWorked: z.number().min(0).default(0), // Hours worked today so far
   consecutiveShifts: z.number().min(0).default(0), // Number of consecutive shifts
-  
+
   // Break information
   breaks: z.array(z.object({
     startTime: z.date(),

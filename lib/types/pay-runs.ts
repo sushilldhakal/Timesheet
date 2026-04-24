@@ -1,2 +1,10 @@
 // Re-export types from API layer for centralized access
-export type { PayRun, PayItem, PayRunExport, JobStatus, CreatePayRunRequest } from '@/lib/api/pay-runs'
+export type {
+  PayRun,
+  PayItem,
+  PayRunDetail,
+  PayRunDetailEmployee,
+  PayRunDetailExport,
+  PayRunJobStatusResponse,
+  CreatePayRunRequest,
+} from '@/lib/api/pay-runs'

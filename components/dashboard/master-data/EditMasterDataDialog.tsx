@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { parseCoordsFromMapLink } from "@/lib/utils/location/parseMapLink"
 import { TAILWIND_COLORS } from "@/lib/utils/format/colors"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   useUpdateLocation,

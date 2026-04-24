@@ -33,6 +33,8 @@ export interface TimesheetFilters {
   roles?: string[]
   limit?: number
   offset?: number
+  /** Pass '1' to include dailyShiftId, status, locationId, roleId, rosterShiftId, varianceMinutes, flags */
+  includeSchedule?: '1'
 }
 
 export interface TimesheetResponse {
@@ -60,6 +62,7 @@ export async function getTimesheets(filters: TimesheetFilters): Promise<Timeshee
   filters.employers?.forEach(emp => params.append('employer', emp))
   filters.locations?.forEach(loc => params.append('location', loc))
   filters.roles?.forEach(role => params.append('role', role))
+  if (filters.includeSchedule) params.set('includeSchedule', filters.includeSchedule)
 
   return apiFetch<TimesheetResponse>(`${BASE_URL}?${params.toString()}`)
 }
@@ -70,6 +73,23 @@ export async function updateDailyShift(id: string, data: Partial<TimesheetRow> &
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
+  })
+}
+
+// Approve a single daily shift
+export async function approveDailyShift(id: string): Promise<{ success: boolean; shift: TimesheetRow }> {
+  return apiFetch<{ success: boolean; shift: TimesheetRow }>(`/api/daily-shifts/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+// Reject a single daily shift
+export async function rejectDailyShift(id: string, reason?: string): Promise<{ success: boolean; shift: TimesheetRow }> {
+  return apiFetch<{ success: boolean; shift: TimesheetRow }>(`/api/daily-shifts/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reason ? { reason } : {}),
   })
 }
 

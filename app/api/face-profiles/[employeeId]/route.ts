@@ -6,7 +6,7 @@ import {
   faceProfileCreateResponseSchema,
 } from "@/lib/validations/face-profiles"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
-import { faceProfilesService } from "@/lib/services/monitoring/face-profiles-service"
+import { faceProfilesService } from "@/lib/services/face-recognition/face-profiles-service"
 
 // GET /api/face-profiles/:employeeId - Fetch profile for employee
 export const GET = createApiRoute({

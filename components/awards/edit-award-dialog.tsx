@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -404,10 +405,10 @@ export function EditAwardDialog({ award, open, onOpenChange, onSave }: EditAward
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Effective From</Label>
-                        <Input
-                          type="date"
-                          value={newLevelRate.effectiveFrom.toISOString().split("T")[0]}
-                          onChange={(e) => setNewLevelRate(prev => ({ ...prev, effectiveFrom: new Date(e.target.value) }))}
+                        <DatePicker
+                          date={newLevelRate.effectiveFrom}
+                          onDateChange={(d) => setNewLevelRate(prev => ({ ...prev, effectiveFrom: d ?? new Date() }))}
+                          placeholder="Pick a date"
                         />
                       </div>
                     </div>
