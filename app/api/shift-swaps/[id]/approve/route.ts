@@ -7,7 +7,6 @@ import {
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { shiftSwapService } from "@/lib/services/shift-swap/shift-swap-service"
-import { notificationService } from "@/lib/services/notifications/notification-service"
 import { getTenantContext } from "@/lib/auth/tenant-context"
 import { eventBus } from "@/lib/events/event-bus"
 import { DOMAIN_EVENTS, makeEventId } from "@/lib/events/domain-events"
@@ -43,7 +42,7 @@ export const PATCH = createApiRoute({
     const { id } = params!
     const result = await shiftSwapService.approve(id, body)
 
-    // NEW: emit domain event + DUAL_WRITE_DEPRECATED direct notify (remove after 2025-07-01)
+    // Emit domain event
     const tenantCtx = await getTenantContext()
     if (tenantCtx && tenantCtx.type === "full" && (result as any)?.shiftSwap?.requestorEmployeeId) {
       const swap = (result as any).shiftSwap
@@ -59,19 +58,6 @@ export const PATCH = createApiRoute({
         eventId: makeEventId(DOMAIN_EVENTS.SHIFT_SWAP_APPROVED, id),
         payload: { swapId: id, requestorId, approvedBy: ctx.auth.sub },
       }).catch(() => {})
-
-      // DUAL_WRITE_DEPRECATED: remove after 2025-07-01
-      notificationService
-        .send(tenantCtx, {
-          targetType: "employee",
-          targetId: requestorId,
-          category: "shift_swap_approved",
-          title: "Shift Swap Approved",
-          message: "Your shift swap request has been approved.",
-          relatedEntity: { type: "shift_swap", id },
-          channels: ["in_app"],
-        })
-        .catch(() => {})
     }
 
     return { status: 200, data: result }

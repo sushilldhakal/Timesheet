@@ -27,60 +27,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@shadcn-scheduler/core": [
-        "./components/scheduling/packages/core/src"
-      ],
-      "@shadcn-scheduler/shell": [
-        "./components/scheduling/packages/shell/src"
-      ],
-      "@shadcn-scheduler/grid-engine": [
-        "./components/scheduling/packages/grid-engine/src"
-      ],
-      "@shadcn-scheduler/view-day": [
-        "./components/scheduling/packages/view-day/src"
-      ],
-      "@shadcn-scheduler/view-week": [
-        "./components/scheduling/packages/view-week/src"
-      ],
-      "@shadcn-scheduler/view-month": [
-        "./components/scheduling/packages/view-month/src"
-      ],
-      "@shadcn-scheduler/view-year": [
-        "./components/scheduling/packages/view-year/src"
-      ],
-      "@shadcn-scheduler/view-list": [
-        "./components/scheduling/packages/view-list/src"
-      ],
-      "@shadcn-scheduler/view-timeline": [
-        "./components/scheduling/packages/view-timeline/src"
-      ],
-      "@shadcn-scheduler/view-kanban": [
-        "./components/scheduling/packages/view-kanban/src"
-      ],
-      "@shadcn-scheduler/plugin-markers": [
-        "./components/scheduling/packages/plugin-markers/src"
-      ],
-      "@shadcn-scheduler/plugin-dependencies": [
-        "./components/scheduling/packages/plugin-dependencies/src"
-      ],
-      "@shadcn-scheduler/plugin-histogram": [
-        "./components/scheduling/packages/plugin-histogram/src"
-      ],
-      "@shadcn-scheduler/plugin-availability": [
-        "./components/scheduling/packages/plugin-availability/src"
-      ],
-      "@shadcn-scheduler/plugin-export": [
-        "./components/scheduling/packages/plugin-export/src"
-      ],
-      "@shadcn-scheduler/plugin-recurrence": [
-        "./components/scheduling/packages/plugin-recurrence/src"
-      ],
-      "@shadcn-scheduler/plugin-audit": [
-        "./components/scheduling/packages/plugin-audit/src"
-      ],
-      "@sushill/shadcn-scheduler": [
-        "./components/scheduling/packages/shadcn-scheduler/src"
       ]
     },
     "forceConsistentCasingInFileNames": true

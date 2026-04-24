@@ -687,11 +687,8 @@ export default function SchedulingPage() {
       breakEndH?: number;
       breakMinutes?: number;
     };
-    // getCalendarEvents returns { events } via createApiRoute; keep legacy { data: { events } } fallback.
-    const ev =
-      (eventsData as { events?: ApiScheduleEvent[] } | undefined)?.events ??
-      (eventsData as { data?: { events?: ApiScheduleEvent[] } } | undefined)?.data?.events ??
-      [];
+    // getCalendarEvents returns { events } via createApiRoute
+    const ev = (eventsData as { events?: ApiScheduleEvent[] } | undefined)?.events ?? [];
     // Always replace shifts — even an empty array clears stale data from previous navigation
     const transformedShifts: Block[] = ev.map((event) => {
       const startDate = parseISO(event.startDate);

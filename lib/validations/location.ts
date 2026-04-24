@@ -40,17 +40,11 @@ export const locationTeamParamsSchema = z.object({
   teamId: objectIdSchema,
 })
 
-/** @deprecated use locationTeamParamsSchema */
-export const locationRoleParamsSchema = locationTeamParamsSchema
-
 export const enableTeamSchema = z.object({
   teamId: objectIdSchema,
   effectiveFrom: z.string().datetime().optional(),
   effectiveTo: z.string().datetime().nullable().optional(),
 })
-
-/** @deprecated use enableTeamSchema */
-export const enableRoleSchema = enableTeamSchema
 
 export const updateEnablementSchema = z.object({
   effectiveFrom: z.string().datetime().optional(),
@@ -88,12 +82,3 @@ export const teamEnablementResponseSchema = z.object({
     isActive: z.boolean(),
   }),
 })
-
-/** @deprecated use teamEnablementSchema */
-export const roleEnablementSchema = teamEnablementSchema
-
-/** @deprecated use locationTeamsResponseSchema */
-export const locationRolesResponseSchema = locationTeamsResponseSchema
-
-/** @deprecated use teamEnablementResponseSchema */
-export const roleEnablementResponseSchema = teamEnablementResponseSchema

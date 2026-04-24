@@ -4,7 +4,6 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
 import { apiErrors } from "@/lib/api/api-error"
 import { rosterService } from "@/lib/services/roster/roster-service"
-import { notificationService } from "@/lib/services/notifications/notification-service"
 import { getTenantContext } from "@/lib/auth/tenant-context"
 import { connectDB } from "@/lib/db"
 import { scope } from "@/lib/db/tenant-model"
@@ -70,7 +69,7 @@ export const PUT = createApiRoute({
           const employeeIds: string[] = Array.from(new Set(rawIds))
           const locationId = roster.shifts[0]?.locationId?.toString() ?? ""
 
-          // NEW: emit domain event (listeners handle notifications)
+          // Emit domain event (listeners handle notifications)
           eventBus.emit({
             eventType: DOMAIN_EVENTS.ROSTER_PUBLISHED,
             tenantId: tenantCtx.tenantId,
@@ -81,21 +80,6 @@ export const PUT = createApiRoute({
             eventId: makeEventId(DOMAIN_EVENTS.ROSTER_PUBLISHED, weekId, true),
             payload: { weekId, locationId, employeeIds, shiftCount: roster.shifts.length },
           }).catch(() => {})
-
-          // DUAL_WRITE_DEPRECATED: direct notify — remove after 2025-07-01
-          for (const employeeId of employeeIds) {
-            notificationService
-              .send(tenantCtx, {
-                targetType: "employee",
-                targetId: employeeId as string,
-                category: "roster_published",
-                title: "Roster Published",
-                message: `Your roster for week ${weekId} has been published.`,
-                relatedEntity: { type: "roster", id: roster._id.toString() },
-                channels: ["in_app"],
-              })
-              .catch(() => {})
-          }
         }
       } catch {
         // Non-critical

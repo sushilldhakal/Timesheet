@@ -75,9 +75,6 @@ export function useLocationTeams(locationId: string | null) {
   })
 }
 
-/** @deprecated use useLocationTeams */
-export const useLocationRoles = useLocationTeams
-
 export function useEnableLocationTeam() {
   const queryClient = useQueryClient()
 
@@ -95,9 +92,6 @@ export function useEnableLocationTeam() {
   })
 }
 
-/** @deprecated use useEnableLocationTeam */
-export const useEnableLocationRole = useEnableLocationTeam
-
 export function useDisableLocationTeam() {
   const queryClient = useQueryClient()
 
@@ -109,6 +103,3 @@ export function useDisableLocationTeam() {
     },
   })
 }
-
-/** @deprecated use useDisableLocationTeam */
-export const useDisableLocationRole = useDisableLocationTeam

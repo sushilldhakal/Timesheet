@@ -23,9 +23,6 @@ export function useLocationTeamsForScheduling(locationId: string | null) {
   })
 }
 
-/** @deprecated use useLocationTeamsForScheduling */
-export const useLocationRolesForScheduling = useLocationTeamsForScheduling
-
 export function useSchedulingTemplates() {
   return useQuery({
     queryKey: schedulingPageKeys.templates,

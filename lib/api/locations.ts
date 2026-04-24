@@ -50,15 +50,9 @@ export interface LocationTeam {
   employeeCount: number
 }
 
-/** @deprecated use LocationTeam */
-export type LocationRole = LocationTeam
-
 export interface LocationTeamsResponse {
   teams: LocationTeam[]
 }
-
-/** @deprecated use LocationTeamsResponse */
-export type LocationRolesResponse = LocationTeamsResponse
 
 export interface EnableTeamRequest {
   teamId: string
@@ -66,15 +60,9 @@ export interface EnableTeamRequest {
   effectiveTo?: string | null
 }
 
-/** @deprecated use EnableTeamRequest */
-export type EnableRoleRequest = EnableTeamRequest
-
 export async function getLocationTeams(locationId: string): Promise<LocationTeamsResponse> {
   return apiFetch<LocationTeamsResponse>(`/api/locations/${locationId}/teams`)
 }
-
-/** @deprecated use getLocationTeams */
-export const getLocationRoles = getLocationTeams
 
 export async function enableLocationTeam(
   locationId: string,
@@ -87,9 +75,6 @@ export async function enableLocationTeam(
   })
 }
 
-/** @deprecated use enableLocationTeam */
-export const enableLocationRole = enableLocationTeam
-
 export async function disableLocationTeam(
   locationId: string,
   teamId: string
@@ -98,6 +83,3 @@ export async function disableLocationTeam(
     method: 'DELETE',
   })
 }
-
-/** @deprecated use disableLocationTeam */
-export const disableLocationRole = disableLocationTeam
