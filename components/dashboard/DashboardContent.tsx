@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { format, startOfWeek, endOfWeek } from "date-fns"
+import { format, startOfWeek, endOfWeek, parseISO } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import {
   Area,
   AreaChart,
@@ -111,6 +112,17 @@ export default function DashboardContent() {
   const [timelineDate, setTimelineDate] = React.useState(() => format(new Date(), "yyyy-MM-dd"))
   const [hoursRange, setHoursRange] = React.useState(getDefaultWeek)
   const [deleteId, setDeleteId] = React.useState<string | null>(null)
+
+  const hoursPickerRange: DateRange = React.useMemo(() => {
+    return { from: parseISO(hoursRange.startDate), to: parseISO(hoursRange.endDate) }
+  }, [hoursRange])
+
+  const handleHoursRangeChange = React.useCallback((range: DateRange | undefined) => {
+    if (!range?.from) return
+    const startDate = format(range.from, "yyyy-MM-dd")
+    const endDate = format(range.to ?? range.from, "yyyy-MM-dd")
+    setHoursRange({ startDate, endDate })
+  }, [])
 
   // TanStack Query hooks
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats({ timelineDate })
@@ -457,8 +469,8 @@ export default function DashboardContent() {
             <p className="text-muted-foreground text-sm">Most hours (overtime) and least hours (&lt; 38h) — pick a date range</p>
           </div>
           <DateRangePicker
-            value={hoursRange}
-            onChange={(startDate, endDate) => setHoursRange({ startDate, endDate })}
+            dateRange={hoursPickerRange}
+            onDateRangeChange={handleHoursRangeChange}
             placeholder="Pick week"
           />
         </div>

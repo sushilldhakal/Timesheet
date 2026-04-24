@@ -47,7 +47,10 @@ export const POST = createApiRoute({
       return { status: 403, data: { error: "Only admins can bulk generate timesheets" } };
     }
 
-    const result = await timesheetService.bulkGenerate(ctx, body!);
+    const result = await timesheetService.bulkGenerate(
+      { ...ctx, userLocations: ctx.userLocations ?? undefined },
+      body!
+    );
     return { status: 200, data: result };
   },
 });

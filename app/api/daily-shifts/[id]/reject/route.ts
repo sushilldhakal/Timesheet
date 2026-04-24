@@ -21,7 +21,7 @@ export const POST = createApiRoute({
     404: z.object({ error: z.string() }),
     500: z.object({ error: z.string() }),
   },
-  handler: async ({ params, req }) => {
+  handler: async ({ params, req, body }) => {
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
 
