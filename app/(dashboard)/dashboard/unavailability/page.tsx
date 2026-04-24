@@ -17,6 +17,7 @@ import {
   parseISO,
 } from "date-fns"
 import { useEffect, useMemo, useState, type ComponentType } from "react"
+import type { DateRange } from "react-day-picker"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -117,12 +118,24 @@ export default function UnavailabilityPage() {
     }
   }, [view, selectedDate, useCustomRange, customStartDate, customEndDate])
 
-  const handleCustomRangeChange = (start: string, end: string) => {
+  const dateRangePickerValue: DateRange = useMemo(() => {
+    const startStr = useCustomRange ? (customStartDate || startDate) : startDate
+    const endStr = useCustomRange ? (customEndDate || endDate) : endDate
+    return { from: parseISO(startStr), to: parseISO(endStr) }
+  }, [useCustomRange, customStartDate, customEndDate, startDate, endDate])
+
+  const handleCustomRangeChange = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setCustomStartDate("")
+      setCustomEndDate("")
+      setUseCustomRange(false)
+      return
+    }
+    const start = format(range.from, "yyyy-MM-dd")
+    const end = format(range.to ?? range.from, "yyyy-MM-dd")
     setCustomStartDate(start)
     setCustomEndDate(end)
-    const s = parseISO(String(start || ""))
-    const e = parseISO(String(end || ""))
-    setUseCustomRange(isValid(s) && isValid(e))
+    setUseCustomRange(true)
   }
 
   const employeeIdsToQuery = useMemo(() => {
@@ -286,11 +299,8 @@ export default function UnavailabilityPage() {
     <div className="flex items-center gap-2">
       {view === "day" ? (
         <DateRangePicker
-          value={{
-            startDate: useCustomRange ? customStartDate : startDate,
-            endDate: useCustomRange ? customEndDate : endDate,
-          }}
-          onChange={handleCustomRangeChange}
+          dateRange={dateRangePickerValue}
+          onDateRangeChange={handleCustomRangeChange}
           placeholder="Select date or range"
         />
       ) : (

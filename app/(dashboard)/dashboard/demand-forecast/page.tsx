@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   useDemandForecasts,
   useGenerateForecast,
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TrendingUp, Users, Sparkles, CalendarDays, AlignJustify, Columns, LayoutGrid, Loader2 } from "lucide-react"
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns"
 import { Progress } from "@/components/ui/progress"
 import { CalendarPageShell } from "@/components/dashboard/calendar/CalendarPageShell"
 import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
@@ -27,6 +27,7 @@ import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-na
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { useDashboardLocationScope } from "@/components/providers/DashboardLocationScopeProvider"
+import type { DateRange } from "react-day-picker"
 
 function ForecastCard({ forecast }: { forecast: any }) {
   const confidence = forecast.recommendedStaffCount > 0 ? 0.75 : 0.4
@@ -228,7 +229,19 @@ export default function DemandForecastPage() {
     setUseCustomRange(false)
   }
 
-  const handleCustomRangeChange = (start: string, end: string) => {
+  const dateRangePickerValue: DateRange = useMemo(() => {
+    const startStr = useCustomRange ? customStartDate : format(selectedDate, "yyyy-MM-dd")
+    const endStr = useCustomRange ? customEndDate : format(selectedDate, "yyyy-MM-dd")
+    return { from: parseISO(startStr), to: parseISO(endStr) }
+  }, [useCustomRange, customStartDate, customEndDate, selectedDate])
+
+  const handleCustomRangeChange = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setUseCustomRange(false)
+      return
+    }
+    const start = format(range.from, "yyyy-MM-dd")
+    const end = format(range.to ?? range.from, "yyyy-MM-dd")
     setCustomStartDate(start)
     setCustomEndDate(end)
     setUseCustomRange(true)
@@ -341,11 +354,8 @@ export default function DemandForecastPage() {
             <div className="flex items-center gap-2">
               {view === "day" ? (
                 <DateRangePicker
-                  value={{
-                    startDate: useCustomRange ? customStartDate : format(selectedDate, "yyyy-MM-dd"),
-                    endDate: useCustomRange ? customEndDate : format(selectedDate, "yyyy-MM-dd"),
-                  }}
-                  onChange={handleCustomRangeChange}
+                  dateRange={dateRangePickerValue}
+                  onDateRangeChange={handleCustomRangeChange}
                   placeholder="Select date or range"
                 />
               ) : (

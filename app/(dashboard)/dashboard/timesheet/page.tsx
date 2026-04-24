@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, isValid, parseISO, eachDayOfInterval } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import {
   Card,
   CardContent,
@@ -477,13 +478,24 @@ export default function TimesheetPage() {
     selectedRoles,
   ])
 
-  const handleCustomRangeChange = (start: string, end: string) => {
+  const dateRangePickerValue: DateRange = useMemo(() => {
+    const startStr = useCustomRange ? (customStartDate || startDate) : startDate
+    const endStr = useCustomRange ? (customEndDate || endDate) : endDate
+    return { from: parseISO(startStr), to: parseISO(endStr) }
+  }, [useCustomRange, customStartDate, customEndDate, startDate, endDate])
+
+  const handleCustomRangeChange = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setCustomStartDate("")
+      setCustomEndDate("")
+      setUseCustomRange(false)
+      return
+    }
+    const start = format(range.from, "yyyy-MM-dd")
+    const end = format(range.to ?? range.from, "yyyy-MM-dd")
     setCustomStartDate(start)
     setCustomEndDate(end)
-    // Only enable range mode once both ends are valid ISO dates.
-    const s = parseISO(String(start || ""))
-    const e = parseISO(String(end || ""))
-    setUseCustomRange(isValid(s) && isValid(e))
+    setUseCustomRange(true)
   }
 
   const exportFilterBase = useMemo(
@@ -665,8 +677,8 @@ export default function TimesheetPage() {
           endDate={isValid(safeRangeEnd) ? safeRangeEnd : undefined}
           loading={listQuery.isLoading || listQuery.isFetching}
           canApprove={canApprove}
-          onApprove={(id) => approveMutation.mutateAsync(id)}
-          onReject={(id) => rejectMutation.mutateAsync({ id })}
+          onApprove={async (id) => { await approveMutation.mutateAsync(id) }}
+          onReject={async (id) => { await rejectMutation.mutateAsync({ id }) }}
           teamsByLocationId={teamsByLocationId}
         />
       )
@@ -685,8 +697,8 @@ export default function TimesheetPage() {
             endDate={safeEndDate}
             loading={loading}
             canApprove={canApprove}
-            onApprove={(id) => approveMutation.mutateAsync(id)}
-            onReject={(id) => rejectMutation.mutateAsync({ id })}
+            onApprove={async (id) => { await approveMutation.mutateAsync(id) }}
+            onReject={async (id) => { await rejectMutation.mutateAsync({ id }) }}
             teamsByLocationId={teamsByLocationId}
             serverPagination={{
               totalCount: timesheetTotal,
@@ -738,11 +750,8 @@ export default function TimesheetPage() {
             <div className="flex items-center gap-2">
               {view === "day" ? (
                 <DateRangePicker
-                  value={{
-                    startDate: useCustomRange ? customStartDate : startDate,
-                    endDate: useCustomRange ? customEndDate : endDate,
-                  }}
-                  onChange={handleCustomRangeChange}
+                  dateRange={dateRangePickerValue}
+                  onDateRangeChange={handleCustomRangeChange}
                   placeholder="Select date or range"
                 />
               ) : (
