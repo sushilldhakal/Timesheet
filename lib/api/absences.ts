@@ -6,6 +6,8 @@ export interface LeaveRecord {
   employeeId?: string
   employeeName?: string
   employeePin?: string
+  teams?: Array<{ id: string; name: string; color?: string }>
+  locations?: Array<{ id: string; name: string }>
   startDate?: string
   endDate?: string
   leaveType?: string
@@ -33,6 +35,7 @@ export interface GetAbsencesParams {
   startDate: string
   endDate: string
   employeeIds?: string[]
+  location?: string[]
 }
 
 export interface CreateAbsenceRequest {
@@ -69,6 +72,9 @@ export async function getAbsences(params: GetAbsencesParams): Promise<{ absences
   const sp = new URLSearchParams()
   sp.set('startDate', params.startDate)
   sp.set('endDate', params.endDate)
+  for (const name of params.location ?? []) {
+    sp.append('location', name)
+  }
   for (const id of params.employeeIds ?? []) {
     sp.append('employeeId', id)
   }

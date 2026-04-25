@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { parseISO, isValid } from 'date-fns';
 import type { IEvent } from '@/components/calendar/interfaces';
 import { connectDB } from '@/lib/db';
@@ -67,7 +66,7 @@ export class CalendarService {
     const employerNameById = new Map<string, string>();
     if (employerOidSet.size > 0) {
       const emps = await Employer.find({
-        _id: { $in: [...employerOidSet].map((id) => new mongoose.Types.ObjectId(id)) },
+        _id: { $in: [...employerOidSet] },
       })
         .select('name')
         .lean();
@@ -220,13 +219,12 @@ export class CalendarService {
     }
 
     const newShift = {
-      _id: new mongoose.Types.ObjectId(),
-      employeeId: body.employeeId && body.employeeId !== 'vacant' ? new mongoose.Types.ObjectId(body.employeeId) : null,
+      employeeId: body.employeeId && body.employeeId !== 'vacant' ? body.employeeId : null,
       date: shiftDate,
       startTime: shiftStart,
       endTime: shiftEnd,
-      locationId: new mongoose.Types.ObjectId(body.locationId),
-      roleId: new mongoose.Types.ObjectId(body.roleId),
+      locationId: body.locationId,
+      roleId: body.roleId,
       sourceScheduleId: null,
       estimatedCost: 0,
       notes: body.notes || '',
@@ -238,17 +236,18 @@ export class CalendarService {
 
     (roster as any).shifts.push(newShift as any);
     await (roster as any).save();
+    const savedShift = (roster as any).shifts[(roster as any).shifts.length - 1];
 
     return {
       message: 'Shift created successfully',
       shift: {
-        _id: newShift._id.toString(),
-        employeeId: newShift.employeeId?.toString() || null,
+        _id: savedShift._id.toString(),
+        employeeId: savedShift.employeeId?.toString() || null,
         date: newShift.date.toISOString(),
         startTime: newShift.startTime.toISOString(),
         endTime: newShift.endTime.toISOString(),
-        locationId: newShift.locationId.toString(),
-        roleId: newShift.roleId.toString(),
+        locationId: String(newShift.locationId),
+        roleId: String(newShift.roleId),
         sourceScheduleId: newShift.sourceScheduleId,
         estimatedCost: newShift.estimatedCost,
         notes: newShift.notes,
@@ -270,10 +269,10 @@ export class CalendarService {
     const shift = (roster as any).shifts[shiftIndex];
 
     if (updateData.employeeId !== undefined) {
-      shift.employeeId = updateData.employeeId && updateData.employeeId !== 'vacant' ? new mongoose.Types.ObjectId(updateData.employeeId) : null;
+      shift.employeeId = updateData.employeeId && updateData.employeeId !== 'vacant' ? updateData.employeeId : null;
     }
-    if (updateData.roleId) shift.roleId = new mongoose.Types.ObjectId(updateData.roleId);
-    if (updateData.locationId) shift.locationId = new mongoose.Types.ObjectId(updateData.locationId);
+    if (updateData.roleId) shift.roleId = updateData.roleId;
+    if (updateData.locationId) shift.locationId = updateData.locationId;
 
     if (updateData.startDate && updateData.startTime) {
       const shiftDate = parseISO(updateData.startDate);

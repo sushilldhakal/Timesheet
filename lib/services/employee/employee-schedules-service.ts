@@ -2,14 +2,14 @@ import { apiErrors } from '@/lib/api/api-error';
 import { employeeLocationFilter, type AuthWithLocations } from '@/lib/auth/auth-api';
 import { EmployeeSchedulesDbQueries } from '@/lib/db/queries/employee-schedules';
 import { ScheduleManager } from '@/lib/managers/schedule-manager';
-import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 export class EmployeeSchedulesService {
   async listSchedules(args: { ctx: AuthWithLocations; employeeId: string; query: any }) {
     await connectDB();
     const { ctx, employeeId, query } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
+    if (!isLikelyObjectIdString(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
 
     const empFilter: Record<string, unknown> = { _id: employeeId };
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -34,7 +34,7 @@ export class EmployeeSchedulesService {
   async createSchedule(args: { ctx: AuthWithLocations; employeeId: string; body: any }) {
     await connectDB();
     const { ctx, employeeId, body } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
+    if (!isLikelyObjectIdString(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
 
     const empFilter: Record<string, unknown> = { _id: employeeId };
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -48,8 +48,8 @@ export class EmployeeSchedulesService {
       dayOfWeek: body.dayOfWeek,
       startTime: new Date(body.startTime),
       endTime: new Date(body.endTime),
-      locationId: new mongoose.Types.ObjectId(body.locationId),
-      roleId: new mongoose.Types.ObjectId(body.roleId),
+      locationId: body.locationId,
+      roleId: body.roleId,
       effectiveFrom: new Date(body.effectiveFrom),
       effectiveTo: body.effectiveTo ? new Date(body.effectiveTo) : null,
     };
@@ -61,8 +61,8 @@ export class EmployeeSchedulesService {
   async updateSchedule(args: { ctx: AuthWithLocations; employeeId: string; scheduleId: string; body: any }) {
     await connectDB();
     const { ctx, employeeId, scheduleId, body } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
-    if (!mongoose.Types.ObjectId.isValid(scheduleId)) throw apiErrors.badRequest('Invalid schedule ID');
+    if (!isLikelyObjectIdString(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
+    if (!isLikelyObjectIdString(scheduleId)) throw apiErrors.badRequest('Invalid schedule ID');
 
     const empFilter: Record<string, unknown> = { _id: employeeId };
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -74,8 +74,8 @@ export class EmployeeSchedulesService {
     if (body.dayOfWeek !== undefined) updateData.dayOfWeek = body.dayOfWeek;
     if (body.startTime !== undefined) updateData.startTime = new Date(body.startTime);
     if (body.endTime !== undefined) updateData.endTime = new Date(body.endTime);
-    if (body.locationId !== undefined) updateData.locationId = new mongoose.Types.ObjectId(body.locationId);
-    if (body.roleId !== undefined) updateData.roleId = new mongoose.Types.ObjectId(body.roleId);
+    if (body.locationId !== undefined) updateData.locationId = body.locationId;
+    if (body.roleId !== undefined) updateData.roleId = body.roleId;
     if (body.effectiveFrom !== undefined) updateData.effectiveFrom = new Date(body.effectiveFrom);
     if (body.effectiveTo !== undefined) updateData.effectiveTo = body.effectiveTo ? new Date(body.effectiveTo) : null;
 
@@ -91,8 +91,8 @@ export class EmployeeSchedulesService {
   async deleteSchedule(args: { ctx: AuthWithLocations; employeeId: string; scheduleId: string }) {
     await connectDB();
     const { ctx, employeeId, scheduleId } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
-    if (!mongoose.Types.ObjectId.isValid(scheduleId)) throw apiErrors.badRequest('Invalid schedule ID');
+    if (!isLikelyObjectIdString(employeeId)) throw apiErrors.badRequest('Invalid employee ID');
+    if (!isLikelyObjectIdString(scheduleId)) throw apiErrors.badRequest('Invalid schedule ID');
 
     const empFilter: Record<string, unknown> = { _id: employeeId };
     const locFilter = employeeLocationFilter(ctx.userLocations);

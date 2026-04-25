@@ -2,7 +2,7 @@ import { apiErrors } from '@/lib/api/api-error';
 import { UsersDbQueries } from '@/lib/db/queries/users';
 import { canCreateUser, isAdminOrSuperAdmin, isSuperAdmin } from '@/lib/config/roles';
 import { userAdminUpdateSchema, userSelfUpdateSchema } from '@/lib/validations/user';
-import mongoose from "mongoose";
+import { RIGHTS_LIST } from '@/lib/config/rights';
 import { connectDB } from '@/lib/db';
 
 export class UserService {
@@ -90,7 +90,7 @@ export class UserService {
       location: location ?? [],
       rights: [],
       managedRoles: managedRoles ?? [],
-      teamIds: teamIds && teamIds.length > 0 ? teamIds.map((t: string) => new mongoose.Types.ObjectId(t)) : [],
+      teamIds: teamIds && teamIds.length > 0 ? teamIds.map((t: string) => t) : [],
       createdBy: auth.sub,
       createdAt: now,
       updatedAt: now,
@@ -171,7 +171,13 @@ export class UserService {
       if (role !== undefined) (existing as any).role = role;
       if (location !== undefined) (existing as any).location = location;
       if (managedRoles !== undefined) (existing as any).managedRoles = managedRoles;
-      if (teamIds !== undefined) (existing as any).teamIds = teamIds.map((tid: string) => new mongoose.Types.ObjectId(tid));
+      if (teamIds !== undefined) (existing as any).teamIds = teamIds.map((tid: string) => tid);
+
+      // Strip any legacy/invalid rights values (e.g. "*") before saving so
+      // Mongoose enum validation doesn't reject the document.
+      if (Array.isArray((existing as any).rights)) {
+        (existing as any).rights = (existing as any).rights.filter((r: string) => RIGHTS_LIST.includes(r as any));
+      }
 
       await (existing as any).save();
       const u = await UsersDbQueries.findUserByIdLean(id, '-password');

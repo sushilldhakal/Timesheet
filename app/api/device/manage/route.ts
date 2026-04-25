@@ -43,6 +43,7 @@ export const POST = createApiRoute({
     if (!body) throw apiErrors.badRequest("Request body is required")
     const data = await deviceService.createDevice({
       authSub: auth.sub,
+      tenantId: auth.tenantId ?? "",
       deviceName: body.deviceName,
       locationName: body.locationName,
       locationAddress: body.locationAddress,

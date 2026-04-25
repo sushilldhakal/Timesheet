@@ -11,6 +11,8 @@ export interface FlagsFilters {
   filter?: FlagIssueType
   sortBy?: string
   order?: 'asc' | 'desc'
+  startDate?: string
+  endDate?: string
 }
 
 // Get flags with filters
@@ -22,6 +24,8 @@ export async function getFlags(filters: FlagsFilters = {}): Promise<FlagsRespons
   if (filters.filter) params.set('filter', filters.filter)
   if (filters.sortBy) params.set('sortBy', filters.sortBy)
   if (filters.order) params.set('order', filters.order)
+  if (filters.startDate) params.set('startDate', filters.startDate)
+  if (filters.endDate) params.set('endDate', filters.endDate)
   
   const response = await fetch(`/api/flags?${params.toString()}`, {
     credentials: 'include',

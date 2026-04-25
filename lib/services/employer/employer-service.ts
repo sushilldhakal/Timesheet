@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
+import { isLikelyObjectIdString } from "@/shared/ids";
 import { EmployerDbQueries } from "@/lib/db/queries/employers";
 import { QuotaService } from "@/lib/services/superadmin/quota-service";
 
@@ -51,7 +51,7 @@ export class EmployerService {
   }
 
   async getById(id: string) {
-    if (!mongoose.Types.ObjectId.isValid(id)) return { status: 404, data: { error: "Invalid employer ID" } };
+    if (!isLikelyObjectIdString(id)) return { status: 404, data: { error: "Invalid employer ID" } };
     await connectDB();
     const employer = await EmployerDbQueries.findByIdLean(id);
     if (!employer) return { status: 404, data: { error: "Employer not found" } };
@@ -59,7 +59,7 @@ export class EmployerService {
   }
 
   async update(id: string, body: any) {
-    if (!mongoose.Types.ObjectId.isValid(id)) return { status: 404, data: { error: "Invalid employer ID" } };
+    if (!isLikelyObjectIdString(id)) return { status: 404, data: { error: "Invalid employer ID" } };
     await connectDB();
     const employer = await EmployerDbQueries.findById(id);
     if (!employer) return { status: 404, data: { error: "Employer not found" } };
@@ -75,7 +75,8 @@ export class EmployerService {
     if (body.phone !== undefined) (employer as any).phone = body.phone;
     if (body.color !== undefined) (employer as any).color = body.color;
     if (body.defaultAwardId !== undefined) {
-      (employer as any).defaultAwardId = body.defaultAwardId ? new mongoose.Types.ObjectId(body.defaultAwardId) : undefined;
+      (employer as any).defaultAwardId =
+        body.defaultAwardId && isLikelyObjectIdString(String(body.defaultAwardId)) ? String(body.defaultAwardId) : undefined;
     }
     if (body.isActive !== undefined) (employer as any).isActive = body.isActive;
     if (body.payPeriodConfig !== undefined) (employer as any).payPeriodConfig = body.payPeriodConfig;
@@ -85,7 +86,7 @@ export class EmployerService {
   }
 
   async delete(id: string) {
-    if (!mongoose.Types.ObjectId.isValid(id)) return { status: 404, data: { error: "Invalid employer ID" } };
+    if (!isLikelyObjectIdString(id)) return { status: 404, data: { error: "Invalid employer ID" } };
     await connectDB();
     const employer = await EmployerDbQueries.deleteById(id);
     if (!employer) return { status: 404, data: { error: "Employer not found" } };

@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { apiErrors } from '@/lib/api/api-error';
 import { logDeviceDisabled, logDeviceRevocation } from '@/lib/auth/auth-logger';
 import { DeviceDbQueries } from '@/lib/db/queries/devices';
@@ -11,8 +10,8 @@ function generateActivationCode(): string {
 }
 
 export class DeviceService {
-  async createDevice(args: { authSub: string; deviceName: string; locationName: string; locationAddress?: string }) {
-    const { authSub, deviceName, locationName, locationAddress } = args;
+  async createDevice(args: { authSub: string; tenantId: string; deviceName: string; locationName: string; locationAddress?: string }) {
+    const { authSub, tenantId, deviceName, locationName, locationAddress } = args;
 
     let activationCode = '';
     let codeExists = true;
@@ -23,11 +22,12 @@ export class DeviceService {
     }
 
     const device = await DeviceDbQueries.createDevice({
+      tenantId,
       deviceName,
       locationName,
       locationAddress: locationAddress || '',
       status: 'active',
-      registeredBy: new mongoose.Types.ObjectId(authSub),
+      registeredBy: authSub,
       registeredAt: new Date(),
       lastActivity: new Date(),
       totalPunches: 0,
@@ -93,7 +93,7 @@ export class DeviceService {
       case 'revoke':
         (device as any).status = 'revoked';
         (device as any).revokedAt = new Date();
-        (device as any).revokedBy = new mongoose.Types.ObjectId(authSub);
+        (device as any).revokedBy = authSub;
         (device as any).revocationReason = reason || '';
         logDeviceRevocation((device as any).deviceId || (device as any)._id.toString(), authSub, reason);
         break;

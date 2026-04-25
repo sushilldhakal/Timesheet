@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
 import { getAuthFromCookie, getEmployeeFromCookie } from '@/lib/auth/auth-helpers';
+import { isLikelyObjectIdString } from '@/shared/ids';
 import { RoleAssignmentManager, RoleAssignmentError } from '@/lib/managers/role-assignment-manager';
 import { EmployeeRolesDbQueries } from '@/lib/db/queries/employee-roles';
 import { formatSuccess, formatError } from '@/lib/utils/api/api-response';
@@ -18,8 +18,8 @@ export class EmployeeRolesService {
     const dateParam = query?.date;
     const includeInactive = query?.includeInactive === 'true';
 
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
-    if (locationId && !mongoose.Types.ObjectId.isValid(locationId))
+    if (!isLikelyObjectIdString(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
+    if (locationId && !isLikelyObjectIdString(locationId))
       return { status: 400, data: formatError('Invalid location ID', 'INVALID_LOCATION_ID') };
 
     const date = dateParam ? new Date(dateParam) : new Date();
@@ -73,7 +73,7 @@ export class EmployeeRolesService {
     if (!auth) return { status: 401, data: formatError('Unauthorized', 'AUTH_REQUIRED') };
 
     const employeeId = args.employeeId;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
+    if (!isLikelyObjectIdString(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
 
     const { teamId, locationId, validFrom, validTo, notes } = args.body || {};
 
@@ -133,8 +133,8 @@ export class EmployeeRolesService {
     if (!auth) return { status: 401, data: formatError('Unauthorized', 'AUTH_REQUIRED') };
 
     const { employeeId, assignmentId, body } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
-    if (!mongoose.Types.ObjectId.isValid(assignmentId))
+    if (!isLikelyObjectIdString(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
+    if (!isLikelyObjectIdString(assignmentId))
       return { status: 400, data: formatError('Invalid assignment ID', 'INVALID_ASSIGNMENT_ID') };
 
     const { validTo, notes } = body || {};
@@ -204,8 +204,8 @@ export class EmployeeRolesService {
     if (!auth) return { status: 401, data: formatError('Unauthorized', 'AUTH_REQUIRED') };
 
     const { employeeId, assignmentId } = args;
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
-    if (!mongoose.Types.ObjectId.isValid(assignmentId))
+    if (!isLikelyObjectIdString(employeeId)) return { status: 400, data: formatError('Invalid employee ID', 'INVALID_EMPLOYEE_ID') };
+    if (!isLikelyObjectIdString(assignmentId))
       return { status: 400, data: formatError('Invalid assignment ID', 'INVALID_ASSIGNMENT_ID') };
 
     try {

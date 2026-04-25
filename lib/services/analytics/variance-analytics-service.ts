@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import { AnalyticsDbQueries } from "@/lib/db/queries/analytics"
 import { connectDB } from "@/lib/db"
 import type { IShift } from "@/lib/db/queries/scheduling-types"
@@ -18,7 +17,7 @@ type ShiftLike = {
  */
 export class VarianceAnalyticsService {
   async calculateVariance(
-    shiftId: mongoose.Types.ObjectId | string
+    shiftId: string
   ): Promise<
     | {
         success: true
@@ -124,7 +123,7 @@ export class VarianceAnalyticsService {
   }
 
   async calculatePunctuality(
-    shiftId: mongoose.Types.ObjectId | string
+    shiftId: string
   ): Promise<
     | { success: true; status: "early" | "late" | "on-time"; minutes: number }
     | { success: false; error: string; message: string }
@@ -170,7 +169,7 @@ export class VarianceAnalyticsService {
   }
 
   async calculateActualCost(
-    shiftId: mongoose.Types.ObjectId | string
+    shiftId: string
   ): Promise<{ success: true; actualCost: number } | { success: false; error: string; message: string }> {
     try {
       await connectDB()
@@ -311,19 +310,19 @@ export class VarianceAnalyticsService {
       let totalActualCost = 0
 
       for (const shift of roster.shifts) {
-        const varianceResult = await this.calculateVariance(shift._id)
+        const varianceResult = await this.calculateVariance(String(shift._id))
         const scheduledHours = varianceResult.success ? varianceResult.scheduledHours : 0
         const actualHours = varianceResult.success ? varianceResult.actualHours : 0
         const variance = varianceResult.success ? varianceResult.variance : 0
 
-        const actualCostResult = await this.calculateActualCost(shift._id)
+        const actualCostResult = await this.calculateActualCost(String(shift._id))
         const actualCost = actualCostResult.success ? actualCostResult.actualCost : 0
 
         let punctuality: { status: "early" | "late" | "on-time" | "no-show"; minutes: number }
         if (noShowShiftIds.has(shift._id.toString())) {
           punctuality = { status: "no-show", minutes: 0 }
         } else {
-          const punctualityResult = await this.calculatePunctuality(shift._id)
+          const punctualityResult = await this.calculatePunctuality(String(shift._id))
           punctuality = punctualityResult.success
             ? { status: punctualityResult.status, minutes: punctualityResult.minutes }
             : { status: "no-show", minutes: 0 }
@@ -376,7 +375,7 @@ export class VarianceAnalyticsService {
   }
 
   async generateEmployeeReport(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     startDate: string,
     endDate: string
   ): Promise<
@@ -444,15 +443,15 @@ export class VarianceAnalyticsService {
       let onTimeCount = 0
 
       for (const { shift, weekId } of employeeShifts) {
-        const varianceResult = await this.calculateVariance(shift._id)
+        const varianceResult = await this.calculateVariance(String(shift._id))
         const scheduledHours = varianceResult.success ? varianceResult.scheduledHours : 0
         const actualHours = varianceResult.success ? varianceResult.actualHours : 0
         const variance = varianceResult.success ? varianceResult.variance : 0
 
-        const actualCostResult = await this.calculateActualCost(shift._id)
+        const actualCostResult = await this.calculateActualCost(String(shift._id))
         const actualCost = actualCostResult.success ? actualCostResult.actualCost : 0
 
-        const punctualityResult = await this.calculatePunctuality(shift._id)
+        const punctualityResult = await this.calculatePunctuality(String(shift._id))
         const punctuality = punctualityResult.success
           ? { status: punctualityResult.status, minutes: punctualityResult.minutes }
           : { status: "no-show" as const, minutes: 0 }

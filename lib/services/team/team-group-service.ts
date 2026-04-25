@@ -1,6 +1,7 @@
 import { apiErrors } from '@/lib/api/api-error';
 import { TeamsDbQueries } from '@/lib/db/queries/teams';
-import { connectDB, mongoose } from '@/lib/db';
+import { connectDB } from '@/lib/db';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 export class TeamGroupService {
   async listTeamGroups(args: { tenantId: string; query: any }) {
@@ -60,7 +61,7 @@ export class TeamGroupService {
 
   async getTeamGroup(args: { tenantId: string; id: string }) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(args.id)) throw apiErrors.badRequest('Invalid team group ID');
+    if (!isLikelyObjectIdString(args.id)) throw apiErrors.badRequest('Invalid team group ID');
     const doc = await TeamsDbQueries.findTeamGroupByIdLean(args.id);
     if (!doc) throw apiErrors.notFound('Team group not found');
     if (String((doc as any).tenantId) !== args.tenantId) throw apiErrors.forbidden('Unauthorized');
@@ -81,7 +82,7 @@ export class TeamGroupService {
 
   async updateTeamGroup(args: { tenantId: string; id: string; body: any }) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(args.id)) throw apiErrors.badRequest('Invalid team group ID');
+    if (!isLikelyObjectIdString(args.id)) throw apiErrors.badRequest('Invalid team group ID');
 
     const existing = await TeamsDbQueries.findTeamGroupByIdLean(args.id);
     if (!existing) throw apiErrors.notFound('Team group not found');
@@ -119,7 +120,7 @@ export class TeamGroupService {
 
   async deleteTeamGroup(args: { tenantId: string; id: string }) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(args.id)) throw apiErrors.badRequest('Invalid team group ID');
+    if (!isLikelyObjectIdString(args.id)) throw apiErrors.badRequest('Invalid team group ID');
 
     const doc = await TeamsDbQueries.findTeamGroupById(args.id);
     if (!doc) throw apiErrors.notFound('Team group not found');

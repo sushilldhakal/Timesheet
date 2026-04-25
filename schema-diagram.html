@@ -3,1005 +3,277 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Timesheet App — Database Schema</title>
+<title>Timesheet App Database Schema</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f1117; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; padding: 24px; }
-  h1 { color: #fff; font-size: 20px; margin-bottom: 6px; }
-  .subtitle { color: #888; font-size: 13px; margin-bottom: 20px; max-width: 920px; line-height: 1.5; }
-
-  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
-
-  .section { margin-bottom: 26px; }
-  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; margin-bottom: 10px; padding-left: 4px; }
-  .cards-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
-
-  .card { border-radius: 8px; width: 220px; border: 1px solid; flex-shrink: 0; overflow: hidden; }
-  .card-header { padding: 8px 12px; font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .card-header .collection-name { font-family: ui-monospace, monospace; font-size: 11px; opacity: 0.85; font-weight: 400; }
-  .card-body { padding: 8px 12px; background: rgba(0,0,0,0.3); }
-  .field { font-size: 11.5px; padding: 2px 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-  .field:last-child { border-bottom: none; }
-  .field-name { font-family: ui-monospace, monospace; color: #c9d1d9; word-break: break-all; }
-  .field-type { color: #888; font-size: 10.5px; text-align: right; flex-shrink: 0; max-width: 52%; }
-  .field-ref { font-size: 10px; color: #58a6ff; font-style: italic; }
-  .badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; white-space: nowrap; }
-  .badge-pk { background: #2a2a1a; color: #f1c40f; border: 1px solid #f1c40f; }
-  .badge-legacy { background: #3a2a00; color: #e67e22; border: 1px solid #e67e22; }
-  .badge-dep { background: #4a1010; color: #e74c3c; border: 1px solid #e74c3c; }
-  .badge-new { background: #0a3a1a; color: #2ecc71; border: 1px solid #2ecc71; }
-  .badge-embed { background: #1a1a3a; color: #9b59b6; border: 1px solid #9b59b6; }
-  .section-divider { border: none; border-top: 1px solid #222; margin: 4px 0; }
-  .rel-tag { font-size: 9.5px; color: #888; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); line-height: 1.45; }
-  .rel-tag span { color: #58a6ff; }
-
-  .g-core   { border-color: #1d4e89; } .g-core .card-header   { background: #1d4e89; }
-  .g-work   { border-color: #1565c0; } .g-work .card-header   { background: #1565c0; }
-  .g-people { border-color: #145a32; } .g-people .card-header { background: #145a32; }
-  .g-junc   { border-color: #2c3e50; } .g-junc .card-header   { background: #2c3e50; }
-  .g-sched  { border-color: #7e5109; } .g-sched .card-header  { background: #7e5109; }
-  .g-time   { border-color: #7b241c; } .g-time .card-header   { background: #7b241c; }
-  .g-pay    { border-color: #4a235a; } .g-pay .card-header    { background: #4a235a; }
-  .g-emp    { border-color: #0e6251; } .g-emp .card-header    { background: #0e6251; }
-  .g-sys    { border-color: #2c2c2c; } .g-sys .card-header    { background: #2c2c2c; }
-  .g-super  { border-color: #5a1a5a; } .g-super .card-header  { background: #5a1a5a; }
-
-  .wide { width: 260px; }
-  .w280 { width: 280px; }
-  .w300 { width: 300px; }
-  .w320 { width: 320px; }
-  .note { font-size: 10px; color: #666; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 8px 12px; margin-top: 6px; line-height: 1.5; }
-  .note strong { color: #aaa; }
+  :root {
+    color-scheme: light;
+    --bg: #f6f5f2;
+    --panel: #ffffff;
+    --panel-2: #fbfaf8;
+    --border: #d9d5cf;
+    --text: #171717;
+    --muted: #66625b;
+    --soft: #8b867d;
+    --match: #7a8f52;
+    --partial: #a07b2f;
+    --extension: #57708c;
+    --missing: #8e6b63;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: radial-gradient(circle at top, #faf9f6 0, var(--bg) 42%, #efede8 100%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.45;
+    padding: 24px;
+  }
+  main { max-width: 1520px; margin: 0 auto; }
+  .hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(24px, 2.4vw, 34px);
+    letter-spacing: -0.03em;
+  }
+  .hero p {
+    margin: 8px 0 0;
+    max-width: 860px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .meta {
+    display: grid;
+    gap: 6px;
+    justify-items: end;
+    font-size: 12px;
+    color: var(--soft);
+    white-space: nowrap;
+  }
+  .counts {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .count-pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: rgba(255,255,255,0.75);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.95em;
+  }
+  .group { margin-bottom: 22px; }
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 10px;
+  }
+  .group-head h2 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .group-head span { font-size: 12px; color: var(--soft); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px 13px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.03);
+    min-height: 120px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--border);
+  }
+  .card--match::before { background: var(--match); }
+  .card--partial::before { background: var(--partial); }
+  .card--extension::before { background: var(--extension); }
+  .card--missing::before { background: var(--missing); }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .collection {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+  .top-right {
+    display: grid;
+    gap: 6px;
+    justify-items: end;
+  }
+  .pill {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 7px;
+    white-space: nowrap;
+    background: #fff;
+  }
+  .pill.match { color: var(--match); }
+  .pill.partial { color: var(--partial); }
+  .pill.extension { color: var(--extension); }
+  .pill.missing { color: var(--missing); }
+  .erd-ref {
+    font-size: 10px;
+    color: var(--soft);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .summary {
+    font-size: 12px;
+    color: #2d2b27;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .gap-note {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--soft);
+    border-top: 1px solid rgba(0,0,0,0.06);
+    padding-top: 8px;
+  }
+  .section-note {
+    margin: -2px 0 12px;
+    font-size: 12px;
+    color: var(--soft);
+  }
+  @media (max-width: 760px) {
+    body { padding: 16px; }
+    .hero { flex-direction: column; align-items: flex-start; }
+    .meta { justify-items: start; }
+    .counts { justify-content: flex-start; }
+    .grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-
-<h1>Timesheet App — Database Schema</h1>
-<p class="subtitle">
-  MongoDB collections derived from <code style="color:#79c0ff">lib/db/schemas/*.ts</code> Mongoose models.
-  Most tenant-scoped collections carry a <code style="color:#79c0ff">tenantId</code> referencing <code style="color:#79c0ff">Employer</code> (the business/tenant entity).
-  52 schema modules &middot; 50 top-level collections &middot; 2 embedded sub-schemas.
-</p>
-
-<div class="legend">
-  <div class="legend-item"><div class="legend-dot" style="background:#1d4e89"></div> Tenant / rules</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#1565c0"></div> Workforce master data</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#145a32"></div> People</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#0e6251"></div> Employee payroll &amp; compliance</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#2c3e50"></div> Junctions</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#7e5109"></div> Scheduling</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#7b241c"></div> Time &amp; attendance</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#4a235a"></div> Payroll</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#2c2c2c"></div> System</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#5a1a5a"></div> Superadmin</div>
-</div>
-
-<!-- ═══════════════════ TENANT + RULES ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Tenant &amp; compliance</div>
-  <div class="cards-row">
-
-    <div class="card g-core w280">
-      <div class="card-header">Tenant <span class="collection-name">tenants</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">slug</span><span class="field-type">String unique</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Unix seconds</span></div>
-        <div class="rel-tag">Org boundary; manual Unix timestamps, no Mongoose <code>timestamps</code>.</div>
+<main>
+  <header class="hero">
+    <div>
+      <h1>Timesheet App Database Schema</h1>
+      <p>Grouped card view with strict parity markers against <code>docs/tanda_database_erd.html</code>. Green means close match, amber means partial parity, blue means app extension, and muted red is reserved for tables that only exist in the Tanda ERD.</p>
+    </div>
+    <div class="meta">
+      <div id="current-count">70 current collections</div>
+      <div class="counts">
+        <span class="count-pill" id="count-match">match 0</span>
+        <span class="count-pill" id="count-partial">partial 0</span>
+        <span class="count-pill" id="count-extension">extension 0</span>
+        <span class="count-pill" id="count-gaps">ERD gaps 0</span>
       </div>
     </div>
-
-    <div class="card g-core w300">
-      <div class="card-header">ComplianceRule <span class="collection-name">compliance_rules</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">ruleType</span><span class="field-type">REST_PERIOD | CONSECUTIVE_DAYS | MAX_HOURS | BREAK_REQUIREMENT</span></div>
-        <div class="field"><span class="field-name">minRestHoursBetweenShifts</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">maxConsecutiveDays</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">maxHoursPerWeek / PerFortnight</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">breakRules[]</span><span class="field-type">BreakRule[] embedded</span></div>
-        <div class="field"><span class="field-name">blockPublishOnViolation</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ WORKFORCE ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Workforce (master data)</div>
-  <div class="cards-row">
-
-    <div class="card g-work w300">
-      <div class="card-header">Location <span class="collection-name">locations</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String (tenant-unique)</span></div>
-        <div class="field"><span class="field-name">code / address</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">lat / lng / radius</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">geofenceMode</span><span class="field-type">hard | soft</span></div>
-        <div class="field"><span class="field-name">openingHour / closingHour</span><span class="field-type">0–24</span></div>
-        <div class="field"><span class="field-name">workingDays / timezone</span><span class="field-type">Number[] / String</span></div>
-        <div class="field"><span class="field-name">costCenterId</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">color / order / isActive</span><span class="field-type">String / Number / Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Sites for geofencing, rostering. Unique on <span>(tenantId, name)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-work wide">
-      <div class="card-header">TeamGroup <span class="collection-name">team_groups</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String (tenant-unique)</span></div>
-        <div class="field"><span class="field-name">description / color</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">order</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="rel-tag">Optional org bucket; <span>Team.groupId</span> → here.</div>
-      </div>
-    </div>
-
-    <div class="card g-work w300">
-      <div class="card-header">Team <span class="collection-name">teams</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String (tenant-unique)</span></div>
-        <div class="field"><span class="field-name">code / color</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">groupId</span><span class="field-ref">→ TeamGroup?</span></div>
-        <div class="field"><span class="field-name">order</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">groupSnapshot</span><span class="field-type">{ name? } embedded</span></div>
-        <div class="field"><span class="field-name">defaultScheduleTemplate</span><span class="field-type">hours + shiftPattern</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Scheduling &quot;role&quot; / job capacity (Driver, Supervisor, …). Unique on <span>(tenantId, name)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-work wide">
-      <div class="card-header">Employer <span class="collection-name">employers</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String unique</span></div>
-        <div class="field"><span class="field-name">abn / contactEmail</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">color</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">defaultAwardId</span><span class="field-ref">→ Award?</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="rel-tag">Payroll company entity; used as <span>tenantId</span> in tenant-scoped collections.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ JUNCTIONS ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Junctions (many-to-many)</div>
-  <div class="cards-row">
-
-    <div class="card g-junc w300">
-      <div class="card-header">LocationRoleEnablement <span class="collection-name">location_role_enablements</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date | null</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean (computed on save)</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
-        <div class="rel-tag">Which <span>teams</span> are enabled at which <span>locations</span> over time. Unique on <span>(locationId, roleId, effectiveFrom)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-junc w320">
-      <div class="card-header">EmployeeRoleAssignment <span class="collection-name">employee_role_assignments</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">isPrimary</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">validFrom / validTo</span><span class="field-type">Date | null</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean (computed on save)</span></div>
-        <div class="field"><span class="field-name">assignedBy</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">assignedAt</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-        <div class="rel-tag">Staff member holds a <span>team</span> at a <span>location</span> for a date range. Pre-save validates no overlapping assignments.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ PEOPLE ═══════════════════ -->
-<div class="section">
-  <div class="section-label">People</div>
-  <div class="cards-row">
-
-    <div class="card g-people w320">
-      <div class="card-header">User <span class="collection-name">users</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">name / email / password</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">role</span><span class="field-type">super_admin | admin | manager | supervisor | accounts | <span class="badge badge-dep">user</span></span></div>
-        <div class="field"><span class="field-name">locationIds[]</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">managedRoleIds[]</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">teamIds[]</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">location[] / managedRoles[]</span><span class="badge badge-legacy">legacy strings</span></div>
-        <div class="field"><span class="field-name">rights[]</span><span class="badge badge-dep">deprecated</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-type">String | null</span></div>
-        <div class="field"><span class="field-name">schedulingSettings</span><span class="field-type">Embedded UI prefs</span></div>
-        <div class="field"><span class="field-name">passwordResetToken / Expiry</span><span class="field-type">String? / Date?</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Unix seconds</span></div>
-        <div class="rel-tag">Unique on <span>(tenantId, email)</span>. Hierarchy: super_admin → admin → manager → supervisor / accounts.</div>
-      </div>
-    </div>
-
-    <div class="card g-people w300">
-      <div class="card-header">UserTenant <span class="collection-name">userTenants</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">role</span><span class="field-type">admin | manager | supervisor | accounts | user | super_admin</span></div>
-        <div class="field"><span class="field-name">location[]</span><span class="field-type">String[] (legacy names)</span></div>
-        <div class="field"><span class="field-name">managedRoles[]</span><span class="field-type">String[] (legacy names)</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">invitedBy / invitedAt / joinedAt</span><span class="field-type">Ref? / Date? / Date?</span></div>
-        <div class="rel-tag">Membership join table for multi-tenant users. Unique on <span>(userId, tenantId)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-people w320">
-      <div class="card-header">Employee <span class="collection-name">employees</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">name / pin / email / phone</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">locationIds[] / primaryLocationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">employerIds[] / employerId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">location[] / employer[]</span><span class="badge badge-legacy">legacy names</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">legalFirstName / Middle / Last</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">preferredName</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">homeAddress / dob / gender</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">timeZone / locale / nationality</span><span class="field-type">String?</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">taxInfoId</span><span class="field-ref">→ EmployeeTaxInfo?</span></div>
-        <div class="field"><span class="field-name">bankDetailsId</span><span class="field-ref">→ EmployeeBankDetails?</span></div>
-        <div class="field"><span class="field-name">contractId</span><span class="field-ref">→ EmployeeContract?</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">awardId / awardLevel / employmentType</span><span class="field-type">Ref + strings</span></div>
-        <div class="field"><span class="field-name">standardHoursPerWeek</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">payConditions[]</span><span class="field-type">PayConditionHistory[]</span></div>
-        <div class="field"><span class="field-name">schedules[]</span><span class="field-type">Schedule[] embedded</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">isActive / isProbationary</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">terminatedAt / terminationReason</span><span class="field-type">Date? / String?</span></div>
-        <div class="field"><span class="field-name">skills[] / certifications[]</span><span class="field-type">String[]</span></div>
-        <div class="field"><span class="field-name">password (hashed)</span><span class="field-type">String? (select: false)</span></div>
-        <div class="rel-tag">Virtual <span>currentRoleAssignments</span> populated from <span>EmployeeRoleAssignment</span>. Has <code>comparePassword</code> method.</div>
-      </div>
-    </div>
-
-    <div class="card g-people w280">
-      <div class="card-header">StaffFaceProfile <span class="collection-name">stafffaceprofiles</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee (unique)</span></div>
-        <div class="field"><span class="field-name">descriptor[]</span><span class="field-type">Number[]</span></div>
-        <div class="field"><span class="field-name">enrolledAt</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">enrolledBy</span><span class="field-type">auto | admin</span></div>
-        <div class="field"><span class="field-name">enrollmentQuality</span><span class="field-type">Number 0–1</span></div>
-        <div class="field"><span class="field-name">enrolledPhotoUrl</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">lastMatchedAt / lastMatchScore</span><span class="field-type">Date? / Number?</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="rel-tag">Face descriptor for buddy-punch detection flows.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ EMPLOYEE PAYROLL & COMPLIANCE ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Employee payroll &amp; compliance</div>
-  <div class="cards-row">
-
-    <div class="card g-emp w300">
-      <div class="card-header">EmployeeTaxInfo <span class="collection-name">employee_tax_infos</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">countrySnapshot</span><span class="field-type">AU | IN | NP | UK | SG | NZ | US | CA</span></div>
-        <div class="field"><span class="field-name">taxId</span><span class="field-type">{ type, valueEncrypted, last4 }</span></div>
-        <div class="field"><span class="field-name">tax</span><span class="field-type">{ type, version, data }</span></div>
-        <div class="field"><span class="field-name">bank</span><span class="field-type">{ accountName, routing, … }</span></div>
-        <div class="field"><span class="field-name">accessLogs[]</span><span class="field-type">AccessLog[] embedded</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Unique on <span>(employeeId, tenantId)</span>. Encrypted values for tax IDs and bank details.</div>
-      </div>
-    </div>
-
-    <div class="card g-emp w280">
-      <div class="card-header">EmployeeBankDetails <span class="collection-name">employee_bank_details</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee (unique)</span></div>
-        <div class="field"><span class="field-name">accountNumber</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">bsbCode</span><span class="field-type">String (###-###)</span></div>
-        <div class="field"><span class="field-name">accountHolderName</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">bankName</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">accountType</span><span class="field-type">savings | cheque</span></div>
-        <div class="rel-tag">One bank account per employee for payroll deposits.</div>
-      </div>
-    </div>
-
-    <div class="card g-emp w280">
-      <div class="card-header">EmployeeContract <span class="collection-name">employee_contracts</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">startDate / endDate</span><span class="field-type">Date / Date?</span></div>
-        <div class="field"><span class="field-name">contractType</span><span class="field-type">permanent | fixed-term | casual | contractor</span></div>
-        <div class="field"><span class="field-name">wageType</span><span class="field-type">salary | hourly | piecework</span></div>
-        <div class="field"><span class="field-name">salary / noticePeriod</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">probationPeriodEnd</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">contractTermsUrl</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-      </div>
-    </div>
-
-    <div class="card g-emp w280">
-      <div class="card-header">EmployeeQualification <span class="collection-name">employee_qualifications</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">qualificationName</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">issuingBody</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">issueDate / expiryDate</span><span class="field-type">Date / Date?</span></div>
-        <div class="field"><span class="field-name">licenseNumber</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">current | expired | pending</span></div>
-        <div class="field"><span class="field-name">documentUrl</span><span class="field-type">String?</span></div>
-      </div>
-    </div>
-
-    <div class="card g-emp w320">
-      <div class="card-header">EmployeeCompliance <span class="collection-name">employee_compliance</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee (unique)</span></div>
-        <div class="field"><span class="field-name">wwcStatus / wwcNumber / wwcExpiryDate</span><span class="field-type">Enum / String / Date</span></div>
-        <div class="field"><span class="field-name">policeClearanceStatus / Number / Expiry</span><span class="field-type">Enum / String / Date</span></div>
-        <div class="field"><span class="field-name">foodHandlingStatus / Expiry</span><span class="field-type">Enum / Date</span></div>
-        <div class="field"><span class="field-name">healthSafetyCertifications[]</span><span class="field-type">String[]</span></div>
-        <div class="field"><span class="field-name">inductionCompleted / Date / DocUrl</span><span class="field-type">Boolean / Date / String</span></div>
-        <div class="field"><span class="field-name">codeOfConductSigned / Date / DocUrl</span><span class="field-type">Boolean / Date / String</span></div>
-        <div class="field"><span class="field-name">lastComplianceCheckDate</span><span class="field-type">Date?</span></div>
-        <div class="rel-tag">WWC, police clearance, food handling, induction, and code of conduct tracking per employee.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ SCHEDULING ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Scheduling</div>
-  <div class="cards-row">
-
-    <div class="card g-sched w320">
-      <div class="card-header">Roster <span class="collection-name">rosters</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">weekId</span><span class="field-type">YYYY-Www</span></div>
-        <div class="field"><span class="field-name">year / weekNumber</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">weekStartDate / weekEndDate</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">draft | published</span></div>
-        <hr class="section-divider">
-        <div class="field" style="font-size:10px;color:#888">embedded shifts[]</div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee?</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">date / startTime / endTime</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">sourceScheduleId</span><span class="field-type">ObjectId?</span></div>
-        <div class="field"><span class="field-name">estimatedCost / notes</span><span class="field-type">Number / String</span></div>
-        <div class="field"><span class="field-name">breakStartTime / breakEndTime / breakMinutes</span><span class="field-type">Date? / Number?</span></div>
-        <div class="field"><span class="field-name">requiredStaffCount / isUnderstaffed</span><span class="field-type">Number / Boolean</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">draft | published</span></div>
-        <div class="rel-tag">Unique on <span>(tenantId, weekId)</span>. Pre-validate ensures shift dates within week boundaries.</div>
-      </div>
-    </div>
-
-    <div class="card g-sched w280">
-      <div class="card-header">RosterTemplate <span class="collection-name">roster_templates</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">roleIds[]</span><span class="field-ref">→ Team[]</span></div>
-        <div class="field"><span class="field-name">isGlobal</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">templateShifts[]</span><span class="field-type">{ dayOfWeek, startHour, endHour, roleId, employeeId? }</span></div>
-      </div>
-    </div>
-
-    <div class="card g-sched w300">
-      <div class="card-header">Schedule <span class="collection-name badge badge-embed">embedded</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">dayOfWeek[]</span><span class="field-type">Number[] (0–6)</span></div>
-        <div class="field"><span class="field-name">startTime / endTime</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date / null</span></div>
-        <div class="field"><span class="field-name">priority</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">isTemplate / isRotating</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">rotationCycle / rotationStartDate</span><span class="field-type">Number? / Date?</span></div>
-        <div class="rel-tag">Stored on <span>employees.schedules[]</span>, not its own collection.</div>
-      </div>
-    </div>
-
-    <div class="card g-sched w300">
-      <div class="card-header">ShiftSwapRequest <span class="collection-name">shift_swap_requests</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">requestorId / recipientId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">requestorShiftId / recipientShiftId</span><span class="field-type">ObjectId / ObjectId?</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">PENDING_RECIPIENT | PENDING_MANAGER | APPROVED | DENIED</span></div>
-        <div class="field"><span class="field-name">requestedAt</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">recipientAcceptedAt</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">managerApprovedBy / managerApprovedAt</span><span class="field-ref">→ User? / Date?</span></div>
-        <div class="field"><span class="field-name">deniedBy / deniedAt / denialReason</span><span class="field-type">Ref? / Date? / String?</span></div>
-        <div class="field"><span class="field-name">reason / notes</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">auditLog[]</span><span class="field-type">AuditEntry[] embedded</span></div>
-      </div>
-    </div>
-
-    <div class="card g-sched w300">
-      <div class="card-header">CustomEvent <span class="collection-name">custom_events</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
-        <div class="field"><span class="field-name">title / name</span><span class="field-type">String (alias)</span></div>
-        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">startAt / startDate</span><span class="field-type">Date (alias)</span></div>
-        <div class="field"><span class="field-name">endAt / endDate</span><span class="field-type">Date (alias)</span></div>
-        <div class="field"><span class="field-name">discourageTimeOff / isAllDay</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location?</span></div>
-        <div class="field"><span class="field-name">color / isActive</span><span class="field-type">String? / Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Tenant calendar events (closures, promotions, etc.). Indexed on <span>(tenantId, startAt, endAt)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-junc w300">
-      <div class="card-header">CustomEventTeam <span class="collection-name">custom_event_teams</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">customEventId</span><span class="field-ref">→ CustomEvent</span></div>
-        <div class="field"><span class="field-name">teamId</span><span class="field-ref">→ Team</span></div>
-        <div class="rel-tag">Assigns which teams a custom event applies to. Unique on <span>(tenantId, customEventId, teamId)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-sched w300">
-      <div class="card-header">AvailabilityConstraint <span class="collection-name">availability_constraints</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">unavailableDays[]</span><span class="field-type">Number[] (0–6)</span></div>
-        <div class="field"><span class="field-name">unavailableTimeRanges[]</span><span class="field-type">{ start, end }[]</span></div>
-        <div class="field"><span class="field-name">preferredShiftTypes[]</span><span class="field-type">MORNING | AFTERNOON | NIGHT</span></div>
-        <div class="field"><span class="field-name">maxConsecutiveDays / minRestHours</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">temporaryStartDate / temporaryEndDate</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">reason</span><span class="field-type">String?</span></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ TIME & ATTENDANCE ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Time &amp; attendance</div>
-  <div class="cards-row">
-
-    <div class="card g-time w320">
-      <div class="card-header">DailyShift <span class="collection-name">daily_shifts</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">pin</span><span class="field-type">String (lookup key)</span></div>
-        <div class="field"><span class="field-name">date</span><span class="field-type">Date (BSON)</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location?</span></div>
-        <div class="field"><span class="field-name">roleId</span><span class="field-ref">→ Team?</span></div>
-        <div class="field"><span class="field-name">employerId</span><span class="field-ref">→ Employer?</span></div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee?</span></div>
-        <div class="field"><span class="field-name">rosterShiftId</span><span class="field-type">ObjectId?</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">clockIn / breakIn / breakOut / clockOut</span><span class="field-type">ClockEvent embedded</span></div>
-        <div class="field"><span class="field-name">breaks[]</span><span class="field-type">ShiftBreak[] embedded</span></div>
-        <div class="field"><span class="field-name">totalBreakMinutes / totalWorkingHours</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">source</span><span class="field-type">clock | manual | leave</span></div>
-        <div class="field"><span class="field-name">awardTags[]</span><span class="field-type">String[] (TOIL, BrokenShift, …)</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">computed</span><span class="field-type">ComputedPay embedded</span></div>
-        <div class="field"><span class="field-name">paySnapshot</span><span class="field-type">PaySnapshot embedded</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">active → completed → approved → locked → processed → exported | rejected</span></div>
-        <div class="field"><span class="field-name">approvedBy / approvedAt</span><span class="field-ref">→ User? / Date?</span></div>
-        <div class="field"><span class="field-name">lockedBy / lockedAt</span><span class="field-ref">→ User? / Date?</span></div>
-        <div class="field"><span class="field-name">processedBy / processedAt</span><span class="field-ref">→ User? / Date?</span></div>
-        <div class="field"><span class="field-name">exportedAt / exportReference</span><span class="field-type">Date? / String?</span></div>
-        <div class="rel-tag">Unique on <span>(tenantId, pin, date)</span>. Primary clocking record; feeds <span>pay_items</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-time w280">
-      <div class="card-header">LeaveRecord <span class="collection-name">leave_records</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">startDate / endDate</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">leaveType</span><span class="field-type">ANNUAL | SICK | UNPAID | PUBLIC_HOLIDAY</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">PENDING | APPROVED | DENIED</span></div>
-        <div class="field"><span class="field-name">approvedBy / approvedAt</span><span class="field-ref">→ User? / Date?</span></div>
-        <div class="field"><span class="field-name">deniedBy / deniedAt / denialReason</span><span class="field-type">Ref? / Date? / String?</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">blockAutoFill</span><span class="field-type">Boolean</span></div>
-      </div>
-    </div>
-
-    <div class="card g-time w280">
-      <div class="card-header">TOILBalance <span class="collection-name">toilbalances</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">organisationId</span><span class="field-ref">→ Organisation</span></div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">pin</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">year</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">entries[]</span><span class="field-type">TOILEntry[] embedded</span></div>
-        <div class="field"><span class="field-name">totalBalance</span><span class="field-type">Number</span></div>
-        <div class="rel-tag">Unique on <span>(employeeId, year)</span>. Entries track accrual, usage, expiry.</div>
-      </div>
-    </div>
-
-    <div class="card g-time w300">
-      <div class="card-header">BuddyPunchAlert <span class="collection-name">buddypunchalerts</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">punchType</span><span class="field-type">in | break | endBreak | out</span></div>
-        <div class="field"><span class="field-name">punchTime</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">matchScore</span><span class="field-type">Number 0–1</span></div>
-        <div class="field"><span class="field-name">capturedPhotoUrl / enrolledPhotoUrl</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">deviceId / deviceName</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">pending | confirmed_buddy | dismissed | false_alarm</span></div>
-        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="field"><span class="field-name">reviewedAt / notes</span><span class="field-type">Date? / String?</span></div>
-      </div>
-    </div>
-
-    <div class="card g-time w300">
-      <div class="card-header">TimeclockQuestion <span class="collection-name">timeclock_questions</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">question / questionText</span><span class="field-type">String (alias)</span></div>
-        <div class="field"><span class="field-name">triggerOn</span><span class="field-type">String (clock_in, clock_out, …)</span></div>
-        <div class="field"><span class="field-name">type</span><span class="field-type">text | yesno | multiselect | boolean | multiple_choice</span></div>
-        <div class="field"><span class="field-name">options[]</span><span class="field-type">String[]?</span></div>
-        <div class="field"><span class="field-name">order / isActive</span><span class="field-type">Number / Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Configurable clock-in/out questions. Indexed on <span>(tenantId, triggerOn, isActive, order)</span>.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ PAYROLL ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Payroll</div>
-  <div class="cards-row">
-
-    <div class="card g-pay w300">
-      <div class="card-header">Award <span class="collection-name">awards</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">name</span><span class="field-type">String unique</span></div>
-        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">isActive / version</span><span class="field-type">Boolean / String</span></div>
-        <div class="field"><span class="field-name">rules[]</span><span class="field-type">AwardRule[] (conditions + outcome)</span></div>
-        <div class="field"><span class="field-name">availableTags[]</span><span class="field-type">AwardTag[] { name }</span></div>
-        <div class="field"><span class="field-name">levelRates[]</span><span class="field-type">{ level, employmentType, hourlyRate, effectiveFrom/To }</span></div>
-        <div class="rel-tag">Used by <span>Employee.awardId</span>, <span>Employer.defaultAwardId</span>, and pay calculation. Has <code>evaluateRules</code> method.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">AwardVersionHistory <span class="collection-name">award_version_history</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">baseAwardId</span><span class="field-ref">→ Award</span></div>
-        <div class="field"><span class="field-name">name / description</span><span class="field-type">String / String?</span></div>
-        <div class="field"><span class="field-name">rules / levelRates / availableTags</span><span class="field-type">Mixed[]</span></div>
-        <div class="field"><span class="field-name">version</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">effectiveFrom / effectiveTo</span><span class="field-type">Date / Date?</span></div>
-        <div class="field"><span class="field-name">changelog</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User</span></div>
-        <div class="rel-tag">Immutable award snapshots for versioning / history. Unique on <span>(baseAwardId, version)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">RuleTemplate <span class="collection-name">ruletemplates</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">name / description</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">priority</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">isActive / canStack</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">conditions</span><span class="field-type">Mixed</span></div>
-        <div class="field"><span class="field-name">outcome</span><span class="field-type">Mixed</span></div>
-        <div class="field"><span class="field-name">category</span><span class="field-type">ordinary | overtime | break | allowance | toil | leave</span></div>
-        <div class="field"><span class="field-name">tags[]</span><span class="field-type">String[]</span></div>
-        <div class="field"><span class="field-name">isDefault</span><span class="field-type">Boolean</span></div>
-        <div class="rel-tag">Reusable rule templates for award configuration. Text search on name + description.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">PayRun <span class="collection-name">pay_runs</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">startDate / endDate</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">draft | calculated | approved | exported | failed</span></div>
-        <div class="field"><span class="field-name">createdBy / approvedBy</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">approvedAt / exportedAt</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">jobError</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">totals</span><span class="field-type">{ gross, tax, super, net, totalHours, employeeCount }</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">PayItem <span class="collection-name">pay_items</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">payRunId</span><span class="field-ref">→ PayRun</span></div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">sourceShiftId</span><span class="field-ref">→ DailyShift</span></div>
-        <div class="field"><span class="field-name">type</span><span class="field-type">ordinary | overtime | penalty | allowance | leave | public_holiday</span></div>
-        <div class="field"><span class="field-name">name / exportName</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">from / to</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">hours / rate / multiplier / amount</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">awardId</span><span class="field-ref">→ Award</span></div>
-        <div class="field"><span class="field-name">awardLevel / baseRate</span><span class="field-type">String / Number (frozen)</span></div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">PayrollMapping <span class="collection-name">payroll_mappings</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">payrollSystemType</span><span class="field-type">xero | myob | apa | custom</span></div>
-        <div class="field"><span class="field-name">isDefault</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">mapping</span><span class="field-type">Mixed (export keys/IDs)</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Per-tenant export mappings for payroll systems. Usually one default per payrollSystemType.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">Timesheet <span class="collection-name">timesheets</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee</span></div>
-        <div class="field"><span class="field-name">payPeriodStart / payPeriodEnd</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">shiftIds[]</span><span class="field-ref">→ DailyShift[]</span></div>
-        <div class="field"><span class="field-name">totalShifts / totalHours / totalCost</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">totalBreakMinutes</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">draft | submitted | approved | rejected | locked</span></div>
-        <div class="field"><span class="field-name">submittedBy / approvedBy / lockedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="field"><span class="field-name">payRunId</span><span class="field-ref">→ PayRun?</span></div>
-        <div class="field"><span class="field-name">notes / submissionNotes / rejectionReason</span><span class="field-type">String?</span></div>
-        <div class="rel-tag">Approval workflow for pay periods; links a set of <span>daily_shifts</span> and optionally a <span>pay_run</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">PublicHoliday <span class="collection-name">public_holidays</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">date / name</span><span class="field-type">Date / String</span></div>
-        <div class="field"><span class="field-name">state</span><span class="field-type">NAT | NSW | VIC | QLD | SA | WA | TAS | ACT | NT</span></div>
-        <div class="field"><span class="field-name">isRecurring</span><span class="field-type">Boolean</span></div>
-        <div class="rel-tag">Unique on <span>(date, state)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">OAuthToken <span class="collection-name">oauth_tokens</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tokenHash</span><span class="field-type">String unique (SHA-256)</span></div>
-        <div class="field"><span class="field-name">userId</span><span class="field-type">String → User</span></div>
-        <div class="field"><span class="field-name">tenantId</span><span class="field-type">String → Tenant</span></div>
-        <div class="field"><span class="field-name">type</span><span class="field-type">access | refresh | permanent</span></div>
-        <div class="field"><span class="field-name">scopes[]</span><span class="field-type">String[]</span></div>
-        <div class="field"><span class="field-name">expiresAt</span><span class="field-type">Unix seconds?</span></div>
-        <div class="field"><span class="field-name">isRevoked</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Unix seconds</span></div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">AwardTag <span class="collection-name">award_tags</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">description / color</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Tenant-managed master list of award tags. Unique on <span>(tenantId, name)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">AwardTemplate <span class="collection-name">award_templates</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">organizationId</span><span class="field-type">String? (back-compat)</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">awardId</span><span class="field-ref">→ Award?</span></div>
-        <div class="field"><span class="field-name">baseRules[]</span><span class="field-type">Mixed[]</span></div>
-        <div class="field"><span class="field-name">isDefault / isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Reusable award setup templates (Tanda parity). Unique on <span>(tenantId, name)</span>.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ TARGETS & QUALIFICATIONS ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Targets &amp; qualifications (extensions)</div>
-  <div class="cards-row">
-
-    <div class="card g-work w280">
-      <div class="card-header">Qualification <span class="collection-name">qualifications</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">name</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">description</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">maxHours</span><span class="field-type">Number?</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Tenant-managed qualifications/certification types. Unique on <span>(tenantId, name)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w280">
-      <div class="card-header">SalesTarget <span class="collection-name">sales_targets</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
-        <div class="field"><span class="field-name">userEntered</span><span class="field-type">Boolean</span></div>
-        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Tenant daily sales targets. Unique on <span>(tenantId, date)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">LocationSalesTarget <span class="collection-name">location_sales_targets</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">locationId</span><span class="field-ref">→ Location</span></div>
-        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
-        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Per-location sales targets. Unique on <span>(tenantId, locationId, date)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-pay w300">
-      <div class="card-header">TeamSalesTarget <span class="collection-name">team_sales_targets</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">teamId</span><span class="field-ref">→ Team</span></div>
-        <div class="field"><span class="field-name">date</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">targetAmount / target</span><span class="field-type">Number (alias)</span></div>
-        <div class="field"><span class="field-name">currency</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">notes</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Per-team sales targets. Unique on <span>(tenantId, teamId, date)</span>.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ SYSTEM ═══════════════════ -->
-<div class="section">
-  <div class="section-label">System</div>
-  <div class="cards-row">
-
-    <div class="card g-sys w300">
-      <div class="card-header">Device <span class="collection-name">devices</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">deviceId</span><span class="field-type">String unique sparse</span></div>
-        <div class="field"><span class="field-name">deviceName</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">locationName / locationAddress</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">active | disabled | revoked</span></div>
-        <div class="field"><span class="field-name">registeredBy</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">registeredAt / lastActivity</span><span class="field-type">Date</span></div>
-        <div class="field"><span class="field-name">lastUsedBy</span><span class="field-ref">→ Employee?</span></div>
-        <div class="field"><span class="field-name">totalPunches</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">activationCode / activationCodeExpiry</span><span class="field-type">String? / Date?</span></div>
-        <div class="field"><span class="field-name">revokedAt / revokedBy / revocationReason</span><span class="field-type">Date? / Ref? / String?</span></div>
-      </div>
-    </div>
-
-    <div class="card g-sys w300">
-      <div class="card-header">AuditLog <span class="collection-name">audit_logs</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">tenantId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">rosterId</span><span class="field-ref">→ Roster?</span></div>
-        <div class="field"><span class="field-name">employeeId</span><span class="field-ref">→ Employee?</span></div>
-        <div class="field"><span class="field-name">userId</span><span class="field-ref">→ User</span></div>
-        <div class="field"><span class="field-name">action</span><span class="field-type">CREATE | UPDATE | DELETE | PUBLISH | APPROVE | DENY</span></div>
-        <div class="field"><span class="field-name">entityType / entityId</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">oldValue / newValue</span><span class="field-type">Mixed</span></div>
-        <div class="field"><span class="field-name">ipAddress / userAgent</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdAt</span><span class="field-type">Date (no updatedAt)</span></div>
-        <div class="rel-tag">Tenant-scoped audit trail for roster, shift, and employee actions.</div>
-      </div>
-    </div>
-
-    <div class="card g-sys w280">
-      <div class="card-header">ActivityLog <span class="collection-name">activitylogs</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">action</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">details</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">success | error | warning</span></div>
-        <div class="field"><span class="field-name">userId</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">category</span><span class="field-type">String (default: storage)</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Tracks storage and system activity. Indexed on <span>(userId, createdAt)</span> and <span>(category, createdAt)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-sys w280">
-      <div class="card-header">StorageSettings <span class="collection-name">storage_settings</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">provider</span><span class="field-type">cloudinary | r2</span></div>
-        <div class="field"><span class="field-name">isActive</span><span class="field-type">Boolean (partial unique)</span></div>
-        <div class="field"><span class="field-name">cloudinaryCloudName / ApiKey / ApiSecret</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">r2AccountId / AccessKeyId / SecretAccessKey</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">r2BucketName / r2PublicUrl</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">updatedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="rel-tag">Only one active provider at a time (partial unique index on <span>isActive: true</span>).</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ SUPERADMIN ═══════════════════ -->
-<div class="section">
-  <div class="section-label">Superadmin (platform management)</div>
-  <div class="cards-row">
-
-    <div class="card g-super w320">
-      <div class="card-header">SystemSettings <span class="collection-name">system_settings</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">_id</span><span class="badge badge-pk">PK</span></div>
-        <div class="field"><span class="field-name">r2AccountId / r2AccessKeyId</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">r2SecretAccessKey</span><span class="field-type">String? (encrypted)</span></div>
-        <div class="field"><span class="field-name">r2BucketName / r2PublicUrl</span><span class="field-type">String?</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">mailerooApiKey</span><span class="field-type">String? (encrypted)</span></div>
-        <div class="field"><span class="field-name">mailerooFromEmail / FromName</span><span class="field-type">String?</span></div>
-        <hr class="section-divider">
-        <div class="field"><span class="field-name">defaultStorageQuotaBytes</span><span class="field-type">Number (default: 2GB)</span></div>
-        <div class="field"><span class="field-name">defaultEmailQuotaMonthly</span><span class="field-type">Number (default: 500)</span></div>
-        <div class="field"><span class="field-name">updatedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Singleton document for platform-wide settings. Secrets encrypted with AES-256-GCM.</div>
-      </div>
-    </div>
-
-    <div class="card g-super w300">
-      <div class="card-header">OrgStorageQuota <span class="collection-name">org_storage_quotas</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer (unique)</span></div>
-        <div class="field"><span class="field-name">usedBytes</span><span class="field-type">Number (default: 0)</span></div>
-        <div class="field"><span class="field-name">quotaBytes</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Per-org storage usage tracking. Updated on file upload/delete.</div>
-      </div>
-    </div>
-
-    <div class="card g-super w300">
-      <div class="card-header">OrgEmailUsage <span class="collection-name">org_email_usages</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer (unique)</span></div>
-        <div class="field"><span class="field-name">sentCount</span><span class="field-type">Number (default: 0)</span></div>
-        <div class="field"><span class="field-name">quotaMonthly</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">periodStart</span><span class="field-type">Date (month start)</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Per-org email usage tracking. Resets monthly.</div>
-      </div>
-    </div>
-
-    <div class="card g-super w320">
-      <div class="card-header">QuotaRequest <span class="collection-name">quota_requests</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer</span></div>
-        <div class="field"><span class="field-name">requestType</span><span class="field-type">storage | email</span></div>
-        <div class="field"><span class="field-name">currentQuota / requestedQuota</span><span class="field-type">Number</span></div>
-        <div class="field"><span class="field-name">requestNote</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">pending | approved | denied</span></div>
-        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="field"><span class="field-name">reviewedAt</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">reviewNote</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Org requests for quota increases. Indexed on <span>(orgId, requestType, status)</span>.</div>
-      </div>
-    </div>
-
-    <div class="card g-super w320">
-      <div class="card-header">OrgSignupRequest <span class="collection-name">org_signup_requests</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">orgName / contactName / email</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">phone</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">companySize</span><span class="field-type">1-10 | 11-50 | 51-200 | 201-500 | 500+</span></div>
-        <div class="field"><span class="field-name">planInterest</span><span class="field-type">free | starter | professional | enterprise</span></div>
-        <div class="field"><span class="field-name">message / timezone</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">status</span><span class="field-type">pending | approved | rejected</span></div>
-        <div class="field"><span class="field-name">reviewedBy</span><span class="field-ref">→ User?</span></div>
-        <div class="field"><span class="field-name">reviewedAt</span><span class="field-type">Date?</span></div>
-        <div class="field"><span class="field-name">reviewNote</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdEmployerId / createdUserId</span><span class="field-ref">→ Employer? / → User?</span></div>
-        <div class="field"><span class="field-name">createdAt / updatedAt</span><span class="field-type">Date</span></div>
-        <div class="rel-tag">Onboarding pipeline for new organizations. Approval creates org + admin user.</div>
-      </div>
-    </div>
-
-    <div class="card g-super w320">
-      <div class="card-header">SuperAdminAuditLog <span class="badge badge-new">NEW</span> <span class="collection-name">superadmin_audit_logs</span></div>
-      <div class="card-body">
-        <div class="field"><span class="field-name">actor / actorId</span><span class="field-type">String / → User</span></div>
-        <div class="field"><span class="field-name">action</span><span class="field-type">CREATE | UPDATE | DELETE | APPROVE | DENY | UPDATE_QUOTA | CREATE_ORG | DELETE_ORG | DEACTIVATE_USER | ACTIVATE_USER</span></div>
-        <div class="field"><span class="field-name">entityType / entityId</span><span class="field-type">String</span></div>
-        <div class="field"><span class="field-name">orgId</span><span class="field-ref">→ Employer?</span></div>
-        <div class="field"><span class="field-name">previousValue / newValue</span><span class="field-type">Mixed</span></div>
-        <div class="field"><span class="field-name">metadata</span><span class="field-type">Mixed</span></div>
-        <div class="field"><span class="field-name">ipAddress / userAgent</span><span class="field-type">String?</span></div>
-        <div class="field"><span class="field-name">createdAt</span><span class="field-type">Date (no updatedAt)</span></div>
-        <div class="rel-tag">Platform-level audit trail for superadmin actions. Separate from tenant-scoped audit logs. Indexed on <span>(actorId, createdAt)</span>, <span>(orgId, createdAt)</span>, <span>(action, createdAt)</span>.</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══════════════════ NOTES ═══════════════════ -->
-<div class="section">
-  <div class="section-label" style="color:#8ab4f8">Implementation notes</div>
-  <div class="cards-row">
-    <div class="note" style="width:100%;max-width:960px">
-      <strong>Tenant scoping</strong> — Collections with <code>tenantId</code> reference <code>Employer</code> (not <code>Tenant</code>). Tenant-scoped: <code>locations</code>, <code>teams</code>, <code>team_groups</code>, <code>users</code>, <code>rosters</code>, <code>daily_shifts</code>, <code>pay_runs</code>, <code>employee_tax_infos</code>.<br><br>
-      <strong>Employee payroll sub-collections</strong> — <code>EmployeeTaxInfo</code>, <code>EmployeeBankDetails</code>, <code>EmployeeContract</code>, <code>EmployeeQualification</code>, and <code>EmployeeCompliance</code> are standalone collections linked via <code>employeeId</code>. The <code>Employee</code> document keeps shortcut refs (<code>taxInfoId</code>, <code>bankDetailsId</code>, <code>contractId</code>).<br><br>
-      <strong>Superadmin collections</strong> — <code>SystemSettings</code> (singleton), <code>OrgStorageQuota</code>, <code>OrgEmailUsage</code>, <code>QuotaRequest</code>, <code>OrgSignupRequest</code>, and <code>SuperAdminAuditLog</code> are platform-level collections for SaaS management. <code>SuperAdminAuditLog</code> is separate from tenant-scoped <code>AuditLog</code>.<br><br>
-      <strong>Computed fields</strong> — <code>LocationRoleEnablement.isActive</code> and <code>EmployeeRoleAssignment.isActive</code> are computed from date ranges in pre-save hooks.<br><br>
-      <strong>Embedded sub-schemas</strong> — <code>Schedule</code> (on <code>employees.schedules[]</code>) and <code>Shift</code> (on <code>rosters.shifts[]</code>) are not top-level collections.<br><br>
-      <strong>Unix timestamps</strong> — <code>Tenant</code>, <code>User</code>, and <code>OAuthToken</code> store <code>createdAt</code>/<code>updatedAt</code> as Unix seconds (not Mongoose <code>timestamps</code>).<br><br>
-      <strong>Encryption</strong> — <code>SystemSettings.r2SecretAccessKey</code> and <code>SystemSettings.mailerooApiKey</code> are encrypted using AES-256-GCM before storage.<br><br>
-      <strong>RuleTemplate / PayrollMapping</strong> — These schema modules exist (<code>rule-template.ts</code>, <code>payroll-mapping.ts</code>) but are not re-exported from the schemas barrel (<code>schemas/index.ts</code>) in all environments; they may be imported directly where needed.
-    </div>
-  </div>
-</div>
-
-<p style="color:#444;font-size:11px;margin-top:24px;text-align:center">Derived from <code>lib/db/schemas/*.ts</code> · 52 modules · Timesheet · MongoDB</p>
-
+  </header>
+  <div id="board"></div>
+</main>
+<script>
+  const groupedData = {"Core / Access":[{"collection":"api_keys","summary":"tenantId: ObjectId, name: string, keyHash: string, keyPrefix: string, scopes: ApiScope[], isActive: boolean, createdBy: ObjectId, lastUsedAt?: Date, expiresAt?: Date, rateLimit: number, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"oauth_tokens","summary":"tokenHash: string, userId: string, tenantId: string, type: \"access\" | \"refresh\" | \"permanent\", scopes: string[], expiresAt?: number, isRevoked: boolean, createdAt: number, updatedAt: number","status":"extension","erdRef":null},{"collection":"orgsignuprequests","summary":"orgName: string, contactName: string, email: string, phone?: string, companySize?: CompanySize, planInterest?: EmployerPlan, message?: string, timezone?: string, status: OrgSignupRequestStatus, reviewedBy?: ObjectId, reviewedAt?: Date, reviewNote?: string, createdEmployerId?: ObjectId, createdUserId?: ObjectId, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"users","summary":"tenantId: ObjectId | null, name: string, email: string, password: string, role: \"admin\" | \"manager\" | \"supervisor\" | \"accounts\" | \"user\" | \"super_admin\", location: string[], rights: Right[], managedRoles: string[], locationIds?: ObjectId[], managedRoleIds?: ObjectId[], teamIds?: ObjectId[], createdBy: string | null, schedulingSettings?: IUserSchedulingSettings | null, passwordResetToken?: string | null, passwordResetExpiry?: Date | null, createdAt: number, updatedAt: number","status":"partial","erdRef":"User"},{"collection":"userTenants","summary":"userId: ObjectId, tenantId: ObjectId, role: UserTenantRole, location: string[], managedRoles: string[], isActive: boolean, invitedBy?: ObjectId, invitedAt?: Date, joinedAt?: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null}],"People / Employee":[{"collection":"employee_award_assignments","summary":"tenantId: ObjectId, employeeId: ObjectId, awardId: ObjectId, priority: number, validFrom: Date, validTo?: Date, isActive: boolean, notes?: string, assignedBy: ObjectId, assignedAt: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employee_bank_details","summary":"tenantId: ObjectId, employeeId: ObjectId, accountNumber: string, accountNumberLast4?: string, bsbCode: string, bsbLast3?: string, accountHolderName: string, bankName?: string, accountType?: 'savings' | 'cheque', superFundName?: string, superUSI?: string, superMemberNumber?: string, nepalBankName?: string, nepalBranch?: string, nepalAccountNumber?: string, ssfNumber?: string, ifscCode?: string, nzAccountNumber?: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employee_compliance","summary":"tenantId: ObjectId, employeeId: ObjectId, country?: 'AU' | 'NZ' | 'IN' | 'NP', workRightsType?: 'au_citizen' | 'au_resident' | 'visa_holder' | 'unknown', australianIdType?: 'drivers_licence' | 'medicare' | 'passport' | null, australianIdNumber?: string | null, tfn?: string, taxFreeThreshold?: boolean, hasHelpDebt?: boolean, passportNumber?: string, passportExpiry?: Date, visaSubclass?: string, visaGrantNumber?: string, visaWorkConditions?: string, passportDocUrl?: string, visaDocUrl?: string, visaType?: string | null, visaNumber?: string | null, maxHoursPerFortnight?: number | null, workRightsStatus?: 'unverified' | 'verified' | 'failed', workRightsLastCheckedAt?: Date | null, citizenshipCertNumber?: string, citizenshipIssuedDistrict?: string, citizenshipIssuedDate?: Date, citizenshipDocFrontUrl?: string, citizenshipDocBackUrl?: string, nationalIdNumber?: string, panNepal?: string, ssfNumber?: string, irdNumber?: string, taxCodeNZ?: string, kiwiSaverOptIn?: boolean, kiwiSaverFund?: string, kiwiSaverContributionRate?: number, aadhaarNumber?: string, aadhaarVerified?: boolean, aadhaarVerifiedAt?: Date, panNumber?: string, panVerified?: boolean, panVerifiedAt?: Date, uanNumber?: string, esiEligible?: boolean, wwcStatus?: 'not_required' | 'pending' | 'active' | 'expired', wwcNumber?: string, wwcExpiryDate?: Date, policeClearanceStatus?: 'pending' | 'active' | 'expired', policeClearanceNumber?: string, policeClearanceExpiryDate?: Date, foodHandlingStatus?: 'current' | 'expired', foodHandlingExpiryDate?: Date, healthSafetyCertifications?: string[], inductionCompleted: boolean, inductionDate?: Date, inductionDocUrl?: string, codeOfConductSigned: boolean, codeOfConductDate?: Date, codeOfConductDocUrl?: string, lastComplianceCheckDate?: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employee_contracts","summary":"tenantId: ObjectId, employeeId: ObjectId, startDate: Date, endDate?: Date | null, contractType: 'permanent' | 'fixed-term' | 'casual' | 'contractor', noticePeriod?: number, probationPeriodEnd?: Date, contractTermsUrl?: string, salary?: number, wageType: 'salary' | 'hourly' | 'piecework', isActive: boolean, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employee_qualifications","summary":"employeeId: ObjectId, qualificationId?: ObjectId, qualificationName: string, issuingBody: string, issueDate: Date, expiryDate?: Date, licenseNumber?: string, status: 'current' | 'expired' | 'pending', documentUrl?: string, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"UserQualification"},{"collection":"employee_self_audit_logs","summary":"tenantId: ObjectId, employeeId: ObjectId, action: EmployeeSelfAuditAction, changedFields?: string[], metadata?: Record<string, unknown>, ipAddress?: string, userAgent?: string, createdAt?: Date","status":"extension","erdRef":null},{"collection":"employee_tax_infos","summary":"employeeId: ObjectId, tenantId: ObjectId, countrySnapshot: 'AU' | 'IN' | 'NP' | 'UK' | 'SG' | 'NZ' | 'US' | 'CA', taxId: ITaxId, tax: ITaxData, bank: IBankDetails, accessLogs?: IAccessLog[], createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employee_team_assignments","summary":"tenantId: ObjectId, employeeId: ObjectId, teamId: ObjectId, locationId: ObjectId, isPrimary: boolean, validFrom: Date, validTo: Date | null, isActive: boolean, assignedBy: ObjectId, assignedAt: Date, notes?: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"employees","summary":"tenantId: ObjectId, name: string, pin: string, employer?: string[], location?: string[], locationIds?: ObjectId[], employerIds?: ObjectId[], primaryLocationId?: ObjectId | null, employerId?: ObjectId | null, email?: string, phone?: string, homeAddress?: string, address?: { line1?: string, line2?: string, city?: string, state?: string, postcode?: string, country?: string }, dob?: string, gender?: string, comment?: string, img?: string, emergencyContact?: { name?: string, relationship?: string, phone?: string }, onboardingCountry?: 'AU' | 'NZ' | 'IN' | 'NP', onboardingWorkflowStatus?: 'not_started' | 'in_progress' | 'completed' | 'pending_review' | 'approved' | 'action_required' | 'manually_verified', onboardingInvitedBy?: ObjectId | null, legalFirstName?: string, legalMiddleNames?: string, legalLastName?: string, preferredName?: string, timeZone?: string, locale?: string, nationality?: string, taxInfoId?: ObjectId, bankDetailsId?: ObjectId, contractId?: ObjectId, isActive?: boolean, isProbationary?: boolean, probationEndDate?: Date | null, terminatedAt?: Date | null, terminationReason?: string, skills?: string[], certifications?: IEmployeeCertification[], onboardingStatus?: IOnboardingStatus, password?: string | null, passwordSetByAdmin?: boolean, requirePasswordChange?: boolean, passwordChangedAt?: Date | null, passwordSetupToken?: string | null, passwordSetupExpiry?: Date | null, passwordResetToken?: string | null, passwordResetExpiry?: Date | null, onboardingCompleted?: boolean, onboardingCompletedAt?: Date | null, awardId?: ObjectId | null, awardLevel?: string | null, employmentType?: string | null, standardHoursPerWeek?: number | null, payConditions?: IPayConditionHistory[], schedules?: ISchedule[], createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"User"},{"collection":"push_tokens","summary":"tenantId: ObjectId, userId?: ObjectId, employeeId?: ObjectId, deviceType: DeviceType, token: string, isActive: boolean, lastUsedAt: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"stafffaceprofiles","summary":"tenantId: ObjectId, employeeId: ObjectId, descriptor: number[], enrolledAt: Date, enrolledBy: \"auto\" | \"admin\", enrollmentQuality: number, enrolledPhotoUrl?: string, lastMatchedAt?: Date, lastMatchScore?: number, isActive: boolean","status":"extension","erdRef":null}],"Workforce / Master Data":[{"collection":"employers","summary":"name: string, abn?: string, contactEmail?: string, phone?: string, color?: string, defaultAwardId?: ObjectId, slug?: string, plan?: EmployerPlan, timezone?: string, logoUrl?: string, inviteCode?: string, isActive: boolean, payPeriodConfig?: IPayPeriodConfig, enableExternalHire?: boolean, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"Organisation"},{"collection":"locations","summary":"tenantId: ObjectId, name: string, code?: string, address?: string, country?: 'AU' | 'NZ' | 'IN' | 'NP', state?: string, lat?: number, lng?: number, radius?: number, geofenceMode?: GeofenceMode, openingHour?: number, closingHour?: number, workingDays?: number[], timezone?: string, costCenterId?: string, color?: string, order?: number, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"Location"},{"collection":"team_groups","summary":"tenantId: ObjectId, name: string, description?: string, color?: string, order?: number, isActive: boolean, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"teams","summary":"tenantId: ObjectId, name: string, code?: string, color?: string, groupId?: ObjectId, order?: number, groupSnapshot?: { name?: string }, defaultScheduleTemplate?: IDefaultScheduleTemplate, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"Team"}],"Scheduling":[{"collection":"auto_roster_suggestions","summary":"tenantId: ObjectId, locationId: ObjectId, date: Date, roleId: ObjectId, suggestedEmployees: ISuggestedEmployee[], forecastId: ObjectId, status: \"pending\" | \"accepted\" | \"modified\" | \"dismissed\", generatedAt: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"availability_constraints","summary":"_id: ObjectId, tenantId: ObjectId, employeeId: ObjectId, unavailableDays: number[], unavailableTimeRanges: ITimeRange[], preferredShiftTypes: ShiftType[], maxConsecutiveDays?: number | null, minRestHours?: number | null, temporaryStartDate?: Date | null, temporaryEndDate?: Date | null, reason?: string, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"custom_event_teams","summary":"tenantId: ObjectId, customEventId: ObjectId, teamId: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"CustomEventTeam"},{"collection":"custom_events","summary":"tenantId: ObjectId, organizationId?: string, title: string, name?: string, description?: string, startAt: Date, startDate?: Date, endAt: Date, endDate?: Date, discourageTimeOff?: boolean, isAllDay?: boolean, locationId?: ObjectId, color?: string, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"CustomEvent"},{"collection":"demand_forecasts","summary":"tenantId: ObjectId, locationId: ObjectId, date: Date, dayOfWeek: number, predictedSales: number, predictedFootfall?: number, recommendedStaffCount: number, actualSales?: number, actualStaffCount?: number, generatedAt: Date, modelVersion: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"leave_records","summary":"_id: ObjectId, tenantId: ObjectId, employeeId: ObjectId, startDate: Date, endDate: Date, leaveType: LeaveType, status: LeaveStatus, approvedBy?: ObjectId | null, approvedAt?: Date | null, deniedBy?: ObjectId | null, deniedAt?: Date | null, denialReason?: string, notes?: string, blockAutoFill: boolean, partialStartTime?: string | null, partialEndTime?: string | null, createdAt: Date, updatedAt: Date","status":"partial","erdRef":"LeaveRequest"},{"collection":"roster_templates","summary":"_id: ObjectId, tenantId: ObjectId, name: string, createdBy: ObjectId, locationId: ObjectId, roleIds: ObjectId[], isGlobal: boolean, templateShifts: ITemplateShift[], createdAt: Date, updatedAt: Date","status":"partial","erdRef":"Roster"},{"collection":"rosters","summary":"_id: ObjectId, tenantId: ObjectId, weekId: string, year: number, weekNumber: number, weekStartDate: Date, weekEndDate: Date, shifts: IShift[], status: \"draft\" | \"published\", createdAt: Date, updatedAt: Date","status":"partial","erdRef":"Roster"},{"collection":"schedule","summary":"_id: ObjectId, dayOfWeek: number[], startTime: Date, endTime: Date, locationId: ObjectId, roleId: ObjectId, effectiveFrom: Date, effectiveTo: Date | null, priority?: number, isTemplate?: boolean, isRotating?: boolean, rotationCycle?: number, rotationStartDate?: Date | null","status":"partial","erdRef":"Schedule"},{"collection":"shift_event_log","summary":"_id: ObjectId, tenantId: ObjectId, shiftId: ObjectId, employeeId: ObjectId, action: ShiftEventAction, changedFields: string[], actorId: string, actorType: 'user' | 'employee' | 'system', before?: Record<string, unknown>, after?: Record<string, unknown>, meta?: Record<string, unknown>, occurredAt: Date, createdAt: Date","status":"extension","erdRef":null},{"collection":"shift_swap_requests","summary":"_id: ObjectId, tenantId: ObjectId, requestorId: ObjectId, recipientId: ObjectId, requestorShiftId: ObjectId, recipientShiftId?: ObjectId | null, status: SwapStatus, requestedAt: Date, recipientAcceptedAt?: Date | null, managerApprovedAt?: Date | null, managerApprovedBy?: ObjectId | null, deniedAt?: Date | null, deniedBy?: ObjectId | null, denialReason?: string, reason?: string, notes?: string, auditLog: IAuditEntry[], createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"timeclock_questions","summary":"tenantId: ObjectId, question: string, questionText?: string, triggerOn: string, type: TimeclockQuestionType, options?: string[], order?: number, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"TimeclockQuestion"}],"Time & Attendance":[{"collection":"buddypunchalerts","summary":"tenantId: ObjectId, employeeId: ObjectId, punchType: \"in\" | \"break\" | \"endBreak\" | \"out\", punchTime: Date, matchScore: number, capturedPhotoUrl?: string, enrolledPhotoUrl?: string, locationId: ObjectId, deviceId?: string, deviceName?: string, status: \"pending\" | \"confirmed_buddy\" | \"dismissed\" | \"false_alarm\", reviewedBy?: ObjectId, reviewedAt?: Date, notes?: string","status":"extension","erdRef":null},{"collection":"clock_audits","summary":"tenantId: ObjectId, employeeId: ObjectId, sessionId: ObjectId, shiftId?: ObjectId, eventType: ClockEventType, gpsLat?: number, gpsLng?: number, distanceFromLocation?: number, ipAddress?: string, deviceFingerprint?: string, userAgent?: string, riskScore: number, riskFlags: string[], rawPayload?: Record<string, unknown>, recordedAt: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"clock_sessions","summary":"tenantId: ObjectId, employeeId: ObjectId, deviceId: ObjectId, shiftId?: ObjectId, loginTime: Date, logoutTime?: Date, isActive: boolean, pin: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"daily_shifts","summary":"tenantId: ObjectId, pin: string, date: Date, locationId: ObjectId | null, roleId: ObjectId | null, employerId?: ObjectId | null, employeeId: ObjectId | null, rosterShiftId?: ObjectId, clockIn?: IClockEvent, breakIn?: IClockEvent, breakOut?: IClockEvent, breaks?: IShiftBreak[], clockOut?: IClockEvent, totalBreakMinutes?: number, totalWorkingHours?: number, source: \"clock\" | \"manual\" | \"leave\", notes?: string, awardTags: string[], computed?: IComputedPay, paySnapshot?: IPaySnapshot, status: \"active\" | \"completed\" | \"approved\" | \"locked\" | \"processed\" | \"exported\" | \"rejected\", approvedBy: ObjectId | null, approvedAt: Date | null, lockedBy: ObjectId | null, lockedAt: Date | null, processedBy: ObjectId | null, processedAt: Date | null, exportedAt: Date | null, exportReference: string | null, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"Shift"},{"collection":"timesheets","summary":"tenantId: ObjectId, employeeId: ObjectId, payPeriodStart: Date, payPeriodEnd: Date, shiftIds: ObjectId[], totalShifts: number, totalHours: number, totalCost: number, totalBreakMinutes: number, status: \"draft\" | \"submitted\" | \"approved\" | \"rejected\" | \"locked\", submittedBy?: ObjectId | null, submittedAt?: Date | null, submissionNotes?: string, approvedBy?: ObjectId | null, approvedAt?: Date | null, rejectionReason?: string, rejectedAt?: Date | null, rejectedBy?: ObjectId | null, lockedBy?: ObjectId | null, lockedAt?: Date | null, payRunId?: ObjectId | null, notes?: string, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"Timesheet"}],"Payroll / Awards":[{"collection":"award_tags","summary":"tenantId: ObjectId, organizationId?: string, name: string, description?: string, color?: string, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"AwardTag"},{"collection":"award_templates","summary":"tenantId: ObjectId, organizationId?: string, name: string, description?: string, awardId?: ObjectId, baseRules?: unknown[], isDefault?: boolean, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"partial","erdRef":"AwardTemplate"},{"collection":"award_version_history","summary":"tenantId: ObjectId, baseAwardId: ObjectId, name: string, description?: string, rules: any[], levelRates: any[], availableTags: any[], version: string, effectiveFrom: Date, effectiveTo?: Date | null, changelog?: string, createdBy: ObjectId, createdAt: Date","status":"extension","erdRef":null},{"collection":"awards","summary":"tenantId?: ObjectId | null, name: string, description?: string, rules: IAwardRule[], awardTagIds?: ObjectId[], availableTags?: IAwardTag[], levelRates: IAwardLevelRate[], isActive: boolean, version: string, effectiveFrom: Date, effectiveTo?: Date | null, changelog?: string, createdBy?: ObjectId, updatedBy?: ObjectId, createdAt: Date, updatedAt: Date","status":"partial","erdRef":"AwardTemplate"},{"collection":"labour_cost_analyses","summary":"tenantId: ObjectId, locationId: ObjectId, periodStart: Date, periodEnd: Date, rosterCost: number, actualCost: number, variance: number, variancePct: number, totalRosterHours: number, totalActualHours: number, employeeCount: number, generatedAt: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"location_sales_targets","summary":"tenantId: ObjectId, locationId: ObjectId, date: Date, targetAmount: number, target?: number, currency?: string, notes?: string, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"LocationSalesTarget"},{"collection":"pay_items","summary":"payRunId: ObjectId, employeeId: ObjectId, sourceShiftId: ObjectId, type: 'ordinary' | 'overtime' | 'penalty' | 'allowance' | 'leave' | 'public_holiday', name: string, exportName: string, from: Date, to: Date, hours: number, rate: number, multiplier: number, amount: number, awardId: ObjectId, awardLevel: string, baseRate: number, createdAt?: Date","status":"extension","erdRef":null},{"collection":"pay_runs","summary":"tenantId: ObjectId, startDate: Date, endDate: Date, status: 'draft' | 'calculated' | 'approved' | 'exported' | 'failed', createdBy: ObjectId, approvedBy?: ObjectId, approvedAt?: Date, exportedAt?: Date, exportType?: 'xero' | 'myob' | 'apa' | 'custom', exportReference?: string, exportedBy?: ObjectId, jobError?: string, totals: { gross: number, tax: number, super: number, net: number, totalHours: number, employeeCount: number }, notes?: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"payroll_exports","summary":"tenantId: ObjectId, payRunId: ObjectId, exportSystem: ExportSystem, status: ExportStatus, exportedAt?: Date, exportedBy: ObjectId, exportPayload: Record<string, unknown>, responsePayload?: Record<string, unknown>, errorLog?: string, retryCount: number, externalRef?: string, rowCount: number, employeeResults?: Array<{ employeeId: ObjectId status: 'pending' | 'exported' | 'failed' error?: string exportedAt?: Date retryCount: number }>, lastAttemptAt?: Date, nextRetryAt?: Date, maxRetries: number, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"payroll_mappings","summary":"tenantId: ObjectId, payrollSystemType: 'xero' | 'myob' | 'apa' | 'custom', ruleMapping: Array<{ exportName: string payrollCode: string description: string }>, payItemMapping: Array<{ type: 'pay' | 'deduction' | 'leave_accrual' exportName: string payrollCode: string description: string }>, breakMapping: Array<{ breakType: string exportName: string payrollCode: string }>, isDefault?: boolean, notes?: string, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"public_holidays","summary":"date: Date, name: string, state: 'NAT' | 'NSW' | 'VIC' | 'QLD' | 'SA' | 'WA' | 'TAS' | 'ACT' | 'NT', isRecurring: boolean, createdAt: Date","status":"extension","erdRef":null},{"collection":"sales_targets","summary":"tenantId: ObjectId, date: Date, targetAmount: number, target?: number, userEntered?: boolean, currency?: string, notes?: string, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"SalesTarget"},{"collection":"team_sales_targets","summary":"tenantId: ObjectId, teamId: ObjectId, date: Date, targetAmount: number, target?: number, currency?: string, notes?: string, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"TeamSalesTarget"},{"collection":"toilbalances","summary":"tenantId: ObjectId, employeeId: ObjectId, pin: string, year: number, entries: ITOILEntry[], totalBalance: number, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null}],"Compliance / Audit":[{"collection":"audit_logs","summary":"_id: ObjectId, tenantId: ObjectId, rosterId?: ObjectId | null, employeeId?: ObjectId | null, userId: ObjectId, action: AuditAction, entityType: string, entityId: string, oldValue?: any, newValue?: any, ipAddress?: string, userAgent?: string, createdAt: Date","status":"extension","erdRef":null},{"collection":"break_violations","summary":"tenantId: ObjectId, shiftId: ObjectId, employeeId: ObjectId, ruleId: ObjectId, missedBreakMinutes: number, requiredBreakMinutes: number, actualBreakMinutes: number, detectedAt: Date, isResolved: boolean, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"compliance_rules","summary":"_id: ObjectId, tenantId: ObjectId, name: string, ruleType: ComplianceRuleType, minRestHoursBetweenShifts?: number | null, maxConsecutiveDays?: number | null, maxHoursPerWeek?: number | null, maxHoursPerFortnight?: number | null, breakRules: IComplianceBreakRule[], blockPublishOnViolation: boolean, isActive: boolean, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"compliance_violations","summary":"tenantId: ObjectId, employeeId: ObjectId, ruleId: ObjectId, shiftId?: ObjectId, rosterShiftId?: string, severity: \"warning\" | \"breach\", ruleType: string, message: string, detectedAt: Date, resolvedAt?: Date, resolutionAction?: ResolutionAction, resolvedBy?: ObjectId, isActive: boolean, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"domain_event_log","summary":"_id: ObjectId, eventId: string, tenantId: ObjectId, eventType: DomainEventType, entityId: string, entityType: string, actorId?: string, payload: Record<string, unknown>, occurredAt: Date, processedAt?: Date, failedListeners: string[], retryCount: number, nextRetryAt?: Date, createdAt: Date","status":"extension","erdRef":null},{"collection":"superadmin_audit_logs","summary":"_id: ObjectId, actor: string, actorId: ObjectId, action: SuperAdminAction, entityType: string, entityId: string, orgId?: ObjectId | null, previousValue?: any, newValue?: any, metadata?: Record<string, any>, ipAddress?: string, userAgent?: string, createdAt: Date","status":"extension","erdRef":null}],"System / Integrations":[{"collection":"activitylogs","summary":"tenantId: ObjectId (ref Employer), action: string, details: string, status: string enum: \"success\" | \"error\" | \"warning\", userId: string, category: string","status":"extension","erdRef":null},{"collection":"devices","summary":"tenantId: ObjectId, deviceId?: string, deviceName: string, locationName: string, locationAddress?: string, status: \"active\" | \"disabled\" | \"revoked\", registeredBy: ObjectId, registeredAt: Date, lastActivity: Date, lastUsedBy?: ObjectId, totalPunches: number, activationCode?: string, activationCodeExpiry?: Date, revocationReason?: string, revokedAt?: Date, revokedBy?: ObjectId","status":"extension","erdRef":null},{"collection":"expiry_alert_logs","summary":"alertKey: string, sentAt: Date","status":"extension","erdRef":null},{"collection":"mediafiles","summary":"orgId: ObjectId, r2Key: string, originalName: string, mimeType: string, sizeBytes: number, uploadedBy: ObjectId, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"notification_preferences","summary":"tenantId: ObjectId, recipientId: string, recipientType: 'user' | 'employee', preferences: ICategoryPreference[], globalPushEnabled: boolean, globalEmailEnabled: boolean, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"notifications","summary":"tenantId: ObjectId, targetType: NotificationTarget, userId?: ObjectId, employeeId?: ObjectId, category: NotificationCategory, title: string, message: string, read: boolean, readAt?: Date, sentAt: Date, relatedEntity?: { type: string, id: string }, channels: NotificationChannel[], emailSentAt?: Date, pushSentAt?: Date, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"orgemailusages","summary":"orgId: ObjectId, sentCount: number, quotaMonthly: number, periodStart: Date, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"orgstoragequotas","summary":"orgId: ObjectId, usedBytes: number, quotaBytes: number, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"systemsettings","summary":"r2AccountId?: string, r2AccessKeyId?: string, r2SecretAccessKey?: string, r2BucketName?: string, r2PublicUrl?: string, mailerooApiKey?: string, mailerooFromEmail?: string, mailerooFromName?: string, defaultStorageQuotaBytes: number, defaultEmailQuotaMonthly: number, updatedBy?: ObjectId, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null}],"Reference / Config":[{"collection":"location_role_enablements","summary":"tenantId: ObjectId, locationId: ObjectId, roleId: ObjectId, effectiveFrom: Date, effectiveTo: Date | null, isActive: boolean, createdBy: ObjectId, createdAt?: Date, updatedAt?: Date","status":"extension","erdRef":null},{"collection":"qualifications","summary":"tenantId: ObjectId, name: string, description?: string, maxHours?: number, isActive: boolean, createdBy?: ObjectId, createdAt?: Date, updatedAt?: Date","status":"match","erdRef":"Qualification"},{"collection":"quotarequests","summary":"orgId: ObjectId, requestType: QuotaRequestType, currentQuota: number, requestedQuota: number, requestNote?: string, status: QuotaRequestStatus, reviewedBy?: ObjectId, reviewedAt?: Date, reviewNote?: string, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null},{"collection":"ruletemplates","summary":"_id: ObjectId, name: string, description: string, priority: number, isActive: boolean, canStack: boolean, conditions: Record<string, any>, outcome: Record<string, any>, category?: string, tags?: string[], isDefault?: boolean, createdAt: Date, updatedAt: Date","status":"extension","erdRef":null}]};
+  const missingData = [{"collection":"Shift","summary":"int ID PK, int TimesheetID FK, int UserID FK, int DepartmentID FK, string Date, decimal Start, decimal Finish, string Status, decimal Cost","status":"missing","erdRef":"Tanda ERD only"},{"collection":"Break","summary":"int ID PK, int ShiftID FK, decimal Start, decimal Finish, decimal Length, boolean Paid","status":"missing","erdRef":"Tanda ERD only"},{"collection":"Allowance","summary":"int ID PK, int ShiftID FK, string Name, decimal Value, decimal Cost","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ShiftNote","summary":"int ShiftID FK, int LineNumber, string Body, string Author","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ShiftAwardInterpretation","summary":"int ShiftID FK, string Name, decimal Units, decimal Cost, string ExportName","status":"missing","erdRef":"Tanda ERD only"},{"collection":"TimesheetNote","summary":"int TimesheetID FK, int LineNumber, string Body, string Author","status":"missing","erdRef":"Tanda ERD only"},{"collection":"TimesheetAwardInterpretation","summary":"int TimeSheetID FK, int ShiftID FK, string Name, decimal Units, decimal Cost","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ScheduleBreak","summary":"int ScheduleID FK, decimal Start, decimal Finish, boolean Paid","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ScheduleAwardInterpretation","summary":"int ScheduleID FK, string ExportName, decimal Units, decimal Cost","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ShiftDetail","summary":"int ID PK, int DepartmentID FK, string Name","status":"missing","erdRef":"Tanda ERD only"},{"collection":"LeaveBalance","summary":"int ID PK, int UserID FK, string LeaveType, decimal Hours, boolean ShouldAccrue","status":"missing","erdRef":"Tanda ERD only"},{"collection":"LeaveRequestDailyBreakdown","summary":"string ID PK, int LeaveID FK, datetime Date, decimal Hours, boolean IsHoliday","status":"missing","erdRef":"Tanda ERD only"},{"collection":"ClockIn","summary":"int ID PK, int UserID FK, int DepartmentID FK, int ShiftID FK, long Time, string Type, decimal Latitude, decimal Longitude","status":"missing","erdRef":"Tanda ERD only"},{"collection":"UserAwardTag","summary":"int UserID FK, int AwardTagID FK","status":"missing","erdRef":"Tanda ERD only"},{"collection":"UserQualification","summary":"int ID PK, int UserID FK, int QualificationID FK, boolean Enabled, string LicenseNumber, string Expires","status":"missing","erdRef":"Tanda ERD only"}];
+  const escapeHtml = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  function resolveStatus(item) {
+    if ((item.status || 'missing') === 'missing' && item.erdRef === null) return 'extension';
+    return item.status || 'missing';
+  }
+
+  function renderCard(item) {
+    const status = resolveStatus(item);
+    const cls = 'card card--' + status;
+    const erdRef = item.erdRef
+      ? '<div class="erd-ref">' + escapeHtml(item.erdRef) + '</div>'
+      : status === 'extension'
+        ? '<div class="erd-ref">App extension</div>'
+        : '<div class="erd-ref">Tanda ERD only</div>';
+    const gapNote = status === 'extension'
+      ? '<div class="gap-note">App-specific collection that expands beyond the Tanda ERD.</div>'
+      : status === 'partial'
+        ? '<div class="gap-note">Same business concept, but the field shape or relationships differ.</div>'
+        : '';
+    return '<article class="' + cls + '">' +
+      '<div class="card-top">' +
+        '<div class="collection">' + escapeHtml(item.collection) + '</div>' +
+        '<div class="top-right">' +
+          '<div class="pill ' + escapeHtml(status) + '">' + escapeHtml(status) + '</div>' +
+          erdRef +
+        '</div>' +
+      '</div>' +
+      '<div class="summary">' + escapeHtml(item.summary) + '</div>' +
+      gapNote +
+    '</article>';
+  }
+
+  function renderGroup(title, items, note) {
+    if (!items.length) return '';
+    const counts = items.reduce((acc, item) => {
+      const status = resolveStatus(item);
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+    const breakdown = ['match', 'partial', 'extension', 'missing']
+      .filter(key => counts[key])
+      .map(key => key + ' ' + counts[key])
+      .join(' · ');
+    return '<section class="group">' +
+      '<div class="group-head"><h2>' + escapeHtml(title) + '</h2><span>' + escapeHtml(breakdown) + '</span></div>' +
+      (note ? '<div class="section-note">' + escapeHtml(note) + '</div>' : '') +
+      '<div class="grid">' + items.map(renderCard).join('') + '</div>' +
+    '</section>';
+  }
+
+  const order = ['Core / Access', 'Workforce / Master Data', 'People / Employee', 'Scheduling', 'Time & Attendance', 'Payroll / Awards', 'Compliance / Audit', 'System / Integrations', 'Reference / Config'];
+  const parts = order.map(title => renderGroup(title, groupedData[title] || [], title === 'Workforce / Master Data' ? 'Organisation, locations, and teams live here.' : '')).join('');
+  const gaps = renderGroup('ERD gaps', missingData, 'These exist in the Tanda ERD but are not modeled as first-class collections yet.');
+  const currentItems = Object.values(groupedData).flat();
+  const counts = currentItems.reduce((acc, item) => {
+    const status = resolveStatus(item);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  document.getElementById('current-count').textContent = currentItems.length + ' current collections';
+  document.getElementById('count-match').textContent = 'match ' + (counts.match || 0);
+  document.getElementById('count-partial').textContent = 'partial ' + (counts.partial || 0);
+  document.getElementById('count-extension').textContent = 'extension ' + (counts.extension || 0);
+  document.getElementById('count-gaps').textContent = 'ERD gaps ' + missingData.length;
+  document.getElementById('board').innerHTML = parts + gaps;
+</script>
 </body>
 </html>

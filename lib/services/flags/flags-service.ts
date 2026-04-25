@@ -13,16 +13,28 @@ function getIssueType(hasImage: boolean, hasLocation: boolean): FlagIssueType | 
 export class FlagsService {
   async list(query: any) {
     await connectDB();
-    const { filter, limit = 50, offset = 0, sortBy = "date", order = "desc" } = query || {};
+    const { filter, limit = 50, offset = 0, sortBy = "date", order = "desc", startDate, endDate } = query || {};
 
     const filterType = filter as FlagIssueType | undefined;
     const validFilters: FlagIssueType[] = ["no_image", "no_location", "no_image_no_location"];
     const validFilterType = filterType && validFilters.includes(filterType) ? filterType : null;
 
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    const start = subDays(end, 29);
+    let start: Date;
+    let end: Date;
+    if (startDate) {
+      const parsed = parse(startDate, "yyyy-MM-dd", new Date());
+      start = isValid(parsed) ? parsed : subDays(new Date(), 29);
+    } else {
+      start = subDays(new Date(), 29);
+    }
     start.setHours(0, 0, 0, 0);
+    if (endDate) {
+      const parsed = parse(endDate, "yyyy-MM-dd", new Date());
+      end = isValid(parsed) ? parsed : new Date();
+    } else {
+      end = new Date();
+    }
+    end.setHours(23, 59, 59, 999);
 
     const shifts = await FlagsDbQueries.listFlaggedShiftsLean({ start, end });
     const pins = [...new Set((shifts as any[]).map((s) => String((s as any).pin ?? "")))].filter(Boolean);

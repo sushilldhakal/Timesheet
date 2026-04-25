@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import OrgSignupRequest, { IOrgSignupRequest, CompanySize } from "@/lib/db/schemas/org-signup-request";
@@ -225,21 +224,21 @@ export class OrgSignupService {
 
     // Update request
     request.status = "approved";
-    request.reviewedBy = new mongoose.Types.ObjectId(reviewedBy);
+    request.reviewedBy = reviewedBy as any;
     request.reviewedAt = new Date();
     request.reviewNote = reviewNote;
-    request.createdEmployerId = employer._id as mongoose.Types.ObjectId;
-    request.createdUserId = user._id as mongoose.Types.ObjectId;
+    request.createdEmployerId = employer._id as any;
+    request.createdUserId = user._id as any;
     await request.save();
 
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: new mongoose.Types.ObjectId(reviewedBy),
+      actorId: reviewedBy as any,
       action: "CREATE_ORG",
       entityType: "OrgSignupRequest",
       entityId: requestId,
-      orgId: employer._id as mongoose.Types.ObjectId,
+      orgId: employer._id as any,
       previousValue: { status: "pending" },
       newValue: { 
         status: "approved",
@@ -304,7 +303,7 @@ export class OrgSignupService {
 
     // Update request
     request.status = "rejected";
-    request.reviewedBy = new mongoose.Types.ObjectId(reviewedBy);
+    request.reviewedBy = reviewedBy as any;
     request.reviewedAt = new Date();
     request.reviewNote = reviewNote;
     await request.save();
@@ -312,7 +311,7 @@ export class OrgSignupService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: new mongoose.Types.ObjectId(reviewedBy),
+      actorId: reviewedBy as any,
       action: "DENY",
       entityType: "OrgSignupRequest",
       entityId: requestId,

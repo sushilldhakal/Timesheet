@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import { TimesheetApprovalsDbQueries } from "@/lib/db/queries/timesheet-approvals";
+import { isLikelyObjectIdString } from "@/shared/ids";
 import { connectDB } from "@/lib/db";
 
 export class TimesheetApprovalsService {
@@ -126,7 +126,7 @@ export class TimesheetApprovalsService {
     }
 
     const { payRunId } = body;
-    if (!mongoose.Types.ObjectId.isValid(payRunId)) return { status: 400, data: { error: "Invalid payRunId" } };
+    if (!isLikelyObjectIdString(String(payRunId ?? ""))) return { status: 400, data: { error: "Invalid payRunId" } };
 
     const payRun = await TimesheetApprovalsDbQueries.findPayRunById(payRunId);
     if (!payRun) return { status: 404, data: { error: "PayRun not found" } };

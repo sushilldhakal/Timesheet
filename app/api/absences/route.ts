@@ -37,7 +37,7 @@ export const GET = createApiRoute({
       return { status: 400, data: { error: "Query parameters are required" } }
     }
 
-    const result = await absenceService.listBulk(query)
+    const result = await absenceService.listBulk(query, ctx.tenantId)
     return { status: 200, data: result }
   },
 })

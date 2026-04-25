@@ -1,4 +1,6 @@
-import { connectDB, User } from "@/lib/db"
+import { MongoUserRepository } from "@/infrastructure/db/mongo/MongoUserRepository"
+import { MongoEmployeeRoleFilterRepository } from "@/infrastructure/db/mongo/MongoEmployeeRoleFilterRepository"
+import type { TenantContext } from "@/shared/types"
 import { getAuthFromCookie, type AuthPayload } from "./auth-helpers"
 import { NextRequest } from "next/server"
 import { SUPER_ADMIN_SENTINEL } from "./auth-constants"
@@ -33,16 +35,16 @@ export async function verifyAuth(_req: NextRequest) {
   if (!auth) return null
 
   try {
-    await connectDB()
-    const user = await User.findById(auth.sub).lean()
+    const userRepo = new MongoUserRepository()
+    const user = await userRepo.findById({ tenantId: auth.tenantId ?? "" }, auth.sub)
     if (!user) return null
     
     return {
-      _id: user._id,
-      name: (user as any).name ?? "",
-      email: (user as any).email ?? "",
+      id: user.id,
+      name: user.name ?? "",
+      email: user.email ?? "",
       role: user.role,
-      location: Array.isArray(user.location) ? user.location : user.location ? [user.location] : [],
+      location: user.location ?? [],
       managedRoles: user.managedRoles ?? [],
       rights: user.rights ?? [],
     }
@@ -103,67 +105,15 @@ export function employeeLocationFilter(userLocations: string[] | null): Record<s
  * If managedRoles is empty, returns null (no role filter - see all employees at their locations).
  * If managedRoles has values, returns employee IDs that have those roles.
  */
+const defaultEmployeeRoleFilterRepo = new MongoEmployeeRoleFilterRepository()
+
+/**
+ * @param ctx Tenant context (tenantId injected by caller; never build ad-hoc tenant filters in services).
+ */
 export async function getFilteredEmployeeIdsByRole(
+  ctx: TenantContext,
   userLocations: string[] | null,
   managedRoles: string[] | null
 ): Promise<string[] | null> {
-  // Admin sees all
-  if (userLocations === null || managedRoles === null) {
-    return null
-  }
-
-  // No managed roles = see all employees at their locations (no role filter)
-  if (managedRoles.length === 0) {
-    return null
-  }
-
-  // Has managed roles = filter by those roles
-  try {
-    await connectDB()
-    const { EmployeeTeamAssignment } = await import("@/lib/db/schemas/employee-team-assignment")
-    const { Team, Location } = await import("@/lib/db")
-
-    // Get role IDs from role names
-    const roleCategories = await Team.find({
-      name: { $in: managedRoles },
-    })
-      .select("_id")
-      .lean()
-
-    const roleIds = roleCategories.map(r => r._id)
-
-    if (roleIds.length === 0) {
-      return [] // No matching roles found
-    }
-
-    // Get location IDs from location names
-    const locationCategories = await Location.find({
-      name: { $in: userLocations },
-    })
-      .select("_id")
-      .lean()
-
-    const locationIds = locationCategories.map(l => l._id)
-
-    if (locationIds.length === 0) {
-      return [] // No matching locations found
-    }
-
-    // Find active role assignments matching the criteria
-    const assignments = await EmployeeTeamAssignment.find({
-      teamId: { $in: roleIds },
-      locationId: { $in: locationIds },
-      isActive: true
-    }).select("employeeId").lean()
-
-    // Return unique employee IDs
-    const employeeIds = Array.from(
-      new Set(assignments.map(a => a.employeeId.toString()))
-    )
-
-    return employeeIds
-  } catch (error) {
-    console.error("[getFilteredEmployeeIdsByRole] Error:", error)
-    return []
-  }
+  return defaultEmployeeRoleFilterRepo.getFilteredEmployeeIdsByRole(ctx, userLocations, managedRoles)
 }

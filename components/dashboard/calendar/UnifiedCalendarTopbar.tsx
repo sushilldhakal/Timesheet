@@ -50,9 +50,9 @@ export function UnifiedCalendarTopbar({
 
   return (
     <div className={cn("flex shrink-0 flex-col gap-2.5 py-2.5", className)}>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="grid grid-cols-[auto_1fr] grid-rows-2 items-center gap-x-2 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-1">
+        <div className="flex items-center gap-x-3">
+          <div className="grid grid-cols-[auto_1fr] grid-rows-[auto_auto] items-center gap-x-2 gap-y-0">
             <div className="row-span-2 self-stretch">
               <button
                 className="flex h-full min-h-[56px] w-12 shrink-0 cursor-pointer flex-col items-center overflow-hidden rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -69,7 +69,7 @@ export function UnifiedCalendarTopbar({
               </button>
             </div>
 
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 items-center gap-y-0">
               <span className="truncate text-base font-semibold text-foreground">{title}</span>
               {titleBadge}
             </div>

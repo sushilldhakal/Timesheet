@@ -2,7 +2,7 @@ import { z } from "zod"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { errorResponseSchema, successResponseSchema } from "@/lib/validations/auth"
-import { locationIdParamSchema, locationUpdateSchema } from "@/lib/validations/location"
+import { locationIdPathParamSchema, locationUpdateSchema } from "@/lib/validations/location"
 import { locationService } from "@/lib/services/location/location-service"
 
 const locationResponseSchema = z.object({
@@ -32,7 +32,7 @@ export const GET = createApiRoute({
   description: "Get a location by id",
   tags: ["Locations"],
   security: "adminAuth",
-  request: { params: locationIdParamSchema },
+  request: { params: locationIdPathParamSchema },
   responses: {
     200: z.object({ location: locationResponseSchema }),
     401: errorResponseSchema,
@@ -42,7 +42,7 @@ export const GET = createApiRoute({
   handler: async ({ params }) => {
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
-    return await locationService.get(ctx, params!.id)
+    return await locationService.get(ctx, params!.locationId)
   },
 })
 
@@ -53,7 +53,7 @@ export const PATCH = createApiRoute({
   description: "Update a location by id",
   tags: ["Locations"],
   security: "adminAuth",
-  request: { params: locationIdParamSchema, body: locationUpdateSchema },
+  request: { params: locationIdPathParamSchema, body: locationUpdateSchema },
   responses: {
     200: z.object({ location: locationResponseSchema }),
     401: errorResponseSchema,
@@ -64,7 +64,7 @@ export const PATCH = createApiRoute({
   handler: async ({ params, body }) => {
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
-    return await locationService.update(ctx, params!.id, body)
+    return await locationService.update(ctx, params!.locationId, body)
   },
 })
 
@@ -75,7 +75,7 @@ export const DELETE = createApiRoute({
   description: "Delete a location by id",
   tags: ["Locations"],
   security: "adminAuth",
-  request: { params: locationIdParamSchema },
+  request: { params: locationIdPathParamSchema },
   responses: {
     200: successResponseSchema,
     401: errorResponseSchema,
@@ -85,7 +85,7 @@ export const DELETE = createApiRoute({
   handler: async ({ params }) => {
     const ctx = await getAuthWithUserLocations()
     if (!ctx) return { status: 401, data: { error: "Unauthorized" } }
-    return await locationService.remove(ctx, params!.id)
+    return await locationService.remove(ctx, params!.locationId)
   },
 })
 

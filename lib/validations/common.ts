@@ -1,8 +1,9 @@
 import { z } from "zod"
 
-// MongoDB ObjectId validation
-export const mongoIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid MongoDB ObjectId")
-export const objectIdSchema = mongoIdSchema // Alias for consistency
+// IDs are opaque strings in application/domain/contract code.
+// Database-specific validation (e.g. Mongo ObjectId) belongs in DB adapters only.
+export const mongoIdSchema = z.string().min(1, "Invalid id")
+export const objectIdSchema = mongoIdSchema // Alias for backward compatibility
 
 // Generic ID parameter schema (can be used for any entity)
 export const idParamSchema = z.object({

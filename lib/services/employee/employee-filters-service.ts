@@ -3,7 +3,7 @@ import { EmployeeFiltersDbQueries } from "@/lib/db/queries/employees-filters";
 import { EmployeeTeamAssignmentsDbQueries } from "@/lib/db/queries/employee-team-assignments";
 import { EmployeeDbQueries } from "@/lib/db/queries/employees";
 import { connectDB } from "@/lib/db";
-import mongoose from "mongoose";
+import { isLikelyObjectIdString } from "@/shared/ids";
 
 export class EmployeeFiltersService {
   async getFilters(
@@ -15,7 +15,11 @@ export class EmployeeFiltersService {
     const locFilter = employeeLocationFilter(ctx.userLocations);
     if (Object.keys(locFilter).length > 0) andConditions.push(locFilter);
 
-    const roleFilteredEmployeeIds = await getFilteredEmployeeIdsByRole(ctx.userLocations, ctx.managedRoles);
+    const roleFilteredEmployeeIds = await getFilteredEmployeeIdsByRole(
+      { tenantId: ctx.tenantId },
+      ctx.userLocations,
+      ctx.managedRoles
+    );
     if (roleFilteredEmployeeIds !== null) {
       andConditions.push({ _id: { $in: roleFilteredEmployeeIds } });
     }
@@ -32,18 +36,17 @@ export class EmployeeFiltersService {
     };
 
     // Prefer locationId (stable across orgs). locationName is deprecated.
-    let locationIds: any[] = [];
+    let locationIds: string[] = [];
     let normalizedLocation: string | null = null;
     if (args?.locationId) {
-      const locOids = String(args.locationId)
+      const locIds = String(args.locationId)
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(id));
+        .filter((id) => isLikelyObjectIdString(id));
 
-      if (locOids.length > 0) {
-        locationIds = locOids;
+      if (locIds.length > 0) {
+        locationIds = locIds;
         aggregationMatch.locationId = { $in: locationIds };
       }
     } else if (args?.locationName) {
@@ -54,7 +57,7 @@ export class EmployeeFiltersService {
         .trim();
       const locations = normalizedLocation ? await EmployeeDbQueries.findLocationsByNames([normalizedLocation]) : [];
       if (locations.length > 0) {
-        locationIds = locations.map(loc => loc._id);
+        locationIds = locations.map((loc) => String((loc as { _id: unknown })._id));
         aggregationMatch.locationId = { $in: locationIds };
       } else {
         // If we can't resolve the location name, we intentionally fall back

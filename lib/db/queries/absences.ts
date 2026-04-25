@@ -35,6 +35,8 @@ export class AbsencesDbQueries {
       .skip(args.offset)
       .limit(args.limit)
       .populate({ path: 'employeeId', select: 'name pin' })
+      .populate({ path: 'approvedBy', select: 'name' })
+      .populate({ path: 'deniedBy', select: 'name' })
       .lean();
   }
 }

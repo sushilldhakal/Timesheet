@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { isAdmin, isManager, UserRole } from "@/lib/config/roles"
+import { isAdmin, isAdminOrSuperAdmin, isManager, UserRole } from "@/lib/config/roles"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, Users, UserCheck, UserX } from "lucide-react"
@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<User | null>(null)
   const [deleteUser, setDeleteUser] = useState<User | null>(null)
 
-  const userIsAdmin = isAdmin(user?.role ?? null)
+  const userIsAdmin = isAdminOrSuperAdmin(user?.role ?? null)
   const userIsManager = isManager(user?.role ?? null)
   const canAccessUsers = userIsAdmin || userIsManager
 
@@ -32,9 +32,13 @@ export default function UsersPage() {
   const loading = usersQuery.isLoading
   const error = usersQuery.error
 
+  const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN
+
   const allUsersFiltered = useMemo(() => {
+    // super_admin sees everyone; admin sees everyone except other super_admins
+    if (isSuperAdmin) return allUsers
     return allUsers.filter(u => u.role !== UserRole.SUPER_ADMIN)
-  }, [allUsers])
+  }, [allUsers, isSuperAdmin])
 
   // Calculate metrics
   const metrics = useMemo(() => {

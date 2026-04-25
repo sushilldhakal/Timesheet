@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import { ZodError } from "zod";
+import { isLikelyObjectIdString } from "@/shared/ids";
 import { RuleTemplatesDbQueries } from "@/lib/db/queries/rule-templates";
 import { awardRuleSchema } from "@/lib/validations/awards";
 import { connectDB } from "@/lib/db";
@@ -68,7 +68,7 @@ export class RuleTemplatesService {
 
   async get(id: string) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!isLikelyObjectIdString(id)) {
       return { status: 400, data: { error: "Invalid template ID" } };
     }
     const template = await RuleTemplatesDbQueries.findByIdLean(id);
@@ -78,7 +78,7 @@ export class RuleTemplatesService {
 
   async update(id: string, data: any) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!isLikelyObjectIdString(id)) {
       return { status: 400, data: { error: "Invalid template ID" } };
     }
 
@@ -114,7 +114,7 @@ export class RuleTemplatesService {
 
   async remove(id: string) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!isLikelyObjectIdString(id)) {
       return { status: 400, data: { error: "Invalid template ID" } };
     }
 

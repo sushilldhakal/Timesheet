@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
 import { VarianceAnalyticsService } from '@/lib/services/analytics/variance-analytics-service';
+import { isLikelyObjectIdString } from '@/shared/ids';
 import { connectDB } from '@/lib/db';
 
 export class AnalyticsService {
   async variance(shiftId: string) {
     await connectDB();
-    if (!mongoose.Types.ObjectId.isValid(shiftId)) {
+    if (!isLikelyObjectIdString(shiftId)) {
       return { status: 400, data: { error: 'Invalid shift ID format' } };
     }
     const analyticsService = new VarianceAnalyticsService();

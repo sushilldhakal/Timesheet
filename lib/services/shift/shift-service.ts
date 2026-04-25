@@ -1,5 +1,5 @@
-import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
+import { isLikelyObjectIdString } from "@/shared/ids"
 import { apiErrors } from "@/lib/api/api-error"
 import { DailyShift } from "@/lib/db/schemas/daily-shift"
 import { AuditLog } from "@/lib/db/schemas/audit-log"
@@ -90,20 +90,17 @@ export async function validateShiftAgainstRoster(input: { tenantId: string; shif
   const rosterShiftId = input.shift?.rosterShiftId ? String(input.shift.rosterShiftId) : null
   if (!rosterShiftId) return { rosterShiftId: null, roster: null, varianceMinutes: null }
 
-  if (!mongoose.Types.ObjectId.isValid(rosterShiftId)) {
+  if (!isLikelyObjectIdString(rosterShiftId)) {
     throw apiErrors.badRequest("Shift has invalid rosterShiftId")
   }
 
-  const tenantObjectId = new mongoose.Types.ObjectId(input.tenantId)
-  const shiftObjectId = new mongoose.Types.ObjectId(rosterShiftId)
-
   const rosterAgg = await Roster.aggregate([
-    { $match: { tenantId: tenantObjectId, "shifts._id": shiftObjectId } },
+    { $match: { tenantId: input.tenantId, "shifts._id": rosterShiftId } },
     {
       $project: {
         status: 1,
         shifts: {
-          $filter: { input: "$shifts", as: "s", cond: { $eq: ["$$s._id", shiftObjectId] } },
+          $filter: { input: "$shifts", as: "s", cond: { $eq: ["$$s._id", rosterShiftId] } },
         },
       },
     },
@@ -223,7 +220,7 @@ export async function recalculateWageCost(input: { shift: any; employee: any; pr
     })),
     totalCost: Number(result.totalCost ?? 0),
     totalHours: Number(result.totalHours ?? 0),
-    awardId: new mongoose.Types.ObjectId(awardId),
+    awardId,
     awardLevel,
     baseRate,
     calculatedAt: new Date(),
@@ -250,7 +247,7 @@ export async function logShiftEdit(input: {
     organizationId: shift?.tenantId ? String(shift.tenantId) : undefined,
     rosterId: shift?.rosterShiftId ?? null,
     employeeId: shift?.employeeId ?? null,
-    userId: new mongoose.Types.ObjectId(input.actor.userId),
+    userId: input.actor.userId,
     action: input.action,
     entityType: "DailyShift",
     entityId: String(shift?._id ?? ""),
@@ -268,7 +265,7 @@ export async function editShift(
   reqMeta?: { ipAddress?: string; userAgent?: string }
 ) {
   await connectDB()
-  if (!mongoose.Types.ObjectId.isValid(shiftId)) throw apiErrors.badRequest("Invalid shift id")
+  if (!isLikelyObjectIdString(shiftId)) throw apiErrors.badRequest("Invalid shift id")
 
   assertCanEditShift(actor)
 
@@ -323,7 +320,7 @@ export async function editShift(
   }
 
   if (changes.roleId !== undefined) {
-    ;(shift as any).roleId = changes.roleId ? new mongoose.Types.ObjectId(String(changes.roleId)) : null
+    ;(shift as any).roleId = changes.roleId ? String(changes.roleId) : null
   }
 
   if (changes.clockInUtc !== undefined) {
@@ -399,9 +396,9 @@ export async function editShift(
 
   // If this shift is part of a payrun, any edit invalidates the run totals.
   const payRunId = (shift as any).computed?.payRunId ?? (shift as any).paySnapshot?.payRunId ?? null
-  if (payRunId && mongoose.Types.ObjectId.isValid(String(payRunId))) {
+  if (payRunId && isLikelyObjectIdString(String(payRunId))) {
     await PayRun.updateOne(
-      { _id: new mongoose.Types.ObjectId(String(payRunId)), status: { $ne: "draft" } },
+      { _id: String(payRunId), status: { $ne: "draft" } },
       {
         $set: { status: "draft" },
         $unset: { approvedBy: 1, approvedAt: 1, exportedAt: 1, exportedBy: 1, exportReference: 1 },
@@ -446,7 +443,7 @@ export async function editShift(
 
 export async function rejectShift(shiftId: string, actor: ShiftActor, reqMeta?: { ipAddress?: string; userAgent?: string; reason?: string }) {
   await connectDB()
-  if (!mongoose.Types.ObjectId.isValid(shiftId)) throw apiErrors.badRequest("Invalid shift id")
+  if (!isLikelyObjectIdString(shiftId)) throw apiErrors.badRequest("Invalid shift id")
   assertCanApproveShift(actor)
 
   const shift = await DailyShift.findById(shiftId)
@@ -482,7 +479,7 @@ export async function rejectShift(shiftId: string, actor: ShiftActor, reqMeta?: 
 
 export async function approveShift(shiftId: string, actor: ShiftActor, reqMeta?: { ipAddress?: string; userAgent?: string }) {
   await connectDB()
-  if (!mongoose.Types.ObjectId.isValid(shiftId)) throw apiErrors.badRequest("Invalid shift id")
+  if (!isLikelyObjectIdString(shiftId)) throw apiErrors.badRequest("Invalid shift id")
   assertCanApproveShift(actor)
 
   const shift = await DailyShift.findById(shiftId)
@@ -502,7 +499,7 @@ export async function approveShift(shiftId: string, actor: ShiftActor, reqMeta?:
 
   const oldValue = { status: (shift as any).status, approvedAt: (shift as any).approvedAt ?? null, approvedBy: (shift as any).approvedBy ?? null }
   ;(shift as any).status = "approved"
-  ;(shift as any).approvedBy = new mongoose.Types.ObjectId(actor.userId) as any
+  ;(shift as any).approvedBy = actor.userId as any
   ;(shift as any).approvedAt = now
 
   await (shift as any).save()

@@ -12,6 +12,8 @@ export const buddyPunchAlertsQuerySchema = z.object({
   locationId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid location ID format").optional(),
   page: z.string().transform(val => Math.max(parseInt(val) || 1, 1)).optional(),
   limit: z.string().transform(val => Math.min(Math.max(parseInt(val) || 50, 1), 100)).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 })
 
 // Request schemas

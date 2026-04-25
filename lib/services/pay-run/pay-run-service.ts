@@ -2,14 +2,14 @@ import { apiErrors } from '@/lib/api/api-error';
 import { PayRunsDbQueries } from '@/lib/db/queries/pay-runs';
 import { queuePayRunCalculation, getPayRunJobStatus } from '@/lib/jobs/queue';
 import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 export class PayRunService {
   async createPayRun(args: { ctx: any; body: any }) {
     await connectDB();
     const { ctx, body } = args;
     const { tenantId, startDate, endDate, notes } = body;
-    if (!tenantId || tenantId === 'default' || !mongoose.Types.ObjectId.isValid(tenantId)) {
+    if (!tenantId || tenantId === 'default' || !isLikelyObjectIdString(tenantId)) {
       throw apiErrors.badRequest('Valid tenantId is required');
     }
     if (startDate >= endDate) throw apiErrors.badRequest('Start date must be before end date');
@@ -32,7 +32,7 @@ export class PayRunService {
   async listPayRuns(args: { bodyQuery: any }) {
     await connectDB();
     const { tenantId, status, page, limit } = args.bodyQuery;
-    if (!tenantId || tenantId === 'default' || !mongoose.Types.ObjectId.isValid(tenantId)) throw apiErrors.badRequest('Valid tenantId is required');
+    if (!tenantId || tenantId === 'default' || !isLikelyObjectIdString(tenantId)) throw apiErrors.badRequest('Valid tenantId is required');
     const filter: any = { tenantId };
     if (status) filter.status = status;
     const skip = (page - 1) * limit;

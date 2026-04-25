@@ -1,7 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import {
+  format,
+  addDays, subDays,
+  addWeeks, subWeeks, startOfISOWeek, endOfISOWeek,
+  addMonths, subMonths, startOfMonth, endOfMonth,
+} from "date-fns"
 import type { ColumnDef } from "@tanstack/react-table"
 import type { VisibilityState } from "@tanstack/react-table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,12 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DataTable } from "@/components/ui/data-table/data-table"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, AlignJustify, Columns, LayoutGrid } from "lucide-react"
 import { useFlags } from "@/lib/queries/flags"
 import { useBuddyPunchAlerts, useUpdateBuddyPunchAlert, type AlertStatus } from "@/lib/queries/face-recognition"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { FlagIssueType, FlagRow } from "@/lib/types/flags"
-
+import { UnifiedCalendarTopbar } from "@/components/dashboard/calendar/UnifiedCalendarTopbar"
+import { TimesheetDateNavigator } from "@/components/timesheet/timesheet-date-navigator"
+import type { TimesheetView } from "@/components/timesheet/timesheet-view-tabs"
 import { BuddyPunchAlertCard } from "../../../../components/dashboard/BuddyPunchAlertCard"
 
 const FILTER_OPTIONS: { value: "" | FlagIssueType; label: string }[] = [
@@ -99,6 +107,20 @@ function getColumns(): ColumnDef<FlagRow>[] {
   ]
 }
 
+function getDateRange(view: TimesheetView, selectedDate: Date, customStart: string, customEnd: string, useCustomRange: boolean) {
+  if (useCustomRange && customStart && customEnd) {
+    return { startDate: customStart, endDate: customEnd }
+  }
+  switch (view) {
+    case "day":
+      return { startDate: format(selectedDate, "yyyy-MM-dd"), endDate: format(selectedDate, "yyyy-MM-dd") }
+    case "week":
+      return { startDate: format(startOfISOWeek(selectedDate), "yyyy-MM-dd"), endDate: format(endOfISOWeek(selectedDate), "yyyy-MM-dd") }
+    case "month":
+      return { startDate: format(startOfMonth(selectedDate), "yyyy-MM-dd"), endDate: format(endOfMonth(selectedDate), "yyyy-MM-dd") }
+  }
+}
+
 function FlagPage() {
   const [activeTab, setActiveTab] = useState<"flags" | "buddy-punch">("flags")
   const [filter, setFilter] = useState<"" | FlagIssueType>("")
@@ -111,12 +133,24 @@ function FlagPage() {
   const [searchValue, setSearchValue] = useState("")
   const [isClient, setIsClient] = useState(false)
 
-  // Ensure we're on the client before showing counts
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
+  // Date navigation state
+  const [view, setView] = useState<TimesheetView>("week")
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [useCustomRange, setUseCustomRange] = useState(false)
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
+
+  useEffect(() => { setIsClient(true) }, [])
 
   const columns = getColumns()
+
+  const { startDate, endDate } = useMemo(
+    () => getDateRange(view, selectedDate, customStartDate, customEndDate, useCustomRange),
+    [view, selectedDate, customStartDate, customEndDate, useCustomRange]
+  )
+
+  // Reset pagination when date range changes
+  useEffect(() => { setPageIndex(0) }, [startDate, endDate])
 
   const flagsQuery = useFlags({
     limit: pageSize,
@@ -124,10 +158,14 @@ function FlagPage() {
     filter: filter || undefined,
     sortBy: sortBy || undefined,
     order: sortOrder,
+    startDate,
+    endDate,
   })
 
-  const buddyPunchAlertsQuery = useBuddyPunchAlerts({ 
-    status: buddyPunchStatus === "all" ? undefined : buddyPunchStatus 
+  const buddyPunchAlertsQuery = useBuddyPunchAlerts({
+    status: buddyPunchStatus === "all" ? undefined : buddyPunchStatus,
+    startDate,
+    endDate,
   })
   const updateAlert = useUpdateBuddyPunchAlert()
 
@@ -139,74 +177,143 @@ function FlagPage() {
   const alerts = buddyPunchAlertsQuery.data?.alerts ?? []
   const alertsCount = buddyPunchAlertsQuery.isLoading ? 0 : alerts.length
 
-  // Debug logging
-  console.log('[FlagPage] Buddy punch alerts query:', {
-    isLoading: buddyPunchAlertsQuery.isLoading,
-    isError: buddyPunchAlertsQuery.isError,
-    error: buddyPunchAlertsQuery.error,
-    data: buddyPunchAlertsQuery.data,
-    alertsCount: alerts.length,
-  })
+  const handleToday = () => {
+    setSelectedDate(new Date())
+    setUseCustomRange(false)
+    setCustomStartDate("")
+    setCustomEndDate("")
+  }
+
+  const handleCustomRangeChange = (start: string, end: string) => {
+    setCustomStartDate(start)
+    setCustomEndDate(end)
+    setUseCustomRange(!!(start && end))
+  }
+
+  const handleViewChange = (v: TimesheetView) => {
+    setView(v)
+    setUseCustomRange(false)
+    setCustomStartDate("")
+    setCustomEndDate("")
+    setPageIndex(0)
+  }
+
+  const titleDate = useCustomRange && customStartDate
+    ? `${format(new Date(customStartDate), "MMMM yyyy")}`
+    : format(selectedDate, "MMMM yyyy")
 
   const handleReview = (alertId: string, status: AlertStatus, notes?: string) => {
     updateAlert.mutate({ id: alertId, status, notes })
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Flagged Punches & Alerts</h1>
+    <div className="space-y-4 p-4 lg:p-8">
+      <div>
+        <h1 className="text-3xl font-bold">Flagged Punches & Alerts</h1>
+        <p className="text-muted-foreground">Review missing data and buddy punch alerts</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "flags" | "buddy-punch")}>
-        <TabsList>
-          <TabsTrigger value="flags">
-            Missing Data{isClient && !loading ? ` (${totalCount})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="buddy-punch">
-            Buddy Punch Alerts{isClient && !buddyPunchAlertsQuery.isLoading ? ` (${alertsCount})` : ""}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="flags" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Filter by issue</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground block text-xs font-medium">Issue type</label>
-                <Select
-                  value={filter || "all"}
-                  onValueChange={(v) => {
-                    setFilter((v === "all" ? "" : v) as "" | FlagIssueType)
-                    setPageIndex(0)
-                  }}
-                >
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="All flagged" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FILTER_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      <Card>
+        <CardHeader className="pb-0">
+          <UnifiedCalendarTopbar
+            onToday={handleToday}
+            title={titleDate}
+            nav={
+              <TimesheetDateNavigator
+                view={view}
+                selectedDate={selectedDate}
+                onDateChange={(date) => {
+                  setSelectedDate(date)
+                  setUseCustomRange(false)
+                  setCustomStartDate("")
+                  setCustomEndDate("")
+                  setPageIndex(0)
+                }}
+                rangeValue={
+                  view === "day"
+                    ? { startDate: useCustomRange ? customStartDate : format(selectedDate, "yyyy-MM-dd"), endDate: useCustomRange ? customEndDate : format(selectedDate, "yyyy-MM-dd") }
+                    : undefined
+                }
+                onRangeChange={view === "day" ? handleCustomRangeChange : undefined}
+              />
+            }
+            viewSwitcher={
+              <div className="flex items-center gap-0.5 rounded-lg bg-muted p-1">
+                {([
+                  { k: "day" as const, l: "Day", Icon: AlignJustify },
+                  { k: "week" as const, l: "Week", Icon: Columns },
+                  { k: "month" as const, l: "Month", Icon: LayoutGrid },
+                ] as { k: TimesheetView; l: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[]).map(({ k, l, Icon }) => {
+                  const active = view === k
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => handleViewChange(k)}
+                      title={l}
+                      className={[
+                        "flex h-7 items-center justify-center gap-1 overflow-hidden rounded-md text-xs transition-all duration-200 ease-in-out",
+                        active
+                          ? "w-[76px] bg-background font-semibold text-foreground shadow-sm"
+                          : "w-8 bg-transparent font-normal text-muted-foreground",
+                      ].join(" ")}
+                      type="button"
+                    >
+                      <Icon size={14} className="shrink-0" />
+                      <span
+                        className={[
+                          "overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out",
+                          active ? "max-w-[44px] opacity-100" : "max-w-0 opacity-0",
+                        ].join(" ")}
+                      >
+                        {l}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
-            </CardContent>
-          </Card>
+            }
+          />
+        </CardHeader>
 
-          <Card className="pt-0">
-            <CardContent className="p-0">
-              {error && (
-                <p className="text-destructive px-4 py-2 text-sm">{error}</p>
-              )}
-              {!isClient ? (
-                <div className="py-8 text-center text-muted-foreground">
-                  Loading...
+        <CardContent className="pt-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "flags" | "buddy-punch")}>
+            <TabsList>
+              <TabsTrigger value="flags">
+                Missing Data{isClient && !loading ? ` (${totalCount})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="buddy-punch">
+                Buddy Punch Alerts{isClient && !buddyPunchAlertsQuery.isLoading ? ` (${alertsCount})` : ""}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="flags" className="space-y-4 mt-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-muted-foreground block text-xs font-medium">Issue type</label>
+                  <Select
+                    value={filter || "all"}
+                    onValueChange={(v) => {
+                      setFilter((v === "all" ? "" : v) as "" | FlagIssueType)
+                      setPageIndex(0)
+                    }}
+                  >
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="All flagged" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FILTER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              {error && <p className="text-destructive text-sm">{error}</p>}
+              {!isClient ? (
+                <div className="py-8 text-center text-muted-foreground">Loading...</div>
               ) : (
                 <DataTable
                   mode="server"
@@ -238,74 +345,57 @@ function FlagPage() {
                     setColumnVisibility((prev) => (typeof updater === "function" ? updater(prev) : updater))
                   }
                   getRowId={(row) => row.id}
-                  emptyMessage="No flagged punches in the last 30 days."
+                  emptyMessage="No flagged punches for the selected period."
                 />
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="buddy-punch" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Filter alerts</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground block text-xs font-medium">Status</label>
-                <Select 
-                  value={buddyPunchStatus} 
-                  onValueChange={(v) => setBuddyPunchStatus(v as typeof buddyPunchStatus)}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="confirmed_buddy">Confirmed</SelectItem>
-                    <SelectItem value="false_alarm">False Alarm</SelectItem>
-                    <SelectItem value="dismissed">Dismissed</SelectItem>
-                  </SelectContent>
-                </Select>
+            <TabsContent value="buddy-punch" className="space-y-4 mt-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-muted-foreground block text-xs font-medium">Status</label>
+                  <Select
+                    value={buddyPunchStatus}
+                    onValueChange={(v) => setBuddyPunchStatus(v as typeof buddyPunchStatus)}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="confirmed_buddy">Confirmed</SelectItem>
+                      <SelectItem value="false_alarm">False Alarm</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {!isClient ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Loading...
-              </CardContent>
-            </Card>
-          ) : buddyPunchAlertsQuery.isLoading ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Loading alerts...
-              </CardContent>
-            </Card>
-          ) : alerts.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                {buddyPunchStatus === "pending" 
-                  ? "No pending buddy punch alerts" 
-                  : `No ${buddyPunchStatus === "all" ? "" : buddyPunchStatus.replace("_", " ")} alerts found`}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {alerts.map((alert: any) => (
-                <BuddyPunchAlertCard
-                  key={alert._id}
-                  alert={alert}
-                  onReview={handleReview}
-                  isPending={updateAlert.isPending}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+              {!isClient || buddyPunchAlertsQuery.isLoading ? (
+                <div className="py-8 text-center text-muted-foreground">Loading alerts...</div>
+              ) : alerts.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  {buddyPunchStatus === "pending"
+                    ? "No pending buddy punch alerts"
+                    : `No ${buddyPunchStatus === "all" ? "" : buddyPunchStatus.replace("_", " ")} alerts found`}
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {alerts.map((alert: any) => (
+                    <BuddyPunchAlertCard
+                      key={alert._id}
+                      alert={alert}
+                      onReview={handleReview}
+                      isPending={updateAlert.isPending}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }

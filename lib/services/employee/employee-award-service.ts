@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Employee } from "@/lib/db/schemas/employee";
 import Award from "@/lib/db/schemas/award";
@@ -40,7 +39,7 @@ export class EmployeeAwardService {
     }
 
     payConditions.push({
-      awardId: new mongoose.Types.ObjectId(awardId),
+      awardId,
       awardLevel,
       employmentType,
       effectiveFrom: new Date(effectiveFrom),
@@ -49,7 +48,7 @@ export class EmployeeAwardService {
     });
 
     const updateOps: any = {
-      awardId: new mongoose.Types.ObjectId(awardId),
+      awardId,
       awardLevel,
       employmentType,
       payConditions,

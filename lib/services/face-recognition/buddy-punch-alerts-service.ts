@@ -1,14 +1,37 @@
 import { BuddyPunchAlertsDbQueries } from "@/lib/db/queries/buddy-punch-alerts"
 import { connectDB } from "@/lib/db"
+import { parse, isValid } from "date-fns"
 
 export class BuddyPunchAlertsService {
   async list(query: any) {
     await connectDB()
-    const { status, employeeId, locationId, page = 1, limit = 50 } = query || {}
+    const { status, employeeId, locationId, page = 1, limit = 50, startDate, endDate } = query || {}
     const queryFilter: any = {}
     if (status) queryFilter.status = status
     if (employeeId) queryFilter.employeeId = employeeId
     if (locationId) queryFilter.locationId = locationId
+
+    if (startDate || endDate) {
+      const dateFilter: any = {}
+      if (startDate) {
+        const parsed = parse(startDate, "yyyy-MM-dd", new Date())
+        if (isValid(parsed)) {
+          parsed.setHours(0, 0, 0, 0)
+          dateFilter.$gte = parsed
+        }
+      }
+      if (endDate) {
+        const parsed = parse(endDate, "yyyy-MM-dd", new Date())
+        if (isValid(parsed)) {
+          parsed.setHours(23, 59, 59, 999)
+          dateFilter.$lte = parsed
+        }
+      }
+      if (Object.keys(dateFilter).length > 0) {
+        queryFilter.punchTime = dateFilter
+      }
+    }
+
     const skip = (page - 1) * limit
 
     const [alerts, total] = await Promise.all([

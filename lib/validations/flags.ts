@@ -7,6 +7,8 @@ export const flagsQuerySchema = z.object({
   offset: z.string().transform(val => Math.max(parseInt(val) || 0, 0)).optional(),
   sortBy: z.enum(['date', 'name', 'pin', 'typeLabel', 'hasImage', 'hasLocation', 'issueType']).default('date'),
   order: z.enum(['asc', 'desc']).default('desc'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 })
 
 // Response schemas

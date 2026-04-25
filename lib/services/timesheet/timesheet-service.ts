@@ -1,5 +1,4 @@
 import { endOfWeek, startOfWeek } from 'date-fns';
-import mongoose from 'mongoose';
 import { apiErrors } from '@/lib/api/api-error';
 import { employeeLocationFilter } from '@/lib/auth/auth-api';
 import { TimesheetDbQueries, type TimesheetEmployeeMeta } from '@/lib/db/queries/timesheets';
@@ -15,7 +14,7 @@ import { checkPublicHoliday } from '@/lib/utils/public-holidays';
 import { formatTimeFromDate } from '@/lib/utils/format/time';
 import type { DailyTimesheetRow } from '@/lib/types/timesheet';
 import { connectDB } from '@/lib/db';
-import { Roster } from '@/lib/db/schemas/roster';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 function dateRangeToDateObjects(start: Date, end: Date): Date[] {
   const out: Date[] = [];
@@ -119,18 +118,14 @@ export class TimesheetService {
       const rosterShiftIds = (shifts as any[])
         .map((s) => s.rosterShiftId)
         .filter(Boolean)
-        .map((id: any) => new mongoose.Types.ObjectId(String(id)));
+        .map((id: any) => String(id));
 
       if (rosterShiftIds.length > 0) {
-        const tenantObjectId = new mongoose.Types.ObjectId(ctx.tenantId);
-        const rosterDocs = await Roster.aggregate([
-          { $match: { tenantId: tenantObjectId, 'shifts._id': { $in: rosterShiftIds } } },
-          { $project: { shifts: 1 } },
-        ]);
+        const rosterDocs = await TimesheetDbQueries.aggregateRosterShiftsForTenant(ctx.tenantId, rosterShiftIds);
         for (const doc of rosterDocs) {
           for (const rs of doc.shifts ?? []) {
             const rsId = String(rs._id);
-            if (rosterShiftIds.some((id) => String(id) === rsId)) {
+            if (rosterShiftIds.some((id) => id === rsId)) {
               rosterShiftMap.set(rsId, {
                 startTimeUtc: rs.startTime instanceof Date ? rs.startTime.toISOString() : String(rs.startTime),
                 endTimeUtc: rs.endTime instanceof Date ? rs.endTime.toISOString() : String(rs.endTime),
@@ -378,7 +373,7 @@ export class TimesheetService {
     await connectDB();
     const { tenantId, employeeId, payPeriodStart, payPeriodEnd } = input;
 
-    if (!mongoose.Types.ObjectId.isValid(tenantId) || !mongoose.Types.ObjectId.isValid(employeeId)) {
+    if (!isLikelyObjectIdString(tenantId) || !isLikelyObjectIdString(employeeId)) {
       throw apiErrors.badRequest('Valid tenantId and employeeId are required');
     }
     if (payPeriodStart >= payPeriodEnd) {

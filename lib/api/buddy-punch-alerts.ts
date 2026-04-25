@@ -8,6 +8,8 @@ export interface BuddyPunchAlertFilters {
   locationId?: string
   page?: number
   limit?: number
+  startDate?: string
+  endDate?: string
 }
 
 export interface BuddyPunchAlert {
@@ -28,6 +30,8 @@ export async function getBuddyPunchAlerts(filters: BuddyPunchAlertFilters = {}):
   if (filters.locationId) params.set("locationId", filters.locationId)
   if (filters.page) params.set("page", String(filters.page))
   if (filters.limit) params.set("limit", String(filters.limit))
+  if (filters.startDate) params.set("startDate", filters.startDate)
+  if (filters.endDate) params.set("endDate", filters.endDate)
 
   return apiFetch<{ alerts: BuddyPunchAlert[] }>(`/api/buddy-punch-alerts?${params}`)
 }

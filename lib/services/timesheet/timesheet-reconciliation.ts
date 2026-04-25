@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
 import { DailyShift } from "@/lib/db/schemas/daily-shift"
 import { Roster, getWeekBoundaries, type IShift as IRosterShift } from "@/lib/db/schemas/roster"
@@ -139,12 +138,9 @@ export async function fetchTimesheetWithRoster(input: {
     await connectDB()
     const { start, end } = getWeekBoundaries(input.weekId)
 
-    const tenantObjectId = new mongoose.Types.ObjectId(input.tenantId)
-    const employeeObjectId = new mongoose.Types.ObjectId(input.employeeId)
-
     // Roster shifts: aggregate so we only pull the employee's shifts for the week.
     const rosterAgg = await Roster.aggregate([
-      { $match: { tenantId: tenantObjectId, weekId: input.weekId } },
+      { $match: { tenantId: input.tenantId, weekId: input.weekId } },
       {
         $project: {
           _id: 1,
@@ -153,7 +149,7 @@ export async function fetchTimesheetWithRoster(input: {
             $filter: {
               input: "$shifts",
               as: "s",
-              cond: { $eq: ["$$s.employeeId", employeeObjectId] },
+              cond: { $eq: ["$$s.employeeId", input.employeeId] },
             },
           },
         },
@@ -172,8 +168,8 @@ export async function fetchTimesheetWithRoster(input: {
 
     // Actuals: single range query, scoped to tenant+employee for the week.
     const actual = await DailyShift.find({
-      tenantId: tenantObjectId,
-      employeeId: employeeObjectId,
+      tenantId: input.tenantId,
+      employeeId: input.employeeId,
       date: { $gte: startUTC, $lte: endUTC },
       status: { $ne: "rejected" },
     })
@@ -215,9 +211,6 @@ export async function fetchTimesheetWithRosterRange(input: {
 }> {
   await connectDB()
 
-  const tenantObjectId = new mongoose.Types.ObjectId(input.tenantId)
-  const employeeObjectId = new mongoose.Types.ObjectId(input.employeeId)
-
   const startUTC = parseYmdToUtcStart(input.startDate)
   const endUTC = parseYmdToUtcEnd(input.endDate)
 
@@ -229,7 +222,7 @@ export async function fetchTimesheetWithRosterRange(input: {
   const rosterAgg = await Roster.aggregate([
     {
       $match: {
-        tenantId: tenantObjectId,
+        tenantId: input.tenantId,
         status: "published",
         weekStartDate: { $lte: endUTC },
         weekEndDate: { $gte: startUTC },
@@ -244,7 +237,7 @@ export async function fetchTimesheetWithRosterRange(input: {
             as: "s",
             cond: {
               $and: [
-                { $eq: ["$$s.employeeId", employeeObjectId] },
+                { $eq: ["$$s.employeeId", input.employeeId] },
                 { $gte: ["$$s.date", startUTC] },
                 { $lte: ["$$s.date", endUTC] },
               ],
@@ -263,8 +256,8 @@ export async function fetchTimesheetWithRosterRange(input: {
 
   // Actuals: single range query, scoped to tenant+employee for the range.
   const actual = await DailyShift.find({
-    tenantId: tenantObjectId,
-    employeeId: employeeObjectId,
+    tenantId: input.tenantId,
+    employeeId: input.employeeId,
     date: { $gte: startUTC, $lte: endUTC },
     status: { $ne: "rejected" },
   })

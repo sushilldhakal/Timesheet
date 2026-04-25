@@ -41,6 +41,7 @@ export const absencesBulkQuerySchema = z.object({
   employeeId: z
     .array(z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid employee ID"))
     .optional(),
+  location: z.array(z.string()).optional(),
   status: z.enum(["PENDING", "APPROVED", "DENIED"]).optional(),
   leaveType: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(1000).default(500),
@@ -52,6 +53,8 @@ export const absenceListItemSchema = z.object({
   employeeId: z.string(),
   employeeName: z.string(),
   employeePin: z.string(),
+  teams: z.array(z.object({ id: z.string(), name: z.string(), color: z.string().optional() })).optional(),
+  locations: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
   startDate: z.string(),
   endDate: z.string(),
   leaveType: z.string(),

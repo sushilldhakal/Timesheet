@@ -6,8 +6,6 @@ import { IOrgStorageQuota } from "@/lib/db/schemas/org-storage-quota";
 import { IOrgEmailUsage } from "@/lib/db/schemas/org-email-usage";
 import { IQuotaRequest, QuotaRequestType } from "@/lib/db/schemas/quota-request";
 import { createSuperAdminAuditLog } from "@/lib/db/schemas/superadmin-audit-log";
-import mongoose from "mongoose";
-
 export interface QuotaRequestInput {
   requestType: QuotaRequestType;
   requestedQuota: number;
@@ -18,7 +16,7 @@ export class QuotaService {
   /**
    * Get storage quota for an org (creates with defaults if doesn't exist)
    */
-  static async getStorageQuota(orgId: string | mongoose.Types.ObjectId): Promise<IOrgStorageQuota> {
+  static async getStorageQuota(orgId: string): Promise<IOrgStorageQuota> {
     let quota = await OrgStorageQuotaRepo.findByOrgId(orgId);
     
     if (!quota) {
@@ -27,7 +25,7 @@ export class QuotaService {
       const defaultQuota = systemSettings?.defaultStorageQuotaBytes || 2147483648; // 2GB default
 
       quota = await OrgStorageQuotaRepo.create({
-        orgId: new mongoose.Types.ObjectId(orgId.toString()),
+        orgId: String(orgId) as any,
         usedBytes: 0,
         quotaBytes: defaultQuota,
       });
@@ -39,7 +37,7 @@ export class QuotaService {
   /**
    * Get email usage for an org (creates with defaults if doesn't exist, resets if past month)
    */
-  static async getEmailUsage(orgId: string | mongoose.Types.ObjectId): Promise<IOrgEmailUsage> {
+  static async getEmailUsage(orgId: string): Promise<IOrgEmailUsage> {
     let usage = await OrgEmailUsageRepo.findByOrgId(orgId);
     
     if (!usage) {
@@ -48,7 +46,7 @@ export class QuotaService {
       const defaultQuota = systemSettings?.defaultEmailQuotaMonthly || 500;
 
       usage = await OrgEmailUsageRepo.create({
-        orgId: new mongoose.Types.ObjectId(orgId.toString()),
+        orgId: String(orgId) as any,
         sentCount: 0,
         quotaMonthly: defaultQuota,
         periodStart: this.getMonthStart(),
@@ -65,21 +63,21 @@ export class QuotaService {
   /**
    * Increment storage usage
    */
-  static async incrementStorage(orgId: string | mongoose.Types.ObjectId, bytes: number): Promise<void> {
+  static async incrementStorage(orgId: string, bytes: number): Promise<void> {
     await OrgStorageQuotaRepo.incrementUsedBytes(orgId, bytes);
   }
 
   /**
    * Decrement storage usage
    */
-  static async decrementStorage(orgId: string | mongoose.Types.ObjectId, bytes: number): Promise<void> {
+  static async decrementStorage(orgId: string, bytes: number): Promise<void> {
     await OrgStorageQuotaRepo.decrementUsedBytes(orgId, bytes);
   }
 
   /**
    * Increment email sent count
    */
-  static async incrementEmail(orgId: string | mongoose.Types.ObjectId): Promise<void> {
+  static async incrementEmail(orgId: string): Promise<void> {
     await this.resetEmailIfNewMonth(orgId);
     await OrgEmailUsageRepo.incrementSentCount(orgId);
   }
@@ -87,7 +85,7 @@ export class QuotaService {
   /**
    * Check if storage upload is allowed
    */
-  static async checkStorageAllowed(orgId: string | mongoose.Types.ObjectId, newFileBytes: number): Promise<boolean> {
+  static async checkStorageAllowed(orgId: string, newFileBytes: number): Promise<boolean> {
     const quota = await this.getStorageQuota(orgId);
     return quota.usedBytes + newFileBytes <= quota.quotaBytes;
   }
@@ -95,7 +93,7 @@ export class QuotaService {
   /**
    * Check if email send is allowed
    */
-  static async checkEmailAllowed(orgId: string | mongoose.Types.ObjectId): Promise<boolean> {
+  static async checkEmailAllowed(orgId: string): Promise<boolean> {
     const usage = await this.getEmailUsage(orgId);
     return usage.sentCount < usage.quotaMonthly;
   }
@@ -103,7 +101,7 @@ export class QuotaService {
   /**
    * Reset email usage if we're in a new month
    */
-  static async resetEmailIfNewMonth(orgId: string | mongoose.Types.ObjectId): Promise<void> {
+  static async resetEmailIfNewMonth(orgId: string): Promise<void> {
     const usage = await OrgEmailUsageRepo.findByOrgId(orgId);
     if (!usage) return;
 
@@ -177,7 +175,7 @@ export class QuotaService {
     // Mark request as approved
     await QuotaRequestRepo.updateById(requestId, {
       status: "approved",
-      reviewedBy: new mongoose.Types.ObjectId(reviewedBy),
+      reviewedBy: reviewedBy as any,
       reviewedAt: new Date(),
       reviewNote,
     });
@@ -185,7 +183,7 @@ export class QuotaService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: new mongoose.Types.ObjectId(reviewedBy),
+      actorId: reviewedBy as any,
       action: "UPDATE_QUOTA",
       entityType: "QuotaRequest",
       entityId: requestId,
@@ -205,7 +203,7 @@ export class QuotaService {
 
     await QuotaRequestRepo.updateById(requestId, {
       status: "denied",
-      reviewedBy: new mongoose.Types.ObjectId(reviewedBy),
+      reviewedBy: reviewedBy as any,
       reviewedAt: new Date(),
       reviewNote,
     });
@@ -213,7 +211,7 @@ export class QuotaService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: new mongoose.Types.ObjectId(reviewedBy),
+      actorId: reviewedBy as any,
       action: "DENY",
       entityType: "QuotaRequest",
       entityId: requestId,
@@ -250,7 +248,7 @@ export class QuotaService {
 
     // Create the request
     return QuotaRequestRepo.create({
-      orgId: new mongoose.Types.ObjectId(orgId),
+      orgId: orgId as any,
       requestType: input.requestType,
       currentQuota,
       requestedQuota: input.requestedQuota,

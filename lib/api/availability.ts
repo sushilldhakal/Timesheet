@@ -4,6 +4,15 @@ export interface AvailabilityConstraint {
   _id?: string
   id?: string
   employeeId?: string
+  employeeName?: string
+  employeePin?: string
+  teams?: Array<{ id: string; name: string; color?: string }>
+  status?: "PENDING" | "APPROVED" | "DECLINED"
+  approvedBy?: string | null
+  approvedAt?: string | null
+  declinedBy?: string | null
+  declinedAt?: string | null
+  declineReason?: string | null
   unavailableDays?: number[]
   unavailableTimeRanges?: Array<{ start: string; end: string }>
   preferredShiftTypes?: string[]
@@ -85,4 +94,46 @@ export async function getBulkEmployeeAvailability(
   }
   
   return results
+}
+
+// Get all availability constraints scoped by location and date range (single API call)
+export async function getBulkAvailabilityByLocation(
+  locationNames: string[],
+  startDate: string,
+  endDate: string,
+): Promise<{ constraints: AvailabilityConstraint[] }> {
+  const sp = new URLSearchParams()
+  sp.set('startDate', startDate)
+  sp.set('endDate', endDate)
+  for (const name of locationNames) sp.append('location', name)
+  return apiFetch<{ constraints: AvailabilityConstraint[] }>(
+    `/api/employees/availability/bulk?${sp.toString()}`,
+    { credentials: 'include' },
+  )
+}
+
+export async function approveAvailabilityConstraint(
+  employeeId: string,
+  constraintId: string,
+  comment?: string,
+): Promise<{ constraint: AvailabilityConstraint }> {
+  return apiFetch(`/api/employees/${encodeURIComponent(employeeId)}/availability/${encodeURIComponent(constraintId)}/approve`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ comment }),
+  })
+}
+
+export async function declineAvailabilityConstraint(
+  employeeId: string,
+  constraintId: string,
+  reason: string,
+): Promise<{ constraint: AvailabilityConstraint }> {
+  return apiFetch(`/api/employees/${encodeURIComponent(employeeId)}/availability/${encodeURIComponent(constraintId)}/decline`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ reason }),
+  })
 }

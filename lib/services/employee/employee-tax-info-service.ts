@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { apiErrors } from '@/lib/api/api-error';
 import type { AuthWithLocations } from '@/lib/auth/auth-api';
 import { getCountryConfig, getTaxSchema, getBankSchema, type CountryCode } from '@/lib/config/countries';
@@ -92,8 +91,8 @@ export class EmployeeTaxInfoService {
     const routingLast4 = routingValue ? extractLast4(routingValue) : '0000';
 
     const taxInfo = await EmployeeTaxInfoDbQueries.createTaxInfo({
-      employeeId: new mongoose.Types.ObjectId(employeeId),
-      tenantId: new mongoose.Types.ObjectId(ctx.tenantId),
+      employeeId,
+      tenantId: ctx.tenantId,
       countrySnapshot,
       taxId: {
         type: countryConfig.taxIdType,
@@ -120,12 +119,12 @@ export class EmployeeTaxInfoService {
       },
       accessLogs: [
         {
-          userId: new mongoose.Types.ObjectId(ctx.auth.sub),
+          userId: ctx.auth.sub,
           action: 'EDIT_TAX',
           timestamp: new Date(),
         },
       ],
-      createdBy: new mongoose.Types.ObjectId(ctx.auth.sub),
+      createdBy: ctx.auth.sub,
     });
 
     await EmployeeTaxInfoDbQueries.setEmployeeTaxInfoId(employeeId, taxInfo._id);

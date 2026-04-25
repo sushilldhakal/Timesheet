@@ -4,7 +4,7 @@ import { employeeLocationFilter, type AuthWithLocations, SUPER_ADMIN_SENTINEL } 
 import { DashboardDbQueries } from '@/lib/db/queries/dashboard';
 import { parseTimeToHour24 } from '@/lib/utils/format/time';
 import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -51,7 +51,7 @@ export class DashboardService {
     
     // Add tenantId filter when not in sentinel mode
     if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
-      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+      empFilter.tenantId = ctx.tenantId;
     }
     
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -73,7 +73,7 @@ export class DashboardService {
       const filtered = allowedPins && allowedPins.length > 0 ? { ...base, pin: { $in: allowedPins } } : base;
       // Add tenantId filter to timesheet queries when not in sentinel mode
       if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
-        return { ...filtered, tenantId: new mongoose.Types.ObjectId(ctx.tenantId) };
+        return { ...filtered, tenantId: ctx.tenantId };
       }
       return filtered;
     };
@@ -310,7 +310,7 @@ export class DashboardService {
     
     // Add tenantId filter when not in sentinel mode
     if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
-      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+      empFilter.tenantId = ctx.tenantId;
     }
     
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -330,7 +330,7 @@ export class DashboardService {
     
     // Add tenantId filter to shift query when not in sentinel mode
     if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
-      shiftQuery.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+      shiftQuery.tenantId = ctx.tenantId;
     }
     
     if (Object.keys(locFilter).length > 0) {
@@ -394,7 +394,7 @@ export class DashboardService {
     // Add tenantId filter when not in sentinel mode
     if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
       shiftPipeline.push({
-        $match: { tenantId: new mongoose.Types.ObjectId(ctx.tenantId) }
+        $match: { tenantId: ctx.tenantId }
       });
     }
     
@@ -417,7 +417,7 @@ export class DashboardService {
     
     // Add tenantId filter when not in sentinel mode
     if (ctx.tenantId && ctx.tenantId !== SUPER_ADMIN_SENTINEL) {
-      empFilter.tenantId = new mongoose.Types.ObjectId(ctx.tenantId);
+      empFilter.tenantId = ctx.tenantId;
     }
     
     const locFilter = employeeLocationFilter(ctx.userLocations);
@@ -463,11 +463,9 @@ export class DashboardService {
     const { getUserPermissionContext, canViewRole } = await import('@/lib/utils/dashboard/dashboard-permissions');
     const { getEnabledLocationsForRole } = await import('@/lib/utils/dashboard/dashboard-validation');
     const { getActiveRoleAssignments, aggregateShiftData } = await import('@/lib/utils/dashboard/dashboard-queries');
-    const mongoose = await import('mongoose');
     const { Team } = await import('@/lib/db');
 
-    const { ObjectId } = mongoose.Types;
-    if (!ObjectId.isValid(roleId)) {
+    if (!isLikelyObjectIdString(roleId)) {
       return { status: 400, data: { error: 'Invalid role ID format', code: 'INVALID_OBJECT_ID' } };
     }
 
@@ -568,11 +566,9 @@ export class DashboardService {
     const { getUserPermissionContext, canViewLocation } = await import('@/lib/utils/dashboard/dashboard-permissions');
     const { getEnabledRolesForLocation } = await import('@/lib/utils/dashboard/dashboard-validation');
     const { getActiveRoleAssignments, aggregateShiftData } = await import('@/lib/utils/dashboard/dashboard-queries');
-    const mongoose = await import('mongoose');
     const { Location } = await import('@/lib/db');
 
-    const { ObjectId } = mongoose.Types;
-    if (!ObjectId.isValid(locationId)) {
+    if (!isLikelyObjectIdString(locationId)) {
       return { status: 400, data: { error: 'Invalid location ID format', code: 'INVALID_OBJECT_ID' } };
     }
 
@@ -676,12 +672,10 @@ export class DashboardService {
     const { getUserPermissionContext, canViewLocation, canViewRole } = await import('@/lib/utils/dashboard/dashboard-permissions');
     const { validateLocationRolePairing } = await import('@/lib/utils/dashboard/dashboard-validation');
     const { getActiveRoleAssignments, aggregateShiftData } = await import('@/lib/utils/dashboard/dashboard-queries');
-    const mongoose = await import('mongoose');
     const { Location, Team } = await import('@/lib/db');
 
-    const { ObjectId } = mongoose.Types;
-    if (!ObjectId.isValid(locationId)) return { status: 400, data: { error: 'Invalid location ID format', code: 'INVALID_OBJECT_ID' } };
-    if (!ObjectId.isValid(roleId)) return { status: 400, data: { error: 'Invalid role ID format', code: 'INVALID_OBJECT_ID' } };
+    if (!isLikelyObjectIdString(locationId)) return { status: 400, data: { error: 'Invalid location ID format', code: 'INVALID_OBJECT_ID' } };
+    if (!isLikelyObjectIdString(roleId)) return { status: 400, data: { error: 'Invalid role ID format', code: 'INVALID_OBJECT_ID' } };
 
     const dateParam = query?.date;
     let effectiveDate = new Date();

@@ -6,8 +6,6 @@ import { ClockAudit, ClockEventType } from "@/lib/db/schemas/clock-audit"
 import { BuddyPunchAlert } from "@/lib/db/schemas/buddy-punch-alert"
 import { withLock } from "@/lib/redis/distributed-lock"
 import { getRedisOptional } from "@/lib/redis/redis-client"
-import mongoose from "mongoose"
-
 export interface ClockValidationResult {
   allowed: boolean
   reason?: string

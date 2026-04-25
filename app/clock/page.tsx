@@ -321,16 +321,15 @@ function ClockPageContent() {
         const punches = data.punches ?? null
         const storedLocation = data.location ?? null
         
-        // Redirect to PIN page if location is missing (e.g., after refresh)
-        // Allow offline mode with fallback location
-        if (!storedLocation || (!storedLocation.lat && !storedLocation.lng && !data.offline)) {
-          logger.error("[ClockPage] ❌ Location validation failed:", { storedLocation, offline: data.offline })
+        logger.log("[ClockPage] ✅ Loading employee data (location optional)")
+        
+        // For online sessions, location is required
+        if (!storedLocation && !data.offline) {
+          logger.error("[ClockPage] ❌ Online session missing location — redirecting to PIN")
           try { sessionStorage.removeItem("clock_employee") } catch {}
           router.replace("/pin")
           return
         }
-        
-        logger.log("[ClockPage] ✅ Location validation passed, setting employee data")
         
         setEmployee({ 
           id: emp.id, 

@@ -278,6 +278,17 @@ export function useOfflinePinValidation() {
       let geofenceWarning = false
 
       if (isOnline) {
+        // Require location for online logins
+        if (!userLocation) {
+          safeSetStatus("error")
+          safeSetErrorMessage("Location is required. Please allow location access and try again.")
+          scheduleTimeout(() => {
+            safeSetStatus("idle")
+            safeSetErrorMessage("")
+          }, 4000)
+          return
+        }
+
         // Try online first
         try {
           const abortController = new AbortController()
@@ -375,15 +386,8 @@ export function useOfflinePinValidation() {
       // Store session data
       try {
         // Ensure we have location data - use cached location if userLocation is missing
-        let locationToStore = userLocation
-        if (!locationToStore && employee.location) {
-          // Try to use a default location based on employee's assigned location
-          // This is a fallback for offline mode
-          locationToStore = { lat: -37.8136, lng: 144.9631 } // Melbourne CBD as fallback
-          logger.log(`[PinValidation] Using fallback location for offline mode`)
-        } else if (!locationToStore) {
-          locationToStore = { lat: 0, lng: 0 } // Last resort fallback
-        }
+        // null means location was unavailable; clock page handles this gracefully
+        const locationToStore = userLocation ?? null
         
         const sessionData = {
           employee: {
@@ -468,15 +472,10 @@ export function useOfflinePinValidation() {
       safeSetStatus("success")
       logger.log(`[PinValidation] Setting success status, will navigate to /clock in 1.5s`)
       
-      scheduleTimeout(() => {
-        logger.log(`[PinValidation] Navigating to /clock (client-side)`)
-        // Use client-side navigation to avoid full page reload
+      // Use plain setTimeout so unmount cleanup does not cancel navigation
+      setTimeout(() => {
+        logger.log(`[PinValidation] Navigating to /clock`)
         router.replace("/clock")
-        
-        // Reset status after navigation attempt in case it fails
-        scheduleTimeout(() => {
-          safeSetStatus("idle")
-        }, 500)
       }, 1500)
 
     } catch (error) {

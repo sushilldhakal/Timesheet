@@ -17,13 +17,13 @@ export class AvailabilityDbQueries {
 
   static async updateConstraint(args: {
     constraintId: string;
-    tenantId: mongoose.Types.ObjectId;
-    employeeId: mongoose.Types.ObjectId;
+    tenantId: string;
+    employeeId: string;
     patch: Record<string, unknown>;
   }) {
     return AvailabilityConstraint.findOneAndUpdate(
       {
-        _id: new mongoose.Types.ObjectId(args.constraintId),
+        _id: args.constraintId,
         tenantId: args.tenantId,
         employeeId: args.employeeId,
       },

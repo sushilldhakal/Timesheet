@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
+import { isLikelyObjectIdString } from "@/shared/ids";
 import { RoleEnablementManager } from "@/lib/managers/role-enablement-manager";
 import { EmployeeTeamAssignment } from "@/lib/db/schemas/employee-team-assignment";
 
@@ -7,7 +7,7 @@ export class TeamAvailabilityService {
   private roleEnablementManager = new RoleEnablementManager();
 
   async getAvailability(locationId: string, dateString?: string) {
-    if (!mongoose.Types.ObjectId.isValid(locationId)) {
+    if (!isLikelyObjectIdString(locationId)) {
       return { status: 400, data: { error: "Invalid location ID format" } };
     }
 
@@ -20,7 +20,7 @@ export class TeamAvailabilityService {
         const roleId = enablement.roleId as any;
         const employeeCount = await EmployeeTeamAssignment.countDocuments({
           teamId: roleId._id,
-          locationId: new mongoose.Types.ObjectId(locationId),
+          locationId,
           validFrom: { $lte: date },
           $or: [{ validTo: null }, { validTo: { $gte: date } }],
         });

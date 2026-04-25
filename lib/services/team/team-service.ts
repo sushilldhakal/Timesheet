@@ -1,6 +1,7 @@
 import { apiErrors } from '@/lib/api/api-error';
 import { TeamsDbQueries } from '@/lib/db/queries/teams';
-import { connectDB, mongoose } from '@/lib/db';
+import { connectDB } from '@/lib/db';
+import { isLikelyObjectIdString } from '@/shared/ids';
 
 export class TeamService {
   async listTeams(args: { tenantId: string; query: any }) {
@@ -66,7 +67,7 @@ export class TeamService {
     const groupDocById = new Map<string, { name: string; color?: string }>();
     const allGroupIds = [...new Set(teams.map((r: any) => (r.groupId ? String(r.groupId) : '')).filter(Boolean))];
     if (allGroupIds.length > 0) {
-      const oids = allGroupIds.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id));
+      const oids = allGroupIds.filter((id) => isLikelyObjectIdString(id));
       const groupDocs = await TeamsDbQueries.findTeamGroupsByIdsLean(oids);
       for (const g of groupDocs as any[]) groupDocById.set(String(g._id), { name: g.name, color: g.color });
     }
@@ -106,7 +107,7 @@ export class TeamService {
     if (existing) throw apiErrors.conflict('A team with this name already exists');
 
     let groupSnapshot: { name?: string } | undefined;
-    if (payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId)) {
+    if (payload.groupId && isLikelyObjectIdString(payload.groupId)) {
       const g = await TeamsDbQueries.findTeamGroupByIdSelectLean(payload.groupId, 'name');
       if ((g as any)?.name) groupSnapshot = { name: (g as any).name };
     }
@@ -116,7 +117,7 @@ export class TeamService {
       name: payload.name.trim(),
       code: payload.code,
       color: payload.color,
-      groupId: payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId) ? new mongoose.Types.ObjectId(payload.groupId) : undefined,
+      groupId: payload.groupId && isLikelyObjectIdString(payload.groupId) ? payload.groupId : undefined,
       order: payload.order ?? 0,
       groupSnapshot,
       defaultScheduleTemplate: payload.defaultScheduleTemplate,
@@ -205,7 +206,7 @@ export class TeamService {
       ...(payload.code !== undefined && { code: payload.code || undefined }),
       ...(payload.color !== undefined && { color: payload.color || undefined }),
       ...(payload.groupId !== undefined && {
-        groupId: payload.groupId && mongoose.Types.ObjectId.isValid(payload.groupId) ? new mongoose.Types.ObjectId(payload.groupId) : undefined,
+        groupId: payload.groupId && isLikelyObjectIdString(payload.groupId) ? payload.groupId : undefined,
       }),
       ...(payload.order !== undefined && { order: payload.order }),
       ...(payload.defaultScheduleTemplate !== undefined && {
