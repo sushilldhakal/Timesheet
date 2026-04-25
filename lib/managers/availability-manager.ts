@@ -19,21 +19,21 @@ export class AvailabilityManager {
    * @param employeeId - The employee to validate
    * @param shiftStart - Shift start date/time
    * @param shiftEnd - Shift end date/time
-   * @param organizationId - Organization context
+   * @param tenantId - Tenant (employer) context
    * @returns ValidationResult with violations if any
    */
   async validateShiftAssignment(
     employeeId: string | mongoose.Types.ObjectId,
     shiftStart: Date,
     shiftEnd: Date,
-    organizationId: string
+    tenantId: string
   ): Promise<ValidationResult> {
     const violations: string[] = []
 
     // Get all availability constraints for the employee
     const constraints = await AvailabilityDbQueries.listEmployeeConstraints({
       employeeId: employeeId.toString(),
-      organizationId,
+      tenantId,
     })
 
     if (constraints.length === 0) {
@@ -88,7 +88,7 @@ export class AvailabilityManager {
         const consecutiveDaysViolation = await this.checkConsecutiveDays(
           employeeId,
           shiftStart,
-          organizationId,
+          tenantId,
           constraint.maxConsecutiveDays
         )
         if (consecutiveDaysViolation) {
@@ -101,7 +101,7 @@ export class AvailabilityManager {
         const restPeriodViolation = await this.checkRestPeriod(
           employeeId,
           shiftStart,
-          organizationId,
+          tenantId,
           constraint.minRestHours
         )
         if (restPeriodViolation) {
@@ -120,18 +120,18 @@ export class AvailabilityManager {
    * Get available employees for a shift
    * @param shiftStart - Shift start date/time
    * @param shiftEnd - Shift end date/time
-   * @param organizationId - Organization context
+   * @param tenantId - Tenant (employer) context
    * @param employmentTypes - Optional filter by employment types
    * @returns Array of available employees
    */
   async getAvailableEmployees(
     shiftStart: Date,
     shiftEnd: Date,
-    organizationId: string,
+    tenantId: string,
     employmentTypes?: EmploymentType[]
   ): Promise<any[]> {
     // Get all employees in the organization
-    const query: any = { organizationId }
+    const query: any = { tenantId }
     if (employmentTypes && employmentTypes.length > 0) {
       query.employmentType = { $in: employmentTypes }
     }
@@ -145,7 +145,7 @@ export class AvailabilityManager {
         employee._id,
         shiftStart,
         shiftEnd,
-        organizationId
+        tenantId
       )
       if (validation.isValid) {
         availableEmployees.push(employee)
@@ -159,14 +159,14 @@ export class AvailabilityManager {
    * Check if assigning this shift would violate consecutive days limit
    * @param employeeId - The employee to check
    * @param date - The date of the proposed shift
-   * @param organizationId - Organization context
+   * @param tenantId - Tenant (employer) context
    * @param maxConsecutiveDays - Maximum allowed consecutive days
    * @returns Violation message or null if valid
    */
   private async checkConsecutiveDays(
     employeeId: string | mongoose.Types.ObjectId,
     date: Date,
-    organizationId: string,
+    tenantId: string,
     maxConsecutiveDays: number
   ): Promise<string | null> {
     // This would require querying shift assignments to count consecutive days
@@ -184,14 +184,14 @@ export class AvailabilityManager {
    * Check if assigning this shift would violate minimum rest period
    * @param employeeId - The employee to check
    * @param shiftStart - The start time of the proposed shift
-   * @param organizationId - Organization context
+   * @param tenantId - Tenant (employer) context
    * @param minRestHours - Minimum required rest hours
    * @returns Violation message or null if valid
    */
   private async checkRestPeriod(
     employeeId: string | mongoose.Types.ObjectId,
     shiftStart: Date,
-    organizationId: string,
+    tenantId: string,
     minRestHours: number
   ): Promise<string | null> {
     // This would require querying shift assignments to find the previous shift

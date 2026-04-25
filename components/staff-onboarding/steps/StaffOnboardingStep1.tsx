@@ -78,7 +78,7 @@ export function StaffOnboardingStep1() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">Personal Details</h2>
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Personal Details</h2>
         <p className="text-sm text-muted-foreground">Please provide your legal name and contact information</p>
       </div>
 

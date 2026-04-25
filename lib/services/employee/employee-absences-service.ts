@@ -19,6 +19,9 @@ export class EmployeeAbsencesService {
       new Date(body.endDate),
       body.leaveType as LeaveType,
       body.notes,
+      body.partialStartTime && body.partialEndTime
+        ? { partialStartTime: body.partialStartTime, partialEndTime: body.partialEndTime }
+        : undefined,
     );
     return { status: 201, data: { leaveRecord } };
   }

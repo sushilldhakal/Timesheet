@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/hooks/use-auth"
 import { isAdminOrSuperAdmin, isManager, isSupervisor } from "@/lib/config/roles"
 import { useEmployees } from "@/lib/queries/employees"
-import { getBulkEmployeeAvailability, deleteEmployeeAvailability } from "@/lib/api/availability"
+import { getBulkEmployeeAvailability } from "@/lib/api/availability"
 import { AvailabilityConstraintLike } from "@/lib/types/unavailability"
 import {
   format,
@@ -232,24 +232,6 @@ export default function UnavailabilityPage() {
       setSelectedConstraintId(filtered[0] ? constraintKey(filtered[0]) : null)
     }
   }, [filtered, selectedConstraintId])
-
-  const deleteConstraint = async (c: AvailabilityConstraintLike) => {
-    const constraintId = c._id ?? c.id
-    const employeeId = c.employeeId
-    if (!constraintId || !employeeId) return
-
-    const ok = window.confirm("Delete this unavailability constraint?")
-    if (!ok) return
-
-    setError(null)
-
-    try {
-      await deleteEmployeeAvailability(employeeId, String(constraintId))
-      setRefreshNonce((n) => n + 1)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete constraint")
-    }
-  }
 
   const handleTodayClick = () => {
     setSelectedDate(new Date())
@@ -569,14 +551,6 @@ export default function UnavailabilityPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          disabled={loading || !constraintKey(selectedConstraint)}
-                          onClick={() => void deleteConstraint(selectedConstraint)}
-                        >
-                          Delete
-                        </Button>
                         <Button type="button" variant="outline" disabled={loading} onClick={() => setRefreshNonce((n) => n + 1)}>
                           Refresh
                         </Button>

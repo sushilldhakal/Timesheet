@@ -1,17 +1,18 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
-import mongoose from "mongoose"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
   availabilityQuerySchema,
   availabilityConstraintCreateSchema,
-  availabilityDeleteQuerySchema,
+  availabilityConstraintUpdateSchema,
+  availabilityConstraintIdQuerySchema,
   availabilityConstraintsResponseSchema,
   availabilityConstraintCreateResponseSchema,
-  availabilityDeleteResponseSchema
 } from "@/lib/validations/employee-availability"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { availabilityService } from "@/lib/services/availability/availability-service"
+import { connectDB, Employee } from "@/lib/db"
 
 export const GET = createApiRoute({
   method: 'GET',
@@ -30,17 +31,28 @@ export const GET = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, query }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } };
-    }
-
     if (!params) {
       return { status: 400, data: { error: "Employee ID is required" } };
     }
 
     try {
-      const result = await availabilityService.listConstraints({ employeeId: params.id, organizationId: query?.organizationId })
+      const ctx = await getAuthWithUserLocations()
+      let tenantId: string | null = ctx?.tenantId ?? null
+      if (!ctx) {
+        const employee = await getEmployeeFromCookie()
+        if (!employee || employee.sub !== params.id) {
+          return { status: 401, data: { error: "Unauthorized" } }
+        }
+      }
+
+      if (!tenantId) {
+        await connectDB()
+        const emp = await Employee.findById(params.id).select("tenantId").lean()
+        tenantId = emp ? String((emp as any).tenantId) : null
+      }
+      if (!tenantId) return { status: 400, data: { error: "Tenant ID is required" } }
+
+      const result = await availabilityService.listConstraints({ employeeId: params.id, tenantId })
       return { status: 200, data: result }
     } catch (err) {
       console.error("[api/employees/[id]/availability GET]", err)
@@ -67,17 +79,29 @@ export const POST = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, body }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } };
-    }
-
     if (!params || !body) {
       return { status: 400, data: { error: "Employee ID and request body are required" } };
     }
 
     try {
-      const result = await availabilityService.createConstraint({ employeeId: params.id, body })
+      const ctx = await getAuthWithUserLocations()
+      let tenantId: string | null = ctx?.tenantId ?? null
+
+      if (!ctx) {
+        const employee = await getEmployeeFromCookie()
+        if (!employee || employee.sub !== params.id) {
+          return { status: 401, data: { error: "Unauthorized" } }
+        }
+      }
+
+      if (!tenantId) {
+        await connectDB()
+        const emp = await Employee.findById(params.id).select("tenantId").lean()
+        tenantId = emp ? String((emp as any).tenantId) : null
+      }
+      if (!tenantId) return { status: 400, data: { error: "Tenant ID is required" } }
+
+      const result = await availabilityService.createConstraint({ employeeId: params.id, tenantId, body })
       return { status: 201, data: result }
     } catch (err) {
       console.error("[api/employees/[id]/availability POST]", err)
@@ -86,40 +110,76 @@ export const POST = createApiRoute({
   }
 });
 
-export const DELETE = createApiRoute({
-  method: 'DELETE',
+export const PATCH = createApiRoute({
+  method: 'PATCH',
   path: '/api/employees/{id}/availability',
-  summary: 'Delete availability constraint',
-  description: 'Delete an availability constraint by constraint ID',
+  summary: 'Update availability constraint',
+  description: 'Update an existing availability constraint for an employee',
   tags: ['Employees'],
   security: 'adminAuth',
   request: {
     params: employeeIdParamSchema,
-    query: availabilityDeleteQuerySchema
+    query: availabilityConstraintIdQuerySchema,
+    body: availabilityConstraintUpdateSchema,
   },
   responses: {
-    200: availabilityDeleteResponseSchema,
+    200: availabilityConstraintCreateResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
     404: errorResponseSchema,
-    500: errorResponseSchema
+    500: errorResponseSchema,
   },
-  handler: async ({ query }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return { status: 401, data: { error: "Unauthorized" } };
-    }
-
-    if (!query) {
-      return { status: 400, data: { error: "Constraint ID is required" } };
+  handler: async ({ params, query, body }) => {
+    if (!params || !query || !body) {
+      return { status: 400, data: { error: "Employee ID, constraint ID, and request body are required" } };
     }
 
     try {
-      const result = await availabilityService.deleteConstraint({ constraintId: query.constraintId })
+      const ctx = await getAuthWithUserLocations()
+      let tenantId: string | null = ctx?.tenantId ?? null
+
+      if (!ctx) {
+        const employee = await getEmployeeFromCookie()
+        if (!employee || employee.sub !== params.id) {
+          return { status: 401, data: { error: "Unauthorized" } }
+        }
+      }
+
+      if (!tenantId) {
+        await connectDB()
+        const emp = await Employee.findById(params.id).select("tenantId").lean()
+        tenantId = emp ? String((emp as any).tenantId) : null
+      }
+      if (!tenantId) return { status: 400, data: { error: "Tenant ID is required" } }
+
+      const result = await availabilityService.updateConstraint({
+        employeeId: params.id,
+        tenantId,
+        constraintId: query.constraintId,
+        body,
+      })
       return { status: 200, data: result }
     } catch (err) {
-      console.error("[api/employees/[id]/availability DELETE]", err)
-      return { status: 500, data: { error: "Failed to delete availability constraint" } };
+      console.error("[api/employees/[id]/availability PATCH]", err)
+      return { status: 500, data: { error: "Failed to update availability constraint" } };
     }
-  }
+  },
+});
+
+export const DELETE = createApiRoute({
+  method: 'DELETE',
+  path: '/api/employees/{id}/availability',
+  summary: 'Delete availability constraint',
+  description: 'Deleting unavailability is disabled.',
+  tags: ['Employees'],
+  security: 'adminAuth',
+  request: { params: employeeIdParamSchema },
+  responses: {
+    403: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+  handler: async () => ({
+    status: 403,
+    data: { error: "Deleting unavailability is not allowed.", code: "FORBIDDEN" },
+  }),
 });

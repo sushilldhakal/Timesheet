@@ -16,6 +16,19 @@ import { Team, Location, Employer } from '@/lib/db';
 const arr = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : v != null && v !== '' ? [String(v).trim()] : [];
 
+/** Map seed/legacy values to the same strings as staff `<select>` options */
+function genderForUi(raw: unknown): string {
+  if (raw == null) return ''
+  const s = String(raw).trim()
+  if (!s) return ''
+  const k = s.toLowerCase()
+  if (k === 'male' || k === 'm') return 'Male'
+  if (k === 'female' || k === 'f') return 'Female'
+  if (k === 'other') return 'Other'
+  if (k === 'prefer not to say' || k === 'prefer_not_to_say') return 'Prefer not to say'
+  return s
+}
+
 export class EmployeeService {
   async listEmployees(ctx: AuthWithLocations, query: any) {
     await connectDB();
@@ -277,7 +290,7 @@ export class EmployeeService {
         phone: e.phone ?? '',
         homeAddress: e.homeAddress ?? '',
         dob: e.dob ?? '',
-        gender: e.gender ?? '',
+        gender: genderForUi(e.gender),
         comment: e.comment ?? '',
         img: e.img ?? '',
         employmentType: e.employmentType ?? null,
@@ -321,6 +334,9 @@ export class EmployeeService {
       location: body.location ?? [],
       email: body.email ?? '',
       phone: body.phone ?? '',
+      homeAddress: body.homeAddress ?? '',
+      dob: body.dob ?? '',
+      gender: genderForUi(body.gender),
       comment: body.comment ?? '',
       img: body.profileImage ?? body.img ?? '',
       employmentType: body.employmentType ?? null,
@@ -477,7 +493,7 @@ export class EmployeeService {
     }
 
     // Return in same shape as list item schema expects
-    return { employee: { id: employee._id.toString(), name: employee.name, pin: employee.pin, teams: [], employers: [], locations: [], email: employee.email || '', phone: employee.phone || '', homeAddress: employee.homeAddress || '', dob: employee.dob || '', gender: employee.gender || '', comment: employee.comment || '', img: employee.img || '', employmentType: employee.employmentType || null, standardHoursPerWeek: employee.standardHoursPerWeek ?? null, awardId: employee.awardId ? employee.awardId.toString() : null, awardLevel: employee.awardLevel || null, onboardingCompleted: false, onboardingWorkflowStatus: 'not_started', onboardingCountry: (employee as any).onboardingCountry || 'AU', createdAt: employee.createdAt?.toISOString?.() ?? new Date().toISOString(), updatedAt: employee.updatedAt?.toISOString?.() ?? new Date().toISOString() } };
+    return { employee: { id: employee._id.toString(), name: employee.name, pin: employee.pin, teams: [], employers: [], locations: [], email: employee.email || '', phone: employee.phone || '', homeAddress: employee.homeAddress || '', dob: employee.dob || '', gender: genderForUi(employee.gender), comment: employee.comment || '', img: employee.img || '', employmentType: employee.employmentType || null, standardHoursPerWeek: employee.standardHoursPerWeek ?? null, awardId: employee.awardId ? employee.awardId.toString() : null, awardLevel: employee.awardLevel || null, onboardingCompleted: false, onboardingWorkflowStatus: 'not_started', onboardingCountry: (employee as any).onboardingCountry || 'AU', createdAt: employee.createdAt?.toISOString?.() ?? new Date().toISOString(), updatedAt: employee.updatedAt?.toISOString?.() ?? new Date().toISOString() } };
   }
 
   async getEmployeeDetail(ctx: AuthWithLocations, id: string) {
@@ -532,7 +548,7 @@ export class EmployeeService {
     if (body.phone !== undefined) updates.phone = (body.phone ?? '').toString().trim();
     if (body.homeAddress !== undefined) updates.homeAddress = (body.homeAddress ?? '').toString().trim();
     if (body.dob !== undefined) updates.dob = (body.dob ?? '').toString().trim();
-    if (body.gender !== undefined) updates.gender = (body.gender ?? '').toString().trim();
+    if (body.gender !== undefined) updates.gender = genderForUi(body.gender);
     if (body.comment !== undefined) updates.comment = (body.comment ?? '').toString().trim();
     if (body.profileImage !== undefined) updates.img = (body.profileImage ?? '').toString().trim();
     else if (body.img !== undefined) updates.img = (body.img ?? '').toString().trim();
@@ -750,7 +766,7 @@ export class EmployeeService {
       homeAddress: e.homeAddress ?? '',
       img: e.img ?? '',
       dob: e.dob ?? '',
-      gender: e.gender ?? '',
+      gender: genderForUi(e.gender),
       employmentType: e.employmentType,
       standardHoursPerWeek: e.standardHoursPerWeek ?? undefined,
       comment: e.comment ?? '',

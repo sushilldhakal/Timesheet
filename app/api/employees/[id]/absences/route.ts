@@ -1,4 +1,5 @@
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
+import { getEmployeeFromCookie } from "@/lib/auth/auth-helpers"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { 
   employeeIdParamSchema,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/validations/employee-absences"
 import { errorResponseSchema } from "@/lib/validations/auth"
 import { employeeAbsencesService } from "@/lib/services/employee/employee-absences-service"
+import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns"
 
 /**
  * GET /api/employees/[id]/absences?startDate=...&endDate=...
@@ -32,25 +34,30 @@ export const GET = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, query }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      };
-    }
-
-    if (!params || !query) {
+    if (!params) {
       return {
         status: 400,
-        data: { error: "Employee ID and date range are required" }
+        data: { error: "Employee ID is required" }
       };
     }
 
     const { id } = params;
-    const { startDate, endDate } = query;
+    const now = new Date()
+    const defaultStart = format(startOfMonth(subMonths(now, 3)), "yyyy-MM-dd")
+    const defaultEnd = format(endOfMonth(addMonths(now, 3)), "yyyy-MM-dd")
+
+    const startDate = query?.startDate ?? defaultStart
+    const endDate = query?.endDate ?? defaultEnd
 
     try {
+      const ctx = await getAuthWithUserLocations()
+      if (!ctx) {
+        const employee = await getEmployeeFromCookie()
+        if (!employee || employee.sub !== id) {
+          return { status: 401, data: { error: "Unauthorized" } }
+        }
+      }
+
       return await employeeAbsencesService.list(id, startDate, endDate)
     } catch (err) {
       console.error("[api/employees/[id]/absences GET]", err)
@@ -84,14 +91,6 @@ export const POST = createApiRoute({
     500: errorResponseSchema
   },
   handler: async ({ params, body }) => {
-    const ctx = await getAuthWithUserLocations()
-    if (!ctx) {
-      return {
-        status: 401,
-        data: { error: "Unauthorized" }
-      };
-    }
-
     if (!params || !body) {
       return {
         status: 400,
@@ -100,9 +99,16 @@ export const POST = createApiRoute({
     }
 
     const { id } = params;
-    const { startDate, endDate, leaveType, notes } = body;
 
     try {
+      const ctx = await getAuthWithUserLocations()
+      if (!ctx) {
+        const employee = await getEmployeeFromCookie()
+        if (!employee || employee.sub !== id) {
+          return { status: 401, data: { error: "Unauthorized" } }
+        }
+      }
+
       return await employeeAbsencesService.create(id, body)
     } catch (err) {
       console.error("[api/employees/[id]/absences POST]", err)

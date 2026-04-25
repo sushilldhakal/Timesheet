@@ -22,7 +22,15 @@ export interface AvailabilityConstraintsResponse {
 
 // Get availability constraints for an employee
 export async function getEmployeeAvailability(employeeId: string): Promise<AvailabilityConstraintsResponse> {
-  return apiFetch<AvailabilityConstraintsResponse>(`/api/employees/${encodeURIComponent(employeeId)}/availability`)
+  const json = await apiFetch<AvailabilityConstraintsResponse | AvailabilityConstraint[]>(
+    `/api/employees/${encodeURIComponent(employeeId)}/availability`,
+  )
+  // API returns `{ constraints }`; tolerate a raw array if anything upstream changes.
+  if (Array.isArray(json)) return { constraints: json }
+  if (json && typeof json === "object" && "constraints" in json && Array.isArray((json as AvailabilityConstraintsResponse).constraints)) {
+    return json as AvailabilityConstraintsResponse
+  }
+  return { constraints: [] }
 }
 
 // Create an availability constraint for an employee
@@ -30,11 +38,16 @@ export async function createAvailabilityConstraint(
   employeeId: string,
   data: Omit<AvailabilityConstraint, '_id' | 'id' | 'employeeId' | 'createdAt' | 'updatedAt'>,
 ): Promise<AvailabilityConstraint> {
-  return apiFetch<AvailabilityConstraint>(`/api/employees/${encodeURIComponent(employeeId)}/availability`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
+  const json = await apiFetch<{ constraint: AvailabilityConstraint }>(
+    `/api/employees/${encodeURIComponent(employeeId)}/availability`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+  )
+  if (!json?.constraint) throw new Error('Invalid response from server')
+  return json.constraint
 }
 
 // Update an availability constraint for an employee
@@ -43,7 +56,7 @@ export async function updateAvailabilityConstraint(
   constraintId: string,
   data: Partial<Omit<AvailabilityConstraint, '_id' | 'id' | 'employeeId' | 'createdAt' | 'updatedAt'>>,
 ): Promise<AvailabilityConstraint> {
-  return apiFetch<AvailabilityConstraint>(
+  const json = await apiFetch<{ constraint: AvailabilityConstraint }>(
     `/api/employees/${encodeURIComponent(employeeId)}/availability?constraintId=${encodeURIComponent(constraintId)}`,
     {
       method: 'PATCH',
@@ -51,14 +64,8 @@ export async function updateAvailabilityConstraint(
       body: JSON.stringify(data),
     },
   )
-}
-
-// Delete an availability constraint for an employee
-export async function deleteEmployeeAvailability(employeeId: string, constraintId: string): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(
-    `/api/employees/${encodeURIComponent(employeeId)}/availability?constraintId=${encodeURIComponent(constraintId)}`,
-    { method: 'DELETE' },
-  )
+  if (!json?.constraint) throw new Error('Invalid response from server')
+  return json.constraint
 }
 
 // Get availability constraints for multiple employees

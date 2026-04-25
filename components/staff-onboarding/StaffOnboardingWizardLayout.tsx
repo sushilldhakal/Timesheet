@@ -25,7 +25,7 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Loading your onboarding...</p>
@@ -35,12 +35,16 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 sm:p-4">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-        <div className="text-center space-y-2 px-2">
-          <h1 className="text-2xl sm:text-3xl font-bold">Welcome to the Team!</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Complete your onboarding to access your dashboard</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</p>
+    <div className="w-full bg-transparent pb-8 pt-1 sm:pt-2">
+      <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
+        <div className="space-y-2 px-1 text-center sm:px-2">
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Welcome to the Team!</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Complete your onboarding to access your dashboard
+          </p>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            Step {currentStep} of {totalSteps}
+          </p>
         </div>
 
         <Progress value={progress} className="h-2" />
@@ -62,9 +66,9 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
                     <span className="text-xs sm:text-sm font-semibold">{step.number}</span>
                   )}
                 </div>
-                <div className="hidden lg:block min-w-0">
-                  <p className="text-sm font-semibold truncate">{step.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{step.description}</p>
+                <div className="hidden min-w-0 lg:block">
+                  <p className="truncate text-sm font-semibold text-foreground">{step.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{step.description}</p>
                 </div>
               </div>
             ))}
@@ -72,7 +76,7 @@ export function StaffOnboardingWizardLayout({ children }: StaffOnboardingWizardL
         </div>
 
         <Card className="shadow-lg">
-          <CardContent className="pt-4 sm:pt-6 md:pt-8 px-3 sm:px-6">
+          <CardContent className="px-3 pt-4 sm:px-6 sm:pt-6 md:pt-8">
             {children}
           </CardContent>
         </Card>

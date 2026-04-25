@@ -16,21 +16,29 @@ export const availabilityQuerySchema = z.object({
 
 // Availability constraint create schema (for POST)
 export const availabilityConstraintCreateSchema = z.object({
-  organizationId: z.string(),
+  // Optional: API infers tenantId from auth/employee if omitted
+  organizationId: z.string().optional(),
   unavailableDays: z.array(z.number().min(0).max(6)).optional(),
   unavailableTimeRanges: z.array(timeRangeSchema).optional(),
   preferredShiftTypes: z.array(z.enum(["MORNING", "AFTERNOON", "NIGHT"])).optional(),
   maxConsecutiveDays: z.number().min(1).nullable().optional(),
   minRestHours: z.number().min(0).nullable().optional(),
-  temporaryStartDate: z.string().datetime().optional(),
-  temporaryEndDate: z.string().datetime().optional(),
+  /** ISO datetime or null (e.g. ongoing weekly has no end) */
+  temporaryStartDate: z.string().datetime().nullable().optional(),
+  temporaryEndDate: z.string().datetime().nullable().optional(),
   reason: z.string().optional()
 });
 
-// Availability delete query schema (for DELETE)
-export const availabilityDeleteQuerySchema = z.object({
+/** PATCH body — same fields as create, all optional */
+export const availabilityConstraintUpdateSchema = availabilityConstraintCreateSchema.partial();
+
+// Query: constraint id (PATCH / DELETE)
+export const availabilityConstraintIdQuerySchema = z.object({
   constraintId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid constraint ID format")
 });
+
+// Availability delete query schema (for DELETE)
+export const availabilityDeleteQuerySchema = availabilityConstraintIdQuerySchema;
 
 // Response schemas
 export const availabilityConstraintsResponseSchema = z.object({

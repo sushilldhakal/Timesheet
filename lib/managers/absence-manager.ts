@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
-import type { LeaveType, ILeaveRecord, IShift } from "@/lib/db/queries/scheduling-types"
+import type { ILeaveRecord, IShift } from "@/lib/db/queries/scheduling-types"
 import { WorkforceModels } from "@/lib/db/queries/workforce-models"
+import { Employee } from "@/lib/db"
 
 /**
  * Absence Manager
@@ -20,10 +21,31 @@ export class AbsenceManager {
     employeeId: string,
     startDate: Date,
     endDate: Date,
-    leaveType: LeaveType,
-    notes?: string
+    leaveType: string,
+    notes?: string,
+    partial?: { partialStartTime?: string; partialEndTime?: string },
   ): Promise<ILeaveRecord> {
+    const emp = await Employee.findById(employeeId).select("tenantId employerId").lean()
+    const tenantRaw = (emp as { tenantId?: unknown; employerId?: unknown } | null)?.tenantId
+    const employerFallback = (emp as { employerId?: unknown } | null)?.employerId
+    const tenantId =
+      tenantRaw instanceof mongoose.Types.ObjectId
+        ? tenantRaw
+        : employerFallback instanceof mongoose.Types.ObjectId
+          ? employerFallback
+          : typeof tenantRaw === "string" && /^[a-fA-F0-9]{24}$/.test(tenantRaw)
+            ? new mongoose.Types.ObjectId(tenantRaw)
+            : typeof employerFallback === "string" && /^[a-fA-F0-9]{24}$/.test(employerFallback)
+              ? new mongoose.Types.ObjectId(employerFallback)
+              : null
+    if (!tenantId) {
+      throw new Error("Employee has no tenant; cannot create leave record")
+    }
+
+    const ps = partial?.partialStartTime?.trim()
+    const pe = partial?.partialEndTime?.trim()
     const leaveRecord = await WorkforceModels.LeaveRecord.create({
+      tenantId,
       employeeId: new mongoose.Types.ObjectId(employeeId),
       startDate,
       endDate,
@@ -31,6 +53,7 @@ export class AbsenceManager {
       status: "PENDING",
       notes: notes || "",
       blockAutoFill: true,
+      ...(ps && pe ? { partialStartTime: ps, partialEndTime: pe } : { partialStartTime: null, partialEndTime: null }),
     })
 
     return leaveRecord

@@ -93,7 +93,7 @@ export function StaffOnboardingStep2() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       <div className="space-y-1">
-        <h2 className="text-xl sm:text-2xl font-semibold">Work Eligibility & Tax</h2>
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Work Eligibility & Tax</h2>
         <p className="text-sm text-muted-foreground">
           {onboardingCountry === 'AU' && 'Verify your right to work in Australia and provide your tax details'}
           {onboardingCountry === 'NP' && 'Verify your citizenship and provide your tax details'}

@@ -55,7 +55,18 @@ export const successResponseSchema = z.object({
 
 // Common field validations
 export const emailSchema = z.string().email("Invalid email format")
-export const phoneSchema = z.string().regex(/^[\+]?[0-9]{1,16}$/, "Invalid phone number format").optional()
+/** AU/common display formats (spaces, dashes, parentheses) → digits for storage/validation */
+export const phoneSchema = z
+  .string()
+  .optional()
+  .transform((v) => {
+    if (v == null || v === "") return v
+    return v.replace(/[\s().-]/g, "")
+  })
+  .refine(
+    (v) => v === undefined || v === "" || /^[\+]?[0-9]{8,15}$/.test(v),
+    "Invalid phone number format"
+  )
 export const pinSchema = z.string().min(3, "PIN must be at least 3 characters").max(10, "PIN must be less than 10 characters")
 export const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color format (expected #RRGGBB)")
 

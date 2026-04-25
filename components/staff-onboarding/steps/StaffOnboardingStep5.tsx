@@ -66,7 +66,7 @@ export function StaffOnboardingStep5() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">Review & Submit</h2>
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Review & Submit</h2>
         <p className="text-sm text-muted-foreground">
           Please review your information before submitting
         </p>
@@ -76,7 +76,7 @@ export function StaffOnboardingStep5() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Personal Details
           </CardTitle>
         </CardHeader>
@@ -131,7 +131,7 @@ export function StaffOnboardingStep5() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Work Eligibility
           </CardTitle>
         </CardHeader>
@@ -160,7 +160,7 @@ export function StaffOnboardingStep5() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Tax Information
           </CardTitle>
         </CardHeader>
@@ -194,7 +194,7 @@ export function StaffOnboardingStep5() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Banking Details
           </CardTitle>
         </CardHeader>
@@ -235,7 +235,7 @@ export function StaffOnboardingStep5() {
       </Card>
 
       {/* Consent */}
-      <Card className="border-2">
+      <Card className="border-2 border-border">
         <CardContent className="pt-6">
           <div className="flex items-start space-x-3">
             <Checkbox
@@ -272,7 +272,7 @@ export function StaffOnboardingStep5() {
         <Button
           type="submit"
           disabled={isSubmitting || !consentGiven}
-          className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+          className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
         >
           {isSubmitting ? (
             <>

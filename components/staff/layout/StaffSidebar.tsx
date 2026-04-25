@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Package2, Home, Clock, Calendar, CalendarCheck, CalendarX, PanelLeft, PanelLeftClose } from "lucide-react"
+import { Package2, Home, Clock, Calendar, CalendarCheck, CalendarX, Wallet, PanelLeft, PanelLeftClose } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { useState, useEffect } from "react"
 import {
@@ -35,17 +35,13 @@ const navigationItems = [
     href: "/staff/roster",
     icon: Calendar,
   },
-  {
-    label: "Leave",
-    href: "/staff/leave",
-    icon: CalendarCheck,
-  },
-  {
-    label: "Unavailability",
-    href: "/staff/unavailability",
-    icon: CalendarX,
-  },
 ]
+
+const leaveItems = [
+  { label: "Leave Requests", href: "/staff/leave", icon: CalendarCheck },
+  { label: "Unavailability", href: "/staff/unavailability", icon: CalendarX },
+  { label: "Balance", href: "/staff/leave/balance", icon: Wallet },
+] as const
 
 export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }: StaffSidebarProps) {
   const pathname = usePathname()
@@ -98,7 +94,7 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
         )}
         onClick={handleNavClick}
       >
-        <Icon className="h-4 w-4 flex-shrink-0" />
+        <Icon className="h-4 w-4 shrink-0" />
         {showLabels && <span>{item.label}</span>}
       </Link>
     )
@@ -117,6 +113,16 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
     }
 
     return <div key={item.href}>{link}</div>
+  }
+
+  const renderSectionLabel = (label: string, forceExpand = false) => {
+    const showLabels = forceExpand || !isCollapsed
+    if (!showLabels) return null
+    return (
+      <div className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+    )
   }
 
   return (
@@ -149,6 +155,10 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
         {/* Mobile Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           {navigationItems.map((item) => renderNavItem(item, true))}
+          {renderSectionLabel("Leave", true)}
+          <div className="space-y-1">
+            {leaveItems.map((item) => renderNavItem(item as any, true))}
+          </div>
         </nav>
 
         {/* Mobile Footer */}
@@ -200,6 +210,10 @@ export function StaffSidebar({ isCollapsed, mobileMenuOpen, onToggle, employee }
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           {navigationItems.map((item) => renderNavItem(item))}
+          {renderSectionLabel("Leave")}
+          <div className={cn("space-y-1", !isCollapsed && "pl-2")}>
+            {leaveItems.map((item) => renderNavItem(item as any))}
+          </div>
         </nav>
 
         {/* Footer */}

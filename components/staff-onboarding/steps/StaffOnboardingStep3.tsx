@@ -65,7 +65,7 @@ export function StaffOnboardingStep3() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">Banking & Superannuation</h2>
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Banking & Superannuation</h2>
         <p className="text-sm text-muted-foreground">
           {onboardingCountry === 'AU' && 'Provide your bank account and superannuation details for payroll'}
           {onboardingCountry === 'NP' && 'Provide your bank account details for salary payment'}

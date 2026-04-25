@@ -64,7 +64,13 @@ export class EmployeeTimesheetService {
     if (!employee) throw apiErrors.notFound('Employee not found');
 
     const pin = (employee as any).pin;
-    const tenantId = (employee as any).employerIds?.[0] ?? ctx?.tenantId;
+    // Prefer the canonical tenant scope on the Employee document.
+    // Fall back to legacy/normalized employer refs and finally auth context.
+    const tenantId =
+      (employee as any).tenantId ??
+      (employee as any).employerId ??
+      (employee as any).employerIds?.[0] ??
+      ctx?.tenantId;
 
     if (!tenantId) throw apiErrors.badRequest('Tenant ID is required');
 
@@ -161,7 +167,11 @@ export class EmployeeTimesheetService {
     if (!employee) throw apiErrors.notFound('Employee not found');
 
     const pin = (employee as any).pin;
-    const tenantId = (employee as any).employerIds?.[0] ?? ctx?.tenantId;
+    const tenantId =
+      (employee as any).tenantId ??
+      (employee as any).employerId ??
+      (employee as any).employerIds?.[0] ??
+      ctx?.tenantId;
 
     if (!tenantId) throw apiErrors.badRequest('Tenant ID is required');
 

@@ -204,7 +204,7 @@ export function StaffOnboardingStep4() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">Documents</h2>
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Documents</h2>
         <p className="text-sm text-muted-foreground">Upload required documents and certifications</p>
       </div>
 

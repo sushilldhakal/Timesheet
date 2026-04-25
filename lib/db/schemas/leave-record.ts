@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 
-export type LeaveType = "ANNUAL" | "SICK" | "UNPAID" | "PUBLIC_HOLIDAY"
+/** Stored leave category; may be built-in codes or award rule `leaveType` strings (e.g. annual). */
+export type LeaveType = string
 export type LeaveStatus = "PENDING" | "APPROVED" | "DENIED"
 
 export interface ILeaveRecord {
@@ -22,7 +23,9 @@ export interface ILeaveRecord {
   // Additional information
   notes?: string
   blockAutoFill: boolean // Whether to block auto-fill for this period
-  
+  partialStartTime?: string | null
+  partialEndTime?: string | null
+
   createdAt: Date
   updatedAt: Date
 }
@@ -50,8 +53,8 @@ const leaveRecordSchema = new mongoose.Schema<ILeaveRecordDocument>(
     },
     leaveType: {
       type: String,
-      enum: ["ANNUAL", "SICK", "UNPAID", "PUBLIC_HOLIDAY"],
       required: true,
+      trim: true,
     },
     status: {
       type: String,
@@ -89,6 +92,8 @@ const leaveRecordSchema = new mongoose.Schema<ILeaveRecordDocument>(
       type: Boolean,
       default: true,
     },
+    partialStartTime: { type: String, default: null },
+    partialEndTime: { type: String, default: null },
   },
   {
     timestamps: true,

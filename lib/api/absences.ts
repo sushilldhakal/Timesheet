@@ -9,6 +9,8 @@ export interface LeaveRecord {
   startDate?: string
   endDate?: string
   leaveType?: string
+  partialStartTime?: string
+  partialEndTime?: string
   status?: string
   notes?: string
   approvedBy?: string
@@ -38,6 +40,14 @@ export interface CreateAbsenceRequest {
   endDate: string
   leaveType: string
   notes?: string
+  /** Part-day window (same calendar day as start/end); HH:mm 24h */
+  partialStartTime?: string
+  partialEndTime?: string
+}
+
+export interface LeaveTypeOption {
+  value: string
+  label: string
 }
 
 export interface ApproveAbsenceRequest {
@@ -111,4 +121,11 @@ export async function getEmployeeAbsences(employeeId: string): Promise<{ absence
   return apiFetch<{ absences: LeaveRecord[] }>(`/api/employees/${employeeId}/absences`, {
     credentials: 'include',
   })
+}
+
+export async function getEmployeeLeaveTypes(employeeId: string): Promise<{ leaveTypes: LeaveTypeOption[] }> {
+  return apiFetch<{ leaveTypes: LeaveTypeOption[] }>(
+    `/api/employees/${encodeURIComponent(employeeId)}/leave-types`,
+    { credentials: "include" },
+  )
 }

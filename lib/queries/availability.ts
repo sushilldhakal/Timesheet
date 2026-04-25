@@ -30,14 +30,3 @@ export function useUpdateAvailabilityConstraint() {
     },
   })
 }
-
-export function useDeleteAvailabilityConstraint() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ employeeId, constraintId }: { employeeId: string; constraintId: string }) =>
-      api.deleteEmployeeAvailability(employeeId, constraintId),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['availability', variables.employeeId] })
-    },
-  })
-}
