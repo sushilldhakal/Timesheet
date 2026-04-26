@@ -1,7 +1,8 @@
-import mongoose from "mongoose"
 import type { ILeaveRecord, IShift } from "@/lib/db/queries/scheduling-types"
 import { WorkforceModels } from "@/lib/db/queries/workforce-models"
 import { Employee } from "@/lib/db"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
+import { isLikelyObjectIdString, isObjectIdLike } from "@/shared/ids"
 
 /**
  * Absence Manager
@@ -29,14 +30,14 @@ export class AbsenceManager {
     const tenantRaw = (emp as { tenantId?: unknown; employerId?: unknown } | null)?.tenantId
     const employerFallback = (emp as { employerId?: unknown } | null)?.employerId
     const tenantId =
-      tenantRaw instanceof mongoose.Types.ObjectId
+      tenantRaw && isObjectIdLike(tenantRaw)
         ? tenantRaw
-        : employerFallback instanceof mongoose.Types.ObjectId
+        : employerFallback && isObjectIdLike(employerFallback)
           ? employerFallback
-          : typeof tenantRaw === "string" && /^[a-fA-F0-9]{24}$/.test(tenantRaw)
-            ? new mongoose.Types.ObjectId(tenantRaw)
-            : typeof employerFallback === "string" && /^[a-fA-F0-9]{24}$/.test(employerFallback)
-              ? new mongoose.Types.ObjectId(employerFallback)
+          : typeof tenantRaw === "string" && isLikelyObjectIdString(tenantRaw)
+            ? toObjectId(tenantRaw)
+            : typeof employerFallback === "string" && isLikelyObjectIdString(employerFallback)
+              ? toObjectId(employerFallback)
               : null
     if (!tenantId) {
       throw new Error("Employee has no tenant; cannot create leave record")
@@ -46,7 +47,7 @@ export class AbsenceManager {
     const pe = partial?.partialEndTime?.trim()
     const leaveRecord = await WorkforceModels.LeaveRecord.create({
       tenantId,
-      employeeId: new mongoose.Types.ObjectId(employeeId),
+      employeeId: toObjectId(employeeId),
       startDate,
       endDate,
       leaveType,
@@ -72,7 +73,7 @@ export class AbsenceManager {
     endDate: Date
   ): Promise<ILeaveRecord[]> {
     return await WorkforceModels.LeaveRecord.find({
-      employeeId: new mongoose.Types.ObjectId(employeeId),
+      employeeId: toObjectId(employeeId),
       $or: [
         // Leave starts within range
         { startDate: { $gte: startDate, $lte: endDate } },
@@ -96,7 +97,7 @@ export class AbsenceManager {
   ): Promise<boolean> {
     // Query for approved leave records that overlap this date
     const leaveRecords = await WorkforceModels.LeaveRecord.find({
-      employeeId: new mongoose.Types.ObjectId(employeeId),
+      employeeId: toObjectId(employeeId),
       status: "APPROVED",
       startDate: { $lte: date },
       endDate: { $gte: date },
@@ -213,7 +214,7 @@ export class AbsenceManager {
     }
 
     leaveRecord.status = "APPROVED"
-    leaveRecord.approvedBy = new mongoose.Types.ObjectId(approverId)
+    leaveRecord.approvedBy = toObjectId(approverId)
     leaveRecord.approvedAt = new Date()
 
     await leaveRecord.save()
@@ -245,7 +246,7 @@ export class AbsenceManager {
     }
 
     leaveRecord.status = "DENIED"
-    leaveRecord.deniedBy = new mongoose.Types.ObjectId(denierId)
+    leaveRecord.deniedBy = toObjectId(denierId)
     leaveRecord.deniedAt = new Date()
     leaveRecord.denialReason = reason
 

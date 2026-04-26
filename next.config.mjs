@@ -77,6 +77,15 @@ const nextConfig = {
     ],
   },
 
+  serverExternalPackages: [
+    'mongoose',
+    'bson',
+    'ioredis',
+    'bullmq',
+    '@aws-sdk/client-s3',
+    '@vladmandic/human',
+  ],
+
   webpack: (config, { dev, isServer, webpack }) => {
     if (dev) {
       const toAdd = [

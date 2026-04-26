@@ -1,5 +1,5 @@
-import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
+import { isLikelyObjectIdString } from "@/shared/ids"
 
 /**
  * Resolve a locationId that may be either a Mongo ObjectId string or a location name string.
@@ -12,7 +12,7 @@ export async function resolveLocationId(value: string): Promise<string | null> {
   if (!value) return null
 
   // Already a valid ObjectId — use as-is
-  if (mongoose.Types.ObjectId.isValid(value)) return value
+  if (isLikelyObjectIdString(value)) return value
 
   // Treat as a name — look it up
   await connectDB()

@@ -10,7 +10,11 @@ export class OrgStorageQuotaRepo {
     return OrgStorageQuota.find(filter).lean() as unknown as IOrgStorageQuota[];
   }
 
-  static async create(data: Partial<IOrgStorageQuota>): Promise<IOrgStorageQuota> {
+  static async create(data: {
+    orgId: string | mongoose.Types.ObjectId
+    usedBytes?: number
+    quotaBytes: number
+  }): Promise<IOrgStorageQuota> {
     const quota = new OrgStorageQuota(data);
     return quota.save();
   }

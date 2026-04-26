@@ -27,12 +27,13 @@ export const POST = createApiRoute({
       return await deviceAuthService.activate(deviceId, activationCode)
 
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
       logger.error("[api/devices/activate]", err)
       return {
         status: 500,
         data: { 
           success: false, 
-          error: "Device activation failed" 
+          error: message
         }
       };
     }

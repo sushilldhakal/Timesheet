@@ -1,22 +1,23 @@
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
+import { isLikelyObjectIdString } from "@/shared/ids"
 import type { ILocationRoleEnablement } from "@/lib/db/queries/scheduling-types"
 import { CoreEntitiesDbQueries } from "@/lib/db/queries/core-entities"
 import { LocationRoleEnablementDbQueries } from "@/lib/db/queries/location-role-enablement"
 
 export interface EnableRoleParams {
-  locationId: mongoose.Types.ObjectId | string
-  roleId: mongoose.Types.ObjectId | string
+  locationId: string
+  roleId: string
   effectiveFrom: Date
   effectiveTo: Date | null
-  userId: mongoose.Types.ObjectId | string
+  userId: string
 }
 
 export interface BulkEnableRoleParams {
-  roleId: mongoose.Types.ObjectId | string
-  locationIds: (mongoose.Types.ObjectId | string)[]
+  roleId: string
+  locationIds: string[]
   effectiveFrom: Date
   effectiveTo: Date | null
-  userId: mongoose.Types.ObjectId | string
+  userId: string
 }
 
 export class RoleEnablementError extends Error {
@@ -71,13 +72,13 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleEnablementError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
+      if (!isLikelyObjectIdString(roleId.toString())) {
         throw new RoleEnablementError("Invalid role ID format", 400, "INVALID_ROLE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(userId.toString())) {
+      if (!isLikelyObjectIdString(userId.toString())) {
         throw new RoleEnablementError("Invalid user ID format", 400, "INVALID_USER_ID")
       }
 
@@ -112,8 +113,8 @@ export class RoleEnablementManager {
 
       // Check for overlapping enablements
       const overlappingQuery: any = {
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        locationId: toObjectId(locationId.toString()),
+        roleId: toObjectId(roleId.toString()),
       }
 
       // Check for date range overlap
@@ -153,11 +154,11 @@ export class RoleEnablementManager {
 
       // Create the enablement record
       const enablement = LocationRoleEnablementDbQueries.createDoc({
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        locationId: toObjectId(locationId.toString()),
+        roleId: toObjectId(roleId.toString()),
         effectiveFrom,
         effectiveTo,
-        createdBy: new mongoose.Types.ObjectId(userId.toString()),
+        createdBy: toObjectId(userId.toString()),
       })
 
       await enablement.save()
@@ -227,9 +228,9 @@ export class RoleEnablementManager {
    * @throws RoleEnablementError with appropriate status code and error message
    */
   async disableRole(
-    locationId: mongoose.Types.ObjectId | string,
-    roleId: mongoose.Types.ObjectId | string,
-    userId: mongoose.Types.ObjectId | string
+    locationId: string,
+    roleId: string,
+    userId: string
   ): Promise<void> {
     try {
       // Validate input parameters
@@ -244,13 +245,13 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleEnablementError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
+      if (!isLikelyObjectIdString(roleId.toString())) {
         throw new RoleEnablementError("Invalid role ID format", 400, "INVALID_ROLE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(userId.toString())) {
+      if (!isLikelyObjectIdString(userId.toString())) {
         throw new RoleEnablementError("Invalid user ID format", 400, "INVALID_USER_ID")
       }
 
@@ -258,8 +259,8 @@ export class RoleEnablementManager {
 
       // Find the active enablement (no effectiveTo or effectiveTo in the future)
       const enablement = await LocationRoleEnablementDbQueries.findOne({
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        locationId: toObjectId(locationId.toString()),
+        roleId: toObjectId(roleId.toString()),
         effectiveFrom: { $lte: now },
         $or: [
           { effectiveTo: null },
@@ -334,7 +335,7 @@ export class RoleEnablementManager {
    * @throws RoleEnablementError with appropriate status code and error message
    */
   async getEnabledRoles(
-    locationId: mongoose.Types.ObjectId | string,
+    locationId: string,
     date: Date = new Date()
   ): Promise<ILocationRoleEnablement[]> {
     try {
@@ -344,7 +345,7 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleEnablementError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
 
@@ -354,7 +355,7 @@ export class RoleEnablementManager {
       }
 
       const enablements = await LocationRoleEnablementDbQueries.find({
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
+        locationId: toObjectId(locationId.toString()),
         effectiveFrom: { $lte: date },
         $or: [
           { effectiveTo: null },
@@ -414,8 +415,8 @@ export class RoleEnablementManager {
    * @throws RoleEnablementError with appropriate status code and error message
    */
   async isRoleEnabled(
-    locationId: mongoose.Types.ObjectId | string,
-    roleId: mongoose.Types.ObjectId | string,
+    locationId: string,
+    roleId: string,
     date: Date = new Date()
   ): Promise<boolean> {
     try {
@@ -428,10 +429,10 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleEnablementError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
+      if (!isLikelyObjectIdString(roleId.toString())) {
         throw new RoleEnablementError("Invalid role ID format", 400, "INVALID_ROLE_ID")
       }
 
@@ -441,8 +442,8 @@ export class RoleEnablementManager {
       }
 
       const enablement = await LocationRoleEnablementDbQueries.findOne({
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        locationId: toObjectId(locationId.toString()),
+        roleId: toObjectId(roleId.toString()),
         effectiveFrom: { $lte: date },
         $or: [
           { effectiveTo: null },
@@ -498,7 +499,7 @@ export class RoleEnablementManager {
    * @throws RoleEnablementError with appropriate status code and error message
    */
   async getLocationsForRole(
-    roleId: mongoose.Types.ObjectId | string,
+    roleId: string,
     date: Date = new Date()
   ): Promise<ILocationRoleEnablement[]> {
     try {
@@ -508,7 +509,7 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
+      if (!isLikelyObjectIdString(roleId.toString())) {
         throw new RoleEnablementError("Invalid role ID format", 400, "INVALID_ROLE_ID")
       }
 
@@ -518,7 +519,7 @@ export class RoleEnablementManager {
       }
 
       const enablements = await LocationRoleEnablementDbQueries.find({
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        roleId: toObjectId(roleId.toString()),
         effectiveFrom: { $lte: date },
         $or: [
           { effectiveTo: null },
@@ -603,16 +604,16 @@ export class RoleEnablementManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(roleId.toString())) {
+      if (!isLikelyObjectIdString(roleId.toString())) {
         throw new RoleEnablementError("Invalid role ID format", 400, "INVALID_ROLE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(userId.toString())) {
+      if (!isLikelyObjectIdString(userId.toString())) {
         throw new RoleEnablementError("Invalid user ID format", 400, "INVALID_USER_ID")
       }
 
       // Validate all location IDs
       for (const locationId of locationIds) {
-        if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+        if (!isLikelyObjectIdString(locationId.toString())) {
           throw new RoleEnablementError(
             `Invalid location ID format: ${locationId}`,
             400,
@@ -641,7 +642,7 @@ export class RoleEnablementManager {
       }
 
       // Verify all locations exist and are of type 'location'
-      const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id.toString()))
+      const locationObjectIds = locationIds.map(id => toObjectId(id.toString()))
       const locations = await CoreEntitiesDbQueries.locationsFindByIds(locationIds.map((id) => id.toString()))
 
       if (locations.length !== locationIds.length) {
@@ -656,7 +657,7 @@ export class RoleEnablementManager {
 
       // Check for overlapping enablements for each location
       const overlappingQuery: any = {
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        roleId: toObjectId(roleId.toString()),
         locationId: { $in: locationObjectIds },
       }
 
@@ -696,10 +697,10 @@ export class RoleEnablementManager {
       // Create enablement records for all locations
       const enablements = locationObjectIds.map(locationId => ({
         locationId,
-        roleId: new mongoose.Types.ObjectId(roleId.toString()),
+        roleId: toObjectId(roleId.toString()),
         effectiveFrom,
         effectiveTo,
-        createdBy: new mongoose.Types.ObjectId(userId.toString()),
+        createdBy: toObjectId(userId.toString()),
       }))
 
       const created = await LocationRoleEnablementDbQueries.insertMany(enablements)

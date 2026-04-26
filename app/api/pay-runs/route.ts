@@ -2,7 +2,6 @@ import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
 import { getApiKeyContext } from "@/lib/auth/api-key-middleware"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { z } from "zod"
-import mongoose from "mongoose"
 import { payRunService } from "@/lib/services/pay-run/pay-run-service"
 
 const createPayRunSchema = z.object({

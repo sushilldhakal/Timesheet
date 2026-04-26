@@ -11,6 +11,7 @@ import { generateOrgSignupConfirmationEmail } from "@/lib/mail/templates/org-sig
 import { generateOrgApprovedEmail } from "@/lib/mail/templates/org-approved";
 import { generateOrgRejectedEmail } from "@/lib/mail/templates/org-rejected";
 import { createSuperAdminAuditLog } from "@/lib/db/schemas/superadmin-audit-log";
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids";
 
 export interface OrgSignupRequestInput {
   orgName: string;
@@ -224,21 +225,21 @@ export class OrgSignupService {
 
     // Update request
     request.status = "approved";
-    request.reviewedBy = reviewedBy as any;
+    request.reviewedBy = toObjectId(reviewedBy);
     request.reviewedAt = new Date();
     request.reviewNote = reviewNote;
-    request.createdEmployerId = employer._id as any;
-    request.createdUserId = user._id as any;
+    request.createdEmployerId = employer._id;
+    request.createdUserId = user._id;
     await request.save();
 
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: reviewedBy as any,
+      actorId: toObjectId(reviewedBy),
       action: "CREATE_ORG",
       entityType: "OrgSignupRequest",
       entityId: requestId,
-      orgId: employer._id as any,
+      orgId: employer._id,
       previousValue: { status: "pending" },
       newValue: { 
         status: "approved",
@@ -303,7 +304,7 @@ export class OrgSignupService {
 
     // Update request
     request.status = "rejected";
-    request.reviewedBy = reviewedBy as any;
+    request.reviewedBy = toObjectId(reviewedBy);
     request.reviewedAt = new Date();
     request.reviewNote = reviewNote;
     await request.save();
@@ -311,7 +312,7 @@ export class OrgSignupService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: reviewedBy as any,
+      actorId: toObjectId(reviewedBy),
       action: "DENY",
       entityType: "OrgSignupRequest",
       entityId: requestId,

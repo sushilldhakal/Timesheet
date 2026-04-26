@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import type { AuthWithLocations } from "./auth-api"
 import { Location, Team } from "@/lib/db"
 
@@ -18,7 +17,7 @@ export async function assertUserLocationAccess(
     return { ok: true }
   }
 
-  const loc = await Location.findById(new mongoose.Types.ObjectId(locationId)).lean()
+  const loc = await Location.findById(locationId).lean()
   if (!loc) {
     return { ok: false, status: 404, error: "Location not found" }
   }
@@ -48,7 +47,7 @@ export async function assertManagerSchedulingScope(
     return { ok: true }
   }
 
-  const loc = await Location.findById(new mongoose.Types.ObjectId(locationId)).lean()
+  const loc = await Location.findById(locationId).lean()
   if (!loc) {
     return { ok: false, status: 404, error: "Location not found" }
   }
@@ -67,7 +66,7 @@ export async function assertManagerSchedulingScope(
   }
 
   const roles = await Team.find({
-    _id: { $in: managedRoleIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    _id: { $in: managedRoleIds },
   })
     .select("name")
     .lean()

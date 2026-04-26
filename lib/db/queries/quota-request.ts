@@ -29,7 +29,16 @@ export class QuotaRequestRepo {
     return QuotaRequest.countDocuments({ status });
   }
 
-  static async create(data: Partial<IQuotaRequest>): Promise<IQuotaRequest> {
+  static async create(
+    data: {
+      orgId: string | mongoose.Types.ObjectId
+      requestType: IQuotaRequest["requestType"]
+      currentQuota: number
+      requestedQuota: number
+      requestNote?: string
+      status: IQuotaRequest["status"]
+    }
+  ): Promise<IQuotaRequest> {
     const request = new QuotaRequest(data);
     return request.save();
   }

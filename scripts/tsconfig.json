@@ -12,6 +12,6 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["./**/*"],
+  "include": ["./**/*", "../proxy.ts"],
   "exclude": ["node_modules", "dist"]
 }

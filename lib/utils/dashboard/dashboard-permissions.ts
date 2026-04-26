@@ -1,5 +1,4 @@
 import { User } from '@/lib/db'
-import mongoose from 'mongoose'
 
 export interface PermissionContext {
   userId: string

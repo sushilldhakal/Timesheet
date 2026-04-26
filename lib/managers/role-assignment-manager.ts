@@ -1,4 +1,5 @@
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
+import { isLikelyObjectIdString } from "@/shared/ids"
 import type { IEmployeeTeamAssignment } from "@/lib/db/queries/scheduling-types"
 import { RoleEnablementManager } from "./role-enablement-manager"
 import { EmployeeDbQueries } from "@/lib/db/queries/employees"
@@ -6,12 +7,12 @@ import { CoreEntitiesDbQueries } from "@/lib/db/queries/core-entities"
 import { EmployeeTeamAssignmentsDbQueries } from "@/lib/db/queries/employee-team-assignments"
 
 export interface AssignRoleParams {
-  employeeId: mongoose.Types.ObjectId | string
-  teamId: mongoose.Types.ObjectId | string
-  locationId: mongoose.Types.ObjectId | string
+  employeeId: string
+  teamId: string
+  locationId: string
   validFrom: Date
   validTo: Date | null
-  userId: mongoose.Types.ObjectId | string
+  userId: string
   notes?: string
 }
 
@@ -83,16 +84,16 @@ export class RoleAssignmentManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(employeeId.toString())) {
+      if (!isLikelyObjectIdString(employeeId.toString())) {
         throw new RoleAssignmentError("Invalid employee ID format", 400, "INVALID_EMPLOYEE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+      if (!isLikelyObjectIdString(teamId.toString())) {
         throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(userId.toString())) {
+      if (!isLikelyObjectIdString(userId.toString())) {
         throw new RoleAssignmentError("Invalid user ID format", 400, "INVALID_USER_ID")
       }
 
@@ -122,12 +123,12 @@ export class RoleAssignmentManager {
       // Create the assignment record
       const assignment = EmployeeTeamAssignmentsDbQueries.createDoc({
         tenantId: (employee as any).tenantId,
-        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        teamId: new mongoose.Types.ObjectId(teamId.toString()),
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
+        employeeId: toObjectId(employeeId.toString()),
+        teamId: toObjectId(teamId.toString()),
+        locationId: toObjectId(locationId.toString()),
         validFrom,
         validTo,
-        assignedBy: new mongoose.Types.ObjectId(userId.toString()),
+        assignedBy: toObjectId(userId.toString()),
         assignedAt: new Date(),
         notes: notes || "",
       })
@@ -201,8 +202,8 @@ export class RoleAssignmentManager {
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async endAssignment(
-    assignmentId: mongoose.Types.ObjectId | string,
-    userId: mongoose.Types.ObjectId | string,
+    assignmentId: string,
+    userId: string,
     notes?: string
   ): Promise<void> {
     try {
@@ -215,10 +216,10 @@ export class RoleAssignmentManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(assignmentId.toString())) {
+      if (!isLikelyObjectIdString(assignmentId.toString())) {
         throw new RoleAssignmentError("Invalid assignment ID format", 400, "INVALID_ASSIGNMENT_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(userId.toString())) {
+      if (!isLikelyObjectIdString(userId.toString())) {
         throw new RoleAssignmentError("Invalid user ID format", 400, "INVALID_USER_ID")
       }
 
@@ -332,8 +333,8 @@ export class RoleAssignmentManager {
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async getEmployeeAssignments(
-    employeeId: mongoose.Types.ObjectId | string,
-    locationId?: mongoose.Types.ObjectId | string,
+    employeeId: string,
+    locationId?: string,
     date: Date = new Date(),
     includeInactive: boolean = false
   ): Promise<IEmployeeTeamAssignment[]> {
@@ -344,11 +345,11 @@ export class RoleAssignmentManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(employeeId.toString())) {
+      if (!isLikelyObjectIdString(employeeId.toString())) {
         throw new RoleAssignmentError("Invalid employee ID format", 400, "INVALID_EMPLOYEE_ID")
       }
 
-      if (locationId && !mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (locationId && !isLikelyObjectIdString(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
 
@@ -358,12 +359,12 @@ export class RoleAssignmentManager {
       }
 
       const query: any = {
-        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
+        employeeId: toObjectId(employeeId.toString()),
       }
 
       // Filter by location if provided
       if (locationId) {
-        query.locationId = new mongoose.Types.ObjectId(locationId.toString())
+        query.locationId = toObjectId(locationId.toString())
       }
 
       // Filter by date if not including inactive
@@ -441,8 +442,8 @@ export class RoleAssignmentManager {
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async getEmployeesForRole(
-    teamId: mongoose.Types.ObjectId | string,
-    locationId: mongoose.Types.ObjectId | string,
+    teamId: string,
+    locationId: string,
     date: Date = new Date()
   ): Promise<IEmployeeTeamAssignment[]> {
     try {
@@ -455,10 +456,10 @@ export class RoleAssignmentManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+      if (!isLikelyObjectIdString(teamId.toString())) {
         throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
 
@@ -468,8 +469,8 @@ export class RoleAssignmentManager {
       }
 
       const assignments = await EmployeeTeamAssignmentsDbQueries.find({
-        teamId: new mongoose.Types.ObjectId(teamId.toString()),
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
+        teamId: toObjectId(teamId.toString()),
+        locationId: toObjectId(locationId.toString()),
         validFrom: { $lte: date },
         $or: [
           { validTo: null },
@@ -541,9 +542,9 @@ export class RoleAssignmentManager {
    * @throws RoleAssignmentError with appropriate status code and error message
    */
   async isEmployeeAssigned(
-    employeeId: mongoose.Types.ObjectId | string,
-    teamId: mongoose.Types.ObjectId | string,
-    locationId: mongoose.Types.ObjectId | string,
+    employeeId: string,
+    teamId: string,
+    locationId: string,
     date: Date = new Date()
   ): Promise<boolean> {
     try {
@@ -559,13 +560,13 @@ export class RoleAssignmentManager {
       }
 
       // Validate ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(employeeId.toString())) {
+      if (!isLikelyObjectIdString(employeeId.toString())) {
         throw new RoleAssignmentError("Invalid employee ID format", 400, "INVALID_EMPLOYEE_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(teamId.toString())) {
+      if (!isLikelyObjectIdString(teamId.toString())) {
         throw new RoleAssignmentError("Invalid team ID format", 400, "INVALID_TEAM_ID")
       }
-      if (!mongoose.Types.ObjectId.isValid(locationId.toString())) {
+      if (!isLikelyObjectIdString(locationId.toString())) {
         throw new RoleAssignmentError("Invalid location ID format", 400, "INVALID_LOCATION_ID")
       }
 
@@ -575,9 +576,9 @@ export class RoleAssignmentManager {
       }
 
       const assignment = await EmployeeTeamAssignmentsDbQueries.findOne({
-        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        teamId: new mongoose.Types.ObjectId(teamId.toString()),
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
+        employeeId: toObjectId(employeeId.toString()),
+        teamId: toObjectId(teamId.toString()),
+        locationId: toObjectId(locationId.toString()),
         validFrom: { $lte: date },
         $or: [
           { validTo: null },
@@ -653,9 +654,9 @@ export class RoleAssignmentManager {
    * @returns ValidationResult with valid flag, optional error message, and status code
    */
   async validateAssignment(
-    employeeId: mongoose.Types.ObjectId | string,
-    teamId: mongoose.Types.ObjectId | string,
-    locationId: mongoose.Types.ObjectId | string,
+    employeeId: string,
+    teamId: string,
+    locationId: string,
     validFrom: Date,
     validTo: Date | null
   ): Promise<ValidationResult> {
@@ -736,9 +737,9 @@ export class RoleAssignmentManager {
       // This will be handled by the pre-save hook in the schema,
       // but we can do an early check here for better error messages
       const overlappingQuery: any = {
-        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
-        teamId: new mongoose.Types.ObjectId(teamId.toString()),
-        locationId: new mongoose.Types.ObjectId(locationId.toString()),
+        employeeId: toObjectId(employeeId.toString()),
+        teamId: toObjectId(teamId.toString()),
+        locationId: toObjectId(locationId.toString()),
       }
 
       // Check for date range overlap

@@ -6,6 +6,7 @@ import { IOrgStorageQuota } from "@/lib/db/schemas/org-storage-quota";
 import { IOrgEmailUsage } from "@/lib/db/schemas/org-email-usage";
 import { IQuotaRequest, QuotaRequestType } from "@/lib/db/schemas/quota-request";
 import { createSuperAdminAuditLog } from "@/lib/db/schemas/superadmin-audit-log";
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids";
 export interface QuotaRequestInput {
   requestType: QuotaRequestType;
   requestedQuota: number;
@@ -25,7 +26,7 @@ export class QuotaService {
       const defaultQuota = systemSettings?.defaultStorageQuotaBytes || 2147483648; // 2GB default
 
       quota = await OrgStorageQuotaRepo.create({
-        orgId: String(orgId) as any,
+        orgId,
         usedBytes: 0,
         quotaBytes: defaultQuota,
       });
@@ -46,7 +47,7 @@ export class QuotaService {
       const defaultQuota = systemSettings?.defaultEmailQuotaMonthly || 500;
 
       usage = await OrgEmailUsageRepo.create({
-        orgId: String(orgId) as any,
+        orgId,
         sentCount: 0,
         quotaMonthly: defaultQuota,
         periodStart: this.getMonthStart(),
@@ -175,7 +176,7 @@ export class QuotaService {
     // Mark request as approved
     await QuotaRequestRepo.updateById(requestId, {
       status: "approved",
-      reviewedBy: reviewedBy as any,
+      reviewedBy: toObjectId(reviewedBy),
       reviewedAt: new Date(),
       reviewNote,
     });
@@ -183,7 +184,7 @@ export class QuotaService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: reviewedBy as any,
+      actorId: toObjectId(reviewedBy),
       action: "UPDATE_QUOTA",
       entityType: "QuotaRequest",
       entityId: requestId,
@@ -203,7 +204,7 @@ export class QuotaService {
 
     await QuotaRequestRepo.updateById(requestId, {
       status: "denied",
-      reviewedBy: reviewedBy as any,
+      reviewedBy: toObjectId(reviewedBy),
       reviewedAt: new Date(),
       reviewNote,
     });
@@ -211,7 +212,7 @@ export class QuotaService {
     // Create audit log
     await createSuperAdminAuditLog({
       actor: reviewedBy,
-      actorId: reviewedBy as any,
+      actorId: toObjectId(reviewedBy),
       action: "DENY",
       entityType: "QuotaRequest",
       entityId: requestId,
@@ -248,7 +249,7 @@ export class QuotaService {
 
     // Create the request
     return QuotaRequestRepo.create({
-      orgId: orgId as any,
+      orgId,
       requestType: input.requestType,
       currentQuota,
       requestedQuota: input.requestedQuota,

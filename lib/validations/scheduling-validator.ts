@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 import { IShift } from "../db/schemas/roster"
 import { RoleEnablementManager } from "../managers/role-enablement-manager"
 import { RoleAssignmentManager } from "../managers/role-assignment-manager"
@@ -44,13 +44,13 @@ export class SchedulingValidator {
    * @returns ShiftValidationResult with valid flag and optional error/message
    */
   async validateShift(
-    employeeId: mongoose.Types.ObjectId | string | null,
-    roleId: mongoose.Types.ObjectId | string,
-    locationId: mongoose.Types.ObjectId | string,
+    employeeId: string | null,
+    roleId: string,
+    locationId: string,
     shiftDate: Date
   ): Promise<ShiftValidationResult> {
     // Verify role exists
-    const role = await Team.findById(new mongoose.Types.ObjectId(roleId.toString())).lean()
+    const role = await Team.findById(toObjectId(String(roleId))).lean()
     if (!role) {
       return {
         valid: false,
@@ -60,7 +60,7 @@ export class SchedulingValidator {
     }
 
     // Verify location exists
-    const location = await Location.findById(new mongoose.Types.ObjectId(locationId.toString())).lean()
+    const location = await Location.findById(toObjectId(String(locationId))).lean()
     if (!location) {
       return {
         valid: false,
@@ -71,8 +71,8 @@ export class SchedulingValidator {
 
     // Check if role is enabled at location on shift date
     const roleEnabled = await this.roleEnablementManager.isRoleEnabled(
-      locationId,
-      roleId,
+      String(locationId),
+      String(roleId),
       shiftDate
     )
 
@@ -93,9 +93,7 @@ export class SchedulingValidator {
     }
 
     // Verify employee exists
-    const employee = await Employee.findById(
-      new mongoose.Types.ObjectId(employeeId.toString())
-    )
+    const employee = await Employee.findById(toObjectId(String(employeeId)))
     if (!employee) {
       return {
         valid: false,
@@ -106,9 +104,9 @@ export class SchedulingValidator {
 
     // Check if employee is assigned to role at location on shift date
     const employeeAssigned = await this.roleAssignmentManager.isEmployeeAssigned(
-      employeeId,
-      roleId,
-      locationId,
+      String(employeeId),
+      String(roleId),
+      String(locationId),
       shiftDate
     )
 
@@ -154,9 +152,9 @@ export class SchedulingValidator {
 
     // Validate the shift using validateShift
     const result = await this.validateShift(
-      shift.employeeId,
-      shift.roleId,
-      shift.locationId,
+      shift.employeeId != null && shift.employeeId !== undefined ? String(shift.employeeId) : null,
+      String(shift.roleId),
+      String(shift.locationId),
       shift.date
     )
 
@@ -183,7 +181,7 @@ export class SchedulingValidator {
    */
   async validateRosterGeneration(
     weekId: string,
-    locationId?: mongoose.Types.ObjectId | string
+    locationId?: string
   ): Promise<RosterValidationResult> {
     const warnings: string[] = []
 
@@ -197,9 +195,7 @@ export class SchedulingValidator {
 
     // If locationId is provided, validate it
     if (locationId) {
-      const location = await Location.findById(
-        new mongoose.Types.ObjectId(locationId.toString())
-      ).lean()
+      const location = await Location.findById(toObjectId(String(locationId))).lean()
 
       if (!location) {
         return {
@@ -209,7 +205,7 @@ export class SchedulingValidator {
       }
 
       // Check if location has any enabled roles
-      const enabledRoles = await this.roleEnablementManager.getEnabledRoles(locationId)
+      const enabledRoles = await this.roleEnablementManager.getEnabledRoles(String(locationId))
       if (enabledRoles.length === 0) {
         warnings.push(
           `Location "${location.name}" has no enabled roles. No shifts can be generated for this location.`
@@ -218,8 +214,8 @@ export class SchedulingValidator {
         // Check each enabled role for assigned employees
         for (const enablement of enabledRoles) {
           const employees = await this.roleAssignmentManager.getEmployeesForRole(
-            enablement.roleId,
-            locationId
+            String(enablement.roleId),
+            String(locationId)
           )
           if (employees.length === 0) {
             const role = await Team.findById(enablement.roleId).lean()
@@ -234,7 +230,7 @@ export class SchedulingValidator {
       const locations = await Location.find({}).lean()
 
       for (const location of locations) {
-        const enabledRoles = await this.roleEnablementManager.getEnabledRoles(location._id)
+        const enabledRoles = await this.roleEnablementManager.getEnabledRoles(String(location._id))
         if (enabledRoles.length === 0) {
           warnings.push(
             `Location "${location.name}" has no enabled roles. No shifts can be generated for this location.`
@@ -243,8 +239,8 @@ export class SchedulingValidator {
           // Check each enabled role for assigned employees
           for (const enablement of enabledRoles) {
             const employees = await this.roleAssignmentManager.getEmployeesForRole(
-              enablement.roleId,
-              location._id
+              String(enablement.roleId),
+              String(location._id)
             )
             if (employees.length === 0) {
             const role = await Team.findById(enablement.roleId).lean()

@@ -5,7 +5,7 @@ import { createApiRoute } from "@/lib/api/create-api-route"
 import { connectDB } from "@/lib/db"
 import { Employer } from "@/lib/db/schemas/employer"
 import { errorResponseSchema } from "@/lib/validations/auth"
-import mongoose from "mongoose"
+import { isLikelyObjectIdString } from "@/shared/ids"
 
 const settingsResponseSchema = z.object({
   enableExternalHire: z.boolean(),
@@ -19,7 +19,7 @@ async function findEmployer(tenantId: string | undefined) {
   if (!tenantId) return null
   await connectDB()
   // Try by ObjectId first, then fall back to name (slug) for legacy setups
-  if (mongoose.Types.ObjectId.isValid(tenantId)) {
+  if (isLikelyObjectIdString(tenantId)) {
     return Employer.findById(tenantId).lean()
   }
   return (Employer as any).findOne({ slug: tenantId }).lean()
@@ -76,7 +76,7 @@ export const PATCH = createApiRoute({
     if (!body) return { status: 400, data: { error: "Request body is required" } }
 
     let employer
-    if (auth.tenantId && mongoose.Types.ObjectId.isValid(auth.tenantId)) {
+    if (auth.tenantId && isLikelyObjectIdString(auth.tenantId)) {
       employer = await Employer.findByIdAndUpdate(
         auth.tenantId,
         { $set: { enableExternalHire: body.enableExternalHire } },

@@ -123,13 +123,16 @@ export const SuperAdminAuditLog =
 /**
  * Helper function to create a superadmin audit log entry
  */
+/** Mongoose casts 24-char hex strings to ObjectId for these schema paths. */
+type ObjectIdInput = string | mongoose.Types.ObjectId
+
 export async function createSuperAdminAuditLog(data: {
   actor: string
-  actorId: mongoose.Types.ObjectId
+  actorId: ObjectIdInput
   action: SuperAdminAction
   entityType: string
   entityId: string
-  orgId?: mongoose.Types.ObjectId | null
+  orgId?: ObjectIdInput | null
   previousValue?: any
   newValue?: any
   metadata?: Record<string, any>

@@ -1,7 +1,4 @@
 import { LocationRoleEnablement } from '@/lib/db'
-import mongoose from 'mongoose'
-
-const { ObjectId } = mongoose.Types
 
 /**
  * Validates if a location-role pairing is currently enabled
@@ -12,8 +9,8 @@ export async function validateLocationRolePairing(
   effectiveDate: Date = new Date()
 ): Promise<boolean> {
   const enablement = await LocationRoleEnablement.findOne({
-    locationId: new ObjectId(locationId),
-    roleId: new ObjectId(roleId),
+    locationId,
+    roleId,
     effectiveFrom: { $lte: effectiveDate },
     $or: [
       { effectiveTo: null },
@@ -32,7 +29,7 @@ export async function getEnabledRolesForLocation(
   effectiveDate: Date = new Date()
 ): Promise<string[]> {
   const enablements = await LocationRoleEnablement.find({
-    locationId: new ObjectId(locationId),
+    locationId,
     effectiveFrom: { $lte: effectiveDate },
     $or: [
       { effectiveTo: null },
@@ -51,7 +48,7 @@ export async function getEnabledLocationsForRole(
   effectiveDate: Date = new Date()
 ): Promise<string[]> {
   const enablements = await LocationRoleEnablement.find({
-    roleId: new ObjectId(roleId),
+    roleId,
     effectiveFrom: { $lte: effectiveDate },
     $or: [
       { effectiveTo: null },
@@ -75,8 +72,8 @@ export async function validateLocationRolePairs(
   
   // Build query for all pairs
   const orConditions = pairs.map(pair => ({
-    locationId: new ObjectId(pair.locationId),
-    roleId: new ObjectId(pair.roleId)
+    locationId: pair.locationId,
+    roleId: pair.roleId,
   }))
   
   const enablements = await LocationRoleEnablement.find({

@@ -2,87 +2,67 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useOfflinePinValidation } from "@/lib/hooks/use-offline-pin-validation"
-import { useDeviceAuth } from "@/lib/hooks/use-device-auth"
-
-function formatTime12hr(date: Date) {
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
-}
+import { useDeviceAuthContext } from "@/lib/context/device-auth-context"
 import { PinDisplay } from "@/components/home/PinDisplay"
 import { Numpad } from "@/components/home/Numpad"
 import { cn } from "@/lib/utils/cn"
 
+function formatTime(date: Date) {
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+}
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+}
+
 const PIN_LENGTH = 4
-const HOME_BG = "min-h-dvh bg-dark"
+
 export function Home() {
   const [pin, setPin] = useState("")
-  const [time12, setTime12] = useState(() => formatTime12hr(new Date()))
+  const [time, setTime] = useState(() => formatTime(new Date()))
+  const [date, setDate] = useState(() => formatDate(new Date()))
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [shakeKey, setShakeKey] = useState(0)
   const isMountedRef = useRef(true)
 
-  // Use offline-capable PIN validation
   const { status, errorMessage, isOnline, verifyPin } = useOfflinePinValidation()
-  
-  // Get device info
-  const { deviceInfo } = useDeviceAuth()
+  const { deviceInfo } = useDeviceAuthContext()
 
-  // Clear any stale session data when PIN page loads
   useEffect(() => {
-    try {
-      sessionStorage.removeItem("clock_employee")
-    } catch (err) {
-      console.warn("Failed to clear session storage:", err)
-    }
+    try { sessionStorage.removeItem("clock_employee") } catch {}
   }, [])
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTime12(formatTime12hr(new Date()))
-    }, 60_000)
-    return () => clearInterval(interval)
+    const i = setInterval(() => {
+      const now = new Date()
+      setTime(formatTime(now))
+      setDate(formatDate(now))
+    }, 1000)
+    return () => clearInterval(i)
   }, [])
 
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-    }
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
   }, [])
 
-  // Get user location on mount
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!isMountedRef.current) return
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          })
-        },
-        (error) => {
-          console.warn("Location access denied or unavailable:", error)
-          // Continue without location - backend will handle accordingly
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      )
-    }
+    if (!("geolocation" in navigator)) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (!isMountedRef.current) return
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      (err) => console.warn("Location unavailable:", err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
   }, [])
 
-  // Auto-clear PIN after error timeout
   useEffect(() => {
     if (status === "error") {
-      const timer = setTimeout(() => {
-        setPin("")
-      }, 2000) // Clear PIN after 2 seconds of showing error
-      
-      return () => clearTimeout(timer)
+      setShakeKey((k) => k + 1)
+      const t = setTimeout(() => setPin(""), 2000)
+      return () => clearTimeout(t)
     }
   }, [status])
 
@@ -90,23 +70,14 @@ export function Home() {
     await verifyPin(enteredPin, userLocation || undefined)
   }, [verifyPin, userLocation])
 
-  const handleKeyPress = useCallback(
-    (key: string) => {
-      if (status !== "idle") return
-      if (pin.length >= PIN_LENGTH) return
-
-      // Only allow digits
-      if (!/^\d$/.test(key)) return
-
-      const newPin = pin + key
-      setPin(newPin)
-
-      if (newPin.length === PIN_LENGTH) {
-        verifyPinCallback(newPin)
-      }
-    },
-    [pin, status, verifyPinCallback]
-  )
+  const handleKeyPress = useCallback((key: string) => {
+    if (status !== "idle") return
+    if (pin.length >= PIN_LENGTH) return
+    if (!/^\d$/.test(key)) return
+    const newPin = pin + key
+    setPin(newPin)
+    if (newPin.length === PIN_LENGTH) verifyPinCallback(newPin)
+  }, [pin, status, verifyPinCallback])
 
   const handleDelete = useCallback(() => {
     if (status !== "idle") return
@@ -118,85 +89,117 @@ export function Home() {
     setPin("")
   }, [status])
 
-  if (status === "success") {
-    return (
-      <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
-        <div className="flex flex-col items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
-              {time12}
-            </h1>
-            <p className="text-sm text-white/70">
-              Enter your PIN
-            </p>
-          </div>
-
-          {/* PIN Display - Success State */}
-          <div className="mt-4">
-            <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
-          </div>
-
-          {/* Success message */}
-          <div className="h-6">
-            <p className="text-sm text-emerald-400 font-medium animate-in fade-in duration-200">
-              ✓ Verified! Loading...
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  const statusMessage =
+    status === "error" ? (errorMessage || "Incorrect PIN. Try again.") :
+    status === "success" ? "✓ Verified! Loading..." :
+    status === "verifying" ? "Verifying..." :
+    !isOnline ? "Offline mode" :
+    "Use your 4-digit kiosk PIN"
   return (
-    <div className={cn("relative flex flex-col items-center px-6 pb-8 pt-16", HOME_BG)}>
-      <div className="flex flex-col items-center gap-6">
-      
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="text-2xl font-bold text-white text-balance tabular-nums">
-            {time12}
-          </h1>
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-white/70">
-              Enter your PIN
-            </p>
-            {/* Offline indicator */}
-            {!isOnline && (
-              <div className="flex items-center gap-1 text-xs text-orange-400">
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728m0 0L12 12m-6.364 6.364L12 12m6.364-6.364L12 12" />
-                </svg>
-                Offline
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="pin-screen fixed inset-0 bg-[#07080d] overflow-hidden touch-manipulation select-none">
 
-        {/* PIN Display */}
-        <div className="mt-4">
-          <PinDisplay value={pin} maxLength={PIN_LENGTH} status={status} />
-        </div>
-
-        {/* Status messages */}
-        <div className="h-6">
-          {status === "verifying" && (
-            <p className="animate-pulse text-sm text-white/90">Verifying...</p>
-          )}
-          {status === "error" && errorMessage && (
-            <p className={cn("text-sm text-red-400 animate-in fade-in duration-200")}>
-              {errorMessage}
-            </p>
-          )}
-        </div>
+      {/* Background art */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        <div
+          className="pin-glow-a absolute rounded-full opacity-50"
+          style={{
+            top: "-25vmax", left: "-15vmax",
+            width: "70vmax", height: "70vmax",
+            filter: "blur(90px)",
+            mixBlendMode: "screen",
+            background: "radial-gradient(circle, rgba(110,231,255,0.7), transparent 60%)",
+          }}
+        />
+        <div
+          className="pin-glow-b absolute rounded-full opacity-35"
+          style={{
+            bottom: "-30vmax", right: "-20vmax",
+            width: "70vmax", height: "70vmax",
+            filter: "blur(90px)",
+            mixBlendMode: "screen",
+            background: "radial-gradient(circle, rgba(183,148,255,0.55), transparent 60%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, rgba(255,255,255,0.07) 1px, transparent 1px)," +
+              "linear-gradient(to bottom, rgba(255,255,255,0.07) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            maskImage: "radial-gradient(ellipse at center, black 30%, transparent 80%)",
+          }}
+        />
       </div>
 
-      {/* Numpad */}
-      <div className="w-full max-w-lg">
-        <Numpad
-          onKeyPress={handleKeyPress}
-          onDelete={handleDelete}
-          onClear={handleClear}
-          disabled={status === "verifying" || status === "error"}
-        />
+      {/* Page layout */}
+      <div className="relative z-10 flex flex-col h-dvh">
+
+        {/* Top bar */}
+        <header className="shrink-0 flex items-center justify-between px-6 pt-5 pb-0 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl grid place-items-center border border-white/20 bg-white/5 text-cyan-400 shrink-0">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="11" width="16" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <div className="text-lg font-semibold text-white truncate leading-tight">
+                {deviceInfo?.deviceName ?? "Terminal"}
+              </div>
+              <div className="text-[14px] text-white/45 leading-tight truncate">
+                {deviceInfo?.locationName ?? "Kiosk"}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <div className="font-mono text-lg font-semibold text-white tabular-nums leading-tight">{time}</div>
+            <div className="text-[14px] text-white/45 uppercase tracking-[0.08em] leading-tight">{date}</div>
+          </div>
+        </header>
+
+        {/* Main content */}
+        <main className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 sm:gap-7 px-4 py-2 overflow-y-auto">
+
+          {/* Heading */}
+          <div className="text-center">
+            <p className="text-xs text-white/45 uppercase tracking-[0.12em]">
+              Sign in to continue
+            </p>
+            <h1 className="text-[clamp(1.75rem,5vmin,3rem)] font-semibold text-white tracking-tight leading-tight">
+              Enter your PIN
+            </h1>
+            <p className={cn(
+              "text-sm mt-2 min-h-5 leading-tight transition-colors duration-200",
+              status === "error" && "text-red-400 font-medium",
+              status === "success" && "text-emerald-400",
+              status === "verifying" && "text-white/50 animate-pulse",
+              status === "idle" && !isOnline && "text-orange-400",
+              status === "idle" && isOnline && "text-white/45",
+            )}>
+              {statusMessage}
+            </p>
+          </div>
+
+          {/* PIN display */}
+          <PinDisplay key={shakeKey} value={pin} maxLength={PIN_LENGTH} status={status} />
+
+          {/* Numpad */}
+          <Numpad
+            onKeyPress={handleKeyPress}
+            onDelete={handleDelete}
+            onClear={handleClear}
+            disabled={status !== "idle"}
+          />
+        </main>
+
+        {/* Bottom bar */}
+        <footer className="shrink-0 flex items-center justify-between flex-wrap gap-3 px-6 pb-5 pt-2">
+         
+          <p className="text-xs text-white/25 tracking-wide">PIN forgotten? Ask manager.</p>
+        </footer>
       </div>
     </div>
   )

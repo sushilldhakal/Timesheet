@@ -4,7 +4,7 @@ import { isSuperAdmin } from "@/lib/config/roles"
 import { connectDB } from "@/lib/db"
 import { User } from "@/lib/db/schemas/user"
 import { createSuperAdminAuditLog } from "@/lib/db/schemas/superadmin-audit-log"
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 
 export async function PATCH(
   req: NextRequest,
@@ -48,7 +48,7 @@ export async function PATCH(
     // Create audit log
     await createSuperAdminAuditLog({
       actor: session.email || "unknown",
-      actorId: new mongoose.Types.ObjectId(session.sub),
+      actorId: toObjectId(session.sub),
       action: action === "activate" ? "ACTIVATE_USER" : "DEACTIVATE_USER",
       entityType: "User",
       entityId: userId,

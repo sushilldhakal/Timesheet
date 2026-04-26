@@ -1,6 +1,5 @@
 import Award from "@/lib/db/schemas/award";
 import { Employee } from "@/lib/db/schemas/employee";
-import mongoose from "mongoose";
 
 export interface ResolvedConditions {
   awardId: string;

@@ -1,6 +1,6 @@
-import mongoose from "mongoose"
 import type { ISchedule } from "@/lib/db/queries/scheduling-types"
 import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 
 export interface WorkingHoursConfig {
   standardHoursPerWeek: number
@@ -18,7 +18,7 @@ export class WorkingHoursHierarchy {
    * Priority: Employee_Schedule → Role_Template → Award_Standard
    */
   async resolveWorkingHours(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     // Priority 1: Check Employee Schedule
@@ -47,7 +47,7 @@ export class WorkingHoursHierarchy {
    * Get employee-level schedule configuration
    */
   async getEmployeeSchedule(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
@@ -81,7 +81,7 @@ export class WorkingHoursHierarchy {
    * Uses EmployeeTeamAssignment collection to find active team assignments
    */
   async getRoleTemplate(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {
@@ -89,7 +89,7 @@ export class WorkingHoursHierarchy {
       
       // Get active role assignments for this employee
       const roleAssignments = await EmployeeTeamAssignment.find({
-        employeeId: new mongoose.Types.ObjectId(employeeId.toString()),
+        employeeId: toObjectId(employeeId),
         isActive: true,
       }).populate('teamId').lean()
 
@@ -125,7 +125,7 @@ export class WorkingHoursHierarchy {
    * Get award-level standard hours
    */
   async getAwardStandard(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     organizationId?: string
   ): Promise<WorkingHoursConfig | null> {
     try {

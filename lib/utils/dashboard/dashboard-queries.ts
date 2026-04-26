@@ -1,8 +1,5 @@
 import { EmployeeTeamAssignment, LocationRoleEnablement, DailyShift, Employee } from '@/lib/db'
 import { parseTimeToHour24 } from '@/lib/utils/format/time'
-import mongoose from 'mongoose'
-
-const { ObjectId } = mongoose.Types
 
 function processClockEvent(
   event: any,
@@ -32,17 +29,15 @@ export async function getActiveRoleAssignments(filters: {
   const query: any = {}
   
   if (filters.locationId) {
-    query.locationId = new ObjectId(filters.locationId)
+    query.locationId = filters.locationId
   }
   
   if (filters.roleId) {
-    query.teamId = new ObjectId(filters.roleId)
+    query.teamId = filters.roleId
   }
   
   if (filters.employeeIds) {
-    query.employeeId = { 
-      $in: filters.employeeIds.map(id => new ObjectId(id)) 
-    }
+    query.employeeId = { $in: filters.employeeIds }
   }
   
   // Time-bound filtering
@@ -69,11 +64,11 @@ export async function getEnabledLocationRolePairs(filters: {
   const query: any = {}
   
   if (filters.locationId) {
-    query.locationId = new ObjectId(filters.locationId)
+    query.locationId = filters.locationId
   }
   
   if (filters.roleId) {
-    query.roleId = new ObjectId(filters.roleId)
+    query.roleId = filters.roleId
   }
   
   // Time-bound filtering
@@ -151,13 +146,13 @@ export async function getEmployeeRolesWithHours(
 ): Promise<Map<string, Array<{ roleId: string; roleName: string; hours: number }>>> {
   // Get all active assignments for these employees
   const assignments = await EmployeeTeamAssignment.find({
-    employeeId: { $in: employeeIds.map(id => new ObjectId(id)) },
+    employeeId: { $in: employeeIds },
     isActive: true
   }).populate('teamId').lean()
   
   // Get shift data
   const employees = await Employee.find({
-    _id: { $in: employeeIds.map(id => new ObjectId(id)) }
+    _id: { $in: employeeIds }
   }).select('_id pin').lean()
   
   const pinToId = new Map(employees.map(e => [e.pin, String(e._id)]))

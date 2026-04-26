@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import type { IShift } from "@/lib/db/queries/scheduling-types"
 import { AvailabilityManager } from "./availability-manager"
 import { AbsenceManager } from "./absence-manager"
@@ -137,7 +136,7 @@ export class GapIdentifier {
     for (const employee of casualEmployees) {
       // Check if employee is available for this shift
       const validation = await this.availabilityManager.validateShiftAssignment(
-        employee._id,
+        employee._id.toString(),
         shift.startTime,
         shift.endTime,
         organizationId
@@ -193,7 +192,7 @@ export class GapIdentifier {
     for (const employee of partTimeEmployees) {
       // Check if employee is available for this shift
       const validation = await this.availabilityManager.validateShiftAssignment(
-        employee._id,
+        employee._id.toString(),
         shift.startTime,
         shift.endTime,
         organizationId

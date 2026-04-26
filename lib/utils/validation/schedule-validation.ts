@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 import { ISchedule } from "@/lib/db/schemas/schedule"
 import { Location } from "@/lib/db/schemas/location"
 import { Team } from "@/lib/db/schemas/team"
@@ -137,10 +137,10 @@ export function validateDateOrder(
  * Validates that locationId references an existing location category
  */
 export async function validateLocationReference(
-  locationId: mongoose.Types.ObjectId
+  locationId: string
 ): Promise<ValidationResult> {
   try {
-    const location = await Location.findById(locationId).select("_id").lean()
+    const location = await Location.findById(toObjectId(locationId)).select("_id").lean()
 
     if (!location) {
       return {
@@ -164,10 +164,10 @@ export async function validateLocationReference(
  * Validates that roleId references an existing role category
  */
 export async function validateRoleReference(
-  roleId: mongoose.Types.ObjectId
+  roleId: string
 ): Promise<ValidationResult> {
   try {
-    const role = await Team.findById(roleId).select("_id").lean()
+    const role = await Team.findById(toObjectId(roleId)).select("_id").lean()
 
     if (!role) {
       return {
@@ -225,13 +225,13 @@ export async function validateSchedule(
 
   // Validate location reference
   if (schedule.locationId) {
-    const locationResult = await validateLocationReference(schedule.locationId)
+    const locationResult = await validateLocationReference(String(schedule.locationId))
     if (!locationResult.success) return locationResult
   }
 
   // Validate role reference
   if (schedule.roleId) {
-    const roleResult = await validateRoleReference(schedule.roleId)
+    const roleResult = await validateRoleReference(String(schedule.roleId))
     if (!roleResult.success) return roleResult
   }
 

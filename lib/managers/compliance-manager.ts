@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import type { ComplianceRuleType, IComplianceBreakRule } from "@/lib/db/queries/scheduling-types"
 import { ComplianceRulesDbQueries } from "@/lib/db/queries/compliance-rules"
 
@@ -53,7 +52,7 @@ export class ComplianceManager {
    * @returns Array of compliance violations
    */
   async validateShiftAssignment(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     shiftStart: Date,
     shiftEnd: Date,
     organizationId: string
@@ -151,7 +150,7 @@ export class ComplianceManager {
    * @returns Compliance violation or null if valid
    */
   private async checkRestPeriods(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     shiftStart: Date,
     organizationId: string,
     minRestHours: number,
@@ -178,7 +177,7 @@ export class ComplianceManager {
    * @returns Compliance violation or null if valid
    */
   private async checkConsecutiveDays(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     date: Date,
     organizationId: string,
     maxConsecutiveDays: number,
@@ -206,7 +205,7 @@ export class ComplianceManager {
    * @returns Compliance violation or null if valid
    */
   private async checkMaxHours(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     shiftStart: Date,
     shiftEnd: Date,
     organizationId: string,

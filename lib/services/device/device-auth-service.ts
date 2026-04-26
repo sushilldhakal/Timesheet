@@ -35,10 +35,25 @@ export class DeviceAuthService {
 
   async activate(deviceId: string, activationCode: string) {
     await connectDB();
-    const device = await Device.findOne({ activationCode: activationCode.toUpperCase(), status: "active" });
+    const code = activationCode.toUpperCase();
+    
+    // Find by activation code regardless of status first, to give better error messages
+    const device = await Device.findOne({ activationCode: code }).lean();
     if (!device) {
-      logger.warn(`[api/devices/activate] Invalid activation code: ${activationCode}`);
+      logger.warn(`[api/devices/activate] No device found with activation code: ${code}`);
       return { status: 400, data: { success: false, error: "Invalid activation code" } };
+    }
+
+    if ((device as any).status !== "active") {
+      logger.warn(`[api/devices/activate] Device status is '${(device as any).status}', not active`);
+      return { status: 400, data: { success: false, error: `Device is ${(device as any).status} and cannot be activated` } };
+    }
+
+    // Check expiry
+    const expiry = (device as any).activationCodeExpiry;
+    if (expiry && new Date(expiry) < new Date()) {
+      logger.warn(`[api/devices/activate] Activation code expired at ${expiry}`);
+      return { status: 400, data: { success: false, error: "Activation code has expired. Please generate a new one from the dashboard." } };
     }
 
     if ((device as any).deviceId && (device as any).deviceId !== deviceId) {
@@ -59,7 +74,7 @@ export class DeviceAuthService {
 
     await Device.findByIdAndUpdate((device as any)._id, {
       deviceId,
-      activationCodeExpiry: null,
+      $unset: { activationCodeExpiry: 1 },
       lastActivity: new Date(),
     });
 

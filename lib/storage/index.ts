@@ -9,7 +9,7 @@ import { QuotaService } from "@/lib/services/superadmin/quota-service"
 import { MediaFileRepo } from "@/lib/db/queries/media-file"
 import { StorageQuotaExceededError } from "@/lib/errors/storage-quota-exceeded"
 import { uploadToR2, deleteFromR2 } from "./r2"
-import mongoose from "mongoose"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 
 export type UploadResult = {
   url: string
@@ -103,12 +103,12 @@ export async function uploadFile(
   
   // Insert MediaFile record
   await MediaFileRepo.create({
-    orgId: new mongoose.Types.ObjectId(options.orgId),
+    orgId: toObjectId(options.orgId),
     r2Key,
     originalName: options.filename || 'unknown',
     mimeType: options.mimeType || 'application/octet-stream',
     sizeBytes: fileSize,
-    uploadedBy: new mongoose.Types.ObjectId(options.uploadedBy),
+    uploadedBy: toObjectId(options.uploadedBy),
   })
   
   // Increment storage quota

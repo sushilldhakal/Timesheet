@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { offlineDB, OfflineEmployee } from '@/lib/db/offline-db'
 import { toast } from "sonner"
@@ -38,6 +38,7 @@ export function useOfflinePinValidation() {
   }, [])
 
   useEffect(() => {
+    isMountedRef.current = true
     return () => {
       isMountedRef.current = false
       for (const id of timeoutsRef.current) clearTimeout(id)
@@ -278,17 +279,6 @@ export function useOfflinePinValidation() {
       let geofenceWarning = false
 
       if (isOnline) {
-        // Require location for online logins
-        if (!userLocation) {
-          safeSetStatus("error")
-          safeSetErrorMessage("Location is required. Please allow location access and try again.")
-          scheduleTimeout(() => {
-            safeSetStatus("idle")
-            safeSetErrorMessage("")
-          }, 4000)
-          return
-        }
-
         // Try online first
         try {
           const abortController = new AbortController()
@@ -328,13 +318,13 @@ export function useOfflinePinValidation() {
             employee = employeeData
             punches = data.punches
             isBirthday = data.isBirthday ?? false
-            detectedLocation = data.detectedLocation
+            detectedLocation = data.detectedLocation || data.employee?.location || ""
             geofenceWarning = data.geofenceWarning
 
           } else if (res.status === 403 && data.geofenceViolation) {
             // Handle geofence violation
-            safeSetStatus("error")
             safeSetErrorMessage(data.error)
+            safeSetStatus("error")
             toast.error(data.error)
             scheduleTimeout(() => {
               safeSetStatus("idle")
@@ -342,11 +332,20 @@ export function useOfflinePinValidation() {
             }, 4000)
             return
           } else {
-            throw new Error(data.error ?? "Invalid PIN")
+            // Online auth failed (wrong PIN, etc.) — show error directly, don't fall through to offline
+            const errMsg = data.error ?? "Incorrect PIN. Try again."
+            console.log('[PinValidation] Setting error state:', errMsg, 'isMounted:', isMountedRef.current)
+            safeSetErrorMessage(errMsg)
+            safeSetStatus("error")
+            scheduleTimeout(() => {
+              safeSetStatus("idle")
+              safeSetErrorMessage("")
+            }, 3000)
+            return
           }
         } catch (onlineError) {
+          // Network error — fall back to offline cache
           console.warn("Online PIN validation failed, trying offline:", onlineError)
-          // Fall back to offline validation
         }
       }
 
@@ -399,7 +398,7 @@ export function useOfflinePinValidation() {
           punches: punches ?? { clockIn: "", breakIn: "", breakOut: "", clockOut: "" },
           location: locationToStore, // Store the GPS coordinates
           isBirthday: isBirthday,
-          detectedLocation: detectedLocation || (isOnline ? "Location Unknown" : "Offline Mode"),
+          detectedLocation: detectedLocation || (!isOnline ? "Offline Mode" : ""),
           offline: !isOnline, // Flag to indicate offline mode
         }
         
@@ -479,9 +478,9 @@ export function useOfflinePinValidation() {
       }, 1500)
 
     } catch (error) {
-      safeSetStatus("error")
       const message = error instanceof Error ? error.message : "Network error. Please try again."
       safeSetErrorMessage(message)
+      safeSetStatus("error")
       
       scheduleTimeout(() => {
         safeSetStatus("idle")

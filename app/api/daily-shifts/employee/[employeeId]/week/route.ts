@@ -1,5 +1,5 @@
 import { z } from "zod"
-import mongoose from "mongoose"
+import { isLikelyObjectIdString } from "@/shared/ids"
 import { startOfWeek, endOfWeek } from "date-fns"
 import { createApiRoute } from "@/lib/api/create-api-route"
 import { getAuthWithUserLocations } from "@/lib/auth/auth-api"
@@ -46,7 +46,7 @@ export const GET = createApiRoute({
     }
 
     const employeeId = params!.employeeId
-    if (!mongoose.Types.ObjectId.isValid(employeeId)) throw apiErrors.badRequest("Invalid employeeId")
+    if (!isLikelyObjectIdString(employeeId)) throw apiErrors.badRequest("Invalid employeeId")
 
     await connectDB()
 
@@ -72,7 +72,7 @@ export const GET = createApiRoute({
 
     const DailyShiftScoped = scope(DailyShift as any, String(ctx.tenantId))
     const shifts = await DailyShiftScoped.find({
-      employeeId: new mongoose.Types.ObjectId(employeeId),
+      employeeId,
       date: { $gte: startUTC, $lte: endUTC },
       status: { $ne: "rejected" },
     })

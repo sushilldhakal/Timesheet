@@ -10,55 +10,57 @@ interface PinDisplayProps {
 
 export function PinDisplay({ value, maxLength, status }: PinDisplayProps) {
   return (
-    <div className="flex items-center justify-center gap-4">
+    <div
+      className={cn(
+        "grid gap-3 mt-[-20px]",
+        status === "error" && "animate-shake",
+      )}
+      style={{
+        gridTemplateColumns: `repeat(${maxLength}, var(--pin-key, 80px))`,
+        width: "var(--pin-display-w, auto)",
+      }}
+      role="status"
+      aria-label={`PIN, ${value.length} of ${maxLength} digits entered`}
+    >
       {Array.from({ length: maxLength }).map((_, i) => {
+        const digit = value[i]
         const isFilled = i < value.length
         const isActive = i === value.length && status === "idle"
-
-        // Get success color from CSS variable
-        const successBg = status === "success" && isFilled 
-          ? { 
-              backgroundColor: 'rgba(26, 135, 84, 0.2)', // rgb(var(--success)) with 20% opacity
-              borderColor: 'rgb(26, 135, 84)' // rgb(var(--success))
-            }
-          : {}
-
-        const successText = status === "success" 
-          ? { color: 'rgb(26, 135, 84)' } // rgb(var(--success))
-          : {}
 
         return (
           <div
             key={i}
             className={cn(
-              "relative flex h-24 w-20 sm:w-28 items-center justify-center rounded-xl border-2 text-3xl font-semibold transition-all duration-200",
-              // Error state
-              status === "error" && "animate-shake border-red-400 bg-red-400/10",
-              // Success state - will be overridden by inline styles
-              status === "success" && isFilled && "border-emerald-500 bg-emerald-500/20",
-              // Verifying state
-              status === "verifying" && "border-white/50 bg-white/5",
-              // Idle states
-              status === "idle" && isActive && "border-white bg-white/10 ring-2 ring-white/20",
-              status === "idle" && !isActive && !isFilled && "border-white/30 bg-white/5",
-              status === "idle" && isFilled && "border-white/50 bg-white/10 pin-filled"
+              "relative flex items-end justify-center pb-2 transition-all duration-200",
+              "border-b-2",
+              status === "idle" && !isFilled && !isActive && "border-white/20",
+              status === "idle" && isActive && "border-white",
+              status === "idle" && isFilled && "border-cyan-400/70",
+              status === "verifying" && "border-white/30",
+              status === "error" && "border-red-400",
+              status === "success" && "border-emerald-400",
             )}
-            style={successBg}
+            style={{ height: "calc(var(--pin-key, 80px) * 0.75)" }}
           >
+            {/* Pulsing active bar */}
+            {isActive && (
+              <span className="pin-bar-pulse absolute bottom-[-2px] left-1/4 right-1/4 h-[2px] bg-white rounded-full" />
+            )}
+
+            {/* Digit */}
             {isFilled && (
               <span
+                key={digit + i}
                 className={cn(
-                  "text-white transition-all duration-150",
+                  "pin-digit-enter font-mono font-medium tabular-nums leading-none",
+                  "text-[clamp(1.5rem,4.6vmin,2.75rem)]",
                   status === "error" && "text-red-400",
-                  status === "success" && "text-emerald-500"
+                  status === "success" && "text-emerald-400",
+                  (status === "idle" || status === "verifying") && "text-white",
                 )}
-                style={successText}
               >
-                {value[i]}
+                {digit}
               </span>
-            )}
-            {isActive && !isFilled && (
-              <div className="h-8 w-0.5 animate-pulse rounded-full bg-white" />
             )}
           </div>
         )

@@ -1,6 +1,7 @@
 import { apiErrors } from '@/lib/api/api-error';
 import { logDeviceDisabled, logDeviceRevocation } from '@/lib/auth/auth-logger';
 import { DeviceDbQueries } from '@/lib/db/queries/devices';
+import { Device } from '@/lib/db/schemas/device';
 
 function generateActivationCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -81,31 +82,32 @@ export class DeviceService {
     }
     if (!device) throw apiErrors.notFound('Device not found');
 
+    const id = (device as any)._id;
+    let update: Record<string, any> = {};
+
     switch (action) {
       case 'disable':
-        (device as any).status = 'disabled';
-        logDeviceDisabled((device as any).deviceId || (device as any)._id.toString(), reason);
+        update = { status: 'disabled' };
+        logDeviceDisabled((device as any).deviceId || id.toString(), reason);
         break;
       case 'enable':
         if ((device as any).status === 'revoked') throw apiErrors.badRequest('Cannot enable revoked device');
-        (device as any).status = 'active';
+        update = { status: 'active' };
         break;
       case 'revoke':
-        (device as any).status = 'revoked';
-        (device as any).revokedAt = new Date();
-        (device as any).revokedBy = authSub;
-        (device as any).revocationReason = reason || '';
-        logDeviceRevocation((device as any).deviceId || (device as any)._id.toString(), authSub, reason);
+        update = { status: 'revoked', revokedAt: new Date(), revokedBy: authSub, revocationReason: reason || '' };
+        logDeviceRevocation((device as any).deviceId || id.toString(), authSub, reason);
         break;
       default:
         throw apiErrors.badRequest('Invalid action');
     }
 
-    await (device as any).save();
-    await (device as any).populate('registeredBy', 'name email');
-    await (device as any).populate('revokedBy', 'name email');
+    const updated = await Device.findByIdAndUpdate(id, update, { new: true })
+      .populate('registeredBy', 'name email')
+      .populate('revokedBy', 'name email')
+      .lean();
 
-    return { success: true, device };
+    return { success: true, device: updated };
   }
 
   async deleteDevice(deviceId: string) {
@@ -126,4 +128,3 @@ export class DeviceService {
 }
 
 export const deviceService = new DeviceService();
-

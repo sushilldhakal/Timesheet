@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import type { ISchedule } from "@/lib/db/queries/scheduling-types"
 import { validateSchedule } from "@/lib/utils/validation/schedule-validation"
 import { EmployeeDbQueries } from "@/lib/db/queries/employees"
@@ -16,7 +15,7 @@ export class ScheduleManager {
    * @returns The created schedule or error
    */
   async createSchedule(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     scheduleData: Omit<ISchedule, "_id">
   ): Promise<{ success: true; schedule: ISchedule } | { success: false; error: string; message: string }> {
     try {
@@ -76,8 +75,8 @@ export class ScheduleManager {
    * @returns The updated schedule or error
    */
   async updateSchedule(
-    employeeId: mongoose.Types.ObjectId | string,
-    scheduleId: mongoose.Types.ObjectId | string,
+    employeeId: string,
+    scheduleId: string,
     scheduleData: Partial<Omit<ISchedule, "_id">>
   ): Promise<{ success: true; schedule: ISchedule } | { success: false; error: string; message: string }> {
     try {
@@ -152,8 +151,8 @@ export class ScheduleManager {
    * @returns Success status or error
    */
   async deleteSchedule(
-    employeeId: mongoose.Types.ObjectId | string,
-    scheduleId: mongoose.Types.ObjectId | string
+    employeeId: string,
+    scheduleId: string
   ): Promise<{ success: true } | { success: false; error: string; message: string }> {
     try {
       // Find the employee
@@ -202,7 +201,7 @@ export class ScheduleManager {
    * @returns Array of active schedules
    */
   async getActiveSchedules(
-    employeeId: mongoose.Types.ObjectId | string,
+    employeeId: string,
     date: Date
   ): Promise<{ success: true; schedules: ISchedule[] } | { success: false; error: string; message: string }> {
     try {

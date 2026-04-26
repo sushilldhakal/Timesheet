@@ -1,6 +1,8 @@
-import mongoose from "mongoose"
+import type { Document, Types } from "mongoose"
 import { addDays } from "date-fns"
 import type { IShift, IEmployeeDocument } from "@/lib/db/queries/scheduling-types"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
+import { newObjectIdHexString } from "@/shared/ids"
 import { WorkingHoursHierarchy, WorkingHoursConfig } from "./working-hours-hierarchy"
 import { AvailabilityManager } from "./availability-manager"
 import { ComplianceManager } from "./compliance-manager"
@@ -98,8 +100,8 @@ export class AutoFillEngine {
       skippedEmployees: [],
     }
 
-    const locOid = new mongoose.Types.ObjectId(locationId)
-    const roleOids = managedRoleIds.map((id) => new mongoose.Types.ObjectId(id))
+    const locOid = toObjectId(locationId)
+    const roleOids = managedRoleIds.map((id) => toObjectId(id))
     if (roleOids.length === 0) {
       return result
     }
@@ -140,10 +142,10 @@ export class AutoFillEngine {
     }).lean()
 
     const employeeIds: string[] = Array.from(new Set(assignments.map((a: any) => a.employeeId.toString() as string)))
-    const employees = await SchedulingModels.Employee.find({ _id: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    const employees = await SchedulingModels.Employee.find({ _id: { $in: employeeIds.map((id) => toObjectId(id)) } })
 
     const constraints = await SchedulingModels.AvailabilityConstraint.find({
-      employeeId: { $in: employeeIds.map((id) => new mongoose.Types.ObjectId(id)) },
+      employeeId: { $in: employeeIds.map((id) => toObjectId(id)) },
     }).lean()
 
     const unavailableByEmployee = new Map<string, Set<number>>()
@@ -185,7 +187,7 @@ export class AutoFillEngine {
       const empAssignments = assignments.filter((a: any) => a.employeeId.toString() === employee._id.toString())
 
       for (const a of empAssignments) {
-        if (!roleOids.some((r) => r.equals(a.teamId as mongoose.Types.ObjectId))) continue
+        if (!roleOids.some((r) => r.toString() === String(a.teamId))) continue
 
         const role = await SchedulingModels.Team.findById(a.teamId)
         if (!role) continue
@@ -213,10 +215,10 @@ export class AutoFillEngine {
 
   private async fillForAssignment(ctx: {
     employee: IEmployeeDocument
-    roster: mongoose.Document & { weekStartDate: Date; weekEndDate: Date; shifts: IShift[] }
+    roster: Document & { weekStartDate: Date; weekEndDate: Date; shifts: IShift[] }
     workingHours: WorkingHoursConfig
-    role: mongoose.Document & { _id: mongoose.Types.ObjectId; defaultScheduleTemplate?: { shiftPattern?: { dayOfWeek?: number[]; startHour?: number; endHour?: number }; standardHoursPerWeek?: number } }
-    locationDoc: mongoose.Document & { _id: mongoose.Types.ObjectId; openingHour?: number; closingHour?: number; workingDays?: number[] }
+    role: Document & { _id: Types.ObjectId; defaultScheduleTemplate?: { shiftPattern?: { dayOfWeek?: number[]; startHour?: number; endHour?: number }; standardHoursPerWeek?: number } }
+    locationDoc: Document & { _id: Types.ObjectId; openingHour?: number; closingHour?: number; workingDays?: number[] }
     locationStartHour: number
     locationEndHour: number
     locationWorkingDays: number[]
@@ -263,9 +265,15 @@ export class AutoFillEngine {
     let roleEndHour = 17
 
     if (workingHours.source === "employee" && workingHours.shiftPattern) {
-      const sch = workingHours.shiftPattern as { dayOfWeek?: number[]; startTime?: Date; endTime?: Date; locationId?: mongoose.Types.ObjectId; roleId?: mongoose.Types.ObjectId }
+      const sch = workingHours.shiftPattern as {
+        dayOfWeek?: number[]
+        startTime?: Date
+        endTime?: Date
+        locationId?: Types.ObjectId
+        roleId?: Types.ObjectId
+      }
       const locMatch = sch.locationId?.toString() === ctx.locationDoc._id.toString()
-      const roleMatch = sch.roleId?.equals(role._id)
+      const roleMatch = sch.roleId?.toString() === role._id.toString()
       if (locMatch && roleMatch && sch.dayOfWeek?.length) {
         roleDays = [...sch.dayOfWeek]
         if (sch.startTime) roleStartHour = sch.startTime.getHours() + sch.startTime.getMinutes() / 60
@@ -390,9 +398,9 @@ export class AutoFillEngine {
       }
 
       const validation = await this.schedulingValidator.validateShift(
-        employee._id,
-        role._id,
-        ctx.locationDoc._id,
+        String(employee._id),
+        String(role._id),
+        String(ctx.locationDoc._id),
         shiftDate
       )
       if (!validation.valid) {
@@ -407,13 +415,13 @@ export class AutoFillEngine {
 
       const orgKey = employee.employer?.[0] ?? ""
       const availabilityValidation = await this.availabilityManager.validateShiftAssignment(
-        employee._id,
+        employee._id.toString(),
         shiftStartTime,
         shiftEndTime,
         orgKey
       )
       const complianceViolations = await this.complianceManager.validateShiftAssignment(
-        employee._id,
+        employee._id.toString(),
         shiftStartTime,
         shiftEndTime,
         orgKey
@@ -446,7 +454,7 @@ export class AutoFillEngine {
       )
 
       const newShift: IShift = {
-        _id: new mongoose.Types.ObjectId(),
+        _id: toObjectId(newObjectIdHexString()),
         employeeId: employee._id,
         date: shiftDate,
         startTime: shiftStartTime,

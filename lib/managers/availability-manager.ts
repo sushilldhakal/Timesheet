@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import { AvailabilityDbQueries } from "@/lib/db/queries/availability"
 import { EmployeeDbQueries } from "@/lib/db/queries/employees"
 
@@ -23,7 +22,7 @@ export class AvailabilityManager {
    * @returns ValidationResult with violations if any
    */
   async validateShiftAssignment(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     shiftStart: Date,
     shiftEnd: Date,
     tenantId: string
@@ -142,7 +141,7 @@ export class AvailabilityManager {
     const availableEmployees = []
     for (const employee of employees) {
       const validation = await this.validateShiftAssignment(
-        employee._id,
+        employee._id.toString(),
         shiftStart,
         shiftEnd,
         tenantId
@@ -164,7 +163,7 @@ export class AvailabilityManager {
    * @returns Violation message or null if valid
    */
   private async checkConsecutiveDays(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     date: Date,
     tenantId: string,
     maxConsecutiveDays: number
@@ -189,7 +188,7 @@ export class AvailabilityManager {
    * @returns Violation message or null if valid
    */
   private async checkRestPeriod(
-    employeeId: string | mongoose.Types.ObjectId,
+    employeeId: string,
     shiftStart: Date,
     tenantId: string,
     minRestHours: number

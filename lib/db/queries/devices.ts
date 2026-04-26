@@ -2,7 +2,7 @@ import { Device } from '@/lib/db/schemas/device';
 
 export class DeviceDbQueries {
   static async findByActivationCode(code: string) {
-    return Device.findOne({ activationCode: code });
+    return Device.findOne({ activationCode: code }).lean();
   }
 
   static async createDevice(data: any) {
@@ -18,11 +18,11 @@ export class DeviceDbQueries {
   }
 
   static async findByDeviceId(deviceId: string) {
-    return Device.findOne({ deviceId });
+    return Device.findOne({ deviceId }).lean();
   }
 
   static async findById(id: string) {
-    return Device.findById(id);
+    return Device.findById(id).lean();
   }
 
   static async deleteById(id: string) {

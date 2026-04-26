@@ -1,6 +1,8 @@
-import mongoose from "mongoose"
+import type { Types } from "mongoose"
 import type { IRoster, IShift, IEmployeeDocument, ISchedule } from "@/lib/db/queries/scheduling-types"
 import { getISOWeek, getISOWeekYear, addDays } from "date-fns"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
+import { newObjectIdHexString } from "@/shared/ids"
 import { SchedulingValidator } from "../validations/scheduling-validator"
 import { setTimeFromDecimalHours } from "../utils/format/decimal-hours"
 import { SchedulingModels } from "@/lib/db/queries/scheduling-models"
@@ -130,7 +132,7 @@ export class RosterManager {
         const EmployeeTeamAssignment = (SchedulingModels as any).EmployeeTeamAssignment
         
         // Find employees who have role assignments at the specified locations
-        const locationObjectIds = locationIds.map(id => new mongoose.Types.ObjectId(id))
+        const locationObjectIds = locationIds.map((id) => toObjectId(id))
         const roleAssignments = await EmployeeTeamAssignment.find({
           locationId: { $in: locationObjectIds },
           isActive: true,
@@ -162,7 +164,7 @@ export class RosterManager {
 
 
         // Try to resolve working hours using three-tier hierarchy
-        const workingHoursConfig = await workingHoursHierarchy.resolveWorkingHours(employee._id)
+        const workingHoursConfig = await workingHoursHierarchy.resolveWorkingHours(employee._id.toString())
         
         if (!workingHoursConfig) {
           skippedEmployees.push({
@@ -288,9 +290,9 @@ export class RosterManager {
 
       // Validate role assignment before creating shift
       const validationResult = await this.schedulingValidator.validateShift(
-        employee._id,
-        schedule.roleId,
-        schedule.locationId,
+        String(employee._id),
+        String(schedule.roleId),
+        String(schedule.locationId),
         shiftDate
       )
 
@@ -357,7 +359,7 @@ export class RosterManager {
 
       // Create the shift
       const shift: IShift = {
-        _id: new mongoose.Types.ObjectId(),
+        _id: toObjectId(newObjectIdHexString()),
         employeeId: employee._id,
         date: shiftDate,
         startTime: shiftStartTime,
@@ -398,9 +400,8 @@ export class RosterManager {
       
       // Filter by location if specified
       if (locationIds && locationIds.length > 0) {
-        const mongoose = await import("mongoose")
-        assignmentQuery.locationId = { 
-          $in: locationIds.map(id => new mongoose.Types.ObjectId(id)) 
+        assignmentQuery.locationId = {
+          $in: locationIds.map((id) => toObjectId(id)),
         }
       }
       
@@ -513,9 +514,9 @@ export class RosterManager {
 
           // Validate role assignment before creating shift
           const validationResult = await this.schedulingValidator.validateShift(
-            employee._id,
-            role._id,
-            location._id,
+            String(employee._id),
+            String(role._id),
+            String(location._id),
             shiftDate
           )
 
@@ -546,7 +547,7 @@ export class RosterManager {
 
           // Create the shift
           const shift: IShift = {
-            _id: new mongoose.Types.ObjectId(),
+            _id: toObjectId(newObjectIdHexString()),
             employeeId: employee._id,
             date: shiftDate,
             startTime: shiftStartTime,
@@ -578,12 +579,12 @@ export class RosterManager {
    */
   async calculateShiftCost(
     shift: {
-      employeeId: mongoose.Types.ObjectId | null
+      employeeId: Types.ObjectId | null
       date: Date
       startTime: Date
       endTime: Date
-      locationId: mongoose.Types.ObjectId
-      roleId: mongoose.Types.ObjectId
+      locationId: Types.ObjectId
+      roleId: Types.ObjectId
     },
     employee: IEmployeeDocument
   ): Promise<number> {
@@ -731,13 +732,13 @@ export class RosterManager {
   async addShift(
     weekId: string,
     shiftData: {
-      employeeId?: mongoose.Types.ObjectId | null
+      employeeId?: Types.ObjectId | null
       date: Date
       startTime: Date
       endTime: Date
-      locationId: mongoose.Types.ObjectId
-      roleId: mongoose.Types.ObjectId
-      sourceScheduleId?: mongoose.Types.ObjectId | null
+      locationId: Types.ObjectId
+      roleId: Types.ObjectId
+      sourceScheduleId?: Types.ObjectId | null
       notes?: string
     }
   ): Promise<{ success: true; shift: IShift } | { success: false; error: string; message: string }> {
@@ -764,9 +765,11 @@ export class RosterManager {
 
       // Validate role/location/employee using SchedulingValidator
       const schedulingValidationResult = await this.schedulingValidator.validateShift(
-        shiftData.employeeId ?? null,
-        shiftData.roleId,
-        shiftData.locationId,
+        shiftData.employeeId != null && shiftData.employeeId !== undefined
+          ? String(shiftData.employeeId)
+          : null,
+        String(shiftData.roleId),
+        String(shiftData.locationId),
         shiftData.date
       )
 
@@ -799,7 +802,7 @@ export class RosterManager {
 
       // Create the new shift
       const newShift: IShift = {
-        _id: new mongoose.Types.ObjectId(),
+        _id: toObjectId(newObjectIdHexString()),
         employeeId: shiftData.employeeId ?? null,
         date: shiftData.date,
         startTime: shiftData.startTime,
@@ -838,15 +841,15 @@ export class RosterManager {
    */
   async updateShift(
     weekId: string,
-    shiftId: mongoose.Types.ObjectId | string,
+    shiftId: Types.ObjectId | string,
     shiftData: Partial<{
-      employeeId: mongoose.Types.ObjectId | null
+      employeeId: Types.ObjectId | null
       date: Date
       startTime: Date
       endTime: Date
-      locationId: mongoose.Types.ObjectId
-      roleId: mongoose.Types.ObjectId
-      sourceScheduleId: mongoose.Types.ObjectId | null
+      locationId: Types.ObjectId
+      roleId: Types.ObjectId
+      sourceScheduleId: Types.ObjectId | null
       notes: string
       status: "draft" | "published"
     }>
@@ -906,9 +909,11 @@ export class RosterManager {
 
       // Validate role/location/employee using SchedulingValidator
       const schedulingValidationResult = await this.schedulingValidator.validateShift(
-        updatedShiftData.employeeId,
-        updatedShiftData.roleId,
-        updatedShiftData.locationId,
+        updatedShiftData.employeeId != null && updatedShiftData.employeeId !== undefined
+          ? String(updatedShiftData.employeeId)
+          : null,
+        String(updatedShiftData.roleId),
+        String(updatedShiftData.locationId),
         updatedShiftData.date
       )
 
@@ -981,7 +986,7 @@ export class RosterManager {
    */
   async deleteShift(
     weekId: string,
-    shiftId: mongoose.Types.ObjectId | string
+    shiftId: Types.ObjectId | string
   ): Promise<{ success: true } | { success: false; error: string; message: string }> {
     try {
       // Find the roster
@@ -1029,12 +1034,12 @@ export class RosterManager {
    */
   async validateShift(
     shiftData: {
-      employeeId?: mongoose.Types.ObjectId | null
+      employeeId?: Types.ObjectId | null
       date: Date
       startTime: Date
       endTime: Date
-      locationId: mongoose.Types.ObjectId
-      roleId: mongoose.Types.ObjectId
+      locationId: Types.ObjectId
+      roleId: Types.ObjectId
     },
     weekId: string
   ): Promise<{ valid: boolean; error?: string; message?: string }> {
@@ -1095,8 +1100,8 @@ export class RosterManager {
      */
     async publishShiftsInScope(
       weekId: string,
-      locationId: mongoose.Types.ObjectId | string,
-      roleIds: Array<mongoose.Types.ObjectId | string>
+      locationId: Types.ObjectId | string,
+      roleIds: Array<Types.ObjectId | string>
     ): Promise<{ success: true; roster: IRoster; publishedCount: number } | { success: false; error: string; message: string }> {
       try {
         const roster = await SchedulingModels.Roster.findOne({ weekId })
@@ -1291,7 +1296,7 @@ export class RosterManager {
           }
 
           const copiedShift: IShift = {
-            _id: new mongoose.Types.ObjectId(),
+            _id: toObjectId(newObjectIdHexString()),
             employeeId: sourceShift.employeeId,
             date: newShiftDate,
             startTime: newStartTime,

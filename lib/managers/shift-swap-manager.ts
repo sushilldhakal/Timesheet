@@ -1,5 +1,6 @@
-import mongoose from "mongoose"
 import type { IShiftSwapRequest, SwapStatus } from "@/lib/db/queries/scheduling-types"
+import { startMongoSession } from "@/infrastructure/db/mongo/mongo-session"
+import { toObjectId } from "@/infrastructure/db/mongo/mongo-ids"
 import { AvailabilityManager } from "./availability-manager"
 import { ComplianceManager } from "./compliance-manager"
 import { WorkforceModels } from "@/lib/db/queries/workforce-models"
@@ -32,16 +33,16 @@ export class ShiftSwapManager {
     reason?: string
   ): Promise<IShiftSwapRequest> {
     const swapRequest = await WorkforceModels.ShiftSwapRequest.create({
-      requestorId: new mongoose.Types.ObjectId(requestorId),
-      recipientId: new mongoose.Types.ObjectId(recipientId),
-      requestorShiftId: new mongoose.Types.ObjectId(shiftAssignmentId),
+      requestorId: toObjectId(requestorId),
+      recipientId: toObjectId(recipientId),
+      requestorShiftId: toObjectId(shiftAssignmentId),
       status: "PENDING_RECIPIENT",
       requestedAt: new Date(),
       reason: reason || "",
       auditLog: [
         {
           action: "CREATED",
-          userId: new mongoose.Types.ObjectId(requestorId),
+          userId: toObjectId(requestorId),
           timestamp: new Date(),
           details: "Swap request created",
         },
@@ -78,7 +79,7 @@ export class ShiftSwapManager {
     swapRequest.recipientAcceptedAt = new Date()
     swapRequest.auditLog.push({
       action: "ACCEPTED_BY_RECIPIENT",
-      userId: new mongoose.Types.ObjectId(recipientId),
+      userId: toObjectId(recipientId),
       timestamp: new Date(),
       details: "Recipient accepted the swap",
     })
@@ -122,10 +123,10 @@ export class ShiftSwapManager {
 
     swapRequest.status = "APPROVED"
     swapRequest.managerApprovedAt = new Date()
-    swapRequest.managerApprovedBy = new mongoose.Types.ObjectId(managerId)
+    swapRequest.managerApprovedBy = toObjectId(managerId)
     swapRequest.auditLog.push({
       action: "APPROVED_BY_MANAGER",
-      userId: new mongoose.Types.ObjectId(managerId),
+      userId: toObjectId(managerId),
       timestamp: new Date(),
       details: "Manager approved the swap",
     })
@@ -157,11 +158,11 @@ export class ShiftSwapManager {
 
     swapRequest.status = "DENIED"
     swapRequest.deniedAt = new Date()
-    swapRequest.deniedBy = new mongoose.Types.ObjectId(managerId)
+    swapRequest.deniedBy = toObjectId(managerId)
     swapRequest.denialReason = reason
     swapRequest.auditLog.push({
       action: "DENIED_BY_MANAGER",
-      userId: new mongoose.Types.ObjectId(managerId),
+      userId: toObjectId(managerId),
       timestamp: new Date(),
       details: `Manager denied the swap: ${reason}`,
     })
@@ -185,7 +186,7 @@ export class ShiftSwapManager {
     }
 
     // Use a transaction to atomically swap the employee assignments
-    const session = await mongoose.startSession()
+    const session = await startMongoSession()
     session.startTransaction()
 
     try {
@@ -224,7 +225,7 @@ export class ShiftSwapManager {
     }
 
     if (employeeId) {
-      const empId = new mongoose.Types.ObjectId(employeeId)
+      const empId = toObjectId(employeeId)
       query.$or = [{ requestorId: empId }, { recipientId: empId }]
     }
 

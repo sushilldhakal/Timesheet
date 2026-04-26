@@ -10,7 +10,12 @@ export class OrgEmailUsageRepo {
     return OrgEmailUsage.find(filter).lean() as unknown as IOrgEmailUsage[];
   }
 
-  static async create(data: Partial<IOrgEmailUsage>): Promise<IOrgEmailUsage> {
+  static async create(data: {
+    orgId: string | mongoose.Types.ObjectId
+    sentCount?: number
+    quotaMonthly: number
+    periodStart: Date
+  }): Promise<IOrgEmailUsage> {
     const usage = new OrgEmailUsage(data);
     return usage.save();
   }
